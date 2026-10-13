@@ -62,6 +62,8 @@ fn modular_rack_native_file_library_capture_and_apply_preserve_parameter_address
             position: [0.0; 2],
             muted: false,
             solo: false,
+            hosted: None,
+            asset: None,
             processor: RackProcessor::Note {
                 module: RackNoteModule::Envelope {
                     params: Default::default(),

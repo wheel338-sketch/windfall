@@ -96,6 +96,8 @@ fn scripted_short_long_and_duplicated_durations_match_manual_score_live_and_offl
                     position: [0.0; 2],
                     muted: false,
                     solo: false,
+                    hosted: None,
+                    asset: None,
                     processor,
                 };
                 let wire = |from, port, to, input| RackEdge {

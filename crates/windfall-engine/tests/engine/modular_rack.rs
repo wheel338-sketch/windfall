@@ -17,6 +17,8 @@ fn node(id: u32, processor: RackProcessor) -> RackNode {
         position: [0.0; 2],
         muted: false,
         solo: false,
+        hosted: None,
+        asset: None,
         processor,
     }
 }
@@ -102,6 +104,105 @@ fn start(dsp: &mut AnyInstrument, id: u64, note: RackNote) {
         note.expression,
     );
     dsp.set_note_gain(NoteInstanceId(id), note.gain);
+}
+
+#[test]
+fn owned_rack_impulse_matches_standalone_convolver_pcm_and_latency_without_callback_allocation() {
+    use windfall_project::{ConvolverImpulse, EffectKind, RackNodeAsset};
+    let impulse = ConvolverImpulse { name: "Original test IR".into(), sample_rate: RATE, group_delay: 0, eq_gains: None, frames: vec![[1.0, 0.5], [0.25, -0.125], [0.125, 0.25]] };
+    let params = EffectKind::Convolver.default_params();
+    let mut rack_graph = RackGraph { next_id: 4, nodes: vec![node(1, RackProcessor::AudioInput), node(2, RackProcessor::Effect { params, mix: 1.0 }), node(3, RackProcessor::AudioOutput)], edges: vec![wire(1, AUDIO_OUT, 2, AUDIO_IN), wire(2, AUDIO_OUT, 3, AUDIO_IN)], ..Default::default() };
+    rack_graph.nodes[1].asset = Some(RackNodeAsset::Impulse { impulse: impulse.clone() });
+    let preset = windfall_project::RackPreset::new("IR rack".into(), rack_graph.clone()).unwrap();
+    let reopened = windfall_project::RackPreset::from_json(&preset.to_json().unwrap()).unwrap();
+    for size in [1, 17, 127, 256] {
+        let mut rack = ModularRack::prepare(&reopened.graph, RATE, 120.0).unwrap();
+        let prepared = windfall_dsp::spectral::PreparedImpulse::prepare_with_delay(&impulse.frames, 0).unwrap();
+        let mut standalone = windfall_dsp::EffectSlot::new(AnyEffect::Convolver(Box::new(windfall_dsp::spectral::Convolver::with_impulse(std::sync::Arc::new(prepared)))));
+        standalone.prepare(RATE as f32, 1); standalone.set_params(&params); standalone.set_mix(1.0);
+        assert_eq!(rack.latency_samples(), standalone.latency_samples());
+        assert_eq!(rack_graph.latency_samples(RATE as f32), rack.latency_samples());
+        let mut actual = vec![0.0; 1024]; let mut right = actual.clone();
+        let mut expected = actual.clone(); let mut expected_right = actual.clone();
+        actual[0] = 1.0; right[0] = 0.75; expected[0] = 1.0; expected_right[0] = 0.75;
+        let calls = allocator_calls(|| {
+            for at in (0..actual.len()).step_by(size) {
+                let end = (at + size).min(actual.len());
+                rack.process(&mut actual[at..end], &mut right[at..end]);
+                standalone.process(&mut expected[at..end], &mut expected_right[at..end]);
+            }
+        });
+        assert_eq!(calls, 0);
+        close(&actual, &expected); close(&right, &expected_right);
+        assert!(actual.iter().map(|v| v*v).sum::<f32>() > 0.5);
+        assert!((actual.iter().sum::<f32>() - 1.375).abs() < 2e-6);
+    }
+}
+
+#[test]
+fn owned_rack_sample_bank_matches_standalone_and_missing_bank_relinks_to_measured_audio() {
+    use windfall_project::{InstrumentKind, RackAudioAsset, RackNodeAsset, RackSampleZone};
+    use windfall_dsp::sample_bank::{LoadedZone, SampleBank, SampleZone};
+    let params = InstrumentKind::MultiSampler.default_params();
+    let mapping = SampleZone { release_ms: 1.0, ..Default::default() };
+    let frames: Vec<[f32; 2]> = (0..512).map(|at| { let value = (at as f32 * 0.13).sin() * 0.3; [value, -value * 0.5] }).collect();
+    let mut rack_graph = graph(None);
+    rack_graph.nodes[1].processor = RackProcessor::Instrument { params };
+    rack_graph.nodes[1].asset = Some(RackNodeAsset::Zones { zones: vec![RackSampleZone { mapping, audio: RackAudioAsset { name: "Owned sample".into(), sample_rate: RATE, frames: None } }] });
+    let mut missing = ModularRack::prepare(&rack_graph, RATE, 120.0).unwrap();
+    missing.note_on(NoteInstanceId(10), RackNote::default());
+    assert!(audio(&mut missing, 1024, 127).iter().all(|v| *v == 0.0));
+    let Some(RackNodeAsset::Zones { zones }) = &mut rack_graph.nodes[1].asset else { unreachable!() };
+    zones[0].audio.frames = Some(frames.clone());
+    let portable = windfall_project::RackPreset::from_json(&windfall_project::RackPreset::new("Sample rack".into(), rack_graph).unwrap().to_json().unwrap()).unwrap().graph;
+    for size in [1, 17, 127] {
+        let mut rack = ModularRack::prepare(&portable, RATE, 120.0).unwrap();
+        let mut dsp = AnyInstrument::new(&params);
+        assert!(dsp.install_sample_bank(std::sync::Arc::new(SampleBank::new(vec![LoadedZone { mapping, audio: windfall_core::AudioBuffer::from_interleaved(RATE, 2, frames.iter().flatten().copied().collect()) }]).unwrap())));
+        dsp.prepare(RATE as f32, 1); dsp.set_params(&params); dsp.set_tempo(120.0);
+        rack.note_on(NoteInstanceId(10), RackNote::default()); start(&mut dsp, 1, RackNote::default());
+        let actual = audio(&mut rack, 1024, size);
+        close(&actual, &reference(&mut dsp, 1024));
+        assert!(actual.iter().map(|v| v*v).sum::<f32>() > 0.01);
+        let mut left = [0.0; 127]; let mut right = [0.0; 127];
+        assert_eq!(allocator_calls(|| { rack.note_off(NoteInstanceId(10)); rack.process(&mut left, &mut right); rack.reset(); }), 0);
+    }
+}
+
+#[test]
+fn replaced_owned_rack_ir_finishes_its_delayed_audio_and_retires_without_callback_free() {
+    use super::support::{Rig, run};
+    use windfall_project::{ChannelRack, ConvolverImpulse, EffectKind, RackNodeAsset, TrackId};
+    let mut rig = Rig::new();
+    let channel = rig.synth_on(plain_synth(), TrackId::MASTER);
+    let mut frames = vec![[0.0; 2]; 2049]; frames[2048] = [1.0; 2];
+    let mut rack_graph = RackGraph { next_id: 4, nodes: vec![node(1, RackProcessor::AudioInput), node(2, RackProcessor::Effect { params: EffectKind::Convolver.default_params(), mix: 1.0 }), node(3, RackProcessor::AudioOutput)], edges: vec![wire(1, AUDIO_OUT, 2, AUDIO_IN), wire(2, AUDIO_OUT, 3, AUDIO_IN)], ..Default::default() };
+    rack_graph.nodes[1].asset = Some(RackNodeAsset::Impulse { impulse: ConvolverImpulse { name: "Delayed original".into(), sample_rate: RATE, group_delay: 0, eq_gains: None, frames } });
+    rig.project.settings.modular_racks.push(ChannelRack { channel, graph: rack_graph });
+    let (mut processor, controller) = rig.processor(RATE);
+    controller.note_on(channel, 60, 1.0);
+    assert!(run(&mut processor, 512, 127).iter().all(|v| v.abs() < 1e-6));
+    rig.project.settings.modular_racks[0].graph.nodes[1].asset = Some(RackNodeAsset::Impulse { impulse: ConvolverImpulse { name: "Silent replacement".into(), sample_rate: RATE, group_delay: 0, eq_gains: None, frames: vec![[0.0; 2]] } });
+    controller.set_project(&rig.project, &rig.pool);
+    controller.note_off(channel, 60);
+    let mut block = [0.0; 254];
+    assert_eq!(allocator_calls(|| processor.process(&mut block)), 0);
+    let tail = run(&mut processor, 4096, 127);
+    assert!(tail.iter().any(|v| v.abs() > 0.01), "outgoing IR history must survive replacing the owned asset");
+    run(&mut processor, 8192, 127);
+    assert_eq!(allocator_calls(|| processor.process(&mut block)), 0);
+    assert!(block.iter().all(|v| v.abs() < 1e-6));
+    controller.frame(); // control-side queue collection/destruction
+}
+
+#[test]
+fn rack_default_piano_prepares_the_standalone_original_bank_before_first_note() {
+    let mut rack_graph = graph(None);
+    rack_graph.nodes[1].processor = RackProcessor::Instrument { params: windfall_project::InstrumentKind::PianoKeys.default_params() };
+    let mut rack = ModularRack::prepare(&rack_graph, RATE, 120.0).unwrap();
+    let mut left = [0.0; 1024]; let mut right = left;
+    assert_eq!(allocator_calls(|| { rack.note_on(NoteInstanceId(1), RackNote::default()); rack.process(&mut left, &mut right); rack.note_off(NoteInstanceId(1)); }), 0);
+    assert!(left.iter().map(|v| v*v).sum::<f32>() > 0.01);
 }
 
 #[test]

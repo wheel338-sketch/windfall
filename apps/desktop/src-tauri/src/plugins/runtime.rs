@@ -558,6 +558,10 @@ fn maintain_owner(
             owner.bridges.remove(&token);
         }
         for (token, record) in &mut owner.bridges {
+            if record.editor_open && selected(&owner.selection, record.binding.target) != Some(*token) {
+                let _ = record.control.editor(false);
+                record.editor_open = false;
+            }
             if record.playback
                 && selected(&owner.selection, record.binding.target) == Some(*token)
                 && record.revision == owner_revision.load(std::sync::atomic::Ordering::Acquire)
@@ -611,6 +615,7 @@ fn maintain_owner(
         }
         let target = &record.target;
         let instance = &mut record.plugin;
+        if record.playback && selected(&selection, record.target) != Some(*token) && instance.editor().is_some() { instance.close_editor(); }
         let current = record.playback
             && selected(&selection, *target) == Some(*token)
             && record.revision == owner_revision.load(std::sync::atomic::Ordering::Relaxed);
@@ -1069,10 +1074,7 @@ impl Runtime {
                 .host
                 .create_audio_unit(&binding.id)
                 .map_err(|e| e.to_string())?;
-            let kind = match binding.target {
-                PluginTarget::Effect { .. } => windfall_plugin_host::PluginKind::Effect,
-                PluginTarget::Instrument { .. } => windfall_plugin_host::PluginKind::Instrument,
-            };
+            let kind = if binding.target.is_instrument() { windfall_plugin_host::PluginKind::Instrument } else { windfall_plugin_host::PluginKind::Effect };
             if instance.descriptor().kind != kind {
                 return Err("AU instrument/effect role mismatch".into());
             }
@@ -1103,10 +1105,7 @@ impl Runtime {
             .into_iter()
             .find(|descriptor| descriptor.id == binding.id)
             .ok_or_else(|| "The scanned plugin ID is absent from this file".to_owned())?;
-        let kind = match binding.target {
-            PluginTarget::Effect { .. } => windfall_plugin_host::PluginKind::Effect,
-            PluginTarget::Instrument { .. } => windfall_plugin_host::PluginKind::Instrument,
-        };
+        let kind = if binding.target.is_instrument() { windfall_plugin_host::PluginKind::Instrument } else { windfall_plugin_host::PluginKind::Effect };
         if descriptor.format != format || descriptor.kind != kind {
             return Err(
                 "Plugin format or instrument/effect role does not match its binding".into(),
@@ -1225,7 +1224,7 @@ impl Runtime {
             if current_revision.load(std::sync::atomic::Ordering::Relaxed) != revision {
                 return Ok(project);
             }
-            for binding in &mut project.plugins {
+            for binding in project.plugin_bindings_mut() {
                 let selected_token = selected(&owner.selection, binding.target);
                 #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
                 if let Some(record) = selected_token.and_then(|token| owner.bridges.get(&token))
@@ -1503,7 +1502,7 @@ impl Runtime {
         self.call(move |owner| {
             #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
             if let Some(record) =
-                selected(&owner.selection, target).and_then(|token| owner.bridges.get(&token))
+                selected(&owner.selection, target).and_then(|token| owner.bridges.get_mut(&token))
                 && record.playback
                 && record.revision == revision
                 && binding.as_ref().is_none_or(|binding| {
@@ -1514,9 +1513,11 @@ impl Runtime {
                         && binding.wrapper == record.binding.wrapper
                 })
             {
-                return record
+                let result = record
                     .control
                     .editor_with_options(open, super::wrapper::editor(&record.binding, parent));
+                if result.is_ok() { record.editor_open = open; }
+                return result;
             }
             let record = selected(&owner.selection, target)
                 .and_then(|token| owner.instances.get_mut(&token))
@@ -1735,6 +1736,7 @@ struct ExpressionOwner {
     expression: windfall_dsp::NoteExpression,
     started: bool,
     dirty: bool,
+    gain: f32,
 }
 impl ExpressionOwner {
     const EMPTY: Self = Self {
@@ -1748,6 +1750,7 @@ impl ExpressionOwner {
         expression: windfall_dsp::NoteExpression::NEUTRAL,
         started: false,
         dirty: false,
+        gain: 1.0,
     };
     fn controls(
         self,
@@ -1767,7 +1770,7 @@ impl ExpressionOwner {
         } else {
             0.5
         };
-        controls.values[0] *= f64::from(volume);
+        controls.values[0] *= f64::from(volume * self.gain);
         controls.mask |= windfall_plugin_host::NoteExpressionKind::Pan.mask()
             | windfall_plugin_host::NoteExpressionKind::Volume.mask();
         windfall_plugin_host::PluginNoteExpression {
@@ -1778,6 +1781,7 @@ impl ExpressionOwner {
 }
 
 struct Audio {
+    retired: bool,
     sidechain_input: Option<u32>,
     instrument: bool,
     selection: Option<Arc<std::sync::atomic::AtomicU64>>,
@@ -1979,6 +1983,10 @@ impl Drop for Audio {
     }
 }
 impl HostedEffect for Audio {
+    fn retire_from_document(&mut self) {
+        self.retired = true;
+        if let Some(selection) = &self.selection { let _ = selection.compare_exchange(self.token, 0, std::sync::atomic::Ordering::AcqRel, std::sync::atomic::Ordering::Acquire); }
+    }
     fn set_sidechain_input(&mut self, input: Option<u32>) {
         self.sidechain_input = input;
     }
@@ -2003,7 +2011,7 @@ impl HostedEffect for Audio {
         }
     }
     fn transport(&mut self, transport: windfall_engine::plugins::PluginTransport) {
-        if let Some(selection) = &self.selection {
+        if !self.retired && let Some(selection) = &self.selection {
             selection.store(self.token, std::sync::atomic::Ordering::Relaxed);
         }
         let transport = windfall_plugin_host::Transport {
@@ -2144,6 +2152,13 @@ pub(crate) mod ownership_tests;
 #[path = "sidechain_bus_tests.rs"]
 mod sidechain_bus_tests;
 impl HostedInstrument for Audio {
+    fn set_note_gain(&mut self, id: windfall_dsp::NoteInstanceId, gain: f32) {
+        if !gain.is_finite() { return; }
+        let Some(slot) = self.expression_owners.iter().position(|owner| owner.id == id && owner.native != 0) else { return; };
+        self.expression_owners[slot].gain = gain.clamp(0.0, 4.0);
+        self.expression_owners[slot].dirty = true;
+        self.publish_expression_owner(slot);
+    }
     fn midi_message(&mut self, bytes: &[u8]) -> bool {
         if bytes.is_empty() || bytes.len() > 3 || bytes[1..].iter().any(|byte| *byte > 127) {
             return false;
@@ -2285,6 +2300,7 @@ impl HostedInstrument for Audio {
             expression,
             started: false,
             dirty: true,
+            gain: 1.0,
         };
         self.publish_expression_owner(slot);
     }
@@ -2606,6 +2622,7 @@ impl PluginFactory for Runtime {
                 );
 
                 Ok(Box::new(Audio {
+                retired: false,
                     sidechain_input: None,
                     instrument: false,
                     selection,
@@ -2636,6 +2653,7 @@ impl PluginFactory for Runtime {
         )
         .or_else(|_| {
             Ok(Box::new(Audio {
+                retired: false,
                 sidechain_input: None,
                 instrument: false,
                 selection: fallback_selection,
@@ -2768,6 +2786,7 @@ impl PluginFactory for Runtime {
                 );
 
                 Ok(Box::new(Audio {
+                retired: false,
                     sidechain_input: None,
                     instrument: true,
                     selection,
@@ -2802,6 +2821,7 @@ impl PluginFactory for Runtime {
         )
         .or_else(|_| {
             Ok(Box::new(Audio {
+                retired: false,
                 sidechain_input: None,
                 instrument: true,
                 selection: fallback_selection,

@@ -55,6 +55,7 @@ impl Metadata {
 }
 
 pub(super) struct Record {
+    pub editor_open: bool,
     pub dirty_serial: u64,
     pub acknowledged_serial: u64,
     pub capture_sent: bool,
@@ -200,10 +201,7 @@ pub(super) fn options(
                 DEFAULT_BLOCK * 2
             },
             native_latency: 0,
-            kind: if matches!(
-                binding.target,
-                windfall_project::PluginTarget::Instrument { .. }
-            ) {
+            kind: if binding.target.is_instrument() {
                 Kind::Instrument
             } else {
                 Kind::Effect
@@ -245,6 +243,7 @@ struct NoteOwner {
     note: windfall_plugin_host::bridge::slots::NoteSnapshot,
     release: f32,
     fine_pitch: f32,
+    source_gain: f32,
 }
 impl NoteOwner {
     const EMPTY: Self = Self {
@@ -252,9 +251,11 @@ impl NoteOwner {
         note: windfall_plugin_host::bridge::slots::NoteSnapshot::EMPTY,
         release: 0.0,
         fine_pitch: 0.0,
+        source_gain: 1.0,
     };
 }
 pub(super) struct Audio {
+    retired: bool,
     notes: Box<[NoteOwner]>,
     next_note: u32,
     process: ProcessAudio,
@@ -302,6 +303,7 @@ pub(super) fn launch(
         })
         .collect();
     let record = Record {
+        editor_open: false,
         dirty_serial: 0,
         acknowledged_serial: 0,
         capture_sent: false,
@@ -315,6 +317,7 @@ pub(super) fn launch(
         specs,
     };
     let audio = Audio {
+        retired: false,
         notes: vec![NoteOwner::EMPTY; windfall_plugin_host::MAX_NOTE_INSTANCES].into_boxed_slice(),
         next_note: windfall_plugin_host::FIRST_NOTE_INSTANCE_ID,
         process,
@@ -375,6 +378,10 @@ impl Drop for Audio {
     }
 }
 impl HostedEffect for Audio {
+    fn retire_from_document(&mut self) {
+        self.retired = true;
+        if let Some(selection) = &self.selection { let _ = selection.compare_exchange(self.token, 0, Ordering::AcqRel, Ordering::Acquire); }
+    }
     fn set_sidechain_input(&mut self, input: Option<u32>) {
         self.process.set_sidechain_input(input);
     }
@@ -401,7 +408,7 @@ impl HostedEffect for Audio {
         self.publish(changed);
     }
     fn transport(&mut self, transport: PluginTransport) {
-        if let Some(selection) = &self.selection {
+        if !self.retired && let Some(selection) = &self.selection {
             selection.store(self.token, Ordering::Release);
         }
         // ABI3 retains the checked native meter anchor at the first frame.
@@ -491,6 +498,13 @@ impl Audio {
     }
 }
 impl HostedInstrument for Audio {
+    fn set_note_gain(&mut self, id: windfall_dsp::NoteInstanceId, gain: f32) {
+        if !gain.is_finite() { return; }
+        let Some(owner) = self.notes.iter_mut().find(|owner| owner.engine == id && owner.note.id != 0) else { return; };
+        owner.note.controls.volume = owner.source_gain * gain.clamp(0.0, 4.0);
+        self.process.set_note_controls(owner.note.id, owner.note.controls);
+        self.publish(false);
+    }
     fn midi_message(&mut self, bytes: &[u8]) -> bool {
         let accepted = self.process.midi_message(bytes);
         self.publish(false);
@@ -570,6 +584,7 @@ impl HostedInstrument for Audio {
             note,
             release: expression.release,
             fine_pitch: expression.fine_pitch_cents,
+            source_gain: note.controls.volume,
         };
         self.process.note_on_instance(note);
         self.publish(false);
@@ -847,6 +862,7 @@ mod tests {
         )
         .unwrap();
         let mut audio = Audio {
+        retired: false,
             notes: vec![NoteOwner::EMPTY; windfall_plugin_host::MAX_NOTE_INSTANCES]
                 .into_boxed_slice(),
             next_note: windfall_plugin_host::FIRST_NOTE_INSTANCE_ID,

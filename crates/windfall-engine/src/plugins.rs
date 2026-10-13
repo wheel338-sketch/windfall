@@ -25,6 +25,9 @@ pub struct PluginTransport {
 
 /// Prepared effects. Setup and destruction belong to the factory's owner thread.
 pub trait HostedEffect: Send {
+    /// Release editor/capture selection, while retaining audio/tail ownership.
+    /// Callback metadata only; no native destruction or shared-owner release.
+    fn retire_from_document(&mut self) {}
     fn set_sidechain_input(&mut self, _input: Option<u32>) {}
     /// Services an ownership exchange without processing sound. Called at
     /// callback/block boundaries for stopped, bypassed and retiring slots too.
@@ -53,6 +56,7 @@ pub trait HostedEffect: Send {
 
 /// Prepared instruments, fed on the exact frame of each note boundary.
 pub trait HostedInstrument: HostedEffect {
+    fn set_note_gain(&mut self, _id: windfall_dsp::NoteInstanceId, _gain: f32) {}
     /// Admits MIDI from a separate MIDI-output channel, preserving wire channel.
     /// False means unsupported/refused and is counted by the engine.
     fn midi_message(&mut self, _bytes: &[u8]) -> bool {
@@ -210,6 +214,7 @@ pub(crate) fn prepare(
             continue;
         }
         let unit = match binding.target {
+            PluginTarget::Rack { .. } => continue, // constructed by the rack provider
             PluginTarget::Effect { .. } => PreparedPlugin::Effect(
                 plan.plugin_factory
                     .as_ref()

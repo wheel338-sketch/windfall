@@ -53,6 +53,7 @@ pub fn doc_preset_capture(handle: u32, input: &str) -> Reply {
             let target = request.target.ok_or("Select a plugin")?;
             let body = PluginPreset::capture(doc.project(), target)?;
             let name = match target {
+                PluginTarget::Rack { .. } => doc.project().plugin(target).map(|binding| binding.name.clone()),
                 PluginTarget::Instrument { channel } => doc
                     .project()
                     .channel(channel)

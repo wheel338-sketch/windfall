@@ -5,13 +5,14 @@ import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ParamControl, ParamGroup, ParamRow } from "@/features/params"
 import type { InstrumentChannel } from "@/lib/channel-source"
-import { dispatch } from "@/lib/store"
+import { useInstrumentAssetDispatch } from "./editor-owner"
 import { onHistoryNavigation } from "@/lib/store/project"
 import { getProjectGeneration, onProjectReplaced } from "@/lib/store/replaced"
 import { useInstrumentBinding } from "./use-instrument-binding"
 import { prepareAsset } from "./asset-job"
 
 export function LayerKickEditor({ channel }: { channel: InstrumentChannel }) {
+  const dispatch = useInstrumentAssetDispatch()
   const [busy,setBusy] = useState(false), [error,setError] = useState<string | null>(null)
   const request = useRef<AbortController | null>(null)
   useEffect(() => { const cancel = () => { request.current?.abort(); setBusy(false) }; const off = onProjectReplaced(cancel), historyOff = onHistoryNavigation(cancel); return () => { off(); historyOff(); cancel() } }, [])

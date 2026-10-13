@@ -100,6 +100,7 @@ pub(crate) enum Message {
     dead_code,
     reason = "the values are never read, only carried to the thread that may free them"
 )]
+#[allow(clippy::large_enum_variant)] // rack owners move inline; boxing would allocate on audio
 pub(crate) enum Garbage {
     PerformanceReplay(Box<crate::performance_recording::Replay>),
     PerformanceRecording(Arc<crate::performance_recording::PerformanceRecording>),
@@ -109,6 +110,7 @@ pub(crate) enum Garbage {
     Sample(AudioBuffer),
     SamplerBank(Arc<crate::sampler_processing::SamplerBank>),
     SampleBank(Arc<windfall_dsp::sample_bank::SampleBank>),
+    ModularRack(crate::modular::ModularRack),
     InputMonitors(Box<[Box<crate::recording_monitor::MonitorReader>]>),
     DiskTaps(Box<[crate::recording_disk::DiskWriter]>),
     AudioLogger(Box<crate::audio_logger::LoggerTap>),

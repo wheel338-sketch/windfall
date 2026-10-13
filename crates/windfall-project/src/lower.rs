@@ -1359,6 +1359,9 @@ impl Transaction<'_> {
                 "Choose plugin sidechain input"
             }
             Command::SetPluginState { target, state } => {
+                if matches!(target, crate::PluginTarget::Rack { .. }) {
+                    self.edit_rack_plugin(target, |plugin| { plugin.state = state; Ok(()) })?;
+                } else {
                 let mut plugins = self.project.plugins.clone();
                 let plugin = plugins
                     .iter_mut()
@@ -1370,10 +1373,14 @@ impl Transaction<'_> {
                     old: self.project.plugins.clone(),
                     new: plugins,
                 }));
+                }
                 "Save plugin state"
             }
             Command::SetPluginWrapper { target, options } => {
                 options.validate().map_err(CommandError::invalid)?;
+                if matches!(target, crate::PluginTarget::Rack { .. }) {
+                    self.edit_rack_plugin(target, |plugin| { plugin.wrapper = options; Ok(()) })?;
+                } else {
                 let mut plugins = self.project.plugins.clone();
                 let plugin = plugins
                     .iter_mut()
@@ -1384,6 +1391,7 @@ impl Transaction<'_> {
                     old: self.project.plugins.clone(),
                     new: plugins,
                 }));
+                }
                 "Change plugin wrapper"
             }
             Command::UpdateSettings { patch } => self.update_settings(patch)?,
@@ -1570,6 +1578,7 @@ impl Transaction<'_> {
                     .collect();
                 let graph = graph
                     .map(|mut graph| {
+                        graph.bind_hosted_owners(id);
                         graph.check().map_err(CommandError::invalid)?;
                         graph
                             .retain_parameter_addresses(previous.map(|rack| &rack.graph))
@@ -2051,6 +2060,17 @@ impl Transaction<'_> {
             new: plugins,
         }));
     }
+    fn edit_rack_plugin(&mut self, target: crate::PluginTarget, edit: impl FnOnce(&mut crate::PluginBinding) -> Result<(), CommandError>) -> Result<(), CommandError> {
+        let crate::PluginTarget::Rack { channel, path, .. } = target else { return Err(CommandError::invalid("Expected a rack plugin owner")); };
+        let before = self.project.settings.modular_racks.iter().find(|r| r.channel == channel).ok_or_else(|| CommandError::invalid("The plugin rack was removed"))?.graph.clone();
+        let mut graph = before.clone();
+        let count = path.iter().take_while(|id| **id != 0).count();
+        let binding = graph.node_at_mut(&path[..count]).and_then(|node| node.hosted.as_mut()).filter(|binding| binding.target == target).ok_or_else(|| CommandError::invalid("The hosted rack node was removed"))?;
+        edit(binding)?;
+        binding.validate().map_err(CommandError::invalid)?;
+        self.run(Command::SetChannelRack { id: channel, expected: Some(before), graph: Some(graph) })?;
+        Ok(())
+    }
 
     fn plugin_param(
         &mut self,
@@ -2060,6 +2080,13 @@ impl Transaction<'_> {
     ) -> Result<(), CommandError> {
         if !value.is_finite() {
             return Err(CommandError::invalid("the plugin parameter must be finite"));
+        }
+        if matches!(target, crate::PluginTarget::Rack { .. }) {
+            return self.edit_rack_plugin(target, |plugin| {
+                let param = plugin.parameters.iter_mut().find(|p| p.id == id && !p.read_only).ok_or_else(|| CommandError::invalid("the plugin parameter cannot be changed"))?;
+                param.value = if param.stepped { value.round() } else { value }.clamp(param.min, param.max);
+                Ok(())
+            });
         }
         let mut plugins = self.project.plugins.clone();
         let plugin = plugins
@@ -2124,6 +2151,7 @@ impl Transaction<'_> {
                     .tracks
                     .iter()
                     .any(|track| track.effects.iter().any(|slot| slot.id == effect)),
+                crate::PluginTarget::Rack { .. } => false,
             })
             .cloned()
             .collect();
@@ -2464,7 +2492,7 @@ impl Transaction<'_> {
             let mut new = old.clone();
             new.modular_racks.push(crate::ChannelRack {
                 channel: copy_id,
-                graph: rack.graph,
+                graph: { let mut graph = rack.graph; graph.bind_hosted_owners(copy_id); graph },
             });
             self.push(Edit::Settings(Change { old, new }));
         }

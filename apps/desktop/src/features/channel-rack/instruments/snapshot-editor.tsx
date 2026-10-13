@@ -4,13 +4,14 @@ import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ParamControl, ParamGroup, ParamRow } from "@/features/params"
 import type { InstrumentChannel } from "@/lib/channel-source"
-import { dispatch } from "@/lib/store"
+import { useInstrumentAssetDispatch } from "./editor-owner"
 import { onHistoryNavigation } from "@/lib/store/project"
 import { getProjectGeneration, onProjectReplaced } from "@/lib/store/replaced"
 import { prepareAsset } from "./asset-job"
 import { useInstrumentBinding } from "./use-instrument-binding"
 
 export function SnapshotEditor({ channel }: { channel: InstrumentChannel }) {
+  const dispatch = useInstrumentAssetDispatch()
   const [harmonic,setHarmonic] = useState(1), [busy,setBusy] = useState(false), [error,setError] = useState<string | null>(null)
   const job = useRef<AbortController | null>(null)
   useEffect(() => { const cancel = () => { job.current?.abort(); setBusy(false) }; const off = onProjectReplaced(cancel), historyOff = onHistoryNavigation(cancel); return () => { off();historyOff();cancel() } }, [])

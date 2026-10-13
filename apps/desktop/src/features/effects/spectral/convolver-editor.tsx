@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useContext, useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Field, FieldLabel, FieldDescription } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -7,17 +7,20 @@ import { dispatch, useProjectStore } from "@/lib/store/project"
 import { getProjectGeneration } from "@/lib/store/replaced"
 import type { EditorProps } from "../editor-props"
 import { readImpulseWav, linearPhaseImpulse } from "./impulse"
+import { EffectAssetOwner } from "../asset-owner"
 export function ConvolverEditor({ effect, track, bind }: EditorProps<EffectParamsOf<"convolver">>) {
-  const impulse = useProjectStore((s) => s.project.mixer.tracks.find((t) => t.id === track)?.effects.find((e) => e.id === effect)?.impulse)
+  const owner = useContext(EffectAssetOwner)
+  const channelImpulse = useProjectStore((s) => s.project.mixer.tracks.find((t) => t.id === track)?.effects.find((e) => e.id === effect)?.impulse)
+  const impulse = owner ? owner.impulse : channelImpulse
   const [error, setError] = useState("")
   const request = useRef(0)
   useEffect(() => () => { ++request.current }, [effect, track])
   const apply = async (asset: ReturnType<typeof linearPhaseImpulse> | null) => {
-    if (track === undefined) return
+    if (track === undefined && !owner) return
     const ticket = request.current, generation = getProjectGeneration()
     const current = () => ticket === request.current && generation === getProjectGeneration()
     try {
-      const result = await dispatch({ type: "setConvolverImpulse", track, effect, impulse: asset })
+      const result = owner ? await owner.setImpulse(asset) : track === undefined ? null : await dispatch({ type: "setConvolverImpulse", track, effect, impulse: asset })
       if (current()) setError(result ? "" : "Impulse change was refused; the previous IR is retained")
     } catch (cause) { if (current()) setError(cause instanceof Error ? cause.message : String(cause)) }
   }

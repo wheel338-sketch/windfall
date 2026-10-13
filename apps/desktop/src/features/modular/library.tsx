@@ -47,8 +47,10 @@ export function RackLibrary({ channel, root }: { channel: Channel; root: RackGra
     const review = await backend.presetRead(picked)
     const graph = review.preset.channel?.rack
     if (!graph) throw new Error("This preset does not contain a modular rack")
-    if (review.missingAudio.length > 0) throw new Error(`Missing preset audio: ${review.missingAudio.join(", ")}`)
     await apply(graph, guard)
+    const warnings = [...review.notes]
+    if (review.missingAudio.length > 0) warnings.push(`Missing rack assets: ${review.missingAudio.join(", ")}. Open the owning module and choose a replacement source to relink.`)
+    if (warnings.length > 0) setError(warnings.join(" "))
   })
   const save = (library: boolean) => action(async (guard, generation, revision) => {
     if (!name.trim()) throw new Error("Give the rack preset a name")

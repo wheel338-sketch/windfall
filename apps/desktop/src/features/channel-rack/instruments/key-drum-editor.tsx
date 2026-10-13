@@ -1,4 +1,4 @@
-import { useRef, useState } from "react"
+import { useContext, useRef, useState } from "react"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -7,11 +7,14 @@ import { ParamControl, ParamGroup, ParamRow, instrumentDescriptor, readParam, wr
 import type { DrumVoiceParams } from "@/bindings"
 import type { InstrumentChannel } from "@/lib/channel-source"
 import { reportError } from "@/lib/errors"
-import { dispatch, newGestureId, useProjectStore } from "@/lib/store"
+import { newGestureId, useProjectStore } from "@/lib/store"
 import { getProjectGeneration } from "@/lib/store/replaced"
 import { useAudition } from "../audition"
+import { InstrumentEditorOwner, useInstrumentAssetDispatch } from "./editor-owner"
 
 export function KeyDrumEditor({ channel }: { channel: InstrumentChannel }) {
+  const owner = useContext(InstrumentEditorOwner)
+  const dispatch = useInstrumentAssetDispatch()
   const [key, setKey] = useState(36)
   const gesture = useRef<number | undefined>(undefined)
   const pending = useRef(Promise.resolve())
@@ -27,7 +30,7 @@ export function KeyDrumEditor({ channel }: { channel: InstrumentChannel }) {
     const capturedGesture = gesture.current
     pending.current = pending.current.then(async () => {
       if (generation !== getProjectGeneration()) return
-      const current = useProjectStore.getState().project.channels.find(item => item.id === channel.id)
+      const current = owner ? owner.currentChannel() : useProjectStore.getState().project.channels.find(item => item.id === channel.id)
       if (current?.source.type !== "instrument" || current.source.params.type !== "drumVoice") return
       const bank = current.source.asset?.type === "drumKeys" ? current.source.asset.patches : []
       const before = bank.find(patch => patch.key === capturedKey)?.params ?? current.source.params

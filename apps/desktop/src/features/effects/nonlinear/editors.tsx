@@ -6,6 +6,7 @@ import { dispatch, useProjectStore } from "@/lib/store"
 
 import type { EditorProps } from "../editor-props"
 import { CurveEditor } from "./curve-editor"
+import { useEffectAssetCommit } from "../asset-owner"
 
 /** Read the current slot at commit, preserving scalar edits made during a drawing. */
 export function commitAsset(effect: number, track: number | undefined, kind: EffectParams["type"], field: string, value: unknown) {
@@ -22,10 +23,11 @@ export function OverdriveEditor({ bind }: EditorProps<OverdriveParams>) {
 }
 
 export function WaveshaperEditor({ effect, track, params, bind }: EditorProps<WaveshaperParams>) {
+  const commit = useEffectAssetCommit(effect, track, "waveshaper", commitAsset)
   const fallback: CurvePoint[] = params.curve.map((y, i) => ({ x: i / 32, y: (y + 1) / 2, tension: 0 }))
   return <div role="group" aria-label="Waveshaper settings" className="flex flex-col gap-2">
-    <CurveEditor key={effect} label="Transfer curve" points={params.shape} fallback={fallback} onCommit={(shape) => commitAsset(effect, track, "waveshaper", "shape", shape)} />
-    {params.shape.length > 0 ? <Button size="sm" variant="outline" onClick={() => commitAsset(effect,track,"waveshaper","shape",[])}>Use automatable knots</Button> : <ParamRow columns={6}>{params.curve.map((_, index) => <ParamControl key={index} {...bind(`curve.${index}`)} />)}</ParamRow>}
+    <CurveEditor key={effect} label="Transfer curve" points={params.shape} fallback={fallback} onCommit={(shape) => commit("shape", shape)} />
+    {params.shape.length > 0 ? <Button size="sm" variant="outline" onClick={() => commit("shape", [])}>Use automatable knots</Button> : <ParamRow columns={6}>{params.curve.map((_, index) => <ParamControl key={index} {...bind(`curve.${index}`)} />)}</ParamRow>}
     <ParamRow columns={5}>{["inputDb", "outputDb", "oversampling", "mix", "bipolar"].map((id) => <ParamControl key={id} {...bind(id)} />)}</ParamRow>
   </div>
 }

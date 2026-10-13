@@ -20,6 +20,8 @@ import { RackOverflow } from "./overflow"
 import { noteDescriptor, rackParameterIndex } from "./parameters"
 import { automationItems } from "@/features/automation/menu"
 import { RackLibrary } from "./library"
+import { RackInstrumentEditor, RackEffectEditor } from "./asset-editor"
+import { RackHostedEditor } from "./hosted-editor"
 
 const MODULES = ["colorRouter", "envelope", "propertyScaler", "keySplitter", "keyMapper", "sequencer"] as const
 const TYPES = ["instrument", "effect", ...MODULES, "rack", "audioInput", "audioOutput", "noteInput", "noteOutput", "controlInput"] as const
@@ -205,11 +207,19 @@ export function ModularEditor({ channel, root }: { channel: Channel; root: RackG
           const processor = current.processor
           const descriptor = processor.type === "instrument" ? instrumentDescriptor(processor.params.type) : effectDescriptor(processor.params.type)
           return <>
-            <ChoiceField<string> label="Control destination" value={parameter || descriptor.params[0]?.id || ""} choices={descriptor.params.map((info) => info.id)} onChange={setParameter} />
+            <RackHostedEditor key={current.id} channel={channel.id} path={activePath} root={root} node={current} detach={() => updateNode({ ...current, hosted: null })} />
             {processor.type === "effect" && <NumberField label="Effect mix" value={processor.mix} min={0} max={1} step={0.01} onChange={(mix) => void updateNode({ ...current, processor: { ...processor, mix } })} />}
-            {processor.type === "instrument" ? <GenericParamEditor descriptor={instrumentDescriptor(processor.params.type)} params={processor.params} setParam={(index, value, gesture) => queueParameter(current.id, "instrument", processor.params.type, index, value, gesture)} />
-              : <GenericParamEditor descriptor={effectDescriptor(processor.params.type)} params={processor.params} setParam={(index, value, gesture) => queueParameter(current.id, "effect", processor.params.type, index, value, gesture)} />}
+            {!current.hosted && <>
+            <ChoiceField<string> label="Control destination" value={parameter || descriptor.params[0]?.id || ""} choices={descriptor.params.map((info) => info.id)} onChange={setParameter} />
+            {processor.type === "instrument" ? <RackInstrumentEditor key={current.id} channel={channel} node={current}
+              current={() => { const latest = useProjectStore.getState().project.settings.modularRacks?.find((rack) => rack.channel === channel.id)?.graph; return latest ? graphAt(latest, activePath).nodes.find((node) => node.id === current.id) : undefined }}
+              apply={(asset, gesture) => updateNode({ ...current, asset }, gesture)}
+              setParam={(index, value, gesture) => queueParameter(current.id, "instrument", processor.params.type, index, value, gesture)} />
+              : <RackEffectEditor key={current.id} node={current} apply={(asset) => updateNode({ ...current, asset, processor: processor.params.type === "scratch" && !asset ? { ...processor, params: { ...processor.params, sourceId: 0 } } : processor })}
+                commit={(field, value) => void updateNode({ ...current, processor: { ...processor, params: { ...processor.params, [field]: value } } })}
+                setParam={(index, value, gesture) => queueParameter(current.id, "effect", processor.params.type, index, value, gesture)} />}
 
+            </>}
           </>
         })()}
         <Button variant="destructive" disabled={busy} onClick={async () => {
