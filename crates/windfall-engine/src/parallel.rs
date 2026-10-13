@@ -66,6 +66,7 @@ struct Lane {
 pub(crate) struct Workers {
     lanes: Vec<Lane>,
     stop: Arc<AtomicBool>,
+    active_batch: Arc<AtomicBool>,
     allocations: Arc<AtomicUsize>,
     #[cfg(test)]
     jobs: Arc<AtomicUsize>,
@@ -82,6 +83,7 @@ impl Workers {
         let mut pool = Self {
             lanes: Vec::with_capacity(count - 1),
             stop: Arc::new(AtomicBool::new(false)),
+            active_batch: Arc::new(AtomicBool::new(false)),
             allocations: Arc::new(AtomicUsize::new(0)),
             #[cfg(test)]
             jobs: Arc::new(AtomicUsize::new(0)),
@@ -91,6 +93,7 @@ impl Workers {
             let (input, mut receive) = rtrb::RingBuffer::<Submission>::new(1);
             let (mut send, output) = rtrb::RingBuffer::<Completion>::new(1);
             let stop = pool.stop.clone();
+            let active_batch = pool.active_batch.clone();
             let ready = Arc::new(AtomicBool::new(false));
             let worker_ready = ready.clone();
             let allocations = pool.allocations.clone();
@@ -116,7 +119,15 @@ impl Workers {
                             std::hint::spin_loop();
                         }
                         let Some(job) = received else {
-                            std::thread::park_timeout(Duration::from_micros(25));
+                            // A lane can finish before the coordinator or a
+                            // sibling. Keep polling while their borrowed batch
+                            // is outstanding: a timed park can otherwise delay
+                            // the next chunk by the OS timer quantum. Idle
+                            // playback still parks; the callback never wakes
+                            // a thread through an OS synchronization primitive.
+                            if !active_batch.load(Ordering::Acquire) {
+                                std::thread::park_timeout(Duration::from_micros(25));
+                            }
                             continue;
                         };
                         #[cfg(test)]
@@ -199,6 +210,7 @@ impl Workers {
     /// Safety: tasks have distinct exclusive contexts. None may be accessed,
     /// moved or dropped until this function returns, INCLUDING on an overrun.
     pub unsafe fn run(&mut self, tasks: &[Task], shared: &Shared) {
+        self.active_batch.store(true, Ordering::Release);
         for chunk in tasks.chunks(self.count()) {
             for (lane, task) in self.lanes.iter_mut().zip(chunk.iter().skip(1)) {
                 let submission = Submission {
@@ -228,6 +240,7 @@ impl Workers {
                 self.report(completion, shared);
             }
         }
+        self.active_batch.store(false, Ordering::Release);
     }
 }
 impl Drop for Workers {

@@ -4,6 +4,10 @@ import type { AnalyzerFrame } from "@/features/analyzers/types"
 export type VisualSignal = { rms: number; bands: readonly number[] }
 export const VISUAL_FPS = 24
 
+// Form the word through native views so this fill preserves RGBA byte order
+// on either host endianness. Every frame owns its separate pixel allocation.
+const BACKGROUND_RGBA = new Uint32Array(new Uint8Array([8, 12, 20, 255]).buffer)[0]
+
 /** Shared song-time phase for live seeks/loops and range export. */
 export function visualSongFrame(seconds: number): number {
   if (!Number.isFinite(seconds) || seconds < 0) throw new Error("Invalid visual song time")
@@ -35,9 +39,7 @@ function color(hue: number): [number, number, number] {
 export function renderVisual(width: number, height: number, settings: VisualSettings, signal: VisualSignal | null, frame: number): Uint8ClampedArray {
   if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1 || width > 1920 || height > 1080) throw new Error("Invalid visual dimensions")
   const pixels = new Uint8ClampedArray(width * height * 4)
-  for (let i = 0; i < pixels.length; i += 4) {
-    pixels[i] = 8; pixels[i + 1] = 12; pixels[i + 2] = 20; pixels[i + 3] = 255
-  }
+  new Uint32Array(pixels.buffer).fill(BACKGROUND_RGBA)
   if (!signal) return pixels
   const rgb = color(settings.hue)
   const energy = Math.min(1, Math.max(0, signal.rms * settings.intensity))
@@ -89,6 +91,6 @@ export function renderVisual(width: number, height: number, settings: VisualSett
 /** Portable FNV-1a pixel checksum for fixtures and export manifests. */
 export function frameHash(pixels: Uint8ClampedArray): string {
   let hash = 2166136261
-  for (const byte of pixels) hash = Math.imul(hash ^ byte, 16777619) >>> 0
+  for (let i = 0; i < pixels.length; i += 1) hash = Math.imul(hash ^ pixels[i], 16777619) >>> 0
   return hash.toString(16).padStart(8, "0")
 }

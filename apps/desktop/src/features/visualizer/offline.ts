@@ -3,6 +3,18 @@ import type { VisualSignal } from "./render"
 const N = 1024
 const HOP = 256
 
+// Geometry is fixed at 1024 samples. These retain the original expression
+// order, while each stereo window reuses its Hann and butterfly coefficients.
+const HANN = Float64Array.from({ length: N }, (_, i) => 0.5 - 0.5 * Math.cos(2 * Math.PI * i / N))
+const TWIDDLES = Array.from({ length: Math.log2(N) }, (_, stage) => {
+  const size = 2 ** (stage + 1)
+  const angle = -2 * Math.PI / size
+  return {
+    real: Float64Array.from({ length: size / 2 }, (_, j) => Math.cos(angle * j)),
+    imag: Float64Array.from({ length: size / 2 }, (_, j) => Math.sin(angle * j)),
+  }
+})
+
 /** Independently authored radix-two FFT. Periodic Hann / Parseval power
  * normalization matches ANALYZER-TAPS; no codec, FFT or native dependency. */
 function powers(input: Float64Array): Float64Array {
@@ -14,12 +26,12 @@ function powers(input: Float64Array): Float64Array {
     j ^= bit
     if (i < j) { const value = real[i]; real[i] = real[j]; real[j] = value }
   }
-  for (let size = 2; size <= N; size *= 2) {
-    const angle = -2 * Math.PI / size
+  for (let size = 2, stage = 0; size <= N; size *= 2, stage += 1) {
+    const twiddles = TWIDDLES[stage]
     for (let start = 0; start < N; start += size) {
       for (let j = 0; j < size / 2; j += 1) {
         const a = start + j; const b = a + size / 2
-        const cos = Math.cos(angle * j); const sin = Math.sin(angle * j)
+        const cos = twiddles.real[j]; const sin = twiddles.imag[j]
         const tr = real[b] * cos - imag[b] * sin
         const ti = real[b] * sin + imag[b] * cos
         real[b] = real[a] - tr; imag[b] = imag[a] - ti
@@ -47,7 +59,7 @@ export function offlineSignal(samples: ArrayLike<number>, endFrame: number): Vis
     const l = samples[(end - N + i) * 2]; const r = samples[(end - N + i) * 2 + 1]
     if (!Number.isFinite(l) || !Number.isFinite(r)) throw new Error("Audio contains an invalid sample")
     leftSquare += l * l; rightSquare += r * r
-    const window = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / N)
+    const window = HANN[i]
     left[i] = l * window; right[i] = r * window
   }
   const lp = powers(left); const rp = powers(right)

@@ -286,5 +286,7 @@ it("exports synchronized AVI through the enabled mounted action using native reg
   expect(create).toHaveBeenCalledTimes(published)
   expect(writes).toHaveLength(2)
   expect(readdirSync(folder)).toEqual(["windfall-visual.avi", "windfall-visual.json"])
-  expect(readFileSync(join(folder, "windfall-visual.avi"))).toEqual(accepted)
+  // Buffer.equals compares length and every byte; generic object equality
+  // traverses millions of indexed properties for this uncompressed file.
+  expect(readFileSync(join(folder, "windfall-visual.avi")).equals(accepted)).toBe(true)
 })
