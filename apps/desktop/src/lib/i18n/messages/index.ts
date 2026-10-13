@@ -12,6 +12,7 @@ import { channelRackEn, channelRackEs } from "./channel-rack"
 import { componentsEn, componentsEs } from "./components"
 import { controllersEn, controllersEs } from "./controllers"
 import { descriptorsEffectsEn, descriptorsEffectsEs } from "./descriptors-effects"
+import { descriptorsBandDelayEn, descriptorsBandDelayEs } from "./descriptors-band-delay"
 import { descriptorsInstrumentsEn, descriptorsInstrumentsEs } from "./descriptors-instruments"
 import { descriptorsSharedEn, descriptorsSharedEs } from "./descriptors-shared"
 import { effectsEn, effectsEs } from "./effects"
@@ -65,6 +66,7 @@ export const areaEn = {
   ...componentsEn,
   ...controllersEn,
   ...descriptorsEffectsEn,
+  ...descriptorsBandDelayEn,
   ...descriptorsInstrumentsEn,
   ...descriptorsSharedEn,
   ...effectsEn,
@@ -118,6 +120,7 @@ export const areaEs = {
   ...componentsEs,
   ...controllersEs,
   ...descriptorsEffectsEs,
+  ...descriptorsBandDelayEs,
   ...descriptorsInstrumentsEs,
   ...descriptorsSharedEs,
   ...effectsEs,

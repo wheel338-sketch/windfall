@@ -245,6 +245,15 @@ function EnvelopeControls({
   )
 }
 
+/** A whole title per target, so each language orders the words its own way. */
+const LFO_TITLES = {
+  volume: "Volume LFO",
+  pan: "Pan LFO",
+  pitch: "Pitch LFO",
+  cutoff: "Cutoff LFO",
+  resonance: "Resonance LFO",
+} as const satisfies Record<TargetLfoName, string>
+
 function TargetLfoControls({
   target,
   value,
@@ -255,7 +264,7 @@ function TargetLfoControls({
   onChange(value: TargetLfo): void
 }) {
   const gestures = useContext(GestureContext)
-  const title = `${target[0].toUpperCase()}${target.slice(1)} LFO`
+  const title = t(LFO_TITLES[target])
   const set = (patch: Partial<TargetLfo>) => onChange({ ...value, ...patch })
   return (
     <FieldSet className="border-b px-2.5 py-2">
@@ -305,8 +314,8 @@ function TargetLfoControls({
           </Field>
           <Field>
             <Knob
-              label="Delay"
-              aria-label={`${title} delay`}
+              label={t("Delay")}
+              aria-label={message("{title} delay", { title })}
               value={value.delayMs}
               min={0}
               max={20_000}
@@ -319,7 +328,7 @@ function TargetLfoControls({
           </Field>
         </FieldGroup>
         <Enabled
-          label={`Restart ${target} LFO on each note`}
+          label={message("Restart {target} LFO on each note", { target: t(target) })}
           checked={value.retrigger}
           onChange={(retrigger) => set({ retrigger })}
         />

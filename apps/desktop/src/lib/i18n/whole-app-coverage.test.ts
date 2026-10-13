@@ -21,7 +21,8 @@ describe("whole application localization admission", () => {
     const failures = applicationLocalizationViolations(sources, hasKey)
     expect(failures.map(({ file, line, column, text, context }) =>
       `${file}:${line}:${column} [${context}] ${text}`)).toEqual([])
-  })
+    // Parsing the whole application takes five to six seconds on its own and longer beside other workers.
+  }, 60_000)
 
   it("follows imported captions and helper returns and respects local translation shadowing", () => {
     const failures = applicationLocalizationViolations({
