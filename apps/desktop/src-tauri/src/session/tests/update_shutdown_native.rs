@@ -158,9 +158,10 @@ impl Native {
             effect: EffectId(*added.created.last().unwrap()),
         };
         device.run(512);
-        runtime
-            .editor_binding_with_parent(effect, None, true, Some(owner))
-            .unwrap();
+        let editor_runtime = runtime.clone();
+        device.finish(std::thread::spawn(move || {
+            editor_runtime.editor_binding_with_parent(effect, None, true, Some(owner))
+        })).unwrap();
         Self {
             session,
             device,
@@ -252,7 +253,8 @@ impl Native {
 impl Drop for Native {
     fn drop(&mut self) {
         self.device.suspend().unwrap();
-        self.runtime.update_shutdown_barrier().unwrap();
+        let runtime = self.runtime.clone();
+        self.device.finish(std::thread::spawn(move || runtime.update_shutdown_barrier())).unwrap();
         self.parent.close_editor();
     }
 }
@@ -354,7 +356,7 @@ fn native_failed_install_does_not_resurrect_live_notes_or_override_a_user_stop()
                 if user_stopped {
                     native.session.transport_stop();
                 }
-                shutdown.rollback().unwrap();
+                native.device.finish(std::thread::spawn(move || shutdown.rollback())).unwrap();
                 native.assert_editor_owner();
                 let pcm = native.device.run(4800);
                 assert_eq!(
@@ -425,7 +427,7 @@ fn native_unpublished_dirty_state_is_in_the_prompt_save_and_cancel_history() {
             );
             assert!(!native.session.document_snapshot().dirty);
         }
-        shutdown.rollback().unwrap(); // cancel, or rollback after discard/installer failure
+        native.device.finish(std::thread::spawn(move || shutdown.rollback())).unwrap(); // cancel, or rollback after discard/installer failure
         native.assert_editor_owner();
         let recovered = native.capture();
         assert_eq!(
@@ -476,7 +478,7 @@ fn native_inflight_capture_is_joined_before_returning_the_unsaved_decision() {
         snapshot.project.plugin(native.effect).unwrap().state,
         expected.plugin(native.effect).unwrap().state
     );
-    shutdown.rollback().unwrap();
+    native.device.finish(std::thread::spawn(move || shutdown.rollback())).unwrap();
 }
 
 #[test]

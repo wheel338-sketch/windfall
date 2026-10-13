@@ -771,12 +771,16 @@ impl Processor {
                 sequence,
                 passes,
                 from,
+                chase,
             } => {
                 self.sequencer.set_recording(false);
                 self.transport_sequence = sequence;
                 self.cancel_count_in();
                 self.hold_for_good = passes.is_some();
                 self.sequencer.play(&self.plan, now, passes, from);
+                if chase {
+                    self.sequencer.chase_held_notes(now);
+                }
             }
             Message::Performance(request) => {
                 self.stop_performance_replay();
@@ -1083,6 +1087,15 @@ impl Processor {
             self.clips.release_all();
             match action {
                 NavigationAction::Pause => {
+                    // A selected finite export ends at its region boundary,
+                    // before the full song's pass boundary. Publish that exact
+                    // frame so linked-tempo callers trim their conservative
+                    // minimum-tempo admission length to the rendered body.
+                    if self.sequencer.region().is_some_and(|range| range.end == tick)
+                        && self.sequencer.finite_end_frame(&self.plan).is_some()
+                    {
+                        self.rendered_end = Some(frame);
+                    }
                     self.ignored_pause = Some(tick);
                     self.sequencer.pause_at(f64::from(tick));
                     self.hold_if_stopped(f64::from(tick));

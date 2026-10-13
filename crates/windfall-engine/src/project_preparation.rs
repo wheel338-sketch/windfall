@@ -715,6 +715,7 @@ impl Controller {
                     sequence,
                     passes: None,
                     from: Some(self.inner.shared.tick()),
+                    chase: true,
                 });
             } else {
                 state.transport.playing = false;

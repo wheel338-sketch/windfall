@@ -273,6 +273,8 @@ pub(crate) struct Sequencer {
     /// Playback has started somewhere, or been moved, since
     /// [`Sequencer::take_jump`] last asked.
     jumped: bool,
+    /// Only replacement-stream resume chases notes, never ordinary Play/Seek.
+    chase_frame: Option<u64>,
 }
 
 impl Sequencer {
@@ -319,6 +321,7 @@ impl Sequencer {
             passes_left: None,
             shift: 0.0,
             jumped: false,
+            chase_frame: None,
         }
     }
 
@@ -843,12 +846,13 @@ impl Sequencer {
 
     fn gather_pattern(&self, pattern: &PlanPattern, from: u64, to: u64, triggers: &mut Triggers) {
         let (low, high) = self.window(from, to);
+        let low = if self.chase_frame == Some(from) { 0.0 } else { low };
         let first = pattern.events.partition_point(|event| event.tick < low);
         for event in &pattern.events[first..] {
             if event.tick > high {
                 break;
             }
-            let Some(frame) = self.due(event.tick, from, to) else {
+            let Some(frame) = self.note_frame(event.tick, event.tick + event.length, from, to) else {
                 continue;
             };
             triggers.push(Trigger {
@@ -881,6 +885,7 @@ impl Sequencer {
         // The window is in what the clock counts. The clips and notes are
         // looked up by their places in the song.
         let (low, high) = self.window(from, to);
+        let low = if self.chase_frame == Some(from) { 0.0 } else { low };
         let (low, high) = (plan.unwarp(low), plan.unwarp(high));
         let first = plan
             .clips
@@ -919,13 +924,13 @@ impl Sequencer {
                     if clip.only.is_some_and(|only| only != event.channel) {
                         continue;
                     }
-                    let Some(frame) = self.due(plan.warp(tick), from, to) else {
-                        continue;
-                    };
                     let end = if event.scripted {
                         tick + event.length
                     } else {
                         (tick + event.length).min(clip_end)
+                    };
+                    let Some(frame) = self.note_frame(plan.warp(tick), plan.warp(end), from, to) else {
+                        continue;
                     };
                     triggers.push(Trigger {
                         frame,
@@ -1010,6 +1015,20 @@ impl Sequencer {
         };
         let frame = self.clock.frame_of(tick);
         (ahead && frame >= from && frame < to).then_some(frame)
+    }
+
+    pub(crate) fn chase_held_notes(&mut self, frame: u64) {
+        self.chase_frame = self.playing.then_some(frame);
+    }
+
+    fn note_frame(&self, tick: f64, end: f64, from: u64, to: u64) -> Option<u64> {
+        if self.chase_frame == Some(from) && from < to {
+            let at = self.clock.tick_at(from) - self.pass_start;
+            if tick < at && end > at {
+                return Some(from);
+            }
+        }
+        self.due(tick, from, to)
     }
 
     /// Length of what is playing, the pattern or the whole song, as the
@@ -1133,6 +1152,7 @@ impl Sequencer {
     /// Restarts the clock on frame `now`, reading `tick` at the top of a
     /// pass.
     fn jump(&mut self, tick: f64, now: u64) {
+        self.chase_frame = None;
         self.jumped = true;
         self.shift += tick - self.clock.tick_at(now);
         self.clock.anchor_frame = now;
@@ -1317,6 +1337,24 @@ mod tests {
         assert_eq!(clock.frame_of(23.0 * 240.0), 220_500);
         assert_eq!(clock.frame_of(0.0), 0);
         assert_eq!(clock.frame_of(-5.0), 0);
+    }
+
+    #[test]
+    fn replacement_stream_chases_only_held_notes_once_with_bounded_trigger_pagination() {
+        let mut project = project_with(16, &[(0, 60), (0, 61), (10, 62), (20, 63), (40, 64)]);
+        let notes = &mut project.patterns[0].lanes[0].notes;
+        notes[0].length = 10; // Already released.
+        notes[2].length = 20; // Ends exactly at the resumed tick.
+        notes[3].length = 20;
+        let plan = compile(&project, &SamplePool::new());
+        let mut sequencer = Sequencer::new(48_000, &plan);
+        sequencer.play(&plan, 0, None, Some(30.0));
+        let ordinary = played(sequencer, &plan, 1000, 64, 1);
+        assert_eq!(ordinary, vec![(250, 64)]);
+        sequencer.chase_held_notes(0);
+        for capacity in [1, 2, 8] {
+            assert_eq!(played(sequencer, &plan, 1000, 64, capacity), vec![(0, 61), (0, 63), (250, 64)]);
+        }
     }
 
     #[test]

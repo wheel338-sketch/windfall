@@ -833,6 +833,7 @@ impl Controller {
             sequence,
             passes,
             from: None,
+            chase: false,
         });
     }
 

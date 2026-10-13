@@ -41,6 +41,8 @@ pub(crate) enum Message {
         sequence: u32,
         passes: Option<u32>,
         from: Option<f64>,
+        /// A replacement stream restores sequenced notes spanning its start.
+        chase: bool,
     },
     Stop {
         sequence: u32,

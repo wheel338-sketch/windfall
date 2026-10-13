@@ -75,6 +75,7 @@ impl Processor {
                 sequence: self.transport_sequence.wrapping_add(1),
                 passes: None,
                 from: Some(tick),
+                chase: false,
             });
         }
         true
