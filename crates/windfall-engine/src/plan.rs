@@ -118,12 +118,16 @@ pub(crate) struct Plan {
     pub lanes: Arc<[Lane]>,
     pub control_sources: Vec<crate::internal_controllers::Source>,
     pub control_links: Vec<crate::internal_controllers::Link>,
+    pub scripts: Vec<Option<windfall_project::scripting::NoteTransform>>,
+    pub script_parameters: Vec<Option<(usize, usize)>>,
     /// Some pattern has an event lane, so a pattern playing by itself has
     /// automation to follow too.
     pub pattern_lanes: bool,
     /// How long the song takes to get to each of its ticks, when
     /// automation moves the tempo. `None` when the tempo is steady.
     pub tempo_map: Option<TempoMap>,
+    /// Full-mix control-grid clock retained by isolated stem passes.
+    pub tempo_replay: Arc<[f64]>,
 }
 
 #[derive(Debug, Clone)]
@@ -211,6 +215,8 @@ pub(crate) struct NoteEvent {
     pub pan: f32,
     pub expression: windfall_dsp::NoteExpression,
     pub scripted: bool,
+    pub script_input: Option<windfall_project::scripting::ScriptNote>,
+    pub script_tail: Option<f64>,
 }
 
 impl PlanPattern {
@@ -887,10 +893,15 @@ impl Plan {
         self.channel_ids.get(id.0)
     }
 
-    /// The place in the song's own time of a tick of the song: the tick
-    /// itself while the tempo is steady, and the tick at which the same
-    /// moment would come at the stored tempo when automation moves it.
+    /// Internal Tempo links select the integrated, unwarped runtime clock.
+    pub fn linked_tempo(&self) -> bool {
+        crate::internal_controllers::has_tempo(&self.control_links)
+    }
+
+    /// The clock domain for a song tick: static map time, or musical ticks
+    /// while a bounded internal link integrates tempo on the control grid.
     pub fn warp(&self, tick: f64) -> f64 {
+        if self.linked_tempo() { return tick; }
         match &self.tempo_map {
             Some(map) => map.warp(tick),
             None => tick,
@@ -899,6 +910,7 @@ impl Plan {
 
     /// The inverse of [`warp`](Self::warp).
     pub fn unwarp(&self, warped: f64) -> f64 {
+        if self.linked_tempo() { return warped; }
         match &self.tempo_map {
             Some(map) => map.unwarp(warped),
             None => warped,
@@ -1003,7 +1015,7 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
         .collect();
     let channel_ids = IdIndex::new(channels.iter().map(|channel| channel.id.0));
 
-    let script_notes = crate::script_notes::prepare(&project.settings.scripts, &project.channels);
+    let script_notes = crate::script_notes::prepare(project);
     let patterns: Vec<PlanPattern> = project
         .patterns
         .iter()
@@ -1048,6 +1060,12 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
 
     let waves = crate::track_workers::GraphWaves::compile(&order, tracks.len(), &[], &[])
         .expect("compiled track order");
+    let script_parameters = project.settings.scripts.parameter_addresses.iter().enumerate().map(|(index, address)| {
+            let channel = channel_ids.get(address.channel.0)?;
+            let (parameter, _, _) = project.settings.scripts.parameter(address.channel,
+                windfall_project::scripting::SCRIPT_PARAMETER_BASE + index as u32)?;
+            Some((channel, parameter))
+        }).collect();
     let mut plan = Plan {
         performance_clips: Vec::new(),
         performance_clip_ids: IdIndex::default(),
@@ -1098,6 +1116,9 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
         control_links: Vec::new(),
         pattern_lanes: false,
         tempo_map: None,
+        tempo_replay: Arc::from([]),
+        scripts: script_notes,
+        script_parameters,
     };
     if plan.meters.is_ok() {
         plan.snapshot_native_owners();
@@ -1287,6 +1308,10 @@ fn compile_pattern(
         let program = script_notes.get(channel).and_then(Option::as_ref);
         if program.is_some() {
             for note in lane.notes.iter().filter(|note| note.start < source_length) {
+                if let Some(program) = program.filter(|p| p.dynamic()) {
+                    length = length.max(program.maximum_end(windfall_project::scripting::ScriptNote::from(note))
+                        .unwrap_or(note.start.saturating_add(note.length)));
+                }
                 for output in crate::script_notes::transform(program, note).as_slice() {
                     length = length.max(output.start.saturating_add(output.length));
                 }
@@ -1302,7 +1327,9 @@ fn compile_pattern(
         let timing = source_channels[channel].timing;
         for note in lane.notes.iter().filter(|note| note.start < source_length) {
             let program = script_notes.get(channel).and_then(Option::as_ref);
-            let transformed_notes = crate::script_notes::transform(program, note);
+            let transformed_notes = if program.is_some_and(|p| p.dynamic()) {
+                windfall_project::scripting::TransformedNotes::single(windfall_project::scripting::ScriptNote::from(note))
+            } else { crate::script_notes::transform(program, note) };
             for transformed in transformed_notes.as_slice() {
                 let Some((tick, duration)) =
                     timing.place(transformed.start, transformed.length, length, swing)
@@ -1319,6 +1346,10 @@ fn compile_pattern(
                     pan: pan(transformed.pan),
                     expression: note.expression.clamped(),
                     scripted: program.is_some(),
+                    script_input: program.filter(|p| p.dynamic()).map(|_| windfall_project::scripting::ScriptNote::from(note)),
+                    script_tail: program.filter(|p| p.dynamic()).and_then(|p|
+                        p.maximum_end(windfall_project::scripting::ScriptNote::from(note)).ok())
+                        .map(|end| tick + f64::from(end - note.start)),
                 });
             }
         }
@@ -1460,7 +1491,7 @@ fn compile_playlist(
                     && tick < f64::from(end)
                     && only.is_none_or(|only| only == event.channel)
                 {
-                    song_end = song_end.max((tick + event.length).ceil() as u32);
+                    song_end = song_end.max((shift + event.script_tail.unwrap_or(event.tick + event.length)).ceil() as u32);
                 }
             }
         }

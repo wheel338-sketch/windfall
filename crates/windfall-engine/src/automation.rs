@@ -172,6 +172,7 @@ pub(crate) enum Target {
         channel: usize,
         param: usize,
     },
+    ScriptParam { channel: usize, param: usize },
     /// The tempo is not set on anything: it is built into the plan's tempo
     /// map, which the sequencer keeps time by.
     Tempo,
@@ -191,6 +192,7 @@ impl Target {
             | Target::EffectMix(_)
             | Target::InstrumentParam { .. }
             | Target::TrackParam { .. }
+            | Target::ScriptParam { .. }
             | Target::Tempo => false,
         }
     }
@@ -701,6 +703,11 @@ pub(crate) fn resolve(target: &AutomationTarget, plan: &Plan) -> Option<Target> 
         }
         AutomationTarget::InstrumentParam { channel: id, param } => {
             let channel = channel(id)?;
+            if let Some(index) = param.checked_sub(windfall_project::scripting::SCRIPT_PARAMETER_BASE) {
+                let (owner, param) = plan.script_parameters.get(index as usize).copied().flatten()?;
+                if owner != channel { return None; }
+                return Some(Target::ScriptParam { channel, param });
+            }
             plan.channels[channel].instrument?;
             Target::InstrumentParam {
                 channel,
@@ -904,6 +911,9 @@ pub(crate) fn set(
                 unit.automate(param, value);
             }
         }
+        Target::ScriptParam { channel, param } => {
+            if let Some(script) = &mut state.scripts[channel] { script.set_parameter(param, value); }
+        }
         Target::Tempo => {}
     }
 }
@@ -951,6 +961,7 @@ fn stored(plan: &Plan, target: Target) -> Option<f32> {
                 plan.channels[channel].instrument?.get(param)
             }
         }
+        Target::ScriptParam { channel, param } => plan.scripts[channel].as_ref()?.parameter_value(param),
         Target::Tempo => None,
     }
 }

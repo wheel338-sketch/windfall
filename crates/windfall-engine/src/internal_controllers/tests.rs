@@ -26,6 +26,7 @@ fn note(key: u8, velocity: f32) -> Note {
         origin: Origin::Live,
         pan: 0.0,
         expression: Default::default(),
+        input: None,
         source: None,
     }
 }
@@ -160,6 +161,7 @@ fn held_note_table_is_bounded_and_origin_release_and_clock_moves_are_precise() {
         values: vec![],
         rate: 1000.0,
         clock: Clock::control_default(1000, 120.0),
+        source_tempo: 120.0,
     };
     let mut finite = note(60, 0.5);
     finite.end = 100.0;

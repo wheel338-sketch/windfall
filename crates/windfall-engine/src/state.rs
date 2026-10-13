@@ -930,6 +930,7 @@ pub(crate) struct PlanState {
     /// What each automation lane of the plan is doing.
     pub lanes: Vec<LaneState>,
     pub controls: crate::internal_controllers::Runtime,
+    pub scripts: Vec<Option<windfall_project::scripting::NoteTransform>>,
     /// How many of them have their target in hand.
     pub engaged: usize,
     /// How many of them are walking a setting back to its stored value.
@@ -1663,6 +1664,7 @@ impl PlanState {
             silence: db_to_gain(TAIL_SILENCE_DB),
             lanes: vec![LaneState::default(); plan.lanes.len()],
             controls: crate::internal_controllers::Runtime::new(plan, sample_rate),
+            scripts: plan.scripts.clone(),
             engaged: 0,
             returning: 0,
             tempo_told: plan.tempo_bpm,

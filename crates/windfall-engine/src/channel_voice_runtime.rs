@@ -32,7 +32,7 @@ pub(crate) struct ChannelVoiceRuntime {
     chord: [Option<Note>; MAX_CHORD_NOTES],
     echo_sources: [Option<(u64, Note)>; ECHO_EVENT_CAPACITY],
     /// Echoes of notes still held by hand, waiting for their release.
-    held_echoes: [Option<(u8, Origin, HeldEcho)>; MAX_HELD_NOTES],
+    held_echoes: [Option<(u8, Origin, Option<u64>, HeldEcho)>; MAX_HELD_NOTES],
     pub arp_events: NoteEvents,
     pub echo_events: NoteEvents,
     pub rejected_echoes: u64,
@@ -62,7 +62,7 @@ impl ChannelVoiceRuntime {
         let slot = self
             .chord
             .iter()
-            .position(|n| n.is_some_and(|n| n.key == note.key && n.origin == note.origin))
+            .position(|n| n.is_some_and(|n| n.key == note.key && n.origin == note.origin && n.input == note.input))
             .or_else(|| self.chord.iter().position(Option::is_none));
         if let Some(slot) = slot {
             self.chord[slot] = Some(note);
@@ -94,7 +94,7 @@ impl ChannelVoiceRuntime {
     pub fn chord_off(&mut self, key: u8, origin: Origin) {
         let mut changed = false;
         for slot in &mut self.chord {
-            if slot.is_some_and(|n| n.key == key && n.origin == origin) {
+            if slot.is_some_and(|n| n.key == key && n.origin == origin && n.input.is_none()) {
                 *slot = None;
                 changed = true;
             }
@@ -164,7 +164,7 @@ impl ChannelVoiceRuntime {
             return;
         }
         // Playing a held key again releases the echoes of the earlier press.
-        self.release_held_echo(note.key, note.origin);
+        if note.input.is_none() { self.release_held_echo(note.key, note.origin); }
         let Some(slot) = self.held_echoes.iter().position(Option::is_none) else {
             self.rejected_echoes = self.rejected_echoes.saturating_add(1);
             return;
@@ -189,16 +189,17 @@ impl ChannelVoiceRuntime {
                 *source = Some((held.id(index), note));
             }
         }
-        self.held_echoes[slot] = Some((note.key, note.origin, held));
+        self.held_echoes[slot] = Some((note.key, note.origin, note.input, held));
     }
 
     /// Lets go of the echoes of a held note; they end one by one, each as
     /// long after this as it started after the note.
     pub fn release_held_echo(&mut self, key: u8, origin: Origin) {
         for slot in &mut self.held_echoes {
-            if let Some((held_key, held_origin, held)) = *slot
+            if let Some((held_key, held_origin, input, held)) = *slot
                 && held_key == key
                 && held_origin == origin
+                && input.is_none()
             {
                 self.echo.release_held(held, 0);
                 *slot = None;
@@ -218,7 +219,25 @@ impl ChannelVoiceRuntime {
             }
         }
         for slot in &mut self.held_echoes {
-            if slot.is_some_and(|(_, held_origin, _)| held_origin == origin) {
+            if slot.is_some_and(|(_, held_origin, _, _)| held_origin == origin) {
+                *slot = None;
+            }
+        }
+    }
+
+    pub fn release_script_input(&mut self, input: u64) {
+        for slot in &mut self.chord {
+            if slot.is_some_and(|note| note.input == Some(input)) { *slot = None; }
+        }
+        self.refresh_chord();
+        for slot in &mut self.echo_sources {
+            if let Some((id, note)) = *slot && note.input == Some(input) {
+                self.echo.cancel(id);
+                *slot = None;
+            }
+        }
+        for slot in &mut self.held_echoes {
+            if slot.is_some_and(|(_, _, owner, _)| owner == Some(input)) {
                 *slot = None;
             }
         }

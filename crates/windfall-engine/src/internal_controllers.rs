@@ -159,6 +159,7 @@ enum Dsp {
 
 #[derive(Clone, Copy)]
 struct Held {
+    input: Option<u64>,
     key: u8,
     velocity: f32,
     end_tick: f64,
@@ -256,11 +257,35 @@ impl Node {
         }
     }
 
+    fn reset_clock(&mut self, source: &Source) {
+        match &mut self.dsp {
+            Dsp::Envelope(d) => d.reset(), Dsp::Peak(d) => d.reset(),
+            Dsp::Keyboard(d) => d.reset(), Dsp::Formula(d) => d.reset(),
+            Dsp::Xy(d) => d.reset(), Dsp::Xyz(d) => d.reset(),
+            Dsp::Voltage(d) => d.reset(), Dsp::Surface => {}
+        }
+        for held in &mut self.held {
+            if held.is_some_and(|note| note.origin == Origin::Sequenced) { *held = None; }
+        }
+        self.values.fill(0.0); self.dc.fill([0.0; 8]);
+        self.sync_rate = None; self.drawn = 0.0; self.gate = false;
+        match source.params {
+            EffectParams::XyPad(p) => self.values[..2].copy_from_slice(&[p.x, p.y]),
+            EffectParams::XyzPad(p) => self.values[..3].copy_from_slice(&[p.x, p.y, p.z]),
+            EffectParams::ControlSurface(p) => {
+                for (i, value) in self.values.iter_mut().enumerate() { *value = p.get(i).unwrap_or(0.0); }
+            }
+            EffectParams::KeyboardSource(p) => self.values[0] = f32::from(p.root_key) / 127.0,
+            _ => {}
+        }
+    }
+
     pub fn note_on(&mut self, note: Note, frame: u64) {
         if note.velocity <= 0.0 || !matches!(self.dsp, Dsp::Envelope(_) | Dsp::Keyboard(_)) {
             return;
         }
         let entry = Held {
+            input: note.input,
             key: note.key,
             velocity: note.velocity,
             end_tick: note.end,
@@ -276,7 +301,7 @@ impl Node {
     }
     pub fn note_off(&mut self, channel: usize, key: u8, origin: Origin) {
         for held in &mut self.held {
-            if held.is_some_and(|n| n.channel == channel && n.key == key && n.origin == origin) {
+            if held.is_some_and(|n| n.channel == channel && n.key == key && n.origin == origin && n.input.is_none()) {
                 *held = None;
             }
         }
@@ -462,6 +487,8 @@ pub(crate) struct Runtime {
     values: Vec<f32>,
     rate: f32,
     pub clock: Clock,
+    /// Tempo captured at the preceding control-grid boundary.
+    pub source_tempo: f64,
 }
 impl Runtime {
     pub fn new(plan: &Plan, rate: u32) -> Self {
@@ -474,6 +501,7 @@ impl Runtime {
             values: plan.control_links.iter().map(|l| l.initial).collect(),
             rate: rate as f32,
             clock: Clock::control_default(rate, plan.tempo_bpm),
+            source_tempo: plan.tempo_bpm,
         }
     }
     pub fn process_slot(
@@ -487,7 +515,8 @@ impl Runtime {
     ) {
         for (i, source) in plan.control_sources.iter().enumerate() {
             if source.id == id {
-                self.nodes[i].process(source, params, audio, base, self.clock, tempo);
+                self.nodes[i].process(source, params, audio, base, self.clock,
+                    if plan.linked_tempo() { self.source_tempo } else { tempo });
             }
         }
     }
@@ -539,6 +568,14 @@ impl Runtime {
             node.note_off(channel, key, origin);
         }
     }
+    pub fn release_script_input(&mut self, input: u64) {
+        for node in &mut self.nodes {
+            for held in &mut node.held {
+                if held.is_some_and(|note| note.input == Some(input)) { *held = None; }
+            }
+        }
+    }
+
     pub fn move_ends(&mut self, moved: &impl Fn(f64) -> f64) {
         for node in &mut self.nodes {
             for note in node.held.iter_mut().flatten() {
@@ -562,7 +599,13 @@ impl Runtime {
             node.end_sequenced();
         }
     }
+    pub fn reset_clock(&mut self, plan: &Plan) {
+        for (node, source) in self.nodes.iter_mut().zip(&plan.control_sources) { node.reset_clock(source); }
+        for (value, link) in self.values.iter_mut().zip(&plan.control_links) { *value = link.initial; }
+        self.source_tempo = plan.tempo_bpm;
+    }
     pub fn take_over(&mut self, plan: &Plan, old: &mut Self, old_plan: &Plan) {
+        self.source_tempo = old.source_tempo;
         for (at, source) in plan.control_sources.iter().enumerate() {
             if let Some(before) = old_plan.control_sources.iter().position(|s| {
                 s.id == source.id
@@ -614,7 +657,8 @@ pub(crate) fn take_over(
             continue;
         };
         let value = link.range.value(state.controls.values[index]);
-        automation::set(plan, state, link.target, value, now, automation::GRID);
+        if matches!(link.target, Target::Tempo) { state.tell_tempo(old.tempo()); }
+        else { automation::set(plan, state, link.target, value, now, automation::GRID); }
         match (link.target, before.target) {
             (Target::ChannelGain(new), Target::ChannelGain(was))
                 if plan.channels[new].audible == old_plan.channels[was].audible =>
@@ -649,7 +693,8 @@ pub(crate) fn take_over(
 
 /// Links override ordinary automation deterministically in stored list order.
 /// The source's preceding grid endpoint drives the following grid with smoothing.
-pub(crate) fn step(plan: &Plan, state: &mut PlanState, now: u64) {
+pub(crate) fn step(plan: &Plan, state: &mut PlanState, now: u64) -> Option<f64> {
+    let mut tempo = None;
     for (index, link) in plan.control_links.iter().enumerate() {
         let raw = state.controls.nodes[link.source].values[link.output];
         let target = link.map.shape(raw);
@@ -659,16 +704,27 @@ pub(crate) fn step(plan: &Plan, state: &mut PlanState, now: u64) {
             1.0 - (-64_000.0 / (link.smoothing_ms * state.controls.rate)).exp()
         };
         let value = state.controls.values[index] + (target - state.controls.values[index]) * alpha;
+        let value = if matches!(link.target, Target::Tempo) {
+            value.clamp(link.key.map.min.min(link.key.map.max), link.key.map.min.max(link.key.map.max))
+        } else { value };
         state.controls.values[index] = value;
-        automation::set(
-            plan,
-            state,
-            link.target,
-            link.range.value(value),
-            now,
-            automation::GRID,
-        );
+        if matches!(link.target, Target::Tempo) {
+            tempo = Some(f64::from(link.range.value(value)).clamp(
+                windfall_project::MIN_TEMPO_BPM, windfall_project::MAX_TEMPO_BPM));
+        } else {
+            automation::set(plan, state, link.target, link.range.value(value), now, automation::GRID);
+        }
     }
+    tempo
+}
+
+pub(crate) fn same_tempo_links(a: &[Link], b: &[Link]) -> bool {
+    a.iter().filter(|link| matches!(link.target, Target::Tempo)).map(|link| &link.key)
+        .eq(b.iter().filter(|link| matches!(link.target, Target::Tempo)).map(|link| &link.key))
+}
+
+pub(crate) fn has_tempo(links: &[Link]) -> bool {
+    links.iter().any(|link| matches!(link.target, Target::Tempo))
 }
 
 #[cfg(test)]
