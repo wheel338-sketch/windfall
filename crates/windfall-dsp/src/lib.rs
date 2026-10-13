@@ -72,6 +72,8 @@ pub mod lofi;
 pub mod modulation;
 pub mod multiband;
 mod note_expression;
+mod note_pan;
+pub use note_pan::NotePan;
 pub mod notemap;
 mod param;
 pub mod performance;

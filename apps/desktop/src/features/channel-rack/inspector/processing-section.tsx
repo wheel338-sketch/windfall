@@ -1,3 +1,5 @@
+import { message as i18nMessage } from "@/lib/i18n"
+import { translatedText as t, useLanguageStore } from "@/lib/i18n"
 import { useEffect, useId, useRef, useState } from "react"
 import type { ClipStretchQuality, SamplerStretch } from "@/bindings"
 import { Knob, noteName } from "@/components/audio"
@@ -32,6 +34,7 @@ export function SamplerProcessingSection({
 }: {
   channel: SamplerChannel
 }) {
+  useLanguageStore((state) => state.language)
   // Musical edits/undo reset the draft without writing the shared project store.
   return (
     <ProcessingForm key={JSON.stringify(channel.source)} channel={channel} />
@@ -39,6 +42,7 @@ export function SamplerProcessingSection({
 }
 
 function ProcessingForm({ channel }: { channel: SamplerChannel }) {
+  useLanguageStore((state) => state.language)
   const initial = channel.source.stretch
   const spectral = initial?.mode === "spectral" ? initial : null
   const [mode, setMode] = useState<"tape" | "spectral">(initial?.mode ?? "tape")
@@ -63,7 +67,7 @@ function ProcessingForm({ channel }: { channel: SamplerChannel }) {
         )
       : 0
   const suggested = suggestedBeats(seconds, tempo)
-  const [progress, setProgress] = useState("Preparing key variants…")
+  const [progress, setProgress] = useState(t("Preparing key variants…"))
   const [error, setError] = useState<string | null>(null)
   const job = useRef<{ request: number | null; cancelled: boolean } | null>(
     null
@@ -106,7 +110,7 @@ function ProcessingForm({ channel }: { channel: SamplerChannel }) {
         range.last > 127 ||
         range.first > range.last)
     ) {
-      setError("Choose an ordered MIDI key range from 0 to 127.")
+      setError(t("Choose an ordered MIDI key range from 0 to 127."))
       return
     }
     const stretch: SamplerStretch =
@@ -122,7 +126,7 @@ function ProcessingForm({ channel }: { channel: SamplerChannel }) {
     const current = { request: null as number | null, cancelled: false }
     job.current = current
     setPending(true)
-    setProgress("Preparing key variants…")
+    setProgress(t("Preparing key variants…"))
     let timer: ReturnType<typeof setInterval> | undefined
     try {
       current.request = await backend.samplerPreparationBegin()
@@ -137,7 +141,7 @@ function ProcessingForm({ channel }: { channel: SamplerChannel }) {
           .then((value) => {
             if (!current.cancelled && value.total > 0)
               setProgress(
-                `Preparing key variants: ${value.completed}/${value.total}`
+                i18nMessage("Preparing key variants: {value0}/{value1}", { value0: value.completed, value1: value.total })
               )
           })
           .catch(() => {})
@@ -164,18 +168,18 @@ function ProcessingForm({ channel }: { channel: SamplerChannel }) {
     setError(null)
     const wanted = beats.trim() === "" ? suggested : Number(beats)
     if (seconds <= 0) {
-      setError("Load a sample before fitting it to the tempo.")
+      setError(t("Load a sample before fitting it to the tempo."))
       return
     }
     if (!Number.isFinite(wanted) || wanted <= 0) {
-      setError("Enter how many beats the sample should last.")
+      setError(t("Enter how many beats the sample should last."))
       return
     }
     if (mode === "spectral") {
       const fitted = tempoFitRatio(seconds, wanted, tempo)
       if (fitted === null) {
         setError(
-          "That many beats needs a duration ratio outside 0.25 to 4. Choose another beat count."
+          t("That many beats needs a duration ratio outside 0.25 to 4. Choose another beat count.")
         )
         return
       }
@@ -186,7 +190,7 @@ function ProcessingForm({ channel }: { channel: SamplerChannel }) {
     const tune = tempoFitTune(seconds, wanted, tempo)
     if (tune === null) {
       setError(
-        "That many beats needs more than 48 semitones of tuning. Choose another beat count."
+        t("That many beats needs more than 48 semitones of tuning. Choose another beat count.")
       )
       return
     }
@@ -194,14 +198,14 @@ function ProcessingForm({ channel }: { channel: SamplerChannel }) {
   }
 
   const published = spectral
-    ? `Key range ${noteName(spectral.range.first)}–${noteName(spectral.range.last)} (MIDI ${spectral.range.first}–${spectral.range.last}). Other keys are silent.`
-    : "Tape: pitch changes playback speed."
+    ? i18nMessage("Key range {value0}–{value1} (MIDI {value2}–{value3}). Other keys are silent.", { value0: noteName(spectral.range.first), value1: noteName(spectral.range.last), value2: spectral.range.first, value3: spectral.range.last })
+    : t("Tape: pitch changes playback speed.")
   return (
-    <Section title="Stretch">
+    <Section title={t("Stretch")}>
       <FieldGroup>
         <Field>
           <ToggleGroup
-            aria-label="Sampler stretch mode"
+            aria-label={t("Sampler stretch mode")}
             value={[mode]}
             disabled={pending}
             variant="outline"
@@ -212,8 +216,8 @@ function ProcessingForm({ channel }: { channel: SamplerChannel }) {
                 setMode(values[0])
             }}
           >
-            <ToggleGroupItem value="tape">Tape</ToggleGroupItem>
-            <ToggleGroupItem value="spectral">Independent</ToggleGroupItem>
+            <ToggleGroupItem value="tape">{t("Tape")}</ToggleGroupItem>
+            <ToggleGroupItem value="spectral">{t("Independent")}</ToggleGroupItem>
           </ToggleGroup>
           <FieldDescription>{published}</FieldDescription>
         </Field>
@@ -221,7 +225,7 @@ function ProcessingForm({ channel }: { channel: SamplerChannel }) {
           <>
             <Field data-disabled={pending}>
               <Knob
-                label="Duration ratio"
+                label={t("Duration ratio")}
                 value={ratio}
                 onValueChange={setRatio}
                 min={0.25}
@@ -232,14 +236,12 @@ function ProcessingForm({ channel }: { channel: SamplerChannel }) {
                 disabled={pending}
                 format={(value) => `${value.toFixed(2)}×`}
               />
-              <FieldDescription>
-                Duration stays the same across the prepared keys.
-              </FieldDescription>
+              <FieldDescription>{t("Duration stays the same across the prepared keys.")}</FieldDescription>
             </Field>
             <Field>
-              <FieldLabel>Preparation quality</FieldLabel>
+              <FieldLabel>{t("Preparation quality")}</FieldLabel>
               <ToggleGroup
-                aria-label="Sampler preparation quality"
+                aria-label={t("Sampler preparation quality")}
                 value={[quality]}
                 disabled={pending}
                 variant="outline"
@@ -253,15 +255,15 @@ function ProcessingForm({ channel }: { channel: SamplerChannel }) {
                     setQuality(values[0])
                 }}
               >
-                <ToggleGroupItem value="fast">Fast</ToggleGroupItem>
-                <ToggleGroupItem value="standard">Standard</ToggleGroupItem>
-                <ToggleGroupItem value="high">High</ToggleGroupItem>
+                <ToggleGroupItem value="fast">{t("Fast")}</ToggleGroupItem>
+                <ToggleGroupItem value="standard">{t("Standard")}</ToggleGroupItem>
+                <ToggleGroupItem value="high">{t("High")}</ToggleGroupItem>
               </ToggleGroup>
               <div className="flex gap-2">
                 <Button
                   variant="outline"
                   size="sm"
-                  aria-label="Choose the previous sampler preparation quality"
+                  aria-label={t("Choose the previous sampler preparation quality")}
                   disabled={
                     pending || nextSamplerQuality(quality, "previous") === null
                   }
@@ -269,13 +271,11 @@ function ProcessingForm({ channel }: { channel: SamplerChannel }) {
                     const next = nextSamplerQuality(quality, "previous")
                     if (next !== null) setQuality(next)
                   }}
-                >
-                  Previous
-                </Button>
+                >{t("Previous")}</Button>
                 <Button
                   variant="outline"
                   size="sm"
-                  aria-label="Choose the next sampler preparation quality"
+                  aria-label={t("Choose the next sampler preparation quality")}
                   disabled={
                     pending || nextSamplerQuality(quality, "next") === null
                   }
@@ -283,9 +283,7 @@ function ProcessingForm({ channel }: { channel: SamplerChannel }) {
                     const next = nextSamplerQuality(quality, "next")
                     if (next !== null) setQuality(next)
                   }}
-                >
-                  Next
-                </Button>
+                >{t("Next")}</Button>
               </div>
             </Field>
             <Field orientation="horizontal">
@@ -295,14 +293,10 @@ function ProcessingForm({ channel }: { channel: SamplerChannel }) {
                 disabled={pending}
                 onCheckedChange={(checked) => setFormants(checked === true)}
               />
-              <FieldLabel htmlFor={`${id}-formants`}>
-                Preserve formants (approximate)
-              </FieldLabel>
+              <FieldLabel htmlFor={`${id}-formants`}>{t("Preserve formants (approximate)")}</FieldLabel>
             </Field>
             <Field>
-              <FieldLabel htmlFor={`${id}-first`}>
-                First prepared MIDI key
-              </FieldLabel>
+              <FieldLabel htmlFor={`${id}-first`}>{t("First prepared MIDI key")}</FieldLabel>
               <Input
                 id={`${id}-first`}
                 type="number"
@@ -315,9 +309,7 @@ function ProcessingForm({ channel }: { channel: SamplerChannel }) {
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor={`${id}-last`}>
-                Last prepared MIDI key
-              </FieldLabel>
+              <FieldLabel htmlFor={`${id}-last`}>{t("Last prepared MIDI key")}</FieldLabel>
               <Input
                 id={`${id}-last`}
                 type="number"
@@ -328,21 +320,15 @@ function ProcessingForm({ channel }: { channel: SamplerChannel }) {
                 disabled={pending}
                 onChange={(event) => setLast(event.target.value)}
               />
-              <FieldDescription>
-                Every key is prepared before Apply completes. The 256 MiB
-                aggregate budget includes banks held by old voices.
-              </FieldDescription>
+              <FieldDescription>{t("Every key is prepared before Apply completes. The 256 MiB aggregate budget includes banks held by old voices.")}</FieldDescription>
             </Field>
             {backend.kind === "mock" && (
-              <FieldDescription>
-                Browser mode cannot prepare or audition spectral key variants.
-                Apply will keep settings and history.
-              </FieldDescription>
+              <FieldDescription>{t("Browser mode cannot prepare or audition spectral key variants. Apply will keep settings and history.")}</FieldDescription>
             )}
           </>
         )}
         <Field data-disabled={pending || undefined}>
-          <FieldLabel htmlFor={`${id}-beats`}>Beats to fit</FieldLabel>
+          <FieldLabel htmlFor={`${id}-beats`}>{t("Beats to fit")}</FieldLabel>
           <div className="flex gap-2">
             <Input
               id={`${id}-beats`}
@@ -359,14 +345,12 @@ function ProcessingForm({ channel }: { channel: SamplerChannel }) {
               size="sm"
               disabled={pending}
               onClick={() => void fitToTempo()}
-            >
-              Fit to tempo
-            </Button>
+            >{t("Fit to tempo")}</Button>
           </div>
           <FieldDescription>
             {mode === "spectral"
-              ? "Sets the duration ratio so the played region lasts that many beats at the project tempo. Pitch stays; Apply stretch prepares it."
-              : "Tunes the sample so the played region lasts that many beats at its root key. Tape changes pitch with speed."}
+              ? t("Sets the duration ratio so the played region lasts that many beats at the project tempo. Pitch stays; Apply stretch prepares it.")
+              : t("Tunes the sample so the played region lasts that many beats at its root key. Tape changes pitch with speed.")}
           </FieldDescription>
         </Field>
         {error && (
@@ -376,15 +360,13 @@ function ProcessingForm({ channel }: { channel: SamplerChannel }) {
         )}
       </FieldGroup>
       {pending && (
-        <p role="status" aria-label="Sampler preparation" className="flex items-center gap-2">
+        <p role="status" aria-label={t("Sampler preparation")} className="flex items-center gap-2">
           <Spinner role="presentation" aria-hidden />
           {progress}
         </p>
       )}
       <div className="flex gap-2">
-        <Button size="sm" disabled={pending} onClick={() => void apply()}>
-          Apply stretch
-        </Button>
+        <Button size="sm" disabled={pending} onClick={() => void apply()}>{t("Apply stretch")}</Button>
         {pending && (
           <Button
             size="sm"
@@ -399,9 +381,7 @@ function ProcessingForm({ channel }: { channel: SamplerChannel }) {
               }
               setPending(false)
             }}
-          >
-            Cancel preparation
-          </Button>
+          >{t("Cancel preparation")}</Button>
         )}
       </div>
     </Section>

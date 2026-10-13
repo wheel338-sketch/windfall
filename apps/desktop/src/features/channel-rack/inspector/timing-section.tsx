@@ -1,3 +1,5 @@
+import { message as i18nMessage } from "@/lib/i18n"
+import { translatedText as t, useLanguageStore } from "@/lib/i18n"
 import type { Channel, ChannelTiming } from "@/bindings"
 import { Knob, NumberField, percentUnit } from "@/components/audio"
 import { ActionButton } from "@/components/action-button"
@@ -22,6 +24,7 @@ import { SWING_PRESETS, nextSwing } from "./swing-presets"
 export const DEFAULT_CHANNEL_TIMING: ChannelTiming = { swingMix: 1, gateTicks: 0, shiftTicks: 0 }
 
 export function TimingSection({ channel }: { channel: Channel }) {
+  useLanguageStore((state) => state.language)
   const { id } = channel
   const stored = channel.timing ?? DEFAULT_CHANNEL_TIMING
   // Each gesture reads the other controls at dispatch time so interleaved
@@ -36,14 +39,14 @@ export function TimingSection({ channel }: { channel: Channel }) {
   const shift = useGestureValue(stored.shiftTicks, (value, dispatch) => dispatch({
     type: "updateChannel", id, patch: { timing: { ...timing(), shiftTicks: clamp(Math.round(value), -PPQ, PPQ) } },
   }))
-  const swingHint = useHint("Channel swing mix: how much of the global swing applies to this channel. 100% follows global swing; 0% stays straight")
-  const gateHint = useHint("Gate caps the played duration after swing, in ticks. Zero keeps the original duration. Stored piano notes stay unchanged")
-  const shiftHint = useHint("Shift moves played starts after swing, in ticks. Negative starts clamp to zero; starts reaching the pattern end do not play in that pass")
+  const swingHint = useHint(t("Channel swing mix: how much of the global swing applies to this channel. 100% follows global swing; 0% stays straight"))
+  const gateHint = useHint(t("Gate caps the played duration after swing, in ticks. Zero keeps the original duration. Stored piano notes stay unchanged"))
+  const shiftHint = useHint(t("Shift moves played starts after swing, in ticks. Negative starts clamp to zero; starts reaching the pattern end do not play in that pass"))
   return (
-    <Section title="Note timing" aside={<ActionButton action="channel.resetTiming" variant="ghost" size="xs">Reset</ActionButton>}>
+    <Section title={t("Note timing")} aside={<ActionButton action="channel.resetTiming" variant="ghost" size="xs">{t("Reset")}</ActionButton>}>
       <div className="flex items-center justify-between gap-2" {...swingHint}>
-        <span>Swing mix</span>
-        <Knob size="sm" aria-label="Channel swing mix" min={0} max={1} defaultValue={1} {...percentUnit} {...swing} />
+        <span>{t("Swing mix")}</span>
+        <Knob size="sm" aria-label={t("Channel swing mix")} min={0} max={1} defaultValue={1} {...percentUnit} {...swing} />
       </div>
       <div className="flex flex-wrap gap-1">
         {SWING_PRESETS.map(({ label, value: preset }) => (
@@ -60,7 +63,7 @@ export function TimingSection({ channel }: { channel: Channel }) {
               }
             }}
           >
-            {label}
+            {t(label)}
           </Button>
         ))}
       </div>
@@ -70,7 +73,7 @@ export function TimingSection({ channel }: { channel: Channel }) {
             key={direction}
             variant="outline"
             size="sm"
-            aria-label={`Choose the ${direction} channel swing mix`}
+            aria-label={i18nMessage("Choose the {value0} channel swing mix", { value0: t(direction) })}
             disabled={nextSwingMixPreset(stored.swingMix, direction) === null}
             onClick={() => {
               const next = nextSwingMixPreset(timing().swingMix, direction)
@@ -81,7 +84,7 @@ export function TimingSection({ channel }: { channel: Channel }) {
               }
             }}
           >
-            {direction === "previous" ? "Previous" : "Next"}
+            {direction === "previous" ? t("Previous") : t("Next")}
           </Button>
         ))}
       </div>
@@ -101,13 +104,13 @@ export function TimingSection({ channel }: { channel: Channel }) {
               }
             }}
           >
-            {factor === "halve" ? "Halve" : "Double"}
+            {factor === "halve" ? t("Halve") : t("Double")}
           </Button>
         ))}
       </div>
       <div className="flex items-center justify-between gap-2" {...gateHint}>
-        <span>Gate</span>
-        <NumberField size="sm" aria-label="Channel gate in ticks" min={0} max={MAX_PATTERN_STEPS * TICKS_PER_STEP} step={1} defaultValue={0} unit="ticks" {...gate} />
+        <span>{t("Gate")}</span>
+        <NumberField size="sm" aria-label={t("Channel gate in ticks")} min={0} max={MAX_PATTERN_STEPS * TICKS_PER_STEP} step={1} defaultValue={0} unit="ticks" {...gate} />
       </div>
       <div className="flex flex-wrap gap-1">
         {GATE_PRESETS.map(({ label, ticks: preset }) => (
@@ -124,7 +127,7 @@ export function TimingSection({ channel }: { channel: Channel }) {
               }
             }}
           >
-            {label}
+            {t(label)}
           </Button>
         ))}
       </div>
@@ -134,7 +137,7 @@ export function TimingSection({ channel }: { channel: Channel }) {
             key={direction}
             variant="outline"
             size="sm"
-            aria-label={`Choose the ${direction} channel gate`}
+            aria-label={i18nMessage("Choose the {value0} channel gate", { value0: t(direction) })}
             disabled={nextGatePreset(stored.gateTicks, direction) === null}
             onClick={() => {
               const next = nextGatePreset(timing().gateTicks, direction)
@@ -145,7 +148,7 @@ export function TimingSection({ channel }: { channel: Channel }) {
               }
             }}
           >
-            {direction === "previous" ? "Previous" : "Next"}
+            {direction === "previous" ? t("Previous") : t("Next")}
           </Button>
         ))}
       </div>
@@ -165,13 +168,13 @@ export function TimingSection({ channel }: { channel: Channel }) {
               }
             }}
           >
-            {factor === "half" ? "Half" : "Double"}
+            {factor === "half" ? t("Half") : t("Double")}
           </Button>
         ))}
       </div>
       <div className="flex items-center justify-between gap-2" {...shiftHint}>
-        <span>Shift</span>
-        <NumberField size="sm" aria-label="Channel shift in ticks" min={-PPQ} max={PPQ} step={1} defaultValue={0} unit="ticks" {...shift} />
+        <span>{t("Shift")}</span>
+        <NumberField size="sm" aria-label={t("Channel shift in ticks")} min={-PPQ} max={PPQ} step={1} defaultValue={0} unit="ticks" {...shift} />
       </div>
       <div className="flex flex-wrap gap-1">
         {SHIFT_PRESETS.map(({ label, ticks: preset }) => (
@@ -188,7 +191,7 @@ export function TimingSection({ channel }: { channel: Channel }) {
               }
             }}
           >
-            {label}
+            {t(label)}
           </Button>
         ))}
       </div>
@@ -198,7 +201,7 @@ export function TimingSection({ channel }: { channel: Channel }) {
             key={direction}
             variant="outline"
             size="sm"
-            aria-label={`Choose the ${direction} channel shift`}
+            aria-label={i18nMessage("Choose the {value0} channel shift", { value0: t(direction) })}
             disabled={nextShiftPreset(stored.shiftTicks, direction) === null}
             onClick={() => {
               const next = nextShiftPreset(timing().shiftTicks, direction)
@@ -209,7 +212,7 @@ export function TimingSection({ channel }: { channel: Channel }) {
               }
             }}
           >
-            {direction === "previous" ? "Previous" : "Next"}
+            {direction === "previous" ? t("Previous") : t("Next")}
           </Button>
         ))}
       </div>
@@ -229,11 +232,11 @@ export function TimingSection({ channel }: { channel: Channel }) {
               }
             }}
           >
-            {factor === "half" ? "Half" : "Double"}
+            {factor === "half" ? t("Half") : t("Double")}
           </Button>
         ))}
       </div>
-      <p className="text-muted-foreground">{PPQ} ticks = one quarter note. Gate 0 keeps note lengths; filtering groups does not affect timing.</p>
+      <p className="text-muted-foreground">{i18nMessage("{ppq} ticks = one quarter note. Gate 0 keeps note lengths; filtering groups does not affect timing.", { ppq: PPQ })}</p>
     </Section>
   )
 }

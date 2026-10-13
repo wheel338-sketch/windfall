@@ -1,6 +1,6 @@
 //! Non-ignored admission budgets. Inputs and workloads are deterministic;
 //! elapsed times must be recorded on the integration machine in release mode.
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use windfall_dsp::drive::{
     Cabinet, DriveChainParams, DriveStage, DriveStageParams, GuitarRackParams, OverdriveParams,
     Oversampling, PedalParams, WaveshaperParams,
@@ -65,6 +65,9 @@ fn moving_params(base: EffectParams, block: usize) -> EffectParams {
 fn measure(params: EffectParams, fraction: f64) {
     let kind = params.kind();
     for block in [1_usize, 64, 256, 2048] {
+        let mut trials = [(0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64); 4];
+        for (trial, result) in trials.iter_mut().enumerate() {
+            let _core = (trial > 0).then(super::deadline_cpu::PerformanceCore::enter);
         let mut effect = AnyEffect::new(&params);
         effect.prepare(RATE, block);
         effect.set_params(&params);
@@ -124,7 +127,7 @@ fn measure(params: EffectParams, fraction: f64) {
                     .all(|s| s.is_finite())
             );
         }
-        let realtime_share = elapsed * RATE as f64 / frames as f64;
+
         let mut reset = f64::INFINITY;
         let mut maximum_reset = 0.0_f64;
         for _ in 0..8 {
@@ -134,6 +137,14 @@ fn measure(params: EffectParams, fraction: f64) {
             reset = reset.min(cost);
             maximum_reset = maximum_reset.max(cost);
         }
+            *result = (elapsed * RATE as f64 / frames as f64, maximum, reset, maximum_reset);
+        }
+        let mut times = trials[1..].iter().map(|t| Duration::from_secs_f64(t.0)).collect::<Vec<_>>();
+        let realtime_share = super::deadline_cpu::report("P2 CPU share (seconds per audio second)", &mut times, Duration::from_secs_f64(trials[0].0)).as_secs_f64();
+        let maximum = trials[1..].iter().map(|t| t.1).fold(f64::INFINITY, f64::min);
+        let reset = trials[1..].iter().map(|t| t.2).fold(f64::INFINITY, f64::min);
+        let maximum_reset = trials[1..].iter().map(|t| t.3).fold(f64::INFINITY, f64::min);
+        println!("P2 trial callback/reset maxima (unrestricted first): {trials:?}");
         println!(
             "P2 {kind:?} params={params:?} block={block} rate={RATE} CPU-share={realtime_share:.6} max-callback-us={:.3} reset-best-us={:.3} reset-max-us={:.3} debug-factor={DEBUG_FACTOR}",
             maximum * 1e6,

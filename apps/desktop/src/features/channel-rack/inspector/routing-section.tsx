@@ -1,3 +1,5 @@
+import { message as i18nMessage } from "@/lib/i18n"
+import { translatedText as t, useLanguageStore } from "@/lib/i18n"
 import { ArrowDown01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
@@ -18,21 +20,22 @@ import { Section } from "./parts"
 
 /** Which mixer track the channel plays into, with a way to change it and go there. */
 export function RoutingSection({ channel }: { channel: Channel }) {
+  useLanguageStore((state) => state.language)
   const track = useMixerTrack(channel.mixerTrack)
   const index = useMixerTrackIndex(channel.mixerTrack)
   const hint = useHint(
-    "Mixer track: where this channel's sound goes. Click to route it to another track or a new one"
+    t("Mixer track: where this channel's sound goes. Click to route it to another track or a new one")
   )
 
   return (
-    <Section title="Mixer track" className="flex-row items-center">
+    <Section title={t("Mixer track")} className="flex-row items-center">
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
             <Button
               variant="outline"
               size="sm"
-              aria-label={`Mixer track: ${track?.name ?? "missing"}`}
+              aria-label={i18nMessage("Mixer track: {value0}", { value0: track?.name ?? t("missing") })}
               className="min-w-0 flex-1 justify-start gap-2 px-2"
               {...hint}
             />
@@ -47,7 +50,7 @@ export function RoutingSection({ channel }: { channel: Channel }) {
             {trackNumber(index)}
           </span>
           <span className="min-w-0 flex-1 truncate text-left">
-            {track?.name ?? "Missing track"}
+            {track?.name ?? t("Missing track")}
           </span>
           <HugeiconsIcon
             icon={ArrowDown01Icon}
@@ -68,9 +71,7 @@ export function RoutingSection({ channel }: { channel: Channel }) {
         variant="ghost"
         size="sm"
         className="shrink-0"
-      >
-        Show in mixer
-      </ActionButton>
+      >{t("Show in mixer")}</ActionButton>
     </Section>
   )
 }

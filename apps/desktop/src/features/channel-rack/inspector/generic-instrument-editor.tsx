@@ -1,3 +1,4 @@
+import { useLanguageStore } from "@/lib/i18n"
 import { useCallback, useContext } from "react"
 
 import type { ChannelId, InstrumentParams } from "@/bindings"
@@ -19,6 +20,7 @@ export function GenericInstrumentEditor({
   params: InstrumentParams
 }) {
   const owner = useContext(InstrumentEditorOwner)
+  useLanguageStore((state) => state.language)
   const setParam: SetParam = useCallback(
     (param, value, gesture) =>
       dispatch({ type: "setInstrumentParam", channel, param, value }, gesture),

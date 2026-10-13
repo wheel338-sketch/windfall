@@ -43,6 +43,8 @@ pub struct SpeechVoice {
     current: SpeechVoiceParams,
     moving: bool,
     sample_rate: f32,
+    note_pan: crate::note_pan::NotePan,
+    pan_law: windfall_core::PanLaw,
     glide: f32,
     table: [[Coefficients; 3]; 8],
     resonators: [Resonator; 3],
@@ -66,6 +68,8 @@ impl Default for SpeechVoice {
             current: SpeechVoiceParams::default(),
             moving: false,
             sample_rate: 48_000.0,
+            note_pan: crate::note_pan::NotePan::default(),
+            pan_law: windfall_core::PanLaw::Balance,
             glide: 1.0,
             table: [[Coefficients::default(); 3]; 8],
             resonators: [Resonator::default(); 3],
@@ -204,6 +208,7 @@ impl Instrument for SpeechVoice {
     }
 
     fn reset(&mut self) {
+        self.note_pan = crate::note_pan::NotePan::new(0.0, self.pan_law);
         self.current = self.params;
         self.moving = false;
         self.resonators = [Resonator::default(); 3];
@@ -245,6 +250,16 @@ impl Instrument for SpeechVoice {
         }
     }
 
+    fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
+        self.pan_law = law;
+        self.note_pan.retarget(law, self.sample_rate);
+    }
+    fn note_on_expression(&mut self, key: u8, velocity: f32, pan: f32, _expression: crate::NoteExpression) {
+        self.note_on(key, velocity);
+        if velocity.is_finite() && velocity > 0.0 {
+            self.note_pan = crate::note_pan::NotePan::new(pan, self.pan_law);
+        }
+    }
     fn note_off(&mut self, key: u8) {
         if key.min(127) == self.key {
             self.begin_release(self.current.release_ms);
@@ -262,8 +277,9 @@ impl Instrument for SpeechVoice {
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
         for (left, right) in left.iter_mut().zip(right.iter_mut()) {
             let sample = self.tick();
-            *left = sample;
-            *right = sample;
+            let pan = self.note_pan.tick();
+            *left = sample * pan.0;
+            *right = sample * pan.1;
         }
     }
 

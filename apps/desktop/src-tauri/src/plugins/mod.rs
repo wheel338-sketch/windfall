@@ -4,6 +4,8 @@ mod bridge;
 mod capture_ack;
 mod manager_workflows;
 mod runtime;
+mod note_capabilities;
+pub use note_capabilities::NoteCapabilities;
 mod wrapper;
 pub(crate) use capture_ack::{CaptureAcknowledgement, CaptureOutcome};
 pub use manager_workflows::Rescan;

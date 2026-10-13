@@ -56,6 +56,7 @@ impl Metadata {
 
 pub(super) struct Record {
     pub editor_open: bool,
+    pub note_capabilities: Arc<super::note_capabilities::Published>,
     pub dirty_serial: u64,
     pub acknowledged_serial: u64,
     pub capture_sent: bool,
@@ -256,6 +257,7 @@ impl NoteOwner {
 }
 pub(super) struct Audio {
     retired: bool,
+    note_capabilities: Arc<super::note_capabilities::Published>,
     notes: Box<[NoteOwner]>,
     next_note: u32,
     process: ProcessAudio,
@@ -302,8 +304,12 @@ pub(super) fn launch(
             }
         })
         .collect();
+    let note_capabilities = Arc::new(super::note_capabilities::Published::default());
+    let caps = process.native_note_capabilities();
+    note_capabilities.publish(caps.0, caps.1);
     let record = Record {
         editor_open: false,
+        note_capabilities: note_capabilities.clone(),
         dirty_serial: 0,
         acknowledged_serial: 0,
         capture_sent: false,
@@ -318,6 +324,7 @@ pub(super) fn launch(
     };
     let audio = Audio {
         retired: false,
+        note_capabilities,
         notes: vec![NoteOwner::EMPTY; windfall_plugin_host::MAX_NOTE_INSTANCES].into_boxed_slice(),
         next_note: windfall_plugin_host::FIRST_NOTE_INSTANCE_ID,
         process,
@@ -451,6 +458,8 @@ impl HostedEffect for Audio {
         } else {
             self.process.process_sidechain(left, right, key);
         }
+        let caps = self.process.native_note_capabilities();
+        self.note_capabilities.publish(caps.0, caps.1);
         self.publish(false);
         self.acknowledge();
     }
@@ -863,6 +872,7 @@ mod tests {
         .unwrap();
         let mut audio = Audio {
         retired: false,
+            note_capabilities: Arc::new(super::super::note_capabilities::Published::default()),
             notes: vec![NoteOwner::EMPTY; windfall_plugin_host::MAX_NOTE_INSTANCES]
                 .into_boxed_slice(),
             next_note: windfall_plugin_host::FIRST_NOTE_INSTANCE_ID,

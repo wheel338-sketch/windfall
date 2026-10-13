@@ -1,7 +1,8 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { act, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { setLanguage } from "@/lib/i18n"
 import { useProjectStore } from "@/lib/store/project"
 import { useUiStore } from "@/lib/store/ui"
 import { startTestApp } from "@/test/harness"
@@ -10,11 +11,12 @@ import { midiFixture } from "./fixture"
 
 let app: Awaited<ReturnType<typeof startTestApp>>
 beforeEach(async () => {
+  setLanguage("en")
   app = await startTestApp({
     midiFile: async () => ({ name: "authored.mid", bytes: midiFixture() }),
   })
 })
-afterEach(() => app.stop())
+afterEach(() => { app.stop(); setLanguage("en") })
 
 function open(dialog: "midiImport" | "midiExport") {
   useUiStore.getState().openDialog(dialog)
@@ -42,6 +44,29 @@ async function prepare() {
 }
 
 describe("MIDI dialogs", () => {
+  it("retranslates the mounted MIDI interior and counted preview while preserving authored names", async () => {
+    await prepare()
+    act(() => setLanguage("es"))
+    expect(screen.getByRole("button", { name: "Elegir archivo MIDI…" })).toBeVisible()
+    expect(screen.getByLabelText("Importar el primer compás")).toBeVisible()
+    expect(screen.getByText("Se añadirán 1 canal, 1 patrón, 1 clip y 1 nota.")).toBeVisible()
+    expect(screen.getByText("Lead")).toBeVisible()
+    expect(screen.getByRole("button", { name: "Importar" })).toBeEnabled()
+    act(() => setLanguage("en"))
+    expect(screen.getByText("1 channel, 1 pattern, 1 clip and 1 note will be added.")).toBeVisible()
+  })
+  it("localizes MIDI validation diagnostics and retains the failed review without document edits", async () => {
+    act(() => setLanguage("es"))
+    const before = useProjectStore.getState().project
+    vi.spyOn(app.backend, "pickMidiFile").mockResolvedValue("broken.mid")
+    vi.spyOn(app.backend, "midiPreview").mockRejectedValue(new Error("The MIDI track is truncated."))
+    open("midiImport")
+    await userEvent.setup().click(screen.getByRole("button", { name: "Elegir archivo MIDI…" }))
+    expect(await screen.findByRole("alert")).toHaveTextContent("La pista MIDI está truncada.")
+    expect(screen.getByRole("button", { name: "Importar" })).toBeDisabled()
+    expect(useProjectStore.getState().project).toBe(before)
+  })
+
   it("exports chosen expression routing and validates bend/spacing options", async () => {
     const exported = vi.spyOn(app.backend, "exportMidi").mockResolvedValue("/exports/phrase.mid")
     open("midiExport")

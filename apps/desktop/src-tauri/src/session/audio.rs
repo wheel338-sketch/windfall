@@ -85,6 +85,9 @@ impl Session {
     /// is left out when opening and stays in the request; see [`openable`].
     pub fn engine_configure(&self, settings: AudioSettings) -> EngineStatus {
         let _configuring = lock(&self.inner.configuring);
+        if self.inner.update_installing.load(std::sync::atomic::Ordering::Acquire) {
+            let mut status=self.engine_status();status.error=Some("Audio configuration is frozen for update installation".into());return status;
+        }
         let previous = self.engine_settings();
         let mut device_request = settings.clone();
         device_request.processing_threads = previous.processing_threads;

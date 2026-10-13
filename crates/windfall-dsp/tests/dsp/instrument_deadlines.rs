@@ -346,14 +346,20 @@ fn profile(params: InstrumentParams, voices: usize) {
 
     let mut left = [0.0; BLOCK];
     let mut right = [0.0; BLOCK];
-    let mut best = Duration::MAX;
+    let mut times = [Duration::ZERO; 4];
+    let mut tail_times = [Duration::ZERO; 4];
+    let release_blocks = RATE * 5 / BLOCK;
+    let tail_blocks = tail.div_ceil(BLOCK) + 2;
+    let tail_seconds = ((release_blocks + tail_blocks) * BLOCK) as f64 / RATE as f64;
+
     let mut reference = None;
     let mut slowest_block = Duration::ZERO;
     let mut overall_peak = 0.0_f32;
-    // All three trials execute the same fixed two seconds at full load. Taking
+    // One unrestricted informational trial, then three selected trials execute the same fixed two seconds at full load. Taking
     // the fastest whole trial tolerates an OS scheduling interruption without
     // allowing cheap idle/tail frames to dilute the maximum-load ratio.
-    for _ in 0..3 {
+    for trial in 0..4 {
+        let _core = (trial > 0).then(super::deadline_cpu::PerformanceCore::enter);
         let mut stats = PcmStats::default();
         let mut full_load = true;
         let started = Instant::now();
@@ -391,7 +397,7 @@ fn profile(params: InstrumentParams, voices: usize) {
                 unit.set_tempo(120.0);
             }
         });
-        best = best.min(started.elapsed());
+        times[trial] = started.elapsed();
         assert_eq!(
             calls, 0,
             "{label}: process/events/reset touched the allocator"
@@ -413,26 +419,10 @@ fn profile(params: InstrumentParams, voices: usize) {
         }
         reference = Some(stats.hash);
         overall_peak = overall_peak.max(stats.peak);
-    }
-    let audio_seconds = (BLOCKS * BLOCK) as f64 / RATE as f64;
-    let ratio = best.as_secs_f64() / audio_seconds;
-    eprintln!(
-        "{}: voices={voices}, prepare={preparation:?}, allocated={bytes}, \
-         two-second render={best:?}, ratio={ratio:.4}, slowest128={slowest_block:?}, \
-         peak={overall_peak}, tail={tail} frames",
-        params.kind().name(),
-    );
-    assert!(
-        ratio < MAX_RATIO,
-        "{label}: realtime ratio {ratio:.4} >= {MAX_RATIO}"
-    );
-
     // Release, drain the complete declared serial effects tail, then demand
     // exact silence. This phase has its own allocator and ratio measurements.
     let mut stats = PcmStats::default();
     let mut drained = false;
-    let release_blocks = RATE * 5 / BLOCK;
-    let tail_blocks = tail.div_ceil(BLOCK) + 2;
     let started = Instant::now();
     let calls = allocator_calls(|| {
         for key in 0..128 {
@@ -459,15 +449,26 @@ fn profile(params: InstrumentParams, voices: usize) {
         left.iter().chain(&right).all(|x| *x == 0.0),
         "{label}: tail did not end"
     );
-    let tail_seconds = ((release_blocks + tail_blocks) * BLOCK) as f64 / RATE as f64;
-    assert!(
-        tail_elapsed.as_secs_f64() < tail_seconds * MAX_RATIO,
-        "{label}: tail realtime ratio"
-    );
+    tail_times[trial] = tail_elapsed;
+    }
+    let audio_seconds = (BLOCKS * BLOCK) as f64 / RATE as f64;
+    let unrestricted = times[0];
+    let best = super::deadline_cpu::report("instrument held", &mut times[1..], unrestricted);
+    let ratio = best.as_secs_f64() / audio_seconds;
     eprintln!(
-        "{}: released/tail render={tail_elapsed:?}, audio={tail_seconds:.3}s",
-        params.kind().name()
+        "{}: voices={voices}, prepare={preparation:?}, allocated={bytes}, \
+         two-second render={best:?}, ratio={ratio:.4}, slowest128={slowest_block:?}, \
+         peak={overall_peak}, tail={tail} frames",
+        params.kind().name(),
     );
+    assert!(
+        ratio < MAX_RATIO,
+        "{label}: realtime ratio {ratio:.4} >= {MAX_RATIO}"
+    );
+
+    let unrestricted_tail = tail_times[0];
+    let best_tail = super::deadline_cpu::report("instrument tail", &mut tail_times[1..], unrestricted_tail);
+    assert!(best_tail.as_secs_f64() < tail_seconds * MAX_RATIO, "{label}: tail realtime ratio");
 
     // Exercise a real control transition as well as the repeated publications
     // in the timing loop. Build the Copy settings outside the allocator guard.

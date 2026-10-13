@@ -1,3 +1,5 @@
+import { localizeBackendText } from "@/lib/i18n"
+import { message, translatedText as t, useLanguageStore } from "@/lib/i18n"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
@@ -47,6 +49,7 @@ function Check({
   disabled: boolean
   onChange(value: boolean): void
 }) {
+  useLanguageStore((state) => state.language)
   return (
     <Field orientation="horizontal" data-disabled={disabled || undefined}>
       <Checkbox
@@ -55,18 +58,15 @@ function Check({
         disabled={disabled}
         onCheckedChange={(value) => onChange(value === true)}
       />
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <FieldLabel htmlFor={id}>{t(label)}</FieldLabel>
     </Field>
   )
 }
 
 type FormProps = { done(): void; busy(value: boolean): void }
 
-function counted(count: number, noun: string) {
-  return `${count} ${noun}${count === 1 ? "" : "s"}`
-}
-
 function ImportForm({ done, busy }: FormProps) {
+  useLanguageStore((state) => state.language)
   const [path, setPath] = useState("")
   const [options, setOptions] = useState(DEFAULT_IMPORT)
   const [preview, setPreview] = useState<MidiImportPreview | null>(null)
@@ -105,7 +105,7 @@ function ImportForm({ done, busy }: FormProps) {
       setPreview(result)
     } catch (failure) {
       if (mounted.current && current === request.current)
-        setError(errorMessage(failure))
+        setError(localizeBackendText(errorMessage(failure)))
     } finally {
       if (mounted.current && current === request.current) setReading(false)
     }
@@ -127,7 +127,7 @@ function ImportForm({ done, busy }: FormProps) {
       setPath(file)
       await review(file, options)
     } catch (failure) {
-      if (mounted.current) setError(errorMessage(failure))
+      if (mounted.current) setError(localizeBackendText(errorMessage(failure)))
     }
   }
 
@@ -140,13 +140,13 @@ function ImportForm({ done, busy }: FormProps) {
       const result = await backend.importMidi(preview.token)
       receivePatch(result.patch)
       token.current = null
-      toast.success("Imported MIDI", {
-        description: `${counted(preview.notes, "note")} added. Undo removes the entire import.`,
+      toast.success(t("Imported MIDI"), {
+        description: message("{count} notes added. Undo removes the entire import.", { count: preview.notes }),
       })
       useUiStore.getState().showCenterTab("playlist")
       done()
     } catch (failure) {
-      setError(errorMessage(failure))
+      setError(localizeBackendText(errorMessage(failure)))
     } finally {
       busy(false)
       if (mounted.current) setImporting(false)
@@ -156,84 +156,77 @@ function ImportForm({ done, busy }: FormProps) {
   return (
     <FieldGroup>
       <Field>
-        <FieldLabel>MIDI file</FieldLabel>
+        <FieldLabel>{t("MIDI file")}</FieldLabel>
         <Button
           variant="outline"
           disabled={importing}
           onClick={() => void choose()}
-        >
-          Choose MIDI file…
-        </Button>
+        >{t("Choose MIDI file…")}</Button>
         <FieldDescription>
-          {path ? fileName(path) : "Choose a .mid or .midi file."}
+          {path ? fileName(path) : t("Choose a .mid or .midi file.")}
         </FieldDescription>
       </Field>
       <Field>
-        <FieldLabel htmlFor="midi-bars">Patterns</FieldLabel>
+        <FieldLabel htmlFor="midi-bars">{t("Patterns")}</FieldLabel>
         <Choice
           id="midi-bars"
           value={options.bars}
           disabled={importing}
           options={[
-            { value: 0, label: "One pattern per part" },
-            { value: 1, label: "Split every bar" },
-            { value: 4, label: "Split every 4 bars" },
-            { value: 8, label: "Split every 8 bars" },
+            { value: 0, label: t("One pattern per part") },
+            { value: 1, label: t("Split every bar") },
+            { value: 4, label: t("Split every 4 bars") },
+            { value: 8, label: t("Split every 8 bars") },
           ]}
           onChange={(value) => change("bars", value)}
         />
-        <FieldDescription>
-          Long parts split at the pattern limit. Notes across a split retrigger.
-        </FieldDescription>
+        <FieldDescription>{t("Long parts split at the pattern limit. Notes across a split retrigger.")}</FieldDescription>
       </Field>
       <FieldSet>
-        <FieldLegend>Import settings</FieldLegend>
+        <FieldLegend>{t("Import settings")}</FieldLegend>
         <Check
           id="midi-share"
-          label="Share identical sections"
+          label={t("Share identical sections")}
           checked={options.sharePatterns}
           disabled={importing || options.bars === 0}
           onChange={(value) => change("sharePatterns", value)}
         />
         <Check
           id="midi-drums"
-          label="Use factory drum samples"
+          label={t("Use factory drum samples")}
           checked={options.factoryDrums}
           disabled={importing}
           onChange={(value) => change("factoryDrums", value)}
         />
         <Check
           id="midi-tempo"
-          label="Import tempo and tempo changes"
+          label={t("Import tempo and tempo changes")}
           checked={options.tempo}
           disabled={importing}
           onChange={(value) => change("tempo", value)}
         />
         <Check
           id="midi-meter"
-          label="Import the first time signature"
+          label={t("Import the first time signature")}
           checked={options.timeSignature}
           disabled={importing}
           onChange={(value) => change("timeSignature", value)}
         />
         <Check
           id="midi-mix"
-          label="Import channel volume and pan"
+          label={t("Import channel volume and pan")}
           checked={options.channelMix}
           disabled={importing}
           onChange={(value) => change("channelMix", value)}
         />
-        <Check id="midi-note-expression" label="Import pitch bend and controllers as note expression" checked={options.noteExpression ?? true} disabled={importing} onChange={(value) => change("noteExpression", value)} />
+        <Check id="midi-note-expression" label={t("Import pitch bend and controllers as note expression")} checked={options.noteExpression ?? true} disabled={importing} onChange={(value) => change("noteExpression", value)} />
       </FieldSet>
       <div role="status" aria-live="polite">
-        {reading && "Reading MIDI…"}
+        {reading && t("Reading MIDI…")}
         {preview && (
           <>
             <p>
-              {counted(preview.channels.length, "channel")},{" "}
-              {counted(preview.patterns, "pattern")},{" "}
-              {counted(preview.clips, "clip")} and{" "}
-              {counted(preview.notes, "note")} will be added.
+              {message("MIDI import summary", { channels: message("MIDI channels", { count: preview.channels.length }), patterns: message("MIDI patterns", { count: preview.patterns }), clips: message("MIDI clips", { count: preview.clips }), notes: message("MIDI notes", { count: preview.notes }) })}
             </p>
             {preview.channels.length > 0 && (
               <p>{preview.channels.join(", ")}</p>
@@ -250,14 +243,12 @@ function ImportForm({ done, busy }: FormProps) {
       </div>
       {error && <FieldError role="alert">{error}</FieldError>}
       <DialogFooter>
-        <Button variant="outline" disabled={importing} onClick={done}>
-          Cancel
-        </Button>
+        <Button variant="outline" disabled={importing} onClick={done}>{t("Cancel")}</Button>
         <Button
           disabled={!preview || reading || importing}
           onClick={() => void append()}
         >
-          {importing ? "Importing…" : "Import"}
+          {importing ? t("Importing…") : t("Import")}
         </Button>
       </DialogFooter>
     </FieldGroup>
@@ -265,6 +256,7 @@ function ImportForm({ done, busy }: FormProps) {
 }
 
 function ExportForm({ done, busy }: FormProps) {
+  useLanguageStore((state) => state.language)
   const [options, setOptions] = useState(() => {
     const transport = useTransportStore.getState()
     const project = useProjectStore.getState().project
@@ -287,10 +279,10 @@ function ExportForm({ done, busy }: FormProps) {
       const path = await backend.pickMidiExportPath(projectName())
       if (path === null) return
       const saved = await backend.exportMidi(path, options)
-      toast.success("Exported MIDI", { description: fileName(saved) })
+      toast.success(t("Exported MIDI"), { description: fileName(saved) })
       done()
     } catch (failure) {
-      setError(errorMessage(failure))
+      setError(localizeBackendText(errorMessage(failure)))
     } finally {
       setWorking(false)
       busy(false)
@@ -302,27 +294,27 @@ function ExportForm({ done, busy }: FormProps) {
   return (
     <FieldGroup>
       <Field>
-        <FieldLabel htmlFor="midi-mode">Export</FieldLabel>
+        <FieldLabel htmlFor="midi-mode">{t("Export")}</FieldLabel>
         <Choice
           id="midi-mode"
           value={options.mode}
           disabled={working}
           options={[
-            { value: "pattern", label: "The selected pattern" },
-            { value: "song", label: "The whole song" },
+            { value: "pattern", label: t("The selected pattern") },
+            { value: "song", label: t("The whole song") },
           ]}
           onChange={(mode) => setOptions({ ...options, mode })}
         />
       </Field>
       <Field>
-        <FieldLabel htmlFor="midi-format">MIDI format</FieldLabel>
+        <FieldLabel htmlFor="midi-format">{t("MIDI format")}</FieldLabel>
         <Choice
           id="midi-format"
           value={options.singleTrack ? "single" : "multi"}
           disabled={working}
           options={[
-            { value: "multi", label: "Format 1 — separate tracks" },
-            { value: "single", label: "Format 0 — one track" },
+            { value: "multi", label: t("Format 1 — separate tracks") },
+            { value: "single", label: t("Format 0 — one track") },
           ]}
           onChange={(value) =>
             setOptions({ ...options, singleTrack: value === "single" })
@@ -330,32 +322,32 @@ function ExportForm({ done, busy }: FormProps) {
         />
       </Field>
       <Field>
-        <FieldLabel htmlFor="midi-ppq">Resolution</FieldLabel>
+        <FieldLabel htmlFor="midi-ppq">{t("Resolution")}</FieldLabel>
         <Choice
           id="midi-ppq"
           value={options.ppq}
           disabled={working}
-          options={PROJECT_TIMEBASES.map((value) => ({ value, label: `${value} PPQ` }))}
+          options={PROJECT_TIMEBASES.map((value) => ({ value, label: message("{value} PPQ", { value }) }))}
           onChange={(ppq) => { setOptions({ ...options, ppq }); setResolutionText(String(ppq)) }}
         />
       </Field>
       <Field>
-        <FieldLabel htmlFor="midi-custom-ppq">Custom MIDI resolution (1–32767)</FieldLabel>
+        <FieldLabel htmlFor="midi-custom-ppq">{t("Custom MIDI resolution (1–32767)")}</FieldLabel>
         <Input id="midi-custom-ppq" type="number" min={1} max={32767} value={resolutionText} aria-invalid={!resolutionValid} disabled={working} onChange={(event) => { const text = event.target.value; setResolutionText(text); const ppq = Number(text); if (text.trim() && Number.isInteger(ppq) && ppq >= 1 && ppq <= 32767) setOptions({ ...options, ppq }) }} />
-        {!resolutionValid && <FieldError>Use a whole resolution from 1 to 32767 PPQ.</FieldError>}
+        {!resolutionValid && <FieldError>{t("Use a whole resolution from 1 to 32767 PPQ.")}</FieldError>}
       </Field>
       <FieldSet>
-        <FieldLegend>Playback</FieldLegend>
+        <FieldLegend>{t("Playback")}</FieldLegend>
         <Check
           id="midi-swing"
-          label="Apply project swing"
+          label={t("Apply project swing")}
           checked={options.swing}
           disabled={working}
           onChange={(swing) => setOptions({ ...options, swing })}
         />
         <Check
           id="midi-running"
-          label="Use running status (smaller file)"
+          label={t("Use running status (smaller file)")}
           checked={options.runningStatus}
           disabled={working}
           onChange={(runningStatus) =>
@@ -363,31 +355,27 @@ function ExportForm({ done, busy }: FormProps) {
           }
         />
       </FieldSet>
-      <FieldSet><FieldLegend>Note expression</FieldLegend>
-        <Field><FieldLabel htmlFor="midi-expression-mode">Expression routing</FieldLabel>
+      <FieldSet><FieldLegend>{t("Note expression")}</FieldLegend>
+        <Field><FieldLabel htmlFor="midi-expression-mode">{t("Expression routing")}</FieldLabel>
           <Choice<MidiExpressionMode> id="midi-expression-mode" value={expression.mode} disabled={working}
-            options={[{ value: "off", label: "Notes only" }, { value: "channelVoice", label: "Color-group channels" }, { value: "mpe", label: "MPE · one channel per note" }]}
+            options={[{ value: "off", label: t("Notes only") }, { value: "channelVoice", label: t("Color-group channels") }, { value: "mpe", label: t("MPE · one channel per note") }]}
             onChange={(mode) => setOptions({ ...options, expression: { ...expression, mode } })} /></Field>
-        <Field><FieldLabel htmlFor="midi-expression-bend">Pitch-bend range (semitones; 0 = automatic)</FieldLabel>
+        <Field><FieldLabel htmlFor="midi-expression-bend">{t("Pitch-bend range (semitones; 0 = automatic)")}</FieldLabel>
           <Input id="midi-expression-bend" type="number" min={0} max={96} value={Number.isFinite(expression.bendRange) ? expression.bendRange : ""} disabled={working || expression.mode === "off"}
             onChange={(event) => setOptions({ ...options, expression: { ...expression, bendRange: event.target.valueAsNumber } })} /></Field>
-        <Field><FieldLabel htmlFor="midi-expression-step">Expression spacing (ticks; 0 = automatic)</FieldLabel>
+        <Field><FieldLabel htmlFor="midi-expression-step">{t("Expression spacing (ticks; 0 = automatic)")}</FieldLabel>
           <Input id="midi-expression-step" type="number" min={0} max={245760} value={Number.isFinite(expression.step) ? expression.step : ""} disabled={working || expression.mode === "off"}
             onChange={(event) => setOptions({ ...options, expression: { ...expression, step: event.target.valueAsNumber } })} /></Field>
-        <FieldDescription>Color-group channels share bends and controllers. MPE assigns member channels and overrides note colors. Pitch bend, modulation, pan and saved curves are sampled; match the receiving instrument’s bend range.</FieldDescription>
+        <FieldDescription>{t("Color-group channels share bends and controllers. MPE assigns member channels and overrides note colors. Pitch bend, modulation, pan and saved curves are sampled; match the receiving instrument’s bend range.")}</FieldDescription>
       </FieldSet>
       <FieldDescription>
-        Exports notes, tempo and meter. Audio clips, instrument sounds and
-        effects are omitted. Tempo glides are sampled; more than 15 melodic
-        tracks share MIDI channels.
+        {t("Exports notes, tempo and meter. Audio clips, instrument sounds and effects are omitted. Tempo glides are sampled; more than 15 melodic tracks share MIDI channels.")}
       </FieldDescription>
       {error && <FieldError role="alert">{error}</FieldError>}
       <DialogFooter>
-        <Button variant="outline" disabled={working} onClick={done}>
-          Cancel
-        </Button>
+        <Button variant="outline" disabled={working} onClick={done}>{t("Cancel")}</Button>
         <Button disabled={working || !expressionValid || !resolutionValid} onClick={() => void save()}>
-          {working ? "Exporting…" : "Choose file and export…"}
+          {working ? t("Exporting…") : t("Choose file and export…")}
         </Button>
       </DialogFooter>
     </FieldGroup>
@@ -395,6 +383,7 @@ function ExportForm({ done, busy }: FormProps) {
 }
 
 export function MidiDialogs() {
+  useLanguageStore((state) => state.language)
   const dialog = useUiStore((state) => state.dialog)
   const close = useUiStore((state) => state.closeDialog)
   const [busy, setBusy] = useState(false)
@@ -412,11 +401,11 @@ export function MidiDialogs() {
         className="max-h-[calc(100dvh-4rem)] overflow-y-auto sm:max-w-lg"
       >
         <DialogHeader>
-          <DialogTitle>{importing ? "Import MIDI" : "Export MIDI"}</DialogTitle>
+          <DialogTitle>{importing ? t("Import MIDI") : t("Export MIDI")}</DialogTitle>
           <DialogDescription>
             {importing
-              ? "Append notes and arrangement to this project as one undo step. MIDI instruments use the subtractive synth unless drums are mapped."
-              : "Save notes and tempo as a MIDI file. This exports no audio."}
+              ? t("Append notes and arrangement to this project as one undo step. MIDI instruments use the subtractive synth unless drums are mapped.")
+              : t("Save notes and tempo as a MIDI file. This exports no audio.")}
           </DialogDescription>
         </DialogHeader>
         {open &&

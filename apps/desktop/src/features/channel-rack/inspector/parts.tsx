@@ -1,3 +1,4 @@
+import { translatedText as t, useLanguageStore } from "@/lib/i18n"
 import { useId, type ReactNode } from "react"
 
 import { Switch } from "@/components/ui/switch"
@@ -14,12 +15,13 @@ type SectionProps = {
 
 /** One titled block of the channel settings. */
 export function Section({ title, aside, className, children }: SectionProps) {
+  useLanguageStore((state) => state.language)
   const id = useId()
   return (
     <section aria-labelledby={id} className="border-b px-2.5 py-2">
       <div className="mb-1.5 flex h-5 items-center justify-between gap-2">
         <h3 id={id} className="text-xs font-medium">
-          {title}
+          {t(title)}
         </h3>
         {aside}
       </div>
@@ -42,12 +44,13 @@ export function SwitchRow({
   checked,
   onCheckedChange,
 }: SwitchRowProps) {
+  useLanguageStore((state) => state.language)
   const id = useId()
-  const hintProps = useHint(hint)
+  const hintProps = useHint(t(hint))
   return (
     <div className="flex h-5 items-center justify-between gap-2" {...hintProps}>
       <label htmlFor={id} className="truncate text-foreground/85">
-        {label}
+        {t(label)}
       </label>
       <Switch
         id={id}

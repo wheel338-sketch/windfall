@@ -1,6 +1,8 @@
+import { inspectorEs } from "./inspector-messages"
 import type { Catalog } from "./types"
 
 export const es = {
+  ...inspectorEs,
   "Choose installed ONNX Runtime library": "Elige la biblioteca instalada de ONNX Runtime",
   "Shared library": "Biblioteca compartida",
   "This window is closing.": "Esta ventana se está cerrando.",

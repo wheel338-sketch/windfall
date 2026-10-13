@@ -1,3 +1,6 @@
+import { localizeBackendText } from "@/lib/i18n"
+import { message as i18nMessage } from "@/lib/i18n"
+import { translatedText as t, useLanguageStore } from "@/lib/i18n"
 import { ControllerLinksPanel } from "@/features/controllers/links-panel"
 import { Input } from "@/components/ui/input"
 import { useEffect, useRef, useState } from "react"
@@ -35,11 +38,11 @@ export function portOptions(
   chosen: string | null
 ): Option[] {
   const options = [
-    { value: OFF, label: "Disabled" },
+    { value: OFF, label: t("Disabled") },
     ...ports.map((port) => ({ value: `port:${port.id}`, label: port.name })),
   ]
   if (chosen !== null && !ports.some((port) => port.id === chosen)) {
-    options.push({ value: `port:${chosen}`, label: "Saved device unavailable" })
+    options.push({ value: `port:${chosen}`, label: t("Saved device unavailable") })
   }
   return options
 }
@@ -57,25 +60,26 @@ function Choice({
   disabled: boolean
   change(value: string): void
 }) {
+  useLanguageStore((state) => state.language)
   return (
     <Field orientation="horizontal">
-      <FieldLabel>{label}</FieldLabel>
+      <FieldLabel>{t(label)}</FieldLabel>
       <Select
-        items={options}
+        items={options.map((item) => ({ ...item, label: t(item.label) }))}
         value={value}
         disabled={disabled}
         onValueChange={(next) => {
           if (next !== null) change(next)
         }}
       >
-        <SelectTrigger aria-label={label} className="w-56">
+        <SelectTrigger aria-label={t(label)} className="w-56">
           <SelectValue />
         </SelectTrigger>
         <SelectContent alignItemWithTrigger={false}>
           <SelectGroup>
             {options.map((option) => (
               <SelectItem key={option.value} value={option.value}>
-                {option.label}
+                {t(option.label)}
               </SelectItem>
             ))}
           </SelectGroup>
@@ -85,9 +89,9 @@ function Choice({
   )
 }
 
-const CHANNELS: Option[] = Array.from({ length: 16 }, (_, index) => ({
+const channelOptions = (): Option[] => Array.from({ length: 16 }, (_, index) => ({
   value: String(index + 1),
-  label: `Channel ${index + 1}`,
+  label: i18nMessage("Channel {value0}", { value0: index + 1 }),
 }))
 
 const SWITCH: Option[] = [
@@ -105,6 +109,7 @@ const QUANTIZE: Option[] = [
 ]
 
 export function MidiHardwareSettingsSection() {
+  useLanguageStore((state) => state.language)
   const [state, setState] = useState<MidiHardwareState | null>(null)
   const [controllers, setControllers] = useState<ControllerState | null>(null)
   const [busy, setBusy] = useState(false)
@@ -139,7 +144,7 @@ export function MidiHardwareSettingsSection() {
         }
       } catch (failure) {
         if (ticket === epoch.current && request === operation.current)
-          setError(errorMessage(failure))
+          setError(localizeBackendText(errorMessage(failure)))
       } finally {
         loading = false
       }
@@ -169,7 +174,7 @@ export function MidiHardwareSettingsSection() {
         setState(result)
       }
     } catch (failure) {
-      if (ticket === epoch.current) setError(errorMessage(failure))
+      if (ticket === epoch.current) setError(localizeBackendText(errorMessage(failure)))
     } finally {
       working.current = false
       setBusy(false)
@@ -194,16 +199,16 @@ export function MidiHardwareSettingsSection() {
     try {
       const next = await backend.controllerSettingsSet({ ...controllers.settings, ...change })
       if (ticket === epoch.current) setControllers(next)
-    } catch (failure) { if (ticket === epoch.current) setError(errorMessage(failure)) }
+    } catch (failure) { if (ticket === epoch.current) setError(localizeBackendText(errorMessage(failure))) }
     finally { working.current = false; setBusy(false) }
   }
   const disabled = busy || !state || backend.kind !== "tauri"
   return (
     <FieldSet>
-      <FieldLegend>MIDI hardware</FieldLegend>
+      <FieldLegend>{t("MIDI hardware")}</FieldLegend>
       <FieldGroup>
         <Choice
-          label="MIDI input"
+          label={t("MIDI input")}
           value={state?.settings.input ? `port:${state.settings.input}` : OFF}
           options={portOptions(
             state?.inputs ?? [],
@@ -215,19 +220,19 @@ export function MidiHardwareSettingsSection() {
           }
         />
         <Choice
-          label="Input channel"
+          label={t("Input channel")}
           value={String(state?.settings.inputChannel ?? 0)}
-          options={[{ value: "0", label: "All channels" }, ...CHANNELS]}
+          options={[{ value: "0", label: t("All channels") }, ...channelOptions()]}
           disabled={disabled}
           change={(value) =>
             configure({ inputChannel: value === "0" ? null : Number(value) })
           }
         />
         <Choice
-          label="Audition destination"
+          label={t("Audition destination")}
           value={String(state?.target ?? 0)}
           options={[
-            { value: "0", label: "No destination" },
+            { value: "0", label: t("No destination") },
             ...channels.map((channel) => ({
               value: String(channel.id),
               label: channel.name,
@@ -246,7 +251,7 @@ export function MidiHardwareSettingsSection() {
           }}
         />
         <Choice
-          label="Live MIDI output"
+          label={t("Live MIDI output")}
           value={state?.settings.output ? `port:${state.settings.output}` : OFF}
           options={portOptions(
             state?.outputs ?? [],
@@ -257,7 +262,7 @@ export function MidiHardwareSettingsSection() {
             configure({ output: value === OFF ? null : value.slice(5) })
           }
         />
-        {(state?.settings.extraOutputs ?? []).map((id, index) => <Choice key={`${index}:${id}`} label={`MIDI output slot ${index + 1}`} value={id ? `port:${id}` : OFF} options={portOptions(state?.outputs ?? [], id || null).filter((option) => option.value === `port:${id}` || option.value === OFF || ![state?.settings.output, ...(state?.settings.extraOutputs ?? [])].includes(option.value.slice(5)))} disabled={disabled} change={(value) => configure({ extraOutputs: (state?.settings.extraOutputs ?? []).map((item, at) => at === index ? value === OFF ? "" : value.slice(5) : item) })} />)}
+        {(state?.settings.extraOutputs ?? []).map((id, index) => <Choice key={`${index}:${id}`} label={i18nMessage("MIDI output slot {value0}", { value0: index + 1 })} value={id ? `port:${id}` : OFF} options={portOptions(state?.outputs ?? [], id || null).filter((option) => option.value === `port:${id}` || option.value === OFF || ![state?.settings.output, ...(state?.settings.extraOutputs ?? [])].includes(option.value.slice(5)))} disabled={disabled} change={(value) => configure({ extraOutputs: (state?.settings.extraOutputs ?? []).map((item, at) => at === index ? value === OFF ? "" : value.slice(5) : item) })} />)}
         <Button variant="outline" size="sm" disabled={disabled || (state?.settings.extraOutputs?.filter(Boolean).length ?? 0) >= 7 || !(state?.outputs ?? []).some((port) => port.id !== state?.settings.output && !(state?.settings.extraOutputs ?? []).includes(port.id))} onClick={() => {
           const next = state?.outputs.find((port) => port.id !== state.settings.output && !(state.settings.extraOutputs ?? []).includes(port.id))
           if (state && next) {
@@ -266,19 +271,19 @@ export function MidiHardwareSettingsSection() {
             if (free < 0) slots.push(next.id); else slots[free] = next.id
             configure({ extraOutputs: slots })
           }
-        }}>Add MIDI output</Button>
+        }}>{t("Add MIDI output")}</Button>
         <Choice
-          label="Output channel"
+          label={t("Output channel")}
           value={String(state?.settings.outputChannel ?? 1)}
-          options={CHANNELS}
+          options={channelOptions()}
           disabled={disabled}
           change={(value) => configure({ outputChannel: Number(value) })}
         />
         <Choice
-          label="Controller profile"
+          label={t("Controller profile")}
           value={state?.settings.inputProfile ?? NO_PROFILE}
           options={[
-            { value: NO_PROFILE, label: "None" },
+            { value: NO_PROFILE, label: t("None") },
             ...(controllers?.profiles ?? []).map((profile) => ({
               value: profile.id,
               label: profile.name,
@@ -290,45 +295,45 @@ export function MidiHardwareSettingsSection() {
           }
         />
         {(state?.settings.extraInputs ?? []).map((input, index) => <FieldSet key={input.id}>
-          <FieldLegend>Additional input {index + 1}</FieldLegend>
-          <Choice label={`Additional input ${index + 1}`} value={`port:${input.id}`} options={portOptions(state?.inputs ?? [], input.id).filter((option) => option.value === `port:${input.id}` || option.value === OFF || ![state?.settings.input, ...(state?.settings.extraInputs ?? []).map((item) => item.id)].includes(option.value.slice(5)))} disabled={disabled} change={(value) => configure({ extraInputs: (state?.settings.extraInputs ?? []).flatMap((item, at) => at === index ? value === OFF ? [] : [{ ...item, id: value.slice(5) }] : [item]) })} />
-          <Choice label={`Additional input ${index + 1} profile`} value={input.profile ?? NO_PROFILE} options={[{ value: NO_PROFILE, label: "None" }, ...(controllers?.profiles ?? []).map((profile) => ({ value: profile.id, label: profile.name }))]} disabled={disabled} change={(value) => configure({ extraInputs: (state?.settings.extraInputs ?? []).map((item, at) => at === index ? { ...item, profile: value === NO_PROFILE ? null : value } : item) })} />
-          <Button variant="outline" size="sm" disabled={disabled} onClick={() => configure({ extraInputs: (state?.settings.extraInputs ?? []).filter((_, at) => at !== index) })}>Remove additional input {index + 1}</Button>
+          <FieldLegend>{t("Additional input")}{index + 1}</FieldLegend>
+          <Choice label={i18nMessage("Additional input {value0}", { value0: index + 1 })} value={`port:${input.id}`} options={portOptions(state?.inputs ?? [], input.id).filter((option) => option.value === `port:${input.id}` || option.value === OFF || ![state?.settings.input, ...(state?.settings.extraInputs ?? []).map((item) => item.id)].includes(option.value.slice(5)))} disabled={disabled} change={(value) => configure({ extraInputs: (state?.settings.extraInputs ?? []).flatMap((item, at) => at === index ? value === OFF ? [] : [{ ...item, id: value.slice(5) }] : [item]) })} />
+          <Choice label={i18nMessage("Additional input {value0} profile", { value0: index + 1 })} value={input.profile ?? NO_PROFILE} options={[{ value: NO_PROFILE, label: t("None") }, ...(controllers?.profiles ?? []).map((profile) => ({ value: profile.id, label: profile.name }))]} disabled={disabled} change={(value) => configure({ extraInputs: (state?.settings.extraInputs ?? []).map((item, at) => at === index ? { ...item, profile: value === NO_PROFILE ? null : value } : item) })} />
+          <Button variant="outline" size="sm" disabled={disabled} onClick={() => configure({ extraInputs: (state?.settings.extraInputs ?? []).filter((_, at) => at !== index) })}>{i18nMessage("Remove additional input {index}", { index: index + 1 })}</Button>
         </FieldSet>)}
         <Button variant="outline" size="sm" disabled={disabled || (state?.settings.extraInputs.length ?? 0) >= 7 || !(state?.inputs ?? []).some((port) => port.id !== state?.settings.input && !(state?.settings.extraInputs ?? []).some((input) => input.id === port.id))} onClick={() => {
           const next = state?.inputs.find((port) => port.id !== state.settings.input && !state.settings.extraInputs.some((input) => input.id === port.id))
           if (state && next) configure({ extraInputs: [...state.settings.extraInputs, { id: next.id, profile: null }] })
-        }}>Add MIDI input</Button>
-        <Field><FieldLabel htmlFor="midi-record-offset">Recording offset (ms)</FieldLabel>
+        }}>{t("Add MIDI input")}</Button>
+        <Field><FieldLabel htmlFor="midi-record-offset">{t("Recording offset (ms)")}</FieldLabel>
           <Input id="midi-record-offset" type="number" min={-500} max={500} step={1} defaultValue={controllers?.settings.recordOffsetMs ?? 0} key={controllers?.settings.recordOffsetMs ?? 0} disabled={disabled || !controllers} onBlur={(event) => {
             const value = Number(event.target.value)
             if (event.target.value.trim() && Number.isFinite(value) && Math.abs(value) <= 500) void configureControllers({ recordOffsetMs: value })
-            else setError("Recording offset must be within -500 to 500 ms.")
+            else setError(t("Recording offset must be within -500 to 500 ms."))
           }} />
         </Field>
         <Choice
-          label="Send MIDI clock"
+          label={t("Send MIDI clock")}
           value={state?.settings.sendClock ? "on" : "off"}
           options={SWITCH}
           disabled={disabled}
           change={(value) => configure({ sendClock: value === "on" })}
         />
         <Choice
-          label="Follow MIDI clock"
+          label={t("Follow MIDI clock")}
           value={state?.settings.followClock ? "on" : "off"}
           options={SWITCH}
           disabled={disabled}
           change={(value) => configure({ followClock: value === "on" })}
         />
         <Choice
-          label="Controller pickup"
+          label={t("Controller pickup")}
           value={controllers?.settings.pickup ? "on" : "off"}
           options={SWITCH}
           disabled={disabled || !controllers}
           change={(value) => configureControllers({ pickup: value === "on" })}
         />
         <Choice
-          label="Snap recorded notes"
+          label={t("Snap recorded notes")}
           value={String(controllers?.settings.recordQuantizeTicks ?? 0)}
           options={QUANTIZE}
           disabled={disabled || !controllers}
@@ -345,17 +350,13 @@ export function MidiHardwareSettingsSection() {
           onClick={() => {
             void run(() => backend.midiHardwareRefresh())
           }}
-        >
-          Refresh ports
-        </Button>
+        >{t("Refresh ports")}</Button>
         <Button
           variant="outline"
           size="sm"
           disabled={disabled}
           onClick={() => configure({})}
-        >
-          Reconnect devices
-        </Button>
+        >{t("Reconnect devices")}</Button>
         <Button
           variant="secondary"
           size="sm"
@@ -363,16 +364,14 @@ export function MidiHardwareSettingsSection() {
             void backend
               .midiHardwarePanic()
               .then(releaseHardwareKeys)
-              .catch((failure: unknown) => setError(errorMessage(failure)))
+              .catch((failure: unknown) => setError(localizeBackendText(errorMessage(failure))))
           }}
-        >
-          Panic MIDI
-        </Button>
+        >{t("Panic MIDI")}</Button>
       </div>
       <p aria-live="polite" className="text-muted-foreground">
         {state
-          ? `Input ${state.inputConnected ? "connected" : "disabled or unavailable"}; output ${state.outputConnected ? "connected" : "disabled or unavailable"}. ${state.droppedEvents} dropped events.`
-          : "Loading MIDI devices…"}
+          ? i18nMessage("Input {value0}; output {value1}. {value2} dropped events.", { value0: state.inputConnected ? t("connected") : t("disabled or unavailable"), value1: state.outputConnected ? t("connected") : t("disabled or unavailable"), value2: state.droppedEvents })
+          : t("Loading MIDI devices…")}
       </p>
       {(error ?? state?.error) && (
         <Alert
@@ -384,13 +383,7 @@ export function MidiHardwareSettingsSection() {
         </Alert>
       )}
       <ControllerLinksPanel />
-      <p className="text-muted-foreground">
-        Play notes and sustain into the chosen channel. The destination resets
-        when its channel is removed or another project opens. Output forwards
-        live notes, and a MIDI output channel in the rack sends its pattern.
-        Right-click a knob or fader to link it to a hardware control. A
-        profile maps a known surface to the mixer and the transport.
-      </p>
+      <p className="text-muted-foreground">{t("Play notes and sustain into the chosen channel. The destination resets when its channel is removed or another project opens. Output forwards live notes, and a MIDI output channel in the rack sends its pattern. Right-click a knob or fader to link it to a hardware control. A profile maps a known surface to the mixer and the transport.")}</p>
     </FieldSet>
   )
 }

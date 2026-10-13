@@ -1,7 +1,7 @@
 //! Non-ignored E1 CPU gate plus deterministic workload/allocation regressions.
 //! Integrator: run in release, serially, with --nocapture on the target machine.
 //! Debug numbers are diagnostic only and have a separate, wider development budget.
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use windfall_dsp::{AnyEffect, EffectKind, EffectParams, ParamKind};
 
@@ -196,7 +196,7 @@ fn e1_parametric_eq_workloads_keep_all_seven_bands_active_during_automation() {
     }
 }
 
-/// Median of five fixed-duration trials. Timed work includes copying source
+/// Minimum of three performance-core trials plus one unrestricted diagnostic. Timed work includes copying source
 /// buffers, one real parameter edit per block, and the full processor call.
 /// Construction, preparation, input synthesis and printing are outside timing.
 fn cpu_share(kind: EffectKind, extreme: bool, rate: f32, block: usize, edits: bool) -> f64 {
@@ -217,8 +217,9 @@ fn cpu_share(kind: EffectKind, extreme: bool, rate: f32, block: usize, edits: bo
         right.copy_from_slice(&source_right);
         effect.process(&mut left, &mut right);
     }
-    let mut trials = [0.0_f64; 5];
-    for trial in &mut trials {
+    let mut trials = [Duration::ZERO; 4];
+    for (index, trial) in trials.iter_mut().enumerate() {
+        let _core = (index > 0).then(super::deadline_cpu::PerformanceCore::enter);
         let start = Instant::now();
         for index in 0..blocks {
             left.copy_from_slice(&source_left);
@@ -231,11 +232,11 @@ fn cpu_share(kind: EffectKind, extreme: bool, rate: f32, block: usize, edits: bo
             effect.process(&mut left, &mut right);
             std::hint::black_box((&left, &right));
         }
-        *trial = start.elapsed().as_secs_f64() / (blocks * block) as f64 * f64::from(rate);
+        *trial = Duration::from_secs_f64(start.elapsed().as_secs_f64() / (blocks * block) as f64 * f64::from(rate));
     }
     assert!(left.iter().chain(&right).all(|value| value.is_finite()));
-    trials.sort_by(f64::total_cmp);
-    trials[2]
+    let unrestricted = trials[0];
+    super::deadline_cpu::report("E1 CPU share (seconds per audio second)", &mut trials[1..], unrestricted).as_secs_f64()
 }
 
 #[test]

@@ -117,6 +117,7 @@ impl Session {
         command: Command,
         gesture: Option<u64>,
     ) -> Result<DispatchResult, String> {
+        self.check_native_note_settings(&command)?;
         // What the command is about to set, for linking the control last
         // moved and for recording the movement as automation.
         let tweaks = self.controller_tweak_probe(&command);
@@ -126,6 +127,41 @@ impl Session {
             self.controller_tweaked(&tweaks);
         }
         result
+    }
+
+    fn check_native_note_settings(&self, command: &Command) -> Result<(), String> {
+        // Copy only target IDs under State. Native ownership queries may wait,
+        // and therefore run after releasing every document/recording guard.
+        let (targets, runtime) = {
+            let state=self.state();
+            let mut targets=Vec::new();
+            fn collect(command:&Command, project:&windfall_project::Project, targets:&mut Vec<windfall_project::PluginTarget>) {
+                match command {
+                    Command::UpdateSettings {patch} if patch.pan_law.is_some_and(|law|law!=project.settings.pan_law) => {
+                        targets.extend(project.plugins.iter().filter_map(|binding|matches!(binding.target,windfall_project::PluginTarget::Instrument{..}).then_some(binding.target)));
+                    }
+                    Command::SetChannelExpressionMap{id,map,..} => {
+                        let native=map.modulation_x.plugin==windfall_dsp::PluginExpressionDestination::Pan
+                            || map.modulation_y.plugin==windfall_dsp::PluginExpressionDestination::Pan
+                            || map.release.plugin==windfall_dsp::PluginExpressionDestination::Pan
+                            || map.modulation_x.plugin==windfall_dsp::PluginExpressionDestination::Volume
+                            || map.modulation_y.plugin==windfall_dsp::PluginExpressionDestination::Volume
+                            || map.release.plugin==windfall_dsp::PluginExpressionDestination::Volume;
+                        let target=windfall_project::PluginTarget::Instrument{channel:*id};
+                        if native && project.plugin(target).is_some(){targets.push(target);}
+                    }
+                    Command::Batch{commands,..} => for command in commands {collect(command,project,targets);},
+                    _=>{}
+                }
+            }
+            collect(command,state.document.project(),&mut targets);
+            (targets,crate::sync::lock(&self.inner.plugins).as_ref().map(|manager|manager.runtime.clone()))
+        };
+        if !targets.is_empty() {
+            let runtime=runtime.ok_or("Native note capabilities require a running hosted instrument")?;
+            for target in targets { runtime.note_capabilities(target)?.require_pan_law(0)?; }
+        }
+        Ok(())
     }
 
     /// [`dispatch`](Self::dispatch) without telling the controller hub:

@@ -104,6 +104,10 @@ export function createTauriBackend(): Backend {
 
   return {
     kind: "tauri",
+    updateCall: <T>(command: string, args: Record<string, unknown>) => {
+      if (!["update_check", "update_download", "update_install_begin", "update_install_cancel", "update_install"].includes(command)) return Promise.reject(new Error("Unknown update operation"))
+      return call<T>(command, args)
+    },
     analyzerSmokeEnabled: () => call("analyzer_smoke_enabled"),
     analyzerSmokeControl: (operation, value) => call("analyzer_smoke_control", { operation, value }),
     proposalStamp: () => call("proposal_stamp"),
@@ -309,6 +313,7 @@ export function createTauriBackend(): Backend {
     pluginsAdd: (path, id, track) => call("plugins_add", { path, id, track }),
     pluginEditor: (target, open) => call("plugin_editor", { target, open }),
     pluginEditorScale: (application) => call("plugin_editor_scale", { application }),
+    pluginNoteCapabilities: (target) => call("plugin_note_capabilities", { target }),
     onWindowScale: (handler) => on("window:dpi", handler),
 
     documentSnapshot: async () => {

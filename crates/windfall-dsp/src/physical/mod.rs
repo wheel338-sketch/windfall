@@ -66,6 +66,13 @@ macro_rules! instrument {
                     .note_on(key.min(127), velocity.min(1.0), self.current.settings());
             }
 
+            fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
+                self.engine.set_note_pan_law(law);
+            }
+            fn note_on_expression(&mut self, key: u8, velocity: f32, pan: f32, _expression: crate::NoteExpression) {
+                self.note_on(key, velocity);
+                if velocity.is_finite() && velocity > 0.0 { self.engine.pan_latest(pan); }
+            }
             fn note_off(&mut self, key: u8) {
                 self.engine.note_off(key.min(127));
             }
@@ -89,8 +96,8 @@ macro_rules! instrument {
                     }
                     self.engine.until_control -= 1;
                     let sample = self.engine.tick(self.current.settings());
-                    *l = sample;
-                    *r = sample;
+                    *l = sample.0;
+                    *r = sample.1;
                 }
             }
 

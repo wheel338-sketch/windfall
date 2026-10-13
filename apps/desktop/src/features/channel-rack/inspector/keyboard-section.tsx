@@ -1,3 +1,5 @@
+import { message as i18nMessage } from "@/lib/i18n"
+import { translatedText as t, useLanguageStore } from "@/lib/i18n"
 import { useEffect, useMemo, useRef } from "react"
 
 import type { Channel } from "@/bindings"
@@ -37,37 +39,38 @@ function keyboardSpan(
 }
 
 const span = (keys: { low: number; high: number }) =>
-  `${noteName(keys.low)} to ${noteName(keys.high)}`
+  i18nMessage("{value0} to {value1}", { value0: noteName(keys.low), value1: noteName(keys.high) })
 
 /** The right-click menu of the keyboard: its note names and how far it reaches. */
 function keyboardMenu(source: "sampler" | "instrument"): ContextItem[] {
   const { keyboardLabels, keyboardRange, setKeyboardLabels, setKeyboardRange } =
     useRackStore.getState()
   const choice = (range: KeyboardRange, title: string): ContextItem => ({
-    title: `${title} (${span(keyboardSpan(range, source))})`,
+    title: i18nMessage("{title} ({range})", { title: t(title), range: span(keyboardSpan(range, source)) }),
     checked: keyboardRange === range,
     run: () => setKeyboardRange(range),
   })
   return [
-    { label: "Keyboard" },
+    { label: t("Keyboard") },
     {
-      title: "Note names",
+      title: t("Note names"),
       checked: keyboardLabels,
       run: () => setKeyboardLabels(!keyboardLabels),
     },
     contextSeparator,
     choice(
       "auto",
-      source === "sampler" ? "Around the root key" : "Six octaves"
+      source === "sampler" ? t("Around the root key") : t("Six octaves")
     ),
     // For an instrument the wide range is the one it has already.
-    ...(source === "sampler" ? [choice("wide", "Six octaves")] : []),
-    choice("full", "Every key"),
+    ...(source === "sampler" ? [choice("wide", t("Six octaves"))] : []),
+    choice("full", t("Every key")),
   ]
 }
 
 /** A keyboard that plays the channel at any pitch and loudness. */
 export function KeyboardSection({ channel }: { channel: Channel }) {
+  useLanguageStore((state) => state.language)
   const { id, source } = channel
   // An instrument has no root key: the view starts around the key steps play.
   const rootKey = source.type === "sampler" ? source.rootKey : DEFAULT_KEY
@@ -83,10 +86,10 @@ export function KeyboardSection({ channel }: { channel: Channel }) {
   )
   const hint = useHint(
     source.type === "instrument"
-      ? `Play ${channel.name} at any pitch. Lower on a key is louder; drag across keys to slide. A step plays ${noteName(DEFAULT_KEY)}`
+      ? i18nMessage("Play {value0} at any pitch. Lower on a key is louder; drag across keys to slide. A step plays {value1}", { value0: channel.name, value1: noteName(DEFAULT_KEY) })
       : playable
-        ? `Play ${channel.name} at any pitch. Lower on a key is louder; drag across keys to slide. The lit key is the root key, ${noteName(rootKey)}`
-        : "Give the channel a sample to play it from the keyboard"
+        ? i18nMessage("Play {value0} at any pitch. Lower on a key is louder; drag across keys to slide. The lit key is the root key, {value1}", { value0: channel.name, value1: noteName(rootKey) })
+        : t("Give the channel a sample to play it from the keyboard")
   )
 
   // Start with the root key in the middle of the view. The panel gets its
@@ -105,7 +108,7 @@ export function KeyboardSection({ channel }: { channel: Channel }) {
   }, [id, rootKey, low, high, width])
 
   return (
-    <Section title="Play">
+    <Section title={t("Play")}>
       <ContextActions items={() => keyboardMenu(source.type)}>
         <div
           ref={scroller}

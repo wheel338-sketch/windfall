@@ -1,4 +1,4 @@
-import { Channel, invoke } from "@tauri-apps/api/core"
+import { Channel } from "@tauri-apps/api/core"
 import { backend, errorMessage } from "@/lib/ipc"
 
 export type UpdateChannel = "stable" | "preview"
@@ -8,11 +8,13 @@ export type UpdateCheck = { configured: boolean; reason: string | null; update: 
 export type UpdateApi = {
   check(channel: UpdateChannel): Promise<UpdateCheck>
   download(token: number, progress: (progress: UpdateProgress) => void): Promise<void>
-  install(token: number): Promise<void>
+  begin(token: number): Promise<{ dirty: boolean; path: string | null }>
+  cancel(token: number): Promise<void>
+  install(token: number, decision?: "save" | "discard", path?: string): Promise<void>
 }
 async function call<T>(command: string, args: Record<string, unknown>): Promise<T> {
   if (backend.kind !== "tauri") throw new Error("Updates require the installed desktop application.")
-  try { return await invoke<T>(command, args) }
+  try { return await backend.updateCall<T>(command, args) }
   catch (error) { throw new Error(errorMessage(error), { cause: error }) }
 }
 export const nativeUpdateApi: UpdateApi = {
@@ -22,5 +24,7 @@ export const nativeUpdateApi: UpdateApi = {
     progress.onmessage = receive
     return call("update_download", { token, progress })
   },
-  install: (token) => call("update_install", { token }),
+  begin: (token) => call("update_install_begin", { token }),
+  cancel: (token) => call("update_install_cancel", { token }),
+  install: (token, decision, path) => call("update_install", { token, decision, path }),
 }

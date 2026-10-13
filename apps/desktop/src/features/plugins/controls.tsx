@@ -1,3 +1,6 @@
+import { localizeBackendText } from "@/lib/i18n"
+import { message as i18nMessage } from "@/lib/i18n"
+import { translatedText as t, useLanguageStore } from "@/lib/i18n"
 import { useEffect, useId, useState } from "react"
 import type {
   AutomationTarget,
@@ -27,6 +30,7 @@ function Parameter({
   parameter: PluginParameter
   index: number
 }) {
+  useLanguageStore((state) => state.language)
   const id = useId()
   const track = useProjectStore(
     (state) =>
@@ -97,6 +101,7 @@ function Parameter({
   )
 }
 export function PluginControls({ binding }: { binding: PluginBinding }) {
+  useLanguageStore((state) => state.language)
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {
     let cancelled = false
@@ -126,7 +131,7 @@ export function PluginControls({ binding }: { binding: PluginBinding }) {
     backend
       .pluginEditor(binding.target, open)
       .catch((error: unknown) =>
-        reportError(error, "Could not change the plugin editor")
+        reportError(error, t("Could not change the plugin editor"))
       )
   return (
     <div className="flex flex-col gap-3">
@@ -135,13 +140,13 @@ export function PluginControls({ binding }: { binding: PluginBinding }) {
       </p>
       {error && (
         <Alert>
-          <AlertTitle>Plugin unavailable</AlertTitle>
+          <AlertTitle>{t("Plugin unavailable")}</AlertTitle>
           <AlertDescription>
-            {error}.{" "}
+            {localizeBackendText(error)}.{" "}
             {binding.target.type === "instrument" || (binding.target.type === "rack" && binding.target.instrument)
-              ? "This channel is silent."
-              : "This effect is bypassed."}{" "}
-            Its reference and saved state are retained.
+              ? t("This channel is silent.")
+              : t("This effect is bypassed.")}{" "}
+            {t("Its reference and saved state are retained.")}
           </AlertDescription>
         </Alert>
       )}
@@ -151,45 +156,39 @@ export function PluginControls({ binding }: { binding: PluginBinding }) {
           variant="outline"
           disabled={!!error || backend.kind === "mock"}
           onClick={() => void editor(true)}
-        >
-          Open native editor
-        </Button>
+        >{t("Open native editor")}</Button>
         <Button
           size="sm"
           variant="outline"
           disabled={backend.kind === "mock"}
           onClick={() => void editor(false)}
-        >
-          Close native editor
-        </Button>
-        <Button size="sm" variant="outline" onClick={() => openPluginManager()}>
-          Manage plugins
-        </Button>
+        >{t("Close native editor")}</Button>
+        <Button size="sm" variant="outline" onClick={() => openPluginManager()}>{t("Manage plugins")}</Button>
       </div>
       <PluginWrapperControls binding={binding} />
       <FieldGroup>
         {binding.target.type === "effect" && (
           <Field>
-            <FieldLabel>Sidechain input</FieldLabel>
+            <FieldLabel>{t("Sidechain input")}</FieldLabel>
             <Select
               value={binding.sidechainInput ?? -1}
               items={[
-                { value: -1, label: "First auxiliary input" },
-                ...(binding.auxiliaryInputs ?? []).map((input) => ({ value: input.index, label: `${input.name || `Input ${input.index + 1}`} · ${input.channels === 1 ? "Mono" : input.channels === 2 ? "Stereo" : `${input.channels} channels`}` })),
-                ...(binding.sidechainInput != null && !(binding.auxiliaryInputs ?? []).some((input) => input.index === binding.sidechainInput) ? [{ value: binding.sidechainInput, label: `Saved input ${binding.sidechainInput + 1} (unavailable)` }] : []),
+                { value: -1, label: t("First auxiliary input") },
+                ...(binding.auxiliaryInputs ?? []).map((input) => ({ value: input.index, label: i18nMessage("{input} · {channels} channels", { input: input.name || i18nMessage("Input {value0}", { value0: input.index + 1 }), channels: input.channels }) })),
+                ...(binding.sidechainInput != null && !(binding.auxiliaryInputs ?? []).some((input) => input.index === binding.sidechainInput) ? [{ value: binding.sidechainInput, label: i18nMessage("Saved input {value0} (unavailable)", { value0: binding.sidechainInput + 1 }) }] : []),
               ]}
               onValueChange={(input: number | null) => {
-                if (input !== null) void dispatch({ type: "setPluginSidechainInput", target: binding.target, input: input < 0 ? null : input }).catch((error: unknown) => reportError(error, "Could not choose the plugin sidechain input"))
+                if (input !== null) void dispatch({ type: "setPluginSidechainInput", target: binding.target, input: input < 0 ? null : input }).catch((error: unknown) => reportError(error, t("Could not choose the plugin sidechain input")))
               }}
             >
-              <SelectTrigger aria-label="Plugin sidechain input"><SelectValue /></SelectTrigger>
+              <SelectTrigger aria-label={t("Plugin sidechain input")}><SelectValue /></SelectTrigger>
               <SelectContent><SelectGroup>
-                <SelectItem value={-1}>First auxiliary input</SelectItem>
-                {(binding.auxiliaryInputs ?? []).map((input) => <SelectItem key={input.index} value={input.index}>{input.name || `Input ${input.index + 1}`} · {input.channels === 1 ? "Mono" : input.channels === 2 ? "Stereo" : `${input.channels} channels`}</SelectItem>)}
-                {binding.sidechainInput != null && !(binding.auxiliaryInputs ?? []).some((input) => input.index === binding.sidechainInput) && <SelectItem value={binding.sidechainInput} disabled>Saved input {binding.sidechainInput + 1} (unavailable)</SelectItem>}
+                <SelectItem value={-1}>{t("First auxiliary input")}</SelectItem>
+                {(binding.auxiliaryInputs ?? []).map((input) => <SelectItem key={input.index} value={input.index}>{input.name || i18nMessage("Input {value0}", { value0: input.index + 1 })} · {input.channels === 1 ? t("Mono") : input.channels === 2 ? t("Stereo") : i18nMessage("{count} channels", { count: input.channels })}</SelectItem>)}
+                {binding.sidechainInput != null && !(binding.auxiliaryInputs ?? []).some((input) => input.index === binding.sidechainInput) && <SelectItem value={binding.sidechainInput} disabled>{i18nMessage("Saved input {value0} (unavailable)", { value0: binding.sidechainInput + 1 })}</SelectItem>}
               </SelectGroup></SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">Receives this track’s detector-only sends. {!(binding.auxiliaryInputs ?? []).length && "No auxiliary inputs were reported when this plugin was added."}</p>
+            <p className="text-xs text-muted-foreground">{t("Receives this track’s detector-only sends.")}{!(binding.auxiliaryInputs ?? []).length && t("No auxiliary inputs were reported when this plugin was added.")}</p>
           </Field>
         )}
         {binding.parameters.map((parameter, index) => binding.target.type === "rack" ? <RackParameter key={parameter.id} binding={binding} parameter={parameter} /> : (

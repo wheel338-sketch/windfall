@@ -1,3 +1,4 @@
+import { dynamicTitle } from "@/lib/i18n"
 import type { Channel } from "@/bindings"
 import { INSTRUMENT_KINDS, instrumentDescriptor } from "@/features/params"
 import {
@@ -157,7 +158,7 @@ const onlyFor =
 
 const ADD_INSTRUMENT_ACTIONS = INSTRUMENT_KINDS.map((kind): Action => ({
   id: `channel.addInstrument.${kind}`,
-  title: `Add ${instrumentDescriptor(kind).name.toLowerCase()}`,
+  ...dynamicTitle("Add {value0}", { value0: instrumentDescriptor(kind).name.toLowerCase() }),
   section: "Channels",
   keywords: "new channel instrument synthesizer synth keys bass lead pad",
   run: () => addInstrumentChannel(kind),
@@ -172,7 +173,7 @@ const SYNTH_SOUND_ACTIONS = SYNTH_PRESETS.filter(
   (preset) => preset.id !== "init"
 ).map((preset): Action => ({
   id: synthSoundActionId(preset.id),
-  title: `Load synth sound: ${preset.name}`,
+  ...dynamicTitle("Load synth sound: {value0}", { value0: preset.name }),
   section: SOUNDS_SECTION,
   keywords: `preset patch ${preset.description}`,
   enabled: (state) => selectedSynth(state) !== null,
@@ -490,7 +491,7 @@ export const CHANNEL_RACK_ACTIONS: Action[] = [
   },
   ...FILL_INTERVALS.map((every): Action => ({
     id: `channel.fill${every}`,
-    title: `Fill every ${every} steps`,
+    ...dynamicTitle("Fill every {value0} steps", { value0: every }),
     section: "Channels",
     keywords: "pattern hits repeat",
     enabled: hasSelection,
@@ -557,7 +558,7 @@ export const CHANNEL_RACK_ACTIONS: Action[] = [
   },
   ...LENGTH_PRESETS.map((steps): Action => ({
     id: `pattern.length${steps}`,
-    title: `Set the pattern length to ${steps} steps`,
+    ...dynamicTitle("Set the pattern length to {value0} steps", { value0: steps }),
     section: "Patterns",
     keywords: "bars steps long",
     checked: (state) => patternLength(state) === steps,

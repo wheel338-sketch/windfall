@@ -1,3 +1,4 @@
+import { dynamicTitle } from "@/lib/i18n"
 import type { PatternId, PlaylistTrack } from "@/bindings"
 import {
   invalidateActionsOn,
@@ -191,9 +192,9 @@ const ACTIONS: Action[] = [
     checked: () => ui().tool === tool,
     run: () => ui().setTool(tool),
   })),
-  ...SNAP_MODES.map(({ mode, label }): Action => ({
+  ...SNAP_MODES.map(({ mode }): Action => ({
     id: `playlist.snap${capital(mode)}`,
-    title: mode === "none" ? "Snap off" : `Snap to ${label.toLowerCase()}s`,
+    ...dynamicTitle(mode === "none" ? "Snap off" : mode === "bar" ? "Snap to bars" : mode === "beat" ? "Snap to beats" : mode === "step" ? "Snap to steps" : "Snap to ticks", {}),
     section: SECTION,
     keywords: "grid quantize magnet",
     checked: () => ui().snap === mode,
@@ -317,7 +318,7 @@ const ACTIONS: Action[] = [
   },
   ...CLIP_LENGTH_BARS.map((bars): Action => ({
     id: `playlist.length.${bars}`,
-    title: `Set selected clips: ${bars} ${bars === 1 ? "bar" : "bars"}`,
+    ...dynamicTitle("Set selected clips to bars", { count: bars }),
     section: SECTION,
     keywords: "clip length bars duration",
     enabled: hasSelection,

@@ -1,3 +1,4 @@
+import { dynamicTitle } from "@/lib/i18n"
 import {
   openRecording,
   startRecording,
@@ -395,7 +396,7 @@ export const BUILTIN_ACTIONS: Action[] = [
   },
   {
     id: "tempo.reset",
-    title: `Reset the tempo to ${DEFAULT_TEMPO_BPM} BPM`,
+    ...dynamicTitle("Reset the tempo to {value0} BPM", { value0: DEFAULT_TEMPO_BPM }),
     section: "Transport",
     keywords: "bpm default",
     enabled: (state) =>

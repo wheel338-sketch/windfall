@@ -134,6 +134,7 @@ impl StringLoop {
 }
 
 struct Voice {
+    pan: crate::note_pan::NotePan,
     strings: [StringLoop; 2],
     body: [Svf; 2],
     body_coeffs: [SvfCoeffs; 2],
@@ -150,6 +151,7 @@ struct Voice {
 impl Default for Voice {
     fn default() -> Self {
         Self {
+            pan: crate::note_pan::NotePan::default(),
             strings: std::array::from_fn(|_| StringLoop::default()),
             body: [Svf::default(); 2],
             body_coeffs: [SvfCoeffs::new(100.0, 2.0, 48_000.0); 2],
@@ -262,13 +264,15 @@ pub(super) struct Engine {
     model: Model,
     voices: [Voice; MAX_POLYPHONY],
     sample_rate: f32,
+    pan_law: windfall_core::PanLaw,
+    latest: Option<usize>,
     prepared: bool,
     serial: u64,
     pub fresh: bool,
     pub until_control: usize,
     pub smoothing: f32,
-    last_output: f32,
-    retrigger: f32,
+    last_output: (f32, f32),
+    retrigger: (f32, f32),
     retrigger_remaining: usize,
 }
 
@@ -278,13 +282,15 @@ impl Engine {
             model,
             voices: std::array::from_fn(|_| Voice::default()),
             sample_rate: 48_000.0,
+            pan_law: windfall_core::PanLaw::Balance,
+            latest: None,
             prepared: false,
             serial: 0,
             fresh: true,
             until_control: 0,
             smoothing: 1.0,
-            last_output: 0.0,
-            retrigger: 0.0,
+            last_output: (0.0, 0.0),
+            retrigger: (0.0, 0.0),
             retrigger_remaining: 0,
         }
     }
@@ -311,12 +317,13 @@ impl Engine {
         self.serial = 0;
         self.fresh = true;
         self.until_control = 0;
-        self.last_output = 0.0;
-        self.retrigger = 0.0;
+        self.last_output = (0.0, 0.0);
+        self.retrigger = (0.0, 0.0);
         self.retrigger_remaining = 0;
     }
 
     pub fn note_on(&mut self, key: u8, velocity: f32, settings: Settings) {
+        self.latest = None;
         if !self.prepared {
             return;
         }
@@ -341,6 +348,8 @@ impl Engine {
         self.serial = self.serial.wrapping_add(1);
         let voice = &mut self.voices[index];
         voice.reset();
+        self.latest = Some(index);
+        voice.pan = crate::note_pan::NotePan::new(0.0, self.pan_law);
         voice.key = key;
         voice.serial = self.serial;
         voice.velocity = velocity;
@@ -353,6 +362,14 @@ impl Engine {
         }
     }
 
+
+    pub(super) fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
+        self.pan_law = law;
+        for voice in &mut self.voices { voice.pan.retarget(law, self.sample_rate); }
+    }
+    pub(super) fn pan_latest(&mut self, pan: f32) {
+        if let Some(index) = self.latest { self.voices[index].pan = crate::note_pan::NotePan::new(pan, self.pan_law); }
+    }
     pub fn note_off(&mut self, key: u8) {
         for voice in &mut self.voices {
             if voice.active && voice.key == key {
@@ -377,23 +394,28 @@ impl Engine {
         }
     }
 
-    pub fn tick(&mut self, settings: Settings) -> f32 {
-        let mut output = 0.0;
+    pub fn tick(&mut self, settings: Settings) -> (f32, f32) {
+        let mut output = (0.0, 0.0);
         for voice in &mut self.voices {
             if voice.active {
-                output += voice.tick(self.model, settings, self.sample_rate);
+                let sample = voice.tick(self.model, settings, self.sample_rate);
+                let pan = voice.pan.tick();
+                output.0 += sample * pan.0;
+                output.1 += sample * pan.1;
             }
         }
         // Fixed headroom at the eight-voice cap; stereo is centered mono.
-        let mut output = output * settings.level * 0.25;
+        let mut output = (output.0 * settings.level * 0.25, output.1 * settings.level * 0.25);
         if self.retrigger_remaining > 0 {
             let total = (self.sample_rate * 0.004).ceil().max(1.0);
             if self.retrigger_remaining as f32 == total {
                 // Crossfade the endpoint difference, rather than adding the
                 // old endpoint on top of the replacement string's first sample.
-                self.retrigger -= output;
+                self.retrigger.0 -= output.0;
+                self.retrigger.1 -= output.1;
             }
-            output += self.retrigger * self.retrigger_remaining as f32 / total;
+            output.0 += self.retrigger.0 * self.retrigger_remaining as f32 / total;
+            output.1 += self.retrigger.1 * self.retrigger_remaining as f32 / total;
             self.retrigger_remaining -= 1;
         }
         self.last_output = output;

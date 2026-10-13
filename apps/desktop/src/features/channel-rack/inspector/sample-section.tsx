@@ -1,3 +1,5 @@
+import { localizeBackendText } from "@/lib/i18n"
+import { translatedText as t, useLanguageStore } from "@/lib/i18n"
 import { ArrowDown01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { useState, type DragEvent } from "react"
@@ -45,13 +47,14 @@ import { nextTrimStartScale } from "./trim-start-scale"
 
 /** Lists the samples already in the project, to point the channel at one. */
 function ProjectSamples({ channel }: { channel: SamplerChannel }) {
+  useLanguageStore((state) => state.language)
   const samples = useProjectStore((state) => state.project.samples)
   return (
     <>
       {samples.length > 0 && (
         <>
           <DropdownMenuGroup>
-            <DropdownMenuLabel>Samples in this project</DropdownMenuLabel>
+            <DropdownMenuLabel>{t("Samples in this project")}</DropdownMenuLabel>
             <DropdownMenuRadioGroup
               value={channel.source.sample}
               onValueChange={(id: SampleId) =>
@@ -74,21 +77,19 @@ function ProjectSamples({ channel }: { channel: SamplerChannel }) {
       )}
       <DropdownMenuItem
         onClick={() => void replaceSampleFromPickedFile(channel.id)}
-      >
-        From an audio file…
-      </DropdownMenuItem>
+      >{t("From an audio file…")}</DropdownMenuItem>
       <p className="px-2 py-1.5 text-muted-foreground">
-        A file can also be dragged from the browser onto the waveform or onto
-        the channel&apos;s name.
+        {t("A file can also be dragged from the browser onto the waveform or onto the channel's name.")}
       </p>
     </>
   )
 }
 
 function ChooseSample({ channel }: { channel: SamplerChannel }) {
+  useLanguageStore((state) => state.language)
   const empty = channel.source.sample === null
   const hint = useHint(
-    "Choose the sample this channel plays, or drag one in from the browser"
+    t("Choose the sample this channel plays, or drag one in from the browser")
   )
   return (
     <DropdownMenu>
@@ -102,7 +103,7 @@ function ChooseSample({ channel }: { channel: SamplerChannel }) {
           />
         }
       >
-        {empty ? "Choose a sample" : "Replace"}
+        {empty ? t("Choose a sample") : t("Replace")}
         <HugeiconsIcon
           icon={ArrowDown01Icon}
           strokeWidth={2}
@@ -123,6 +124,7 @@ function Trim({
   channel: SamplerChannel
   peaks: number[]
 }) {
+  useLanguageStore((state) => state.language)
   const { id, source } = channel
   // Each edge is its own control, so a drag is named after the edge it moved.
   const start = useGestureValue(source.start, (value, dispatch) =>
@@ -140,12 +142,12 @@ function Trim({
     })
   )
   const hint = useHint(
-    "Drag the two handles to trim where the sample starts and ends. Double-click a handle to put it back"
+    t("Drag the two handles to trim where the sample starts and ends. Double-click a handle to put it back")
   )
 
   return (
     <Waveform
-      aria-label="Sample waveform"
+      aria-label={t("Sample waveform")}
       peaks={peaks}
       color={colorToCss(channel.color)}
       start={start.value}
@@ -168,6 +170,7 @@ function Trim({
 
 /** The sample a channel plays: its waveform, trim handles and a way to change it. */
 export function SampleSection({ channel }: { channel: SamplerChannel }) {
+  useLanguageStore((state) => state.language)
   const { id, source } = channel
   const sample = useSample(channel.source.sample)
   const state = useSampleInfo(sample)
@@ -197,8 +200,8 @@ export function SampleSection({ channel }: { channel: SamplerChannel }) {
   const info = state?.status === "ready" ? state.info : null
 
   return (
-    <Section title="Sample" aside={<ChooseSample channel={channel} />}>
-      {info?.sourceWarnings?.map((warning) => <Alert key={warning}><AlertDescription>{warning}</AlertDescription></Alert>)}
+    <Section title={t("Sample")} aside={<ChooseSample channel={channel} />}>
+      {info?.sourceWarnings?.map((warning) => <Alert key={warning}><AlertDescription>{localizeBackendText(warning)}</AlertDescription></Alert>)}
       <div
         data-slot="sample-drop"
         data-over={over ? "" : undefined}
@@ -220,26 +223,20 @@ export function SampleSection({ channel }: { channel: SamplerChannel }) {
             {sample === undefined ? (
               <>
                 <p>
-                  <span className="font-medium text-warn">No sample.</span> Drag
-                  one here from the browser.
-                </p>
+                  <span className="font-medium text-warn">{t("No sample.")}</span>{" "}{t("Drag one here from the browser.")}</p>
                 {!browserVisible && (
                   <ActionButton
                     action="view.browser"
                     variant="outline"
                     size="xs"
-                  >
-                    Show the browser
-                  </ActionButton>
+                  >{t("Show the browser")}</ActionButton>
                 )}
               </>
             ) : state?.status === "error" ? (
               <>
                 <p>
-                  <span className="font-medium text-warn">
-                    The sample file is missing or cannot be read.
-                  </span>{" "}
-                  {state.message}
+                  <span className="font-medium text-warn">{t("The sample file is missing or cannot be read.")}</span>{" "}
+                  {localizeBackendText(state.message)}
                 </p>
                 <ActionButton
                   action="file.reloadSamples"
@@ -248,14 +245,12 @@ export function SampleSection({ channel }: { channel: SamplerChannel }) {
                 />
               </>
             ) : (
-              <p>Reading the waveform…</p>
+              <p>{t("Reading the waveform…")}</p>
             )}
           </div>
         )}
         {over && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-sm bg-background/80 font-medium text-brand">
-            Drop to use this sample
-          </div>
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-sm bg-background/80 font-medium text-brand">{t("Drop to use this sample")}</div>
         )}
       </div>
       <div className="flex flex-wrap gap-1">
@@ -283,7 +278,7 @@ export function SampleSection({ channel }: { channel: SamplerChannel }) {
               })
             }}
           >
-            {preset.label}
+            {t(preset.label)}
           </Button>
         ))}
       </div>
@@ -295,8 +290,8 @@ export function SampleSection({ channel }: { channel: SamplerChannel }) {
             size="xs"
             aria-label={
               direction === "previous"
-                ? "Choose the previous sample trim preset"
-                : "Choose the next sample trim preset"
+                ? t("Choose the previous sample trim preset")
+                : t("Choose the next sample trim preset")
             }
             disabled={
               nextSampleTrimPreset(
@@ -321,7 +316,7 @@ export function SampleSection({ channel }: { channel: SamplerChannel }) {
               })
             }}
           >
-            {direction === "previous" ? "Previous" : "Next"}
+            {direction === "previous" ? t("Previous") : t("Next")}
           </Button>
         ))}
       </div>
@@ -332,7 +327,7 @@ export function SampleSection({ channel }: { channel: SamplerChannel }) {
             variant="outline"
             size="xs"
             aria-label={
-              factor === "half" ? "Halve sample trim" : "Double sample trim"
+              factor === "half" ? t("Halve sample trim") : t("Double sample trim")
             }
             disabled={
               nextSampleTrimScale(source.start ?? 0, source.end ?? 1, factor) ===
@@ -354,7 +349,7 @@ export function SampleSection({ channel }: { channel: SamplerChannel }) {
               })
             }}
           >
-            {factor === "half" ? "Halve trim" : "Double trim"}
+            {factor === "half" ? t("Halve trim") : t("Double trim")}
           </Button>
         ))}
       </div>
@@ -366,8 +361,8 @@ export function SampleSection({ channel }: { channel: SamplerChannel }) {
             size="xs"
             aria-label={
               factor === "half"
-                ? "Halve sample trim from the end"
-                : "Double sample trim from the end"
+                ? t("Halve sample trim from the end")
+                : t("Double sample trim from the end")
             }
             disabled={
               nextTrimStartScale(source.start ?? 0, source.end ?? 1, factor) ===
@@ -389,7 +384,7 @@ export function SampleSection({ channel }: { channel: SamplerChannel }) {
               })
             }}
           >
-            {factor === "half" ? "Halve from end" : "Double from end"}
+            {factor === "half" ? t("Halve from end") : t("Double from end")}
           </Button>
         ))}
       </div>

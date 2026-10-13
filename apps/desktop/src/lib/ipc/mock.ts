@@ -654,6 +654,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
 
   const made: MockBackend = {
     kind: "mock",
+    updateCall: async () => { throw new Error("Updates require the installed desktop application.") },
     ...unavailableRemoteContent(),
     ...unavailableAnalysis(),
     ...mockMixerPresetLibrary(),
@@ -812,6 +813,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       throw new Error("Native editors require the Windows desktop app")
     },
     pluginEditorScale: async () => {},
+    pluginNoteCapabilities: async () => { throw new Error("Native note capabilities require the installed desktop application.") },
 
     timelineState: () => ipc(timelineState),
     timelineRegion: (region, generation, revision, request, cancel) =>

@@ -68,6 +68,7 @@ impl Default for PartialCache {
 #[derive(Clone, Copy)]
 struct Voice {
     active: bool,
+    pan: crate::note_pan::NotePan,
     key: u8,
     hz: f32,
     velocity: f32,
@@ -86,6 +87,7 @@ impl Default for Voice {
     fn default() -> Self {
         Self {
             active: false,
+            pan: crate::note_pan::NotePan::default(),
             key: 0,
             hz: 0.0,
             velocity: 0.0,
@@ -109,6 +111,8 @@ pub(super) struct PreparedEngine {
     controls: Controls,
     target: Controls,
     rate: f32,
+    pan_law: windfall_core::PanLaw,
+    latest: Option<usize>,
     serial: u64,
     smoothing: f32,
     fresh: bool,
@@ -124,6 +128,8 @@ impl PreparedEngine {
             controls: Controls::default(),
             target: Controls::default(),
             rate: 48000.0,
+            pan_law: windfall_core::PanLaw::Balance,
+            latest: None,
             serial: 0,
             smoothing: 1.0 - (-1.0f32 / 240.0).exp(),
             fresh: true,
@@ -150,6 +156,7 @@ impl PreparedEngine {
         }
     }
     pub(super) fn note_on(&mut self, key: u8, velocity: f32) {
+        self.latest = None;
         if key > 127 {
             return;
         }
@@ -190,12 +197,22 @@ impl PreparedEngine {
                 .correction_right
                 .set_target(0.0, (self.rate * 0.004).max(1.0) as u32);
         }
+        voice.pan = crate::note_pan::NotePan::new(0.0, self.pan_law);
+        self.latest = Some(index);
         self.voices[index] = voice;
         for voice in &mut self.voices[limit..] {
             if voice.active {
                 voice.release.set_target(0.0, (self.rate * 0.004) as u32);
             }
         }
+    }
+
+    pub(super) fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
+        self.pan_law = law;
+        for voice in &mut self.voices { voice.pan.retarget(law, self.rate); }
+    }
+    pub(super) fn pan_latest(&mut self, pan: f32) {
+        if let Some(index) = self.latest { self.voices[index].pan = crate::note_pan::NotePan::new(pan, self.pan_law); }
     }
     pub(super) fn note_off(&mut self, key: u8) {
         for v in &mut self.voices {
@@ -334,8 +351,9 @@ impl PreparedEngine {
                 }
                 v.last_left = voice_left + v.correction_left.tick();
                 v.last_right = voice_right + v.correction_right.tick();
-                *left += v.last_left;
-                *right += v.last_right;
+                let pan = v.pan.tick();
+                *left += v.last_left * pan.0;
+                *right += v.last_right * pan.1;
                 v.age = v.age.saturating_add(1);
                 if v.release.value() == 0.0 || natural < 1e-7 {
                     v.active = false;
@@ -384,6 +402,13 @@ macro_rules! prepared_instrument {
             }
             fn note_on(&mut self, key: u8, velocity: f32) {
                 self.engine.note_on(key, velocity);
+            }
+            fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
+                self.engine.set_note_pan_law(law);
+            }
+            fn note_on_expression(&mut self, key: u8, velocity: f32, pan: f32, _expression: crate::NoteExpression) {
+                self.note_on(key, velocity);
+                self.engine.pan_latest(pan);
             }
             fn note_off(&mut self, key: u8) {
                 self.engine.note_off(key);

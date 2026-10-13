@@ -4,6 +4,7 @@
 mod bench;
 mod compressor;
 mod delay;
+mod deadline_cpu;
 mod e3_circuits;
 mod eq;
 mod examples;
@@ -32,3 +33,5 @@ mod p2_effect_budgets;
 mod p2_pitch_quality;
 mod sample_bank;
 mod sample_playback;
+
+mod project_note_pan;

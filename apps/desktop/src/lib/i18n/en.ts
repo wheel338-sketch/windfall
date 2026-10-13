@@ -1,4 +1,6 @@
+import { inspectorEn } from "./inspector-messages"
 export const en = {
+  ...inspectorEn,
   "Choose installed ONNX Runtime library": "Choose installed ONNX Runtime library",
   "Shared library": "Shared library",
   "This window is closing.": "This window is closing.",

@@ -128,6 +128,7 @@ impl Settings for DrumVoiceParams {
 
 #[derive(Clone, Copy)]
 struct Voice {
+    pan: crate::note_pan::NotePan,
     active: bool,
     key: u8,
     pad: usize,
@@ -153,6 +154,7 @@ impl Default for Voice {
     fn default() -> Self {
         Self {
             active: false,
+            pan: crate::note_pan::NotePan::default(),
             key: 0,
             pad: 0,
             recipe: Recipe::Membrane,
@@ -302,6 +304,8 @@ pub(super) struct Engine<P: Settings, const N: usize> {
     moving: bool,
     fresh: bool,
     rate: f32,
+    pan_law: windfall_core::PanLaw,
+    latest: Option<usize>,
     smoothing: f32,
     seed: u32,
     key_patches: Option<Box<[Option<DrumVoiceParams>; 128]>>,
@@ -316,6 +320,8 @@ impl<P: Settings, const N: usize> Default for Engine<P, N> {
             moving: false,
             fresh: true,
             rate: 48000.0,
+            pan_law: windfall_core::PanLaw::Balance,
+            latest: None,
             smoothing: smoothing_coefficient(10.0, 48000.0),
             seed: 0,
             key_patches: None,
@@ -355,6 +361,7 @@ impl<P: Settings, const N: usize> Engine<P, N> {
         }
     }
     pub fn note_on(&mut self, key: u8, velocity: f32, recipe: Recipe, rack: bool) {
+        self.latest = None;
         if !velocity.is_finite() || velocity <= 0.0 {
             self.note_off(key);
             return;
@@ -389,6 +396,16 @@ impl<P: Settings, const N: usize> Engine<P, N> {
         self.seed = self.seed.wrapping_add(1);
         self.voices[index].start(key, pad, recipe, velocity.min(1.0), self.seed, self.rate);
         self.voices[index].key_patch = key_patch;
+        self.voices[index].pan = crate::note_pan::NotePan::new(0.0, self.pan_law);
+        self.latest = Some(index);
+    }
+
+    pub(super) fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
+        self.pan_law = law;
+        for voice in &mut self.voices { voice.pan.retarget(law, self.rate); }
+    }
+    pub(super) fn pan_latest(&mut self, pan: f32) {
+        if let Some(index) = self.latest { self.voices[index].pan = crate::note_pan::NotePan::new(pan, self.pan_law); }
     }
     pub fn note_off(&mut self, key: u8) {
         for voice in &mut self.voices {
@@ -411,7 +428,7 @@ impl<P: Settings, const N: usize> Engine<P, N> {
             if self.moving {
                 self.moving = self.current.approach(&self.target, self.smoothing);
             }
-            let mut sum = 0.0;
+            let mut sum = (0.0, 0.0);
             for voice in &mut self.voices {
                 if voice.active {
                     let patch = if let Some(params) = voice.key_patch {
@@ -423,13 +440,15 @@ impl<P: Settings, const N: usize> Engine<P, N> {
                     } else {
                         self.current.patch(voice.key, voice.pad, voice.recipe)
                     };
-                    sum += voice.tick(patch, self.rate);
+                    let sample = voice.tick(patch, self.rate);
+                    let pan = voice.pan.tick();
+                    sum.0 += sample * pan.0;
+                    sum.1 += sample * pan.1;
                 }
             }
             // Each bounded voice is finite; guard the boundary as well.
-            let output = if sum.is_finite() { sum } else { 0.0 };
-            *left = output;
-            *right = output;
+            *left = if sum.0.is_finite() { sum.0 } else { 0.0 };
+            *right = if sum.1.is_finite() { sum.1 } else { 0.0 };
         }
     }
 }

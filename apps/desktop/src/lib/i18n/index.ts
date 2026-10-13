@@ -1,7 +1,7 @@
 import { create } from "zustand"
 import { en } from "./en"
 import { es } from "./es"
-import { actionMessages } from "./action-messages"
+import { actionMessages, dynamicActionMessage } from "./action-messages"
 import type { Catalog, Language, MessageKey } from "./types"
 export type { Language, MessageKey } from "./types"
 export const catalogs: Record<Language, Catalog> = { en, es }
@@ -58,6 +58,24 @@ export function useActionTitle(id: string, fallback: string): string {
   return actionTitle(id, fallback, language)
 }
 export function actionTitle(id: string, fallback: string, language = useLanguageStore.getState().language): string {
+  const dynamic = dynamicActionMessage(id)
+  if (dynamic) return message(dynamic.key, dynamic.values, language)
   const key = actionMessages[id]
   return key ? message(key, {}, language) : id.startsWith("file.openRecent.") ? fallback : translatedText(fallback, language)
+}
+
+/** English compatibility title plus bounded registry-owned translation metadata. */
+export function dynamicTitle(key: MessageKey, values: Record<string, string | number>) {
+  return { title: message(key, values, "en"), titleMessage: { key, values } }
+}
+
+export function localizeBackendText(text: string): string {
+  if (Object.hasOwn(en, text)) return translatedText(text)
+  const prefixes = [
+    ["Installation failed. Keep the current installation and retry. ", "Installation failed. Keep the current installation and retry. {detail}"],
+    ["Download or signature verification failed. Nothing was installed. ", "Download or signature verification failed. Nothing was installed. {detail}"],
+    ["Update check failed; retry when online. ", "Update check failed; retry when online. {detail}"],
+  ] as const
+  for (const [prefix,key] of prefixes) if (text.startsWith(prefix)) return message(key,{detail:text.slice(prefix.length)})
+  return useLanguageStore.getState().language === "en" ? text : message("Native diagnostic: {detail}", { detail: text })
 }
