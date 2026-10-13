@@ -1,6 +1,6 @@
 # Round-six acceptance — 2026-10-13
 
-Integration in progress. No final acceptance recommendation yet. Tracker files remain untouched.
+All eight branches are merged. Rust confirmation passes4817/0/40; frontend confirmation has6488 passes and2 strict translation-admission failures. Remaining final gates are running; no final row recommendation yet. Tracker files remain untouched.
 
 ## Running record
 
@@ -9,6 +9,8 @@ Integration in progress. No final acceptance recommendation yet. Tracker files r
 - WAV-tempo check PASS: `cargo check --workspace --all-targets`, zero warnings/errors, exit 0, 9 s (`target/round6-branch01-check-repair2.log`). Two fixture compile repairs: `UpdateClips.updates` and explicitly f32 controller-map range inputs. No assertion/tolerance change; failed initial/repair1 logs retained. Native tempo/PCM fixtures remain unexecuted.
 
 ### Integration and verification record
+
+- Final suite confirmation: Rust **4817/0/40**,186 result blocks,exit0,826s (`target/round6-workspace-confirm.log`); frontend **6488/2/0**,533 files (531passed/2failed),exit1,468s (`target/round6-frontend-confirm.log`, JSON `target/round6-frontend-confirm-results.json`). Only failures: whole-app source and built-in descriptor localization admissions. All mounted MIDI/reactive toast regressions now pass. Mechanical added-test audit against70ae38eb finds **99 new standard Rust test functions, all99 observed passing**,missing0,exit0,3s (`target/round6-registration-final.log`; script `target/round6/registration-audit.cjs`). No new ignored test credited. Remaining cross/release/stem/packaging/native-window gates started serially after the full suites finished.
 
 - Repaired checkpoint **b886b736**: fresh native binary build PASS,exit0,47s (`target/round6-native-build-confirm.log`); full `cargo test --workspace --no-fail-fast -- --test-threads=1` PASS,exit0,826s (`target/round6-workspace-confirm.log`). All completed blocks have zero failures; aggregate counts checked separately below. No ignored hardware test enabled. Frontend confirmation active; cross/release/native-window gates still pending. Lint after seam repairs PASS zero diagnostics,exit0,33s (`target/round6-lint-confirm.log`). Source is held unchanged through these remaining gates.
 
