@@ -45,6 +45,13 @@ impl Instrument for MacroVoice {
     fn note_on(&mut self, key: u8, velocity: f32) {
         self.bank.note_on(key, velocity, self.sample_rate);
     }
+    fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
+        self.bank.set_note_pan_law(law, self.sample_rate);
+    }
+    fn note_on_expression(&mut self, key: u8, velocity: f32, pan: f32, _expression: crate::NoteExpression) {
+        self.note_on(key, velocity);
+        self.bank.pan_latest(pan);
+    }
     fn note_off(&mut self, key: u8) {
         self.bank.note_off(key);
     }
@@ -74,7 +81,7 @@ impl Instrument for MacroVoice {
                 sustain: 0.5 + 0.4 * p.shape,
                 release_ms: 80.0 + 600.0 * p.motion,
             };
-            let mut sum = 0.0;
+            let mut sum = (0.0, 0.0);
             for voice in &mut self.bank.voices {
                 if !voice.active() {
                     continue;
@@ -109,10 +116,13 @@ impl Instrument for MacroVoice {
                 let table = self.tables.sample(carrier_phase, inc, scan);
                 voice.oscillators[1].tick(Waveform::Sine, inc, 0.5);
                 let raw = filtered * weights[0] + fm * weights[1] + table * weights[2];
-                sum += voice.amplify(raw, envelope, self.sample_rate);
+                let sample = voice.amplify(raw, envelope, self.sample_rate);
+                let pan = voice.pan.tick();
+                sum.0 += sample * pan.0;
+                sum.1 += sample * pan.1;
             }
-            *left = output(sum * 0.18);
-            *right = *left;
+            *left = output(sum.0 * 0.18);
+            *right = if sum.0 == sum.1 { *left } else { output(sum.1 * 0.18) };
         }
     }
 }

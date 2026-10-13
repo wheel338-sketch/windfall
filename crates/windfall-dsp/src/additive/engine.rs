@@ -177,6 +177,7 @@ enum Stage {
 #[derive(Clone, Copy)]
 struct Voice<T: Tone> {
     stage: Stage,
+    pan: crate::note_pan::NotePan,
     key: u8,
     /// Cycles the fundamental advances per sample.
     increment: f32,
@@ -193,6 +194,7 @@ impl<T: Tone> Voice<T> {
     fn silent() -> Self {
         Self {
             stage: Stage::Idle,
+            pan: crate::note_pan::NotePan::default(),
             key: 69,
             increment: 0.0,
             level: 0.0,
@@ -224,14 +226,16 @@ impl<T: Tone> Voice<T> {
         );
     }
 
-    fn render(&mut self, setup: &T::Setup, offset: usize, out: &mut [f32]) {
+    fn render(&mut self, setup: &T::Setup, offset: usize, out: &mut [f32], right: &mut [f32]) {
         let mut tone = [0.0_f32; CONTROL_PERIOD];
         let frames = out.len();
         self.tone
             .render(setup, self.increment, offset, &mut tone[..frames]);
-        for (sample, voice) in out.iter_mut().zip(&tone[..frames]) {
+        for ((sample, right), voice) in out.iter_mut().zip(right).zip(&tone[..frames]) {
             let gain = self.amp.tick() * self.level * self.choke.tick();
-            *sample += voice * gain;
+            let pan = self.pan.tick();
+            *sample += voice * gain * pan.0;
+            *right += voice * gain * pan.1;
         }
         let faded = self.stage == Stage::Choked && self.choke.is_settled();
         if faded || self.amp.is_idle() {
@@ -248,6 +252,8 @@ impl<T: Tone> Voice<T> {
 /// the engine is built.
 pub(super) struct AdditiveEngine<T: Tone> {
     sample_rate: f32,
+    pan_law: windfall_core::PanLaw,
+    latest: Option<usize>,
     common: Common,
     target: T::Target,
     setup: T::Setup,
@@ -279,6 +285,8 @@ impl<T: Tone> AdditiveEngine<T> {
         let glide_samples = ms_to_samples(GLIDE_MS, DEFAULT_RATE);
         Self {
             sample_rate: DEFAULT_RATE,
+            pan_law: windfall_core::PanLaw::Balance,
+            latest: None,
             common,
             target,
             setup: T::settled(&target),
@@ -356,6 +364,7 @@ impl<T: Tone> AdditiveEngine<T> {
 
     /// See [`Instrument::note_on`](crate::Instrument::note_on).
     pub(super) fn note_on(&mut self, key: u8, velocity: f32) {
+        self.latest = None;
         let key = key.min(127);
         if !velocity.is_finite() || velocity <= 0.0 {
             self.note_off(key);
@@ -381,6 +390,8 @@ impl<T: Tone> AdditiveEngine<T> {
             // level it has reached, so there is no jump.
             voice.amp.scale_level(voice.choke.value());
         }
+        self.latest = Some(index);
+        voice.pan = crate::note_pan::NotePan::new(0.0, self.pan_law);
         voice.choke.snap(1.0);
         voice.stage = Stage::Held;
         voice.key = key;
@@ -390,6 +401,15 @@ impl<T: Tone> AdditiveEngine<T> {
         voice.tone.restart(&self.setup);
         voice.configure(&self.common, self.sample_rate);
         voice.amp.gate_on();
+    }
+
+
+    pub(super) fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
+        self.pan_law = law;
+        for voice in &mut self.voices { voice.pan.retarget(law, self.sample_rate); }
+    }
+    pub(super) fn pan_latest(&mut self, pan: f32) {
+        if let Some(index) = self.latest { self.voices[index].pan = crate::note_pan::NotePan::new(pan, self.pan_law); }
     }
 
     /// See [`Instrument::note_off`](crate::Instrument::note_off).
@@ -455,15 +475,16 @@ impl<T: Tone> AdditiveEngine<T> {
         let frames = left.len();
         let offset = CONTROL_PERIOD - self.until_control;
         let mut bus = [0.0_f32; CONTROL_PERIOD];
+        let mut bus_right = [0.0_f32; CONTROL_PERIOD];
         for voice in &mut self.voices {
             if voice.stage != Stage::Idle {
-                voice.render(&self.setup, offset, &mut bus[..frames]);
+                voice.render(&self.setup, offset, &mut bus[..frames], &mut bus_right[..frames]);
             }
         }
         for index in 0..frames {
             let voice = audio(bus[index]);
             left[index] = audio(voice * self.gain_left.tick());
-            right[index] = audio(voice * self.gain_right.tick());
+            right[index] = audio(audio(bus_right[index]) * self.gain_right.tick());
         }
     }
 
@@ -565,6 +586,13 @@ macro_rules! engine_instrument {
                 self.engine.note_on(key, velocity);
             }
 
+            fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
+                self.engine.set_note_pan_law(law);
+            }
+            fn note_on_expression(&mut self, key: u8, velocity: f32, pan: f32, _expression: crate::NoteExpression) {
+                self.note_on(key, velocity);
+                self.engine.pan_latest(pan);
+            }
             fn note_off(&mut self, key: u8) {
                 self.engine.note_off(key);
             }

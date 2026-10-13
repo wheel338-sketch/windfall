@@ -294,3 +294,81 @@ fn live_law_change_is_a_measured_five_ms_ramp_independent_of_callback_partition(
         }
     }
 }
+
+fn synthetic_pan_family(kind: windfall_dsp::InstrumentKind) -> bool {
+    use windfall_dsp::InstrumentKind::*;
+    match kind {
+        SubtractiveSynth => false,
+        FourOp => true,
+        MatrixFm => true,
+        RingHybrid => true,
+        HarmonicStack => true,
+        PartialMorph => true,
+        Inharmonic => true,
+        Resynth => true,
+        SeedPatch => true,
+        ScanSynth => true,
+        Pluck => true,
+        FingerBass => true,
+        AcousticString => true,
+        Membrane => true,
+        DrumRack => true,
+        Kick => true,
+        DrumVoice => true,
+        SliceMap => false,
+        SliceDeck => false,
+        GrainCloud => false,
+        WaveRide => false,
+        AcidLine => true,
+        TripleOsc => true,
+        WaveLane => true,
+        MacroVoice => true,
+        SpeechVoice => true,
+        MidiOut => false,
+        VintagePoly => true,
+        DualPoly => true,
+        CompactSynth => true,
+        VintageSaw => true,
+        PocketSynth => true,
+        GrooveSynth => true,
+        HybridSeq => true,
+        MatrixSynth => true,
+        PackSynth => true,
+        LayerKick => true,
+        SnapshotMorph => true,
+        HarmonicFilter => true,
+        MetalVoice => true,
+        NumberVoice => true,
+        SpectralResynth => true,
+        ColorScan => true,
+        Dashboard => false,
+        MultiSampler => false,
+        SamplePlayer => false,
+        SoundFont => false,
+        PadBank => false,
+        PianoKeys => false,
+        TextVoice => false,
+    }
+}
+
+#[test]
+fn every_remaining_pan_family_uses_identical_live_and_offline_pcm_under_every_law() {
+    use windfall_project::ChannelSource;
+    for kind in windfall_dsp::InstrumentKind::ALL {
+        if !synthetic_pan_family(kind) { continue; }
+        for law in PanLaw::ALL {
+            let mut rig=Rig::new();rig.project.settings.pan_law=law;
+            let channel=rig.synth_on(Default::default(),TrackId::MASTER);
+            rig.channel_mut(channel).source=ChannelSource::Instrument {asset:None,params:kind.default_params()};
+            rig.project.patterns[0].length_steps=1;
+            rig.note(channel,0,240).pan=0.65;
+            let options=RenderOptions{sample_rate:RATE,tail_secs:0.0,block_frames:127,..Default::default()};
+            let offline=render(&rig.project,&rig.pool,&options,&mut |_|true);
+            assert!(peak(offline.samples())>1e-7,"silent fixture: {kind:?}");
+            for block in [17,64,127] {
+                let live=rig.play(RATE,offline.frames(),block);
+                assert_eq!(live,offline.samples(),"{kind:?} {law:?} block {block}");
+            }
+        }
+    }
+}

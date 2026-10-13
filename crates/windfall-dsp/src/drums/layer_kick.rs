@@ -51,6 +51,7 @@ param_set!(LayerKickParams, "Layer Kick", {
 #[derive(Clone, Copy)]
 struct LayerVoice {
     active: bool,
+    pan: crate::note_pan::NotePan,
     key: u8,
     position: f64,
     step: f64,
@@ -64,6 +65,7 @@ impl Default for LayerVoice {
     fn default() -> Self {
         Self {
             active: false,
+            pan: crate::note_pan::NotePan::default(),
             key: 0,
             position: 0.0,
             step: 1.0,
@@ -81,6 +83,7 @@ pub struct LayerKick {
     pcm: Option<Box<LayerPcm>>,
     voices: [LayerVoice; 8],
     rate: f32,
+    pan_law: windfall_core::PanLaw,
     serial: u64,
     mix: LinearRamp,
     level: LinearRamp,
@@ -94,6 +97,7 @@ impl Default for LayerKick {
             pcm: None,
             voices: [LayerVoice::default(); 8],
             rate: 48_000.0,
+            pan_law: windfall_core::PanLaw::Balance,
             serial: 0,
             mix: LinearRamp::new(0.25),
             level: LinearRamp::new(0.8),
@@ -175,6 +179,7 @@ impl Instrument for LayerKick {
         }
         self.voices[index] = LayerVoice {
             active: true,
+            pan: crate::note_pan::NotePan::new(0.0, self.pan_law),
             key,
             position,
             step: f64::from(pcm.sample_rate) / f64::from(self.rate)
@@ -185,6 +190,20 @@ impl Instrument for LayerKick {
             correction,
             last: 0.0,
         };
+    }
+    fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
+        self.pan_law = law;
+        self.kick.set_note_pan_law(law);
+        for voice in &mut self.voices { voice.pan.retarget(law, self.rate); }
+    }
+    fn note_on_expression(&mut self, key: u8, velocity: f32, pan: f32, _expression: crate::NoteExpression) {
+        self.note_on(key, velocity);
+        if key <= 127 && velocity.is_finite() && velocity > 0.0 {
+            self.kick.0.pan_latest(pan);
+            if let Some(voice) = self.voices.iter_mut().find(|v| v.active && v.order == self.serial) {
+                voice.pan = crate::note_pan::NotePan::new(pan, self.pan_law);
+            }
+        }
     }
     fn note_off(&mut self, key: u8) {
         self.kick.note_off(key);
@@ -208,13 +227,15 @@ impl Instrument for LayerKick {
             self.fresh = false;
             let mix = self.mix.tick();
             let level = self.level.tick();
-            let mut layer = 0.0;
+            let mut layer = (0.0, 0.0);
             if let Some(pcm) = &self.pcm {
                 for v in &mut self.voices {
                     if v.active {
                         let fade = v.fade.tick();
                         v.last = (pcm.at(v.position) * v.velocity + v.correction.tick()) * fade;
-                        layer += v.last;
+                        let pan = v.pan.tick();
+                        layer.0 += v.last * pan.0;
+                        layer.1 += v.last * pan.1;
                         v.position += v.step;
                         if (v.position >= pcm.samples.len() as f64 && v.correction.is_settled())
                             || v.fade.value() == 0.0
@@ -225,8 +246,8 @@ impl Instrument for LayerKick {
                 }
             }
             let mix = if self.pcm.is_some() { mix } else { 0.0 };
-            *left = (*left * (1.0 - mix) + layer * mix) * level;
-            *right = (*right * (1.0 - mix) + layer * mix) * level;
+            *left = (*left * (1.0 - mix) + layer.0 * mix) * level;
+            *right = (*right * (1.0 - mix) + layer.1 * mix) * level;
         }
     }
     fn active_voices(&self) -> usize {

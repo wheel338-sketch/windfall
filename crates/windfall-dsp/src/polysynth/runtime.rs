@@ -259,6 +259,8 @@ pub(super) struct Runtime<P: Patch> {
     envelope_configuration: Option<(EnvelopeParams, EnvelopeParams)>,
     operator_graph: Option<OperatorGraph>,
     rate: f32,
+    pan_law: windfall_core::PanLaw,
+    note_pans: [crate::note_pan::NotePan; MAX_VOICES],
     bpm: f32,
     controls: Controls<P>,
     notes: Notes,
@@ -279,6 +281,8 @@ impl<P: Patch> Default for Runtime<P> {
             envelope_configuration: None,
             operator_graph: None,
             rate: 48000.0,
+            pan_law: windfall_core::PanLaw::Balance,
+            note_pans: [crate::note_pan::NotePan::default(); MAX_VOICES],
             bpm: 120.0,
             controls: Controls::default(),
             notes: Notes::default(),
@@ -291,6 +295,13 @@ impl<P: Patch> Default for Runtime<P> {
             tail: 0,
             assets: None,
             effects_clean: true,
+        }
+    }
+}
+impl<P: Patch> Runtime<P> {
+    fn pan_latest(&mut self, pan: f32) {
+        if let Some(index) = self.notes.latest() {
+            self.note_pans[index] = crate::note_pan::NotePan::new(pan, self.pan_law);
         }
     }
 }
@@ -315,6 +326,7 @@ impl<P: Patch> Instrument for Runtime<P> {
         self.operator_graph = None;
         self.controls.reset();
         self.notes.reset();
+        self.note_pans.fill(crate::note_pan::NotePan::new(0.0, self.pan_law));
         self.lfo_phase = 0.0;
         self.tail = 0;
         self.effects_clean = true;
@@ -336,6 +348,15 @@ impl<P: Patch> Instrument for Runtime<P> {
         let frame = self.controls.target().frame();
         self.notes
             .note_on(key, velocity, frame.polyphony, frame.glide, self.rate);
+        if velocity.is_finite() && velocity > 0.0 { self.pan_latest(0.0); }
+    }
+    fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
+        self.pan_law = law;
+        for pan in &mut self.note_pans { pan.retarget(law, self.rate); }
+    }
+    fn note_on_expression(&mut self, key: u8, velocity: f32, pan: f32, _expression: crate::NoteExpression) {
+        self.note_on(key, velocity);
+        if velocity.is_finite() && velocity > 0.0 { self.pan_latest(pan); }
     }
     fn note_off(&mut self, key: u8) {
         self.notes.note_off(key);
@@ -478,9 +499,10 @@ impl<P: Patch> Instrument for Runtime<P> {
                 let b = p.sample(tone, &ctx);
                 tone.elapsed = tone.elapsed.wrapping_add(1);
                 let gain = amp * note.velocity * f.gain * 0.25;
+                let pan = self.note_pans[slot].tick();
                 let out = note.finish(
-                    (a.0 + b.0) * 0.5 * gain,
-                    (a.1 + b.1) * 0.5 * gain,
+                    (a.0 + b.0) * 0.5 * gain * pan.0,
+                    (a.1 + b.1) * 0.5 * gain * pan.1,
                     !tone.amp.is_idle(),
                 );
                 sum.0 += out.0;
@@ -568,6 +590,8 @@ macro_rules! instrument {
             fn note_on(&mut self, key: u8, velocity: f32) {
                 self.0.note_on(key, velocity);
             }
+            fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) { self.0.set_note_pan_law(law); }
+            fn note_on_expression(&mut self, key: u8, velocity: f32, pan: f32, expression: crate::NoteExpression) { self.0.note_on_expression(key, velocity, pan, expression); }
             fn note_off(&mut self, key: u8) {
                 self.0.note_off(key);
             }

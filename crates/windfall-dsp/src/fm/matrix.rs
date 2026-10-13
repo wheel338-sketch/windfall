@@ -39,6 +39,13 @@ impl Instrument for MatrixFm {
     fn note_on(&mut self, key: u8, velocity: f32) {
         self.bank.note_on(key, velocity);
     }
+    fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
+        self.bank.set_note_pan_law(law, self.sample_rate);
+    }
+    fn note_on_expression(&mut self, key: u8, velocity: f32, pan: f32, _expression: crate::NoteExpression) {
+        self.note_on(key, velocity);
+        self.bank.pan_latest(pan);
+    }
     fn note_off(&mut self, key: u8) {
         self.bank.note_off(key);
     }
@@ -54,7 +61,7 @@ impl Instrument for MatrixFm {
         for (l, r) in left.iter_mut().zip(right) {
             let p = self.controls.tick();
             let normalization = p.operators.iter().map(|op| op.output).sum::<f32>().max(1.0);
-            let mut mix = 0.0;
+            let mut mix = (0.0, 0.0);
             for voice in &mut self.bank.voices {
                 if !voice.active {
                     continue;
@@ -82,11 +89,14 @@ impl Instrument for MatrixFm {
                 }
                 voice.older = voice.previous;
                 voice.previous = values;
-                mix += sample * voice.gain() / normalization;
+                let sample = sample * voice.gain() / normalization;
+                let pan = voice.pan.tick();
+                mix.0 += sample * pan.0;
+                mix.1 += sample * pan.1;
                 voice.finish_envelopes();
             }
-            *l = output(mix * p.gain);
-            *r = *l;
+            *l = output(mix.0 * p.gain);
+            *r = output(mix.1 * p.gain);
         }
     }
 }

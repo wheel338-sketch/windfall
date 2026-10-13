@@ -73,6 +73,7 @@ pub(super) struct Voice {
     pub held: bool,
     pub age: u8,
     pub velocity: f32,
+    pub pan: crate::note_pan::NotePan,
     pub oscillators: [Oscillator; 3],
     pub rng: [Rng; 3],
     pub pink: [PinkNoise; 3],
@@ -91,6 +92,7 @@ impl Default for Voice {
             held: false,
             age: 0,
             velocity: 0.0,
+            pan: crate::note_pan::NotePan::default(),
             oscillators: [Oscillator::default(); 3],
             rng: [Rng::new(1), Rng::new(2), Rng::new(3)],
             pink: [PinkNoise::default(); 3],
@@ -164,13 +166,25 @@ impl Voice {
 #[derive(Default)]
 pub(super) struct Bank {
     pub voices: [Voice; MAX_POLYPHONY],
+    law: windfall_core::PanLaw,
+    latest: Option<usize>,
 }
 
 impl Bank {
+    pub fn set_note_pan_law(&mut self, law: windfall_core::PanLaw, rate: f32) {
+        self.law = law;
+        for voice in &mut self.voices { voice.pan.retarget(law, rate); }
+    }
+    pub fn pan_latest(&mut self, pan: f32) {
+        if let Some(index) = self.latest { self.voices[index].pan = crate::note_pan::NotePan::new(pan, self.law); }
+    }
+
     pub fn reset(&mut self) {
+        self.latest = None;
         self.voices = [Voice::default(); MAX_POLYPHONY];
     }
     pub fn note_on(&mut self, key: u8, velocity: f32, sample_rate: f32) {
+        self.latest = None;
         let velocity = clean(velocity, 0.0, 1.0, 0.0);
         if velocity <= 0.0 {
             self.note_off(key);
@@ -221,6 +235,8 @@ impl Bank {
             ..Voice::default()
         };
         voice.envelope.gate_on();
+        voice.pan = crate::note_pan::NotePan::new(0.0, self.law);
+        self.latest = Some(slot);
         self.voices[slot] = voice;
     }
     pub fn note_off(&mut self, key: u8) {

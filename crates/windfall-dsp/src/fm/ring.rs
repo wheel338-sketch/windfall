@@ -99,6 +99,13 @@ impl Instrument for RingHybrid {
     fn note_on(&mut self, key: u8, velocity: f32) {
         self.bank.note_on(key, velocity);
     }
+    fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
+        self.bank.set_note_pan_law(law, self.sample_rate);
+    }
+    fn note_on_expression(&mut self, key: u8, velocity: f32, pan: f32, _expression: crate::NoteExpression) {
+        self.note_on(key, velocity);
+        self.bank.pan_latest(pan);
+    }
     fn note_off(&mut self, key: u8) {
         self.bank.note_off(key);
     }
@@ -119,7 +126,7 @@ impl Instrument for RingHybrid {
                 .map(|mix| mix.each_mut().map(LinearRamp::tick));
             let q = 0.707 + 11.293 * p.resonance;
             let coeffs = SvfCoeffs::new(p.cutoff_hz, q, self.sample_rate);
-            let mut mix = 0.0;
+            let mut mix = (0.0, 0.0);
             for voice in &mut self.bank.voices {
                 if !voice.active {
                     continue;
@@ -144,14 +151,17 @@ impl Instrument for RingHybrid {
                 let filtered = voice.filter.tick(&coeffs, input).low;
                 voice.filter.flush();
                 let amp = voice.envelopes[0].tick(&p.amp_envelope, self.sample_rate);
-                mix += filtered * amp * voice.gain();
+                let sample = filtered * amp * voice.gain();
+                let pan = voice.pan.tick();
+                mix.0 += sample * pan.0;
+                mix.1 += sample * pan.1;
                 if voice.envelopes[0].idle() {
                     voice.active = false;
                     voice.filter.reset();
                 }
             }
-            *l = output(mix * p.gain);
-            *r = *l;
+            *l = output(mix.0 * p.gain);
+            *r = output(mix.1 * p.gain);
         }
     }
 }

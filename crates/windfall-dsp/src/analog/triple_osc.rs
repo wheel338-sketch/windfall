@@ -37,6 +37,13 @@ impl Instrument for TripleOsc {
     fn note_on(&mut self, key: u8, velocity: f32) {
         self.bank.note_on(key, velocity, self.sample_rate);
     }
+    fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
+        self.bank.set_note_pan_law(law, self.sample_rate);
+    }
+    fn note_on_expression(&mut self, key: u8, velocity: f32, pan: f32, _expression: crate::NoteExpression) {
+        self.note_on(key, velocity);
+        self.bank.pan_latest(pan);
+    }
     fn note_off(&mut self, key: u8) {
         self.bank.note_off(key);
     }
@@ -49,7 +56,7 @@ impl Instrument for TripleOsc {
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
         for (left, right) in left.iter_mut().zip(right) {
             let p = self.controls.tick();
-            let mut sum = 0.0;
+            let mut sum = (0.0, 0.0);
             for voice in &mut self.bank.voices {
                 if !voice.active() {
                     continue;
@@ -64,10 +71,13 @@ impl Instrument for TripleOsc {
                 }
                 let envelope = voice.envelope(p.envelope, self.sample_rate);
                 let cutoff = p.cutoff_hz * (p.envelope_amount * envelope * 4.0).exp2();
-                sum += voice.finish(raw, envelope, cutoff, p.resonance, self.sample_rate);
+                let sample = voice.finish(raw, envelope, cutoff, p.resonance, self.sample_rate);
+                let pan = voice.pan.tick();
+                sum.0 += sample * pan.0;
+                sum.1 += sample * pan.1;
             }
-            *left = output(sum * p.gain * 0.35);
-            *right = *left;
+            *left = output(sum.0 * p.gain * 0.35);
+            *right = if sum.0 == sum.1 { *left } else { output(sum.1 * p.gain * 0.35) };
         }
     }
 }

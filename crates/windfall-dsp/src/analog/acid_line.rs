@@ -12,6 +12,8 @@ use super::common::{Controls, increment, output, rate};
 /// A step's slide connects it to the following enabled step without retriggering.
 pub struct AcidLine {
     sample_rate: f32,
+    note_pan: crate::note_pan::NotePan,
+    pan_law: windfall_core::PanLaw,
     controls: Controls<AcidLineParams>,
     oscillator: Oscillator,
     filter: Svf,
@@ -35,6 +37,8 @@ impl Default for AcidLine {
     fn default() -> Self {
         Self {
             sample_rate: 48_000.0,
+            note_pan: crate::note_pan::NotePan::default(),
+            pan_law: windfall_core::PanLaw::Balance,
             controls: Controls::default(),
             oscillator: Oscillator::default(),
             filter: Svf::default(),
@@ -100,6 +104,7 @@ impl Instrument for AcidLine {
         self.reset();
     }
     fn reset(&mut self) {
+        self.note_pan = crate::note_pan::NotePan::new(0.0, self.pan_law);
         self.controls.reset();
         self.oscillator = Oscillator::default();
         self.filter.reset();
@@ -141,6 +146,7 @@ impl Instrument for AcidLine {
             self.note_off(key);
             return;
         }
+        self.note_pan = crate::note_pan::NotePan::new(0.0, self.pan_law);
         let slide = self.held && self.controls.current.manual_slide;
         self.key = key;
         self.velocity = velocity;
@@ -153,6 +159,16 @@ impl Instrument for AcidLine {
             self.start_step(false);
         } else {
             self.trigger(key.min(127) as f32, velocity >= 0.8, slide);
+        }
+    }
+    fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
+        self.pan_law = law;
+        self.note_pan.retarget(law, self.sample_rate);
+    }
+    fn note_on_expression(&mut self, key: u8, velocity: f32, pan: f32, _expression: crate::NoteExpression) {
+        self.note_on(key, velocity);
+        if velocity.is_finite() && velocity > 0.0 {
+            self.note_pan = crate::note_pan::NotePan::new(pan, self.pan_law);
         }
     }
     fn note_off(&mut self, key: u8) {
@@ -228,8 +244,10 @@ impl Instrument for AcidLine {
             if self.amplitude.is_idle() {
                 value = 0.0;
             }
-            *left = output(value);
-            *right = *left;
+            let pan = self.note_pan.tick();
+            let sample = output(value);
+            *left = sample * pan.0;
+            *right = sample * pan.1;
         }
     }
 }
