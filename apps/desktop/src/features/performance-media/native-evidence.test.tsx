@@ -188,12 +188,15 @@ function assertPublishedAvi(file: string, audio: MediaRenderAudio) {
   const frames = movie.children.filter((entry) => entry.id === "00db")
   expect(frames).toHaveLength(frameCount)
   expect(frames.every((entry) => entry.size === 320 * 180 * 3)).toBe(true)
-  const pictures = frames.map((frame) => {
+  const pictures = frames.map((frame, index) => {
     let foreground = 0
     for (let at = frame.at + 8; at < frame.at + 8 + frame.size; at += 3) {
       if (bytes[at] !== 20 || bytes[at + 1] !== 12 || bytes[at + 2] !== 8) foreground += 1
     }
-    expect(foreground).toBeGreaterThan(0)
+    // Frame zero has no completed 1024-sample analyzer window. The next
+    // frame starts at 2000 samples (48000 / 24), so all later frames do.
+    if (index === 0) expect(foreground).toBe(0)
+    else expect(foreground).toBeGreaterThan(0)
     return bytes.subarray(frame.at + 8, frame.at + 8 + frame.size)
   })
   expect(pictures.some((picture) => !picture.equals(pictures[0]))).toBe(true)
