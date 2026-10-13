@@ -121,3 +121,12 @@ or when it needs an asset the project does not have (a trained model).
 - `fmt-flp-import`: everything the public open-source readers describe is
   translated; device state with no public layout stays opaque with a per-device
   warning. That is the designed end state, not a gap.
+- `wf-project-settings`: a hosted plugin delivers one summed output, so the
+  host cannot apply a per-note property to one note inside it. When a plugin
+  offers a native per-note route for pan or volume, that route is used; a
+  property the plugin has no per-note route for is applied at the channel level
+  after the plugin, and the capability panel says so. Splitting one note's pan
+  to the plugin and the same note's volume to the host ("mixed per-note
+  routes") is not attempted. What remains required is that a route change
+  caused by a plugin gaining or losing a capability mid-note continues the
+  running ramp from its current value without a click.
