@@ -1,5 +1,35 @@
 # AUv2 hosting source candidate
 
+## Round-six routing and editor checkpoint — 2026-10-13
+
+Audio Units use the existing desktop Cocoa-main owner, rather than the
+CLAP/VST3 process helper. The pure format/provider policy in desktop
+`plugins/wrapper.rs` is shared by runtime discovery and default effect/instrument
+preparation, including project reopen, rack preparation and offline rendering.
+The installed AU catalog feeds the ordinary manager/picker binding path; that
+path now reaches registered-component validation and `create_audio_unit` even
+when production's default process bridging is enabled. CLAP/VST3 automatic,
+in-process, threaded and bridged provider choices retain their policy. An
+explicit AU separate-process request reports a capability error; it never
+silently substitutes a direct owner or enters CLAP/VST3 helper validation.
+
+The Cocoa factory view is now a child of the same owned NSWindow/NSView parent
+used for CLAP. The host transforms parent bounds for application zoom while
+the AU's frame and reported dimensions remain logical points. Saved wrapper
+zoom is preserved as a base factor; the application's live editor preference
+multiplies it once. AppKit alone applies backing density. Portable
+`gui/au_geometry.rs` owns zoom, resize arbitration, monitor changes and the
+close fence. The adapter polls view-frame requests and parent bounds on Cocoa
+main, rolls invalid geometry back, reports resize/monitor changes and detaches
+the retained factory view before retiring the parent/delegate. The window's
+deferred close callback lets the AU owner perform teardown first.
+
+No build or test ran in this edit-only round. Registered Windows policy,
+real-entry-point and geometry regressions and the mandatory Apple target
+checks are listed in [the round-six hand-off](../qa/2026-10-13-r6-au.md).
+Earlier descriptions of refused custom scale below are superseded by this
+source candidate; native linking, runtime and vendor acceptance remain external.
+
 ## Round-four source checkpoint — 2026-10-12
 
 `au_model` is available on all platforms and contains checked component IDs,

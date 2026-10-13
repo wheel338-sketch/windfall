@@ -1,6 +1,7 @@
 //! AUv2 Cocoa factory embedding. All calls and retained objects belong to the
 //! Cocoa main thread. Handwritten typed Objective-C selectors, no vendor SDK.
 use super::sys::*;
+use crate::gui::{au_geometry::Geometry, cocoa::Window, lifecycle::Backend};
 use crate::{EditorError, EditorInfo, EditorOptions};
 use std::{
     ffi::{CString, c_char, c_void},
@@ -79,13 +80,6 @@ unsafe fn object(receiver: Obj, name: &'static [u8], argument: Obj) {
         call(receiver, selector(name), argument);
     }
 }
-unsafe fn bool_arg(receiver: Obj, name: &'static [u8], value: bool) {
-    let call: unsafe extern "C" fn(Obj, Obj, i8) =
-        unsafe { std::mem::transmute(objc_msgSend as unsafe extern "C" fn()) };
-    unsafe {
-        call(receiver, selector(name), i8::from(value));
-    }
-}
 unsafe fn frame(view: Obj) -> Rect {
     #[cfg(target_arch = "aarch64")]
     {
@@ -126,12 +120,26 @@ fn main_thread() -> bool {
         ) != 0
     }
 }
-pub struct Editor {
+struct Content {
     bundle: Cf,
     factory: Obj,
     view: Obj,
-    window: Obj,
-    info: EditorInfo,
+}
+impl Drop for Content {
+    fn drop(&mut self) {
+        unsafe {
+            void_send(self.view, b"removeFromSuperview\0");
+            void_send(self.view, b"release\0");
+            void_send(self.factory, b"release\0");
+            CFRelease(self.bundle);
+        }
+    }
+}
+pub struct Editor {
+    // Detach/release the plugin view before the host parent/delegate retires.
+    content: Content,
+    window: Window,
+    geometry: Geometry,
 }
 impl Editor {
     pub fn open(unit: Unit, options: &EditorOptions) -> Result<Self, EditorError> {
@@ -140,9 +148,7 @@ impl Editor {
                 "AU Cocoa editor requires the main thread".into(),
             ));
         }
-        if options.scale != 1.0 {
-            return Err(EditorError::UnsupportedScale);
-        }
+        options.validate()?;
         let (mut size, mut writable) = (0, 0);
         if unsafe { AudioUnitGetPropertyInfo(unit, 31, 0, 0, &mut size, &mut writable) } != 0
             || (size as usize) < size_of::<CocoaInfo>()
@@ -257,89 +263,100 @@ impl Editor {
                 "AU Cocoa view size exceeds bound".into(),
             ));
         }
-        let allocate = unsafe { send(objc_getClass(c"NSWindow".as_ptr()), b"alloc\0") };
-        let initialize: unsafe extern "C" fn(Obj, Obj, Rect, usize, usize, i8) -> Obj =
-            unsafe { std::mem::transmute(objc_msgSend as unsafe extern "C" fn()) };
-        let window = unsafe {
-            initialize(
-                allocate,
-                selector(b"initWithContentRect:styleMask:backing:defer:\0"),
-                Rect {
-                    origin: Point {
-                        x: options.position.map_or(100.0, |p| f64::from(p.0)),
-                        y: options.position.map_or(100.0, |p| f64::from(p.1)),
-                    },
-                    size: rect.size,
-                },
-                1 | 2 | 4 | 8,
-                2,
-                0,
-            )
-        };
-        if window.is_null() {
-            unsafe {
-                void_send(view, b"release\0");
-                void_send(factory, b"release\0");
-                CFRelease(bundle);
-            }
-            return Err(EditorError::Failed("AU editor window failed".into()));
-        }
-        unsafe {
-            bool_arg(window, b"setReleasedWhenClosed:\0", false);
-            object(window, b"setContentView:\0", view);
-            if options.take_focus {
-                object(window, b"makeKeyAndOrderFront:\0", ptr::null_mut());
-            } else {
-                object(window, b"orderFront:\0", ptr::null_mut());
-            }
-            if !options.detached {
-                if let Some(owner) = options.owner_window {
-                    let attach: unsafe extern "C" fn(Obj, Obj, Obj, isize) =
-                        std::mem::transmute(objc_msgSend as unsafe extern "C" fn());
-                    attach(
-                        owner as Obj,
-                        selector(b"addChildWindow:ordered:\0"),
-                        window,
-                        1,
-                    );
-                }
-            }
-        }
-        Ok(Self {
+        let content = Content {
             bundle,
             factory,
             view,
+        };
+        let logical = (
+            rect.size.width.round() as u32,
+            rect.size.height.round() as u32,
+        );
+        let window = Window::create(&options.title, logical.0, logical.1, true, options.position)
+            .map_err(EditorError::Failed)?;
+        let geometry = Geometry::new(logical, options.scale, window.observe().monitor)?;
+        if !options.detached {
+            window
+                .set_owner(options.owner_window)
+                .map_err(EditorError::Failed)?;
+        }
+        unsafe {
+            object(window.handle(), b"addSubview:\0", view);
+        }
+        let editor = Self {
+            content,
             window,
-            info: EditorInfo {
-                window: Some(window as usize),
-                width: rect.size.width as u32,
-                height: rect.size.height as u32,
-                resizable: true,
-            },
-        })
+            geometry,
+        };
+        editor.apply_geometry();
+        editor.window.show(options.take_focus);
+        Ok(editor)
     }
     pub fn info(&self) -> EditorInfo {
-        self.info
-    }
-    pub fn visible(&self) -> bool {
-        let call: unsafe extern "C" fn(Obj, Obj) -> i8 =
-            unsafe { std::mem::transmute(objc_msgSend as unsafe extern "C" fn()) };
-        unsafe { call(self.window, selector(b"isVisible\0")) != 0 }
-    }
-}
-impl Drop for Editor {
-    fn drop(&mut self) {
-        unsafe {
-            let parent = send(self.window, b"parentWindow\0");
-            if !parent.is_null() {
-                object(parent, b"removeChildWindow:\0", self.window);
-            }
-            void_send(self.view, b"removeFromSuperview\0");
-            void_send(self.window, b"close\0");
-            void_send(self.window, b"release\0");
-            void_send(self.view, b"release\0");
-            void_send(self.factory, b"release\0");
-            CFRelease(self.bundle);
+        let (width, height) = self.geometry.logical();
+        EditorInfo {
+            window: Some(self.window.handle() as usize),
+            width,
+            height,
+            resizable: true,
         }
+    }
+    fn apply_geometry(&self) {
+        let (width, height) = self.geometry.logical();
+        self.window
+            .set_application_scale(self.geometry.application());
+        self.window.resize((width, height));
+        let call: unsafe extern "C" fn(Obj, Obj, Rect) =
+            unsafe { std::mem::transmute(objc_msgSend as unsafe extern "C" fn()) };
+        unsafe {
+            call(
+                self.content.view,
+                selector(b"setFrame:\0"),
+                Rect {
+                    origin: Point::default(),
+                    size: Size {
+                        width: f64::from(width),
+                        height: f64::from(height),
+                    },
+                },
+            );
+        }
+    }
+    pub fn set_scale(&mut self, application: f64) -> Result<EditorInfo, EditorError> {
+        // Admit a pending view/user resize (or deferred close) before changing
+        // zoom, so a preference update cannot erase that owner-local request.
+        let _ = self.poll();
+        self.geometry.set_scale(application)?;
+        self.apply_geometry();
+        Ok(self.info())
+    }
+    pub fn poll(&mut self) -> Option<EditorInfo> {
+        let rect = unsafe { frame(self.content.view) };
+        let plugin = if rect.size.width.is_finite()
+            && rect.size.height.is_finite()
+            && (1.0..=32768.0).contains(&rect.size.width)
+            && (1.0..=32768.0).contains(&rect.size.height)
+        {
+            (
+                rect.size.width.round() as u32,
+                rect.size.height.round() as u32,
+            )
+        } else {
+            (0, 0)
+        };
+        match self.geometry.observe(self.window.observe(), plugin) {
+            Ok(true) => {
+                self.apply_geometry();
+                Some(self.info())
+            }
+            Ok(false) => None,
+            Err(_) => {
+                self.apply_geometry();
+                None
+            }
+        }
+    }
+    pub fn closed(&self) -> bool {
+        self.geometry.closed()
     }
 }
