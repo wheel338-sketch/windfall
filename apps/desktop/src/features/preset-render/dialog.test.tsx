@@ -8,15 +8,32 @@ import { addChannelFromFile, replaceSampleFromFile } from "@/features/channel-ra
 import { newProject } from "@/lib/flows/project"
 import { useProjectStore } from "@/lib/store/project"
 import { useUiStore } from "@/lib/store/ui"
+import { useLanguageStore } from "@/lib/i18n"
 import { PresetRenderDialog, PresetRerenderButton, closePresetRender, openPresetRender } from "./dialog"
 import { DEFAULT_RENDER, UNSUPPORTED_PRESET } from "./types"
 
 let stop = () => {}
-afterEach(() => { closePresetRender(); stop(); vi.restoreAllMocks() })
+afterEach(() => { closePresetRender(); stop(); vi.restoreAllMocks(); act(() => useLanguageStore.setState({ language: "en" })) })
 const wave = "/factory/Drums/Kicks/Kick 02.wav"
 const preset = "/factory/Own voice.wfpreset"
 
 describe("preset render dialog", () => {
+  it("retranslates the mounted dialog and formats its rate without changing edited render controls", async () => {
+    const app = await startBrowserTest(() => ({
+      presetRenderBegin: async () => ({ request: 76, sampleRate: 48000 }),
+      presetRenderCancel: async () => {},
+    }))
+    stop = app.stop
+    render(<PresetRenderDialog />)
+    act(() => { void openPresetRender({ path: preset }) })
+    await screen.findByText("48,000 Hz (project rate)")
+    fireEvent.change(screen.getByLabelText("MIDI note"), { target: { value: "72" } })
+    act(() => useLanguageStore.setState({ language: "es" }))
+    expect(screen.getByRole("dialog", { name: "Renderizar preset como muestra" })).toBeInTheDocument()
+    expect(screen.getByText("48.000 Hz (frecuencia del proyecto)")).toBeInTheDocument()
+    expect(screen.getByLabelText("Nota MIDI")).toHaveValue(72)
+    expect(screen.getByRole("button", { name: "Renderizar como muestra" })).toBeEnabled()
+  })
   it("mounts editable note, velocity, length, tail, project rate and mono/stereo controls and sends real import settings", async () => {
     const app = await startBrowserTest((mock) => ({
       presetRenderBegin: async () => ({ request: 71, sampleRate: 44100 }),
@@ -30,7 +47,7 @@ describe("preset render dialog", () => {
     let pending!: Promise<void>
     act(() => { pending = addChannelFromFile(preset, 0) })
     await screen.findByRole("dialog", { name: "Render preset as sample" })
-    await screen.findByText("44100 Hz (project rate)")
+    await screen.findByText("44,100 Hz (project rate)")
     fireEvent.change(screen.getByLabelText("MIDI note"), { target: { value: "72" } })
     fireEvent.change(screen.getByLabelText("Velocity"), { target: { value: "0.6" } })
     fireEvent.change(screen.getByLabelText("Note length (seconds)"), { target: { value: "0.5" } })
@@ -61,7 +78,7 @@ describe("preset render dialog", () => {
     const ownToken = { ...token, path: preset }
     let browser!: Promise<void>
     act(() => { browser = addToRack(preset, ownToken) })
-    await screen.findByText("48000 Hz (project rate)")
+    await screen.findByText("48,000 Hz (project rate)")
     await user.click(screen.getByRole("button", { name: "Render as sample" }))
     await browser
     expect(work).toHaveBeenLastCalledWith(72, { path: preset, browser: ownToken, options: DEFAULT_RENDER })
@@ -91,7 +108,7 @@ describe("preset render dialog", () => {
     render(<PresetRenderDialog />)
     let pending!: Promise<void>
     act(() => { pending = addChannelFromFile(preset) })
-    await screen.findByText("48000 Hz (project rate)")
+    await screen.findByText("48,000 Hz (project rate)")
     await user.click(screen.getByRole("button", { name: "Render as sample" }))
     await screen.findByRole("status")
     await user.click(screen.getByRole("button", { name: "Cancel rendering" }))
@@ -116,7 +133,7 @@ describe("preset render dialog", () => {
     render(<PresetRenderDialog />)
     const user = userEvent.setup()
     act(() => { void openPresetRender({ path: preset }) })
-    await screen.findByText("48000 Hz (project rate)")
+    await screen.findByText("48,000 Hz (project rate)")
     await user.click(screen.getByRole("button", { name: "Render as sample" }))
     expect(await screen.findByText(/Speech preset text is empty/)).toBeInTheDocument()
     await act(() => newProject())
@@ -169,7 +186,7 @@ describe("preset render dialog", () => {
     render(<><PresetRerenderButton channel={channel.id} /><PresetRenderDialog /></>)
     const user = userEvent.setup()
     await user.click(screen.getByRole("button", { name: "Re-render preset…" }))
-    await screen.findByText("48000 Hz (project rate)")
+    await screen.findByText("48,000 Hz (project rate)")
     expect(screen.getByLabelText("MIDI note")).toHaveValue(57)
     await user.click(screen.getByRole("button", { name: "Render as sample" }))
     await screen.findByText(/Test worker admission/)

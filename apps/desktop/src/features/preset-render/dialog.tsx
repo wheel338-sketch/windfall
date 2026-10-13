@@ -8,6 +8,7 @@ import { Field, FieldGroup, FieldLabel, FieldDescription } from "@/components/ui
 import { Input } from "@/components/ui/input"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { backend, errorMessage } from "@/lib/ipc"
+import { localizeBackendText, message, useTranslation } from "@/lib/i18n"
 import { onProjectReplaced, getProjectGeneration } from "@/lib/store/replaced"
 import { onHistoryNavigation, receivePatch, useProjectStore } from "@/lib/store/project"
 import { DEFAULT_RENDER, UNSUPPORTED_PRESET, isProprietaryPreset,
@@ -58,12 +59,13 @@ export function openPresetRender(input: Omit<PresetRenderInput, "options">,
 }
 
 export function PresetRenderDialog() {
+  const t = useTranslation()
   const target = usePresetRenderDialog((state) => state.target)
   return <Dialog open={target !== null} onOpenChange={(open) => { if (!open) closePresetRender() }}>
     <DialogContent>
       <DialogHeader>
-        <DialogTitle>{target && isProprietaryPreset(target.input.path) ? "Unsupported preset source" : "Render preset as sample"}</DialogTitle>
-        <DialogDescription>The rendered sample and its source preset stay with the project.</DialogDescription>
+        <DialogTitle>{target && isProprietaryPreset(target.input.path) ? t("Unsupported preset source") : t("Render preset as sample")}</DialogTitle>
+        <DialogDescription>{t("The rendered sample and its source preset stay with the project.")}</DialogDescription>
       </DialogHeader>
       {target && <RenderForm key={`${target.generation}/${target.input.path}/${target.input.source ?? "file"}`} target={target} />}
     </DialogContent>
@@ -71,6 +73,7 @@ export function PresetRenderDialog() {
 }
 
 function RenderForm({ target }: { target: Target }) {
+  const t = useTranslation()
   const [options, setOptions] = useState(target.settings)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -93,18 +96,18 @@ function RenderForm({ target }: { target: Target }) {
       } else target.finish(null)
     } catch (error: unknown) {
       if (usePresetRenderDialog.getState().target === target) {
-        setError(`${errorMessage(error)} Close and reopen this dialog to retry.`)
+        setError(errorMessage(error))
         // A failed job consumes its lease. Reopen to capture a fresh project.
         setBusy(false)
       }
     }
   }
   return <>
-    {unsupported ? <Alert variant="destructive"><AlertDescription>{UNSUPPORTED_PRESET}</AlertDescription></Alert> : <FieldGroup>
+    {unsupported ? <Alert variant="destructive"><AlertDescription>{t(UNSUPPORTED_PRESET)}</AlertDescription></Alert> : <FieldGroup>
       {([
-        ["note", "MIDI note", 0, 127, 1], ["velocity", "Velocity", 0, 1, 0.01],
-        ["lengthSecs", "Note length (seconds)", 0.01, 60, 0.01],
-        ["tailSecs", "Release tail limit (seconds)", 0, 30, 0.1],
+        ["note", t("MIDI note"), 0, 127, 1], ["velocity", t("Velocity"), 0, 1, 0.01],
+        ["lengthSecs", t("Note length (seconds)"), 0.01, 60, 0.01],
+        ["tailSecs", t("Release tail limit (seconds)"), 0, 30, 0.1],
       ] as const).map(([field, label, min, max, step]) => <Field key={field} data-disabled={busy}
         data-invalid={!Number.isFinite(options[field]) || options[field] < min || options[field] > max || (field === "note" && !Number.isInteger(options[field]))}>
         <FieldLabel htmlFor={`preset-render-${field}`}>{label}</FieldLabel>
@@ -114,29 +117,30 @@ function RenderForm({ target }: { target: Target }) {
           onChange={(event) => setOptions({ ...options, [field]: event.target.valueAsNumber })} />
       </Field>)}
       <Field>
-        <FieldLabel>Sample rate</FieldLabel>
-        <FieldDescription>{target.ticket ? `${target.ticket.sampleRate} Hz (project rate)` : target.error ? "Project rate unavailable" : "Reading project rate…"}</FieldDescription>
+        <FieldLabel>{t("Sample rate")}</FieldLabel>
+        <FieldDescription>{target.ticket ? message("{rate} Hz (project rate)", { rate: target.ticket.sampleRate }) : target.error ? t("Project rate unavailable") : t("Reading project rate…")}</FieldDescription>
       </Field>
       <Field>
-        <FieldLabel>Channels</FieldLabel>
-        <ToggleGroup aria-label="Rendered channels" value={[options.stereo ? "stereo" : "mono"]} disabled={busy}
+        <FieldLabel>{t("Channels")}</FieldLabel>
+        <ToggleGroup aria-label={t("Rendered channels")} value={[options.stereo ? "stereo" : "mono"]} disabled={busy}
           onValueChange={(values) => { if (values.length) setOptions({ ...options, stereo: values[0] === "stereo" }) }}>
-          <ToggleGroupItem value="mono">Mono</ToggleGroupItem>
-          <ToggleGroupItem value="stereo">Stereo</ToggleGroupItem>
+          <ToggleGroupItem value="mono">{t("Mono")}</ToggleGroupItem>
+          <ToggleGroupItem value="stereo">{t("Stereo")}</ToggleGroupItem>
         </ToggleGroup>
-        <FieldDescription>Speech keeps the complete phrase at its preset settings. Its note extends to the phrase length.</FieldDescription>
+        <FieldDescription>{t("Speech keeps the complete phrase at its preset settings. Its note extends to the phrase length.")}</FieldDescription>
       </Field>
     </FieldGroup>}
-    {(error || target.error) && <Alert variant="destructive"><AlertDescription>{error || target.error}</AlertDescription></Alert>}
-    {busy && <p role="status">Rendering instrument audio…</p>}
+    {(error || target.error) && <Alert variant="destructive"><AlertDescription>{error ? message("{error} Close and reopen this dialog to retry.", { error: localizeBackendText(error) }) : localizeBackendText(target.error!)}</AlertDescription></Alert>}
+    {busy && <p role="status">{t("Rendering instrument audio…")}</p>}
     <div className="flex justify-end gap-2">
-      <Button variant="outline" onClick={closePresetRender}>{busy ? "Cancel rendering" : "Cancel"}</Button>
-      {!unsupported && <Button onClick={() => void render()} disabled={busy || invalid || !target.ticket || error !== null}>Render as sample</Button>}
+      <Button variant="outline" onClick={closePresetRender}>{busy ? t("Cancel rendering") : t("Cancel")}</Button>
+      {!unsupported && <Button onClick={() => void render()} disabled={busy || invalid || !target.ticket || error !== null}>{t("Render as sample")}</Button>}
     </div>
   </>
 }
 
 export function PresetRerenderButton({ channel }: { channel: ChannelId }) {
+  const t = useTranslation()
   const project = useProjectStore((state) => state.project)
   const sample = project.channels.find((c) => c.id === channel)?.source
   const id = sample?.type === "sampler" ? sample.sample : null
@@ -147,5 +151,5 @@ export function PresetRerenderButton({ channel }: { channel: ChannelId }) {
     const generation = getProjectGeneration()
     void openPresetRender({ path: source.path.path, source: recipe.source, channel }, recipe.settings,
       () => generation === getProjectGeneration()).then((result) => { if (result) receivePatch(result.patch) })
-  }}>Re-render preset…</Button>
+  }}>{t("Re-render preset…")}</Button>
 }
