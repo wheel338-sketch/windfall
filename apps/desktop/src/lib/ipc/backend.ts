@@ -172,6 +172,8 @@ export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, Ana
   audioScriptApply(token: number, request: number): Promise<DispatchResult>
   audioScriptAudition(token: number, request: number): Promise<void>
   audioEditorRegions(token: number, regions: import("@/features/audio-editor/types").AudioRegion[]): Promise<DispatchResult>
+  audioEditorSaveWav(token: number, start: number, end: number, path: string): Promise<void>
+  audioEditorImportTimeline(token: number): Promise<DispatchResult>
   audioEditorTransfer(request: import("@/features/audio-editor/transfer").AudioEditTransferRequest): Promise<DispatchResult>
   samplePlaybackDetect(channel: ChannelId, options: import("@/features/slicer/types").SliceOptions, generation: number, revision: number): Promise<DispatchResult>
   audioAnalysisDetect(token: number, polyphonic: boolean): Promise<import("@/features/audio-editor/analysis-types").AudioAnalysisPreview>

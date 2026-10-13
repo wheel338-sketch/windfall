@@ -26,6 +26,12 @@ describe("native audio editor IPC", () => {
       token: 7,
       caller,
     })
+    await backend.audioEditorSaveWav(7, 100, 500, "/exports/selection.wav")
+    expect(invoke).toHaveBeenLastCalledWith("audio_editor_save_wav", {
+      token: 7, start: 100, end: 500, path: "/exports/selection.wav", caller,
+    })
+    await backend.audioEditorImportTimeline(7)
+    expect(invoke).toHaveBeenLastCalledWith("audio_editor_import_timeline", { token: 7, caller })
     vi.mocked(invoke).mockRejectedValue("stop or cancel recording first")
     await expect(backend.audioEditorOpen(42)).rejects.toThrow(
       "Stop or cancel recording first"

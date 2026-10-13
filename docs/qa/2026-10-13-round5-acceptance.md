@@ -27,3 +27,4 @@ Pending final diff audit. No dependency downloaded at this checkpoint.
 
 Pending full integration and actual gate execution. Tracker files remain untouched.
 - Script-tempo check PASS: `cargo check --offline --workspace --all-targets`, zero errors/warnings, exit 0, 2 s (`target/round5-branch01-check-repair1.log`). Initial check failed on a fixture binding that retained a mutable Clip rather than ClipId; use its id, preserving all expectations. No assertions changed.
+- Interchange check PASS: `cargo check --offline --workspace --all-targets`, zero errors/warnings, exit 0, 18 s (`target/round5-branch02-check.log`). No conflicts or compile repairs. WAV annotation authoring/native transfer/timeline candidate integrated. FLP and legacy synth/readers explicitly remain SOFTWARE per hand-off.

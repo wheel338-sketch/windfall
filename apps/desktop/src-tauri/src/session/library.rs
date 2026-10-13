@@ -441,6 +441,15 @@ impl Session {
     ) -> Result<DispatchResult, String> {
         let original_file = import.file.clone();
         let mut owned_preset = self.own_preset(&mut import)?;
+        // Read annotations off-lock from the same decoded file version. The
+        // ordinary post-preparation version guard below covers this read too.
+        let wav_regions = if import.file.extension().and_then(|e| e.to_str())
+            .is_some_and(|e| e.eq_ignore_ascii_case("wav")) {
+            Some(super::audio_editor::wav_regions::read(
+                &windfall_codec::read_wav_metadata_file(&import.file).map_err(|e| e.to_string())?,
+                u32::try_from(import.buffer.frames()).map_err(|_| "WAV source frame range exceeded")?,
+            )?)
+        } else { None };
         let (ticket, sample, directory) = {
             let _recording = self.import_recording_guard(installed.is_some())?;
             let _library = import
@@ -470,7 +479,11 @@ impl Session {
             // Reuse the exact held source, even after a separate same-version
             // decode. Clip geometry and prepared banks use what will play.
             let source = state.pool.get(sample).unwrap_or(&import.buffer);
-            let command = build(&state, path, sample, source);
+            let mut command = build(&state, path, sample, source);
+            if held.is_none() && let Some(regions) = &wav_regions && !regions.is_empty() {
+                command = Command::Batch { label: Some("Import audio with annotations".into()), commands: vec![command,
+                    Command::SetSampleRegions { sample, expected: Vec::new(), regions: regions.clone() }] };
+            }
             let mut ticket =
                 self.sample_edit_ticket(&state, command, None, vec![(sample, source.clone())])?;
             if let Some(installed) = &installed {

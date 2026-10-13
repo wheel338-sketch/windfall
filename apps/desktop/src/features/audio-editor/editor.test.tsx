@@ -31,6 +31,26 @@ async function open() {
 }
 
 describe("selected clip audio editor", () => {
+  it("exports the annotated WAV selection and shows native timeline capability errors", async () => {
+    vi.spyOn(backend, "audioEditorOpen").mockResolvedValue({ ...preview, regions: [
+      { name: "Phrase", startFrame: 100, endFrame: 500, notes: ["Authored cue note", "WindfallNavigation/1 skip 500"] },
+    ] })
+    vi.spyOn(backend, "pickExportPath").mockResolvedValue("/exports/Take.wav")
+    const saved = vi.spyOn(backend, "audioEditorSaveWav")
+    const imported = vi.spyOn(backend, "audioEditorImportTimeline")
+    const before = useProjectStore.getState().project
+    await open()
+    expect(screen.getByLabelText("Notes of annotation 1")).toHaveValue("Authored cue note\nWindfallNavigation/1 skip 500")
+    fireEvent.change(screen.getByLabelText("Start frame (included)"), { target: { value: "100" } })
+    fireEvent.change(screen.getByLabelText("End frame (excluded)"), { target: { value: "500" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save selection as WAV with annotations" }))
+    await waitFor(() => expect(saved).toHaveBeenCalledWith(7, 100, 500, "/exports/Take.wav"))
+    await screen.findByText("WAV saving requires the desktop app.")
+    fireEvent.click(screen.getByRole("button", { name: "Import annotations to timeline" }))
+    await waitFor(() => expect(imported).toHaveBeenCalledWith(7))
+    await screen.findByText("WAV timeline import requires the desktop app.")
+    expect(useProjectStore.getState().project).toEqual(before)
+  })
   it("sends the editor selection to WavPack saving and displays a capability failure", async () => {
     vi.spyOn(backend, "audioEditorOpen").mockResolvedValue(preview)
     vi.spyOn(backend, "pickExportPath").mockResolvedValue("/exports/Take.wv")

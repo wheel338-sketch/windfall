@@ -154,8 +154,8 @@ export function AudioEditorButton({
         <DialogHeader>
           <DialogTitle>Audio editor</DialogTitle>
           <DialogDescription>
-            Select a range, then apply an edit. Each edit creates a new WAV and
-            one undo step. Original sources stay intact.
+            Select a range to process audio or edit its markers and notes.
+            Each change is undoable. Original audio sources stay intact.
           </DialogDescription>
         </DialogHeader>
         {session && (
@@ -331,6 +331,23 @@ function Editor({
       if (alive.current) { setBusy(false); onBusy(false) }
     }
   }
+  async function saveWav() {
+    if (!preview || !valid || busy) return
+    const savedToken = preview.token
+    const savedGeneration = getProjectGeneration()
+    setBusy(true); onBusy(true); setError(null)
+    try {
+      const path = await backend.pickExportPath(preview.name, "wav")
+      if (!path) return
+      if (!alive.current || savedGeneration !== getProjectGeneration() || selectionAtOpen !== usePlaylistStore.getState().selection)
+        throw new Error("The project changed. Reopen the audio editor.")
+      await backend.audioEditorSaveWav(savedToken, selection.start, selection.end, path)
+    } catch (error) {
+      if (alive.current && savedGeneration === getProjectGeneration()) setError(errorMessage(error))
+    } finally {
+      if (alive.current) { setBusy(false); onBusy(false) }
+    }
+  }
   return (
     <div className="flex flex-col gap-3">
       {(error || stale) && (
@@ -475,6 +492,11 @@ function Editor({
               onDone(id ?? clip)
             }} />
           <Regions preview={preview} selection={selection} disabled={!valid || busy} onSelect={setSelection} onWrite={regions=>void commit(()=>backend.audioEditorRegions(preview.token,regions),false)} />
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" disabled={!valid || busy} onClick={() => void saveWav()}>Save selection as WAV with annotations</Button>
+            <Button size="sm" variant="outline" disabled={!valid || busy || !preview.regions?.length}
+              onClick={() => void commit(() => backend.audioEditorImportTimeline(preview.token), false)}>Import annotations to timeline</Button>
+          </div>
           <Button size="sm" variant="outline" disabled={!valid || busy} draggable={!!valid && !busy}
             onDragStart={event=>{if (!valid || busy) {event.preventDefault();return}; startSelectionDrag(event,{token:preview.token,startFrame:selection.start,endFrame:selection.end,durationSecs:(selection.end-selection.start)/preview.sampleRate})}}
             onDragEnd={endSelectionDrag}>Drag selection to sampler or playlist</Button>
