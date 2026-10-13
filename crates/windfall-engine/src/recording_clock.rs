@@ -1,11 +1,58 @@
 //! One monotonic time domain for ADC packets, DAC frames and recording gates.
 use std::sync::{
-    Arc,
+    Arc, OnceLock,
     atomic::{AtomicU32, AtomicU64, Ordering},
 };
 use std::time::{Duration, Instant};
 
 const PENDING: u64 = u64::MAX;
+
+/// Maps the driver's stream epoch to our monotonic epoch. Callback timestamps
+/// are device-clock snapshots, not necessarily the instant our callback runs.
+/// In particular WASAPI loopback can report a zero callback clock even while
+/// its capture packets carry valid absolute QPC timestamps.
+#[derive(Clone, Default)]
+pub(crate) struct DriverTimebase(Arc<OnceLock<(cpal::StreamInstant, u64)>>);
+
+impl DriverTimebase {
+    pub fn initialize(&self, stream: &cpal::Stream, clock: &RecordingClock) {
+        use cpal::traits::StreamTrait;
+        let before = clock.now_nanos();
+        let instant = stream.now();
+        let after = clock.now_nanos();
+        let _ = self.0.set((instant, before + (after - before) / 2));
+    }
+
+    pub fn nanos_at(&self, instant: cpal::StreamInstant) -> Option<u64> {
+        let &(base, at) = self.0.get()?;
+        if let Some(delta) = instant.checked_duration_since(base) {
+            at.checked_add(nanos(delta))
+        } else {
+            at.checked_sub(nanos(base.checked_duration_since(instant)?))
+        }
+    }
+
+    pub fn capture(
+        &self,
+        stamp: cpal::InputStreamTimestamp,
+        clock: &RecordingClock,
+    ) -> (u64, u64, bool) {
+        let now = clock.now_nanos();
+        if let Some(captured) = self
+            .nanos_at(stamp.capture)
+            .filter(|captured| captured.abs_diff(now) < 5_000_000_000)
+        {
+            return (captured, now.saturating_sub(captured), true);
+        }
+        let latency = stamp.callback.checked_duration_since(stamp.capture);
+        let latency_ns = latency.map_or(0, nanos);
+        (
+            now.saturating_sub(latency_ns),
+            latency_ns,
+            latency.is_some(),
+        )
+    }
+}
 #[derive(Clone)]
 pub struct RecordingClock {
     inner: Arc<ClockState>,
@@ -20,6 +67,8 @@ struct ClockState {
     period: AtomicU64,
     latency: AtomicU64,
     measured: AtomicU32,
+    fit_frame: AtomicU64,
+    fit_nanos: AtomicU64,
     serial: AtomicU64,
     ticket: AtomicU64,
     start: AtomicU64,
@@ -76,6 +125,8 @@ impl RecordingClock {
                 period: AtomicU64::new(0),
                 latency: AtomicU64::new(0),
                 measured: AtomicU32::new(0),
+                fit_frame: AtomicU64::new(0),
+                fit_nanos: AtomicU64::new(0),
                 serial: AtomicU64::new(0),
                 ticket: AtomicU64::new(0),
                 start: AtomicU64::new(PENDING),
@@ -120,33 +171,90 @@ impl RecordingClock {
             .checked_duration_since(timestamp.callback);
         let latency_ns = latency.map_or(0, nanos);
         let measured_playback = self.now_nanos().saturating_add(latency_ns);
+        self.publish_position(
+            frame,
+            rate,
+            measured_playback,
+            latency_ns,
+            latency.is_some(),
+        );
+    }
+
+    pub(crate) fn publish_driver_output(
+        &self,
+        frame: u64,
+        rate: u32,
+        timestamp: cpal::OutputStreamTimestamp,
+        timebase: &DriverTimebase,
+    ) {
+        // WASAPI can ask for its initial buffer before its audio clock has
+        // started. Zero is not a measured DAC timestamp; seeding the fit with
+        // it makes later valid anchors converge through a fictitious drift.
+        if timestamp.callback == cpal::StreamInstant::ZERO {
+            return;
+        }
+        let now = self.now_nanos();
+        if let Some(playback) = timebase
+            .nanos_at(timestamp.playback)
+            .filter(|playback| playback.abs_diff(now) < 5_000_000_000)
+        {
+            self.publish_position(frame, rate, playback, playback.saturating_sub(now), true);
+        } else {
+            self.publish_output(frame, rate, timestamp);
+        }
+    }
+
+    fn publish_position(
+        &self,
+        frame: u64,
+        rate: u32,
+        measured_playback: u64,
+        latency_ns: u64,
+        measured: bool,
+    ) {
         let nominal = 1e9 / f64::from(rate.max(1));
         let mut period = nominal;
-        let mut playback = measured_playback;
         if let Some(previous) = self
             .output()
             .filter(|c| c.sample_rate == rate && frame > c.frame)
         {
             let predicted = previous.nanos_at(frame);
             let residual = measured_playback as f64 - predicted as f64;
-            if residual.abs() < 20_000_000.0 {
-                let observed = (measured_playback.saturating_sub(previous.nanos) as f64
-                    / (frame - previous.frame) as f64)
-                    .clamp(nominal * 0.995, nominal * 1.005);
-                period = previous.nanos_per_frame + (observed - previous.nanos_per_frame) * 0.005;
-                playback = (predicted as f64 + residual.clamp(-100_000.0, 100_000.0) * 0.1).max(0.0)
-                    as u64;
+            if residual.abs() <= 1_000_000.0 {
+                let origin_frame = self.inner.fit_frame.load(Ordering::Relaxed);
+                let origin_nanos = self.inner.fit_nanos.load(Ordering::Relaxed);
+                let elapsed = frame.saturating_sub(origin_frame);
+                period = previous.nanos_per_frame;
+                if elapsed >= u64::from(rate) {
+                    let observed = (measured_playback.saturating_sub(origin_nanos) as f64
+                        / elapsed as f64)
+                        .clamp(nominal * 0.995, nominal * 1.005);
+                    period += (observed - period) * 0.02;
+                }
+            } else {
+                self.inner.fit_frame.store(frame, Ordering::Relaxed);
+                self.inner
+                    .fit_nanos
+                    .store(measured_playback, Ordering::Relaxed);
             }
+        } else {
+            self.inner.fit_frame.store(frame, Ordering::Relaxed);
+            self.inner
+                .fit_nanos
+                .store(measured_playback, Ordering::Relaxed);
         }
         self.inner.version.fetch_add(1, Ordering::AcqRel);
         self.inner.frame.store(frame, Ordering::Relaxed);
-        self.inner.nanos.store(playback, Ordering::Relaxed);
+        // The raw driver DAC anchor is already a sample timestamp. Fitting
+        // period from an earlier *smoothed* anchor fed phase error back into
+        // the clock rate, creating drift and a later discontinuous reset.
+        self.inner.nanos.store(measured_playback, Ordering::Relaxed);
         self.inner.rate.store(rate, Ordering::Relaxed);
         self.inner.period.store(period.to_bits(), Ordering::Relaxed);
         self.inner.latency.store(latency_ns, Ordering::Relaxed);
         self.inner
             .measured
-            .store(u32::from(latency.is_some()), Ordering::Relaxed);
+            .store(u32::from(measured), Ordering::Relaxed);
         self.inner.version.fetch_add(1, Ordering::Release);
     }
     /// Stream replacement invalidates every recording clock ticket.
@@ -244,4 +352,71 @@ impl CaptureGate {
 }
 pub(crate) fn nanos(duration: Duration) -> u64 {
     duration.as_nanos().min(u128::from(u64::MAX - 1)) as u64
+}
+
+#[cfg(test)]
+mod timebase_tests {
+    use super::*;
+
+    #[test]
+    fn an_output_phase_step_is_not_fitted_as_sample_clock_drift() {
+        let clock = RecordingClock::new();
+        clock.publish_position(0, 48000, 1_000_000_000, 0, true);
+        for block in 1..=300 {
+            let at = 1_010_000_000 + block * 10_000_000;
+            clock.publish_position(block * 480, 48000, at, 0, true);
+            let output = clock.output().unwrap();
+            assert_eq!(output.nanos, at);
+            assert!((output.nanos_per_frame - 1e9 / 48000.0).abs() < 0.001);
+        }
+    }
+
+    #[test]
+    fn output_does_not_seed_a_measured_fit_from_the_unstarted_driver_clock() {
+        let clock = RecordingClock::new();
+        let map = DriverTimebase::default();
+        map.0
+            .set((cpal::StreamInstant::from_millis(1000), 1_000_000))
+            .unwrap();
+        clock.publish_driver_output(
+            0,
+            48000,
+            cpal::OutputStreamTimestamp {
+                callback: cpal::StreamInstant::ZERO,
+                playback: cpal::StreamInstant::ZERO,
+            },
+            &map,
+        );
+        assert!(clock.output().is_none());
+        clock.publish_driver_output(
+            480,
+            48000,
+            cpal::OutputStreamTimestamp {
+                callback: cpal::StreamInstant::from_millis(1000),
+                playback: cpal::StreamInstant::from_millis(1010),
+            },
+            &map,
+        );
+        assert_eq!(clock.output().unwrap().nanos, 11_000_000);
+    }
+
+    #[test]
+    fn capture_uses_the_driver_epoch_even_when_callback_clock_is_zero() {
+        let clock = RecordingClock::new();
+        let base = cpal::StreamInstant::from_secs_f64(100_000.0);
+        let map = DriverTimebase::default();
+        map.0.set((base, 10_000_000)).unwrap();
+        let stamp = cpal::InputStreamTimestamp {
+            capture: base.checked_sub(Duration::from_millis(3)).unwrap(),
+            callback: cpal::StreamInstant::ZERO,
+        };
+        let (captured, _, measured) = map.capture(stamp, &clock);
+        assert!(measured);
+        assert_eq!(captured, 7_000_000);
+        assert_eq!(
+            map.nanos_at(base.checked_add(Duration::from_millis(4)).unwrap()),
+            Some(14_000_000)
+        );
+        assert_eq!(map.nanos_at(cpal::StreamInstant::ZERO), None);
+    }
 }

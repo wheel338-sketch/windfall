@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { AudioDevice, AudioHost } from "@/bindings"
 import { setBackend, type Backend, type StoredAudioSettings } from "@/lib/ipc"
 import { useUiStore } from "@/lib/store/ui"
+import { refreshEngineStatus } from "@/lib/store/engine"
 import { settle, startTestApp } from "@/test/harness"
 
 import {
@@ -164,6 +165,7 @@ describe("audio settings in the dialog", () => {
   async function open(overrides: Partial<Backend> = {}) {
     backend = { ...backend, ...overrides }
     setBackend(backend)
+    await refreshEngineStatus()
     useUiStore.getState().openDialog("settings")
     render(<SettingsDialog />)
     await waitFor(() =>
@@ -185,7 +187,7 @@ describe("audio settings in the dialog", () => {
       expect(box(name)).toHaveTextContent("Default")
     }
     expect(screen.getByRole("status", { name: "Audio engine status" })).toHaveTextContent(
-      "Running on Speakers (simulated) at 48 kHz with 2 output channels and a buffer of 256 samples: 5.3 ms of output latency."
+      "Running on Speakers (simulated) at 48 kHz with 2 output channels and a callback buffer of 256 samples: 5.3 ms per buffer."
     )
   })
 
@@ -342,11 +344,43 @@ describe("audio settings in the dialog", () => {
     })
     expect(
       screen.getByText(
-        "This driver uses a fixed buffer of 480 samples. Smaller buffers need an ASIO driver, which this build does not include."
+        "This driver advertises a buffer of 480 samples. The running buffer below can differ with sample rate. Smaller buffers need an ASIO driver, which this build does not include."
       )
     ).toBeVisible()
     expect(box("Buffer size")).toHaveTextContent("Default")
   })
+
+  it.each([
+    { sampleRate: 44_100, bufferFrames: 441, rateLabel: "44.1 kHz" },
+    { sampleRate: 48_000, bufferFrames: 480, rateLabel: "48 kHz" },
+    { sampleRate: 96_000, bufferFrames: 960, rateLabel: "96 kHz" },
+  ])(
+    "reports the driver's actual callback at $sampleRate Hz separately from its advertised buffer",
+    async ({ sampleRate, bufferFrames, rateLabel }) => {
+      await open({
+        engineDevices: () =>
+          Promise.resolve([{ name: "WASAPI", isDefault: true, devices: [SHARED] }]),
+        engineSettings: () => Promise.resolve({ sampleRate, bufferFrames: 128 }),
+        engineStatus: () =>
+          Promise.resolve({
+            running: true,
+            host: "WASAPI",
+            device: "Speakers",
+            sampleRate,
+            bufferFrames,
+            latencyMs: 10,
+            latencyFrames: 0,
+            error: null,
+          }),
+      })
+      expect(
+        screen.getByText(`Running on Speakers at ${rateLabel} with 2 output channels and a callback buffer of ${bufferFrames} samples: 10.0 ms per buffer.`)
+      ).toBeVisible()
+      expect(screen.getByText(/This driver advertises a buffer of 480 samples/)).toBeVisible()
+      expect(box("Buffer size")).toHaveTextContent("128 samples")
+      expect(screen.queryByText(/ms of output latency/)).not.toBeInTheDocument()
+    }
+  )
 
   it("shows a stored request the device cannot do, so it can be put right", async () => {
     await open({

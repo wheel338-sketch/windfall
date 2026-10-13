@@ -102,6 +102,7 @@ impl Workers {
             let thread = std::thread::Builder::new()
                 .name(format!("windfall-dsp-{index}"))
                 .spawn(move || {
+                    let idle = WorkerIdle::new();
                     // Let the scheduler spread lanes across physical cores.
                     // Consecutive logical CPU IDs can be SMT siblings; pinning
                     // the first lanes there makes them compete with each other.
@@ -126,7 +127,7 @@ impl Workers {
                             // playback still parks; the callback never wakes
                             // a thread through an OS synchronization primitive.
                             if !active_batch.load(Ordering::Acquire) {
-                                std::thread::park_timeout(Duration::from_micros(25));
+                                idle.wait();
                             }
                             continue;
                         };
@@ -242,6 +243,131 @@ impl Workers {
             }
         }
         self.active_batch.store(false, Ordering::Release);
+    }
+}
+
+/// Only the worker waits. Windows' ordinary timed park can round 25 us up to
+/// a scheduler tick; a realtime callback then waits for a sleeping DSP lane.
+/// A private high-resolution timer avoids changing system timer resolution.
+#[cfg(windows)]
+struct WorkerIdle {
+    timer: *mut std::ffi::c_void,
+    priority: *mut std::ffi::c_void,
+}
+
+#[cfg(windows)]
+#[link(name = "avrt")]
+unsafe extern "system" {
+    fn AvSetMmThreadCharacteristicsW(task: *const u16, index: *mut u32) -> *mut std::ffi::c_void;
+    fn AvSetMmThreadPriority(handle: *mut std::ffi::c_void, priority: i32) -> i32;
+    fn AvRevertMmThreadCharacteristics(handle: *mut std::ffi::c_void) -> i32;
+}
+
+#[cfg(windows)]
+#[link(name = "kernel32")]
+unsafe extern "system" {
+    fn CreateWaitableTimerExW(
+        attributes: *const std::ffi::c_void,
+        name: *const u16,
+        flags: u32,
+        access: u32,
+    ) -> *mut std::ffi::c_void;
+    fn SetWaitableTimerEx(
+        timer: *mut std::ffi::c_void,
+        due: *const i64,
+        period: i32,
+        completion: *const std::ffi::c_void,
+        argument: *const std::ffi::c_void,
+        context: *const std::ffi::c_void,
+        tolerance: u32,
+    ) -> i32;
+    fn WaitForSingleObject(handle: *mut std::ffi::c_void, milliseconds: u32) -> u32;
+    fn CloseHandle(handle: *mut std::ffi::c_void) -> i32;
+}
+
+#[cfg(windows)]
+impl WorkerIdle {
+    fn new() -> Self {
+        let task = [80_u16, 114, 111, 32, 65, 117, 100, 105, 111, 0]; // Pro Audio
+        let mut index = 0;
+        // SAFETY: static task name and live index pointer; registration is
+        // owned and reverted on this worker, before it exits.
+        let priority = unsafe { AvSetMmThreadCharacteristicsW(task.as_ptr(), &mut index) };
+        if !priority.is_null() {
+            // SAFETY: live MMCSS registration for this thread; HIGH = 1.
+            unsafe {
+                AvSetMmThreadPriority(priority, 1);
+            }
+        }
+        // SAFETY: no name/security descriptor; this worker exclusively owns
+        // the resulting auto-reset timer until Drop on the same thread.
+        Self {
+            timer: unsafe {
+                CreateWaitableTimerExW(std::ptr::null(), std::ptr::null(), 2, 0x1f0003)
+            },
+            priority,
+        }
+    }
+
+    fn wait(&self) {
+        let due = -250_i64; // relative 25 us, in 100 ns units
+        // SAFETY: owned live handle, valid due time, no APC or wake context.
+        if !self.timer.is_null()
+            && unsafe {
+                SetWaitableTimerEx(
+                    self.timer,
+                    &due,
+                    0,
+                    std::ptr::null(),
+                    std::ptr::null(),
+                    std::ptr::null(),
+                    0,
+                )
+            } != 0
+        {
+            // A finite bound also makes retirement safe after a timer failure.
+            // SAFETY: owned live handle; no pointer is retained by this call.
+            unsafe {
+                WaitForSingleObject(self.timer, 1);
+            }
+        } else {
+            // Unsupported timer: never fall back to a millisecond-scale sleep
+            // that strands a borrowed DSP batch. Yield without a timed park.
+            std::thread::yield_now();
+        }
+    }
+}
+
+#[cfg(windows)]
+impl Drop for WorkerIdle {
+    fn drop(&mut self) {
+        if !self.timer.is_null() {
+            // SAFETY: this worker exclusively owns the timer, with no waits
+            // outstanding; Drop runs on the same worker after its last use.
+            unsafe {
+                CloseHandle(self.timer);
+            }
+        }
+        if !self.priority.is_null() {
+            // SAFETY: live registration belongs to this worker; no other
+            // thread uses it, and no processing job is outstanding here.
+            unsafe {
+                AvRevertMmThreadCharacteristics(self.priority);
+            }
+        }
+    }
+}
+
+#[cfg(not(windows))]
+struct WorkerIdle;
+
+#[cfg(not(windows))]
+impl WorkerIdle {
+    fn new() -> Self {
+        Self
+    }
+    fn wait(&self) {
+        std::thread::park_timeout(Duration::from_micros(25));
     }
 }
 impl Drop for Workers {

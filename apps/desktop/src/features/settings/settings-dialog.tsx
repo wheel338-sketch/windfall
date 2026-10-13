@@ -116,7 +116,7 @@ function Choice<T extends string | number>({
 /** What the engine made of the request, in words. */
 function runningSummary(status: EngineStatus): string {
   const device = status.device ?? "the default device"
-  return `Running on ${device} at ${formatSampleRate(status.sampleRate)} with ${status.outputChannels ?? 2} output channels and a buffer of ${status.bufferFrames} samples: ${status.latencyMs.toFixed(1)} ms of output latency.`
+  return `Running on ${device} at ${formatSampleRate(status.sampleRate)} with ${status.outputChannels ?? 2} output channels and a callback buffer of ${status.bufferFrames} samples: ${status.latencyMs.toFixed(1)} ms per buffer.`
 }
 
 /**
@@ -218,7 +218,8 @@ function AudioSection() {
       </FieldGroup>
       {fixed !== null && (
         <p className="text-muted-foreground">
-          This driver uses a fixed buffer of {fixed} samples.
+          This driver advertises a buffer of {fixed} samples. The running buffer
+          below can differ with sample rate.
           {!hasAsio &&
             " Smaller buffers need an ASIO driver, which this build does not include."}
         </p>

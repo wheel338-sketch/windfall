@@ -1,0 +1,2515 @@
+{
+  "actual": {
+    "bufferFrames": 1056,
+    "bufferLatencyMs": 22.0,
+    "host": "WASAPI",
+    "outputChannels": 2,
+    "outputDevice": "Realtek Digital Output (Realtek(R) Audio)",
+    "processingLatencyFrames": 0,
+    "sampleRate": 48000
+  },
+  "arch": "x86_64",
+  "checks": [
+    {
+      "check": "8000 Hz / 1: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "8000 Hz / 1: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "8000 Hz / 1: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "8000 Hz / 128: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "8000 Hz / 128: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "8000 Hz / 128: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "8000 Hz / 480: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "8000 Hz / 480: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "8000 Hz / 480: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "8000 Hz / 1024: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "8000 Hz / 1024: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "8000 Hz / 1024: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "11025 Hz / 1: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "11025 Hz / 1: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "11025 Hz / 1: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "11025 Hz / 128: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "11025 Hz / 128: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "11025 Hz / 128: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "11025 Hz / 480: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "11025 Hz / 480: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "11025 Hz / 480: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "11025 Hz / 1024: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "11025 Hz / 1024: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "11025 Hz / 1024: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "16000 Hz / 1: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "16000 Hz / 1: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "16000 Hz / 1: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "16000 Hz / 128: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "16000 Hz / 128: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "16000 Hz / 128: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "16000 Hz / 480: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "16000 Hz / 480: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "16000 Hz / 480: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "16000 Hz / 1024: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "16000 Hz / 1024: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "16000 Hz / 1024: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "22050 Hz / 1: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "22050 Hz / 1: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "22050 Hz / 1: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "22050 Hz / 128: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "22050 Hz / 128: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "22050 Hz / 128: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "22050 Hz / 480: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "22050 Hz / 480: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "22050 Hz / 480: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "22050 Hz / 1024: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "22050 Hz / 1024: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "22050 Hz / 1024: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "32000 Hz / 1: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "32000 Hz / 1: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "32000 Hz / 1: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "32000 Hz / 128: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "32000 Hz / 128: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "32000 Hz / 128: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "32000 Hz / 480: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "32000 Hz / 480: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "32000 Hz / 480: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "32000 Hz / 1024: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "32000 Hz / 1024: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "32000 Hz / 1024: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "44100 Hz / 1: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "44100 Hz / 1: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "44100 Hz / 1: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "44100 Hz / 128: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "44100 Hz / 128: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "44100 Hz / 128: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "44100 Hz / 480: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "44100 Hz / 480: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "44100 Hz / 480: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "44100 Hz / 1024: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "44100 Hz / 1024: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "44100 Hz / 1024: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "48000 Hz / 1: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "48000 Hz / 1: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "48000 Hz / 1: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "48000 Hz / 128: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "48000 Hz / 128: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "48000 Hz / 128: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "48000 Hz / 480: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "48000 Hz / 480: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "48000 Hz / 480: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "48000 Hz / 1024: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "48000 Hz / 1024: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "48000 Hz / 1024: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "88200 Hz / 1: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "88200 Hz / 1: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "88200 Hz / 1: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "88200 Hz / 128: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "88200 Hz / 128: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "88200 Hz / 128: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "88200 Hz / 480: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "88200 Hz / 480: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "88200 Hz / 480: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "88200 Hz / 1024: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "88200 Hz / 1024: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "88200 Hz / 1024: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "96000 Hz / 1: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "96000 Hz / 1: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "96000 Hz / 1: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "96000 Hz / 128: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "96000 Hz / 128: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "96000 Hz / 128: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "96000 Hz / 480: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "96000 Hz / 480: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "96000 Hz / 480: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "96000 Hz / 1024: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "96000 Hz / 1024: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "96000 Hz / 1024: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "176400 Hz / 1: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "176400 Hz / 1: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "176400 Hz / 1: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "176400 Hz / 128: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "176400 Hz / 128: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "176400 Hz / 128: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "176400 Hz / 480: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "176400 Hz / 480: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "176400 Hz / 480: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "176400 Hz / 1024: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "176400 Hz / 1024: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "176400 Hz / 1024: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "192000 Hz / 1: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "192000 Hz / 1: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "192000 Hz / 1: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "192000 Hz / 128: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "192000 Hz / 128: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "192000 Hz / 128: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "192000 Hz / 480: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "192000 Hz / 480: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "192000 Hz / 480: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "192000 Hz / 1024: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "192000 Hz / 1024: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "192000 Hz / 1024: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "352800 Hz / 1: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "352800 Hz / 1: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "352800 Hz / 1: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "352800 Hz / 128: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "352800 Hz / 128: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "352800 Hz / 128: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "352800 Hz / 480: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "352800 Hz / 480: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "352800 Hz / 480: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "352800 Hz / 1024: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "352800 Hz / 1024: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "352800 Hz / 1024: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "384000 Hz / 1: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "384000 Hz / 1: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "384000 Hz / 1: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "384000 Hz / 128: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "384000 Hz / 128: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "384000 Hz / 128: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "384000 Hz / 480: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "384000 Hz / 480: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "384000 Hz / 480: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "384000 Hz / 1024: stream runs at the offered rate",
+      "passed": true
+    },
+    {
+      "check": "384000 Hz / 1024: requested settings remembered exactly",
+      "passed": true
+    },
+    {
+      "check": "384000 Hz / 1024: driver buffer reported, old clock invalidated",
+      "passed": true
+    },
+    {
+      "check": "invalid layout stops with an explicit error",
+      "passed": true
+    },
+    {
+      "check": "real driver reopens after configuration failure",
+      "passed": true
+    }
+  ],
+  "commit": "9244a26c3b1357d68606f191e97d47938108e34a",
+  "inputDevice": "Loopback: Realtek Digital Output (Realtek(R) Audio)",
+  "label": "realtek",
+  "os": "windows",
+  "osVersion": "Microsoft Windows [Version 10.0.26300.9550]",
+  "passed": true,
+  "profile": "dev",
+  "recovered": {
+    "bufferFrames": 480,
+    "device": "Realtek Digital Output (Realtek(R) Audio)",
+    "error": null,
+    "host": "WASAPI",
+    "latencyFrames": 0,
+    "latencyMs": 10.0,
+    "outputChannels": 2,
+    "running": true,
+    "sampleRate": 48000
+  },
+  "recoveryScope": "configuration failure and real driver reopen; physical removal remains external",
+  "refused": {
+    "bufferFrames": 480,
+    "device": "Realtek Digital Output (Realtek(R) Audio)",
+    "error": "Choose 1–256 output channels",
+    "host": "WASAPI",
+    "latencyFrames": 0,
+    "latencyMs": 0.0,
+    "outputChannels": 0,
+    "running": false,
+    "sampleRate": 0
+  },
+  "requested": {
+    "bufferFrames": 480,
+    "host": "WASAPI",
+    "outputChannels": null,
+    "outputDevice": "Realtek Digital Output (Realtek(R) Audio)",
+    "sampleRate": null
+  },
+  "scenario": "audio-settings",
+  "stimulus": {
+    "amplitude": 0.05000000074505806,
+    "burstSeconds": 0.004,
+    "leadSeconds": 0.25,
+    "minScore": 0.5,
+    "periodSeconds": 0.5
+  },
+  "trials": [
+    {
+      "cpuPeak": 0.09346000105142593,
+      "frames": 2562,
+      "initial": {
+        "bufferFrames": 80,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 8000
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 1,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 8000
+      },
+      "settled": {
+        "bufferFrames": 80,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 8000
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.05463000014424324,
+      "frames": 2562,
+      "initial": {
+        "bufferFrames": 80,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 8000
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 128,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 8000
+      },
+      "settled": {
+        "bufferFrames": 80,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 8000
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.07930000126361847,
+      "frames": 2562,
+      "initial": {
+        "bufferFrames": 80,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 8000
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 480,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 8000
+      },
+      "settled": {
+        "bufferFrames": 80,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 8000
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.06865999847650528,
+      "frames": 2562,
+      "initial": {
+        "bufferFrames": 80,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 8000
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 1024,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 8000
+      },
+      "settled": {
+        "bufferFrames": 80,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 8000
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.07745310664176941,
+      "frames": 3617,
+      "initial": {
+        "bufferFrames": 110,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 9.977324485778809,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 11025
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 1,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 11025
+      },
+      "settled": {
+        "bufferFrames": 110,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 9.977324485778809,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 11025
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.10517849773168564,
+      "frames": 3507,
+      "initial": {
+        "bufferFrames": 110,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 9.977324485778809,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 11025
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 128,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 11025
+      },
+      "settled": {
+        "bufferFrames": 110,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 9.977324485778809,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 11025
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.062216755002737045,
+      "frames": 3507,
+      "initial": {
+        "bufferFrames": 110,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 9.977324485778809,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 11025
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 480,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 11025
+      },
+      "settled": {
+        "bufferFrames": 110,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 9.977324485778809,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 11025
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.06632038950920105,
+      "frames": 3507,
+      "initial": {
+        "bufferFrames": 110,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 9.977324485778809,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 11025
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 1024,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 11025
+      },
+      "settled": {
+        "bufferFrames": 110,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 9.977324485778809,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 11025
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.057500001043081284,
+      "frames": 5218,
+      "initial": {
+        "bufferFrames": 160,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 16000
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 1,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 16000
+      },
+      "settled": {
+        "bufferFrames": 160,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 16000
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.09211999922990799,
+      "frames": 5218,
+      "initial": {
+        "bufferFrames": 160,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 16000
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 128,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 16000
+      },
+      "settled": {
+        "bufferFrames": 160,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 16000
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.08099000155925751,
+      "frames": 5058,
+      "initial": {
+        "bufferFrames": 160,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 16000
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 480,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 16000
+      },
+      "settled": {
+        "bufferFrames": 160,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 16000
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.06768999993801117,
+      "frames": 5058,
+      "initial": {
+        "bufferFrames": 160,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 16000
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 1024,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 16000
+      },
+      "settled": {
+        "bufferFrames": 160,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 16000
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.06413456797599792,
+      "frames": 6946,
+      "initial": {
+        "bufferFrames": 221,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.022675514221191,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 22050
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 1,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 22050
+      },
+      "settled": {
+        "bufferFrames": 220,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 9.977324485778809,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 22050
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.06087804585695267,
+      "frames": 6946,
+      "initial": {
+        "bufferFrames": 221,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.022675514221191,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 22050
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 128,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 22050
+      },
+      "settled": {
+        "bufferFrames": 220,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 9.977324485778809,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 22050
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.0695921927690506,
+      "frames": 6946,
+      "initial": {
+        "bufferFrames": 221,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.022675514221191,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 22050
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 480,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 22050
+      },
+      "settled": {
+        "bufferFrames": 220,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 9.977324485778809,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 22050
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.05868306756019592,
+      "frames": 6946,
+      "initial": {
+        "bufferFrames": 221,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.022675514221191,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 22050
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 1024,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 22050
+      },
+      "settled": {
+        "bufferFrames": 220,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 9.977324485778809,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 22050
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.05962999910116196,
+      "frames": 10370,
+      "initial": {
+        "bufferFrames": 320,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 32000
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 1,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 32000
+      },
+      "settled": {
+        "bufferFrames": 320,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 32000
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.06420999765396118,
+      "frames": 10050,
+      "initial": {
+        "bufferFrames": 320,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 32000
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 128,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 32000
+      },
+      "settled": {
+        "bufferFrames": 320,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 32000
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.1054299995303154,
+      "frames": 10050,
+      "initial": {
+        "bufferFrames": 320,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 32000
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 480,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 32000
+      },
+      "settled": {
+        "bufferFrames": 320,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 32000
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.12804000079631805,
+      "frames": 10050,
+      "initial": {
+        "bufferFrames": 320,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 32000
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 1024,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 32000
+      },
+      "settled": {
+        "bufferFrames": 320,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 32000
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.057989999651908875,
+      "frames": 13825,
+      "initial": {
+        "bufferFrames": 441,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 44100
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 1,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 44100
+      },
+      "settled": {
+        "bufferFrames": 441,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 44100
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.09203000366687775,
+      "frames": 13825,
+      "initial": {
+        "bufferFrames": 441,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 44100
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 128,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 44100
+      },
+      "settled": {
+        "bufferFrames": 441,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 44100
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.06697999686002731,
+      "frames": 14266,
+      "initial": {
+        "bufferFrames": 441,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 44100
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 480,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 44100
+      },
+      "settled": {
+        "bufferFrames": 441,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 44100
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.09309999644756317,
+      "frames": 14266,
+      "initial": {
+        "bufferFrames": 441,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 44100
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 1024,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 44100
+      },
+      "settled": {
+        "bufferFrames": 441,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 44100
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.057349998503923416,
+      "frames": 15456,
+      "initial": {
+        "bufferFrames": 480,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 48000
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 1,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 48000
+      },
+      "settled": {
+        "bufferFrames": 480,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 48000
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.05733000114560127,
+      "frames": 14976,
+      "initial": {
+        "bufferFrames": 480,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 48000
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 128,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 48000
+      },
+      "settled": {
+        "bufferFrames": 480,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 48000
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.1321599930524826,
+      "frames": 15456,
+      "initial": {
+        "bufferFrames": 480,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 48000
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 480,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 48000
+      },
+      "settled": {
+        "bufferFrames": 480,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 48000
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.11146000027656555,
+      "frames": 15456,
+      "initial": {
+        "bufferFrames": 480,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 48000
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 1024,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 48000
+      },
+      "settled": {
+        "bufferFrames": 480,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 48000
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.09818000346422195,
+      "frames": 27634,
+      "initial": {
+        "bufferFrames": 882,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 88200
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 1,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 88200
+      },
+      "settled": {
+        "bufferFrames": 882,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 88200
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.14962999522686005,
+      "frames": 27634,
+      "initial": {
+        "bufferFrames": 882,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 88200
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 128,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 88200
+      },
+      "settled": {
+        "bufferFrames": 882,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 88200
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.1379300057888031,
+      "frames": 27634,
+      "initial": {
+        "bufferFrames": 882,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 88200
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 480,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 88200
+      },
+      "settled": {
+        "bufferFrames": 882,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 88200
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.09674999862909317,
+      "frames": 27634,
+      "initial": {
+        "bufferFrames": 882,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 88200
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 1024,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 88200
+      },
+      "settled": {
+        "bufferFrames": 882,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 88200
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.11670999974012375,
+      "frames": 30078,
+      "initial": {
+        "bufferFrames": 960,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 96000
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 1,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 96000
+      },
+      "settled": {
+        "bufferFrames": 960,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 96000
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.06787999719381332,
+      "frames": 30078,
+      "initial": {
+        "bufferFrames": 960,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 96000
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 128,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 96000
+      },
+      "settled": {
+        "bufferFrames": 960,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 96000
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.07054000347852707,
+      "frames": 30078,
+      "initial": {
+        "bufferFrames": 960,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 96000
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 480,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 96000
+      },
+      "settled": {
+        "bufferFrames": 960,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 96000
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.09444999694824219,
+      "frames": 30078,
+      "initial": {
+        "bufferFrames": 960,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 96000
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 1024,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 96000
+      },
+      "settled": {
+        "bufferFrames": 960,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 96000
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.10470999777317047,
+      "frames": 55262,
+      "initial": {
+        "bufferFrames": 1764,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 176400
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 1,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 176400
+      },
+      "settled": {
+        "bufferFrames": 1764,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 176400
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.12253999710083008,
+      "frames": 57026,
+      "initial": {
+        "bufferFrames": 1764,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 176400
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 128,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 176400
+      },
+      "settled": {
+        "bufferFrames": 1764,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 176400
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.10162000358104706,
+      "frames": 55262,
+      "initial": {
+        "bufferFrames": 1764,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 176400
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 480,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 176400
+      },
+      "settled": {
+        "bufferFrames": 1764,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 176400
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.0749099999666214,
+      "frames": 55262,
+      "initial": {
+        "bufferFrames": 1764,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 176400
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 1024,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 176400
+      },
+      "settled": {
+        "bufferFrames": 1764,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 176400
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.10802999883890152,
+      "frames": 60150,
+      "initial": {
+        "bufferFrames": 1920,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 192000
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 1,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 192000
+      },
+      "settled": {
+        "bufferFrames": 1920,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 192000
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.11298000067472458,
+      "frames": 60150,
+      "initial": {
+        "bufferFrames": 1920,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 192000
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 128,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 192000
+      },
+      "settled": {
+        "bufferFrames": 1920,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 192000
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.10653000324964523,
+      "frames": 60150,
+      "initial": {
+        "bufferFrames": 1920,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 192000
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 480,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 192000
+      },
+      "settled": {
+        "bufferFrames": 1920,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 192000
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.098580002784729,
+      "frames": 60150,
+      "initial": {
+        "bufferFrames": 1920,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 192000
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 1024,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 192000
+      },
+      "settled": {
+        "bufferFrames": 1920,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 192000
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.12498000264167786,
+      "frames": 110520,
+      "initial": {
+        "bufferFrames": 3528,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 352800
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 1,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 352800
+      },
+      "settled": {
+        "bufferFrames": 3528,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 352800
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.11777999997138977,
+      "frames": 110520,
+      "initial": {
+        "bufferFrames": 3528,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 352800
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 128,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 352800
+      },
+      "settled": {
+        "bufferFrames": 3528,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 352800
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.11885000020265579,
+      "frames": 110520,
+      "initial": {
+        "bufferFrames": 3528,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 352800
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 480,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 352800
+      },
+      "settled": {
+        "bufferFrames": 3528,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 352800
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.08171000331640244,
+      "frames": 110520,
+      "initial": {
+        "bufferFrames": 3528,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 352800
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 1024,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 352800
+      },
+      "settled": {
+        "bufferFrames": 3528,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 352800
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.12195000052452087,
+      "frames": 120294,
+      "initial": {
+        "bufferFrames": 3840,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 384000
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 1,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 384000
+      },
+      "settled": {
+        "bufferFrames": 3840,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 384000
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.08784999698400497,
+      "frames": 120294,
+      "initial": {
+        "bufferFrames": 3840,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 384000
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 128,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 384000
+      },
+      "settled": {
+        "bufferFrames": 3840,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 384000
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.12304999679327011,
+      "frames": 120294,
+      "initial": {
+        "bufferFrames": 3840,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 384000
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 480,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 384000
+      },
+      "settled": {
+        "bufferFrames": 3840,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 384000
+      },
+      "xruns": 0
+    },
+    {
+      "cpuPeak": 0.11929000169038773,
+      "frames": 120294,
+      "initial": {
+        "bufferFrames": 3840,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 384000
+      },
+      "previousClockInvalidated": true,
+      "requested": {
+        "bufferFrames": 1024,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "host": "WASAPI",
+        "outputChannels": null,
+        "sampleRate": 384000
+      },
+      "settled": {
+        "bufferFrames": 3840,
+        "device": "Realtek Digital Output (Realtek(R) Audio)",
+        "error": null,
+        "host": "WASAPI",
+        "latencyFrames": 0,
+        "latencyMs": 10.0,
+        "outputChannels": 2,
+        "running": true,
+        "sampleRate": 384000
+      },
+      "xruns": 0
+    }
+  ],
+  "utcUnixSeconds": 1791878888,
+  "workingTreeDirty": true
+}

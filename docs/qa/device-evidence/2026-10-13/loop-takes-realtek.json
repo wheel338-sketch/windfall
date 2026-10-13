@@ -1,0 +1,307 @@
+{
+  "actual": {
+    "bufferFrames": 480,
+    "bufferLatencyMs": 10.0,
+    "host": "WASAPI",
+    "outputChannels": 2,
+    "outputDevice": "Realtek Digital Output (Realtek(R) Audio)",
+    "processingLatencyFrames": 0,
+    "sampleRate": 48000
+  },
+  "alignment": {
+    "driftPpm": 1.63,
+    "inputLatencyMs": 0.0,
+    "inputSampleRate": 48000,
+    "measuredTimestamps": true,
+    "outputLatencyMs": 31.937,
+    "trimmedFrames": 1015
+  },
+  "arch": "x86_64",
+  "checks": [
+    {
+      "check": "three complete passes and a final partial one are kept",
+      "passed": true
+    },
+    {
+      "check": "three passes together are three regions long, to the frame",
+      "passed": true
+    },
+    {
+      "check": "every pass starts on the region's first tick",
+      "passed": true
+    },
+    {
+      "check": "earlier passes are muted and the latest is audible",
+      "passed": true
+    },
+    {
+      "check": "the bursts sit at the same place in every complete pass, within 1 ms",
+      "passed": true
+    },
+    {
+      "check": "the passes are saved as one take group",
+      "passed": true
+    },
+    {
+      "check": "one undo removes every pass and the group",
+      "passed": true
+    },
+    {
+      "check": "stopping restores the loop setting and the mode",
+      "passed": true
+    }
+  ],
+  "commit": "9244a26c3b1357d68606f191e97d47938108e34a",
+  "inputDevice": "Loopback: Realtek Digital Output (Realtek(R) Audio)",
+  "label": "realtek",
+  "os": "windows",
+  "osVersion": "Microsoft Windows [Version 10.0.26300.9550]",
+  "passMeanSpreadMs": 0.015,
+  "passed": true,
+  "passes": [
+    {
+      "frames": 96000,
+      "measurement": {
+        "bursts": [
+          {
+            "atSeconds": 0.25,
+            "index": 0,
+            "levelDb": -42.28,
+            "offsetFrames": 42.014,
+            "score": 0.942
+          },
+          {
+            "atSeconds": 0.75,
+            "index": 1,
+            "levelDb": -42.283,
+            "offsetFrames": 41.008,
+            "score": 0.925
+          },
+          {
+            "atSeconds": 1.25,
+            "index": 2,
+            "levelDb": -42.284,
+            "offsetFrames": 40.189,
+            "score": 0.702
+          },
+          {
+            "atSeconds": 1.75,
+            "index": 3,
+            "levelDb": -42.282,
+            "offsetFrames": 40.005,
+            "score": 0.895
+          }
+        ],
+        "detected": 4,
+        "driftPpm": -28.525,
+        "jitterMs": 0.004,
+        "maxStepMs": 0.021,
+        "missed": 0,
+        "offsetMaxMs": 0.875,
+        "offsetMeanFrames": 40.804,
+        "offsetMeanMs": 0.85,
+        "offsetMinMs": 0.833
+      },
+      "muted": true,
+      "startTick": 0
+    },
+    {
+      "frames": 96000,
+      "measurement": {
+        "bursts": [
+          {
+            "atSeconds": 0.25,
+            "index": 0,
+            "levelDb": -42.28,
+            "offsetFrames": 39.986,
+            "score": 0.944
+          },
+          {
+            "atSeconds": 0.75,
+            "index": 1,
+            "levelDb": -42.285,
+            "offsetFrames": 40.139,
+            "score": 0.734
+          },
+          {
+            "atSeconds": 1.25,
+            "index": 2,
+            "levelDb": -42.283,
+            "offsetFrames": 40.117,
+            "score": 0.751
+          },
+          {
+            "atSeconds": 1.75,
+            "index": 3,
+            "levelDb": -42.281,
+            "offsetFrames": 40.03,
+            "score": 0.85
+          }
+        ],
+        "detected": 4,
+        "driftPpm": 0.457,
+        "jitterMs": 0.001,
+        "maxStepMs": 0.003,
+        "missed": 0,
+        "offsetMaxMs": 0.836,
+        "offsetMeanFrames": 40.068,
+        "offsetMeanMs": 0.835,
+        "offsetMinMs": 0.833
+      },
+      "muted": true,
+      "startTick": 0
+    },
+    {
+      "frames": 96000,
+      "measurement": {
+        "bursts": [
+          {
+            "atSeconds": 0.25,
+            "index": 0,
+            "levelDb": -42.285,
+            "offsetFrames": 40.017,
+            "score": 0.954
+          },
+          {
+            "atSeconds": 0.75,
+            "index": 1,
+            "levelDb": -42.286,
+            "offsetFrames": 40.938,
+            "score": 0.806
+          },
+          {
+            "atSeconds": 1.25,
+            "index": 2,
+            "levelDb": -42.28,
+            "offsetFrames": 40.016,
+            "score": 0.874
+          },
+          {
+            "atSeconds": 1.75,
+            "index": 3,
+            "levelDb": -42.286,
+            "offsetFrames": 40.968,
+            "score": 0.846
+          }
+        ],
+        "detected": 4,
+        "driftPpm": 8.038,
+        "jitterMs": 0.009,
+        "maxStepMs": 0.02,
+        "missed": 0,
+        "offsetMaxMs": 0.853,
+        "offsetMeanFrames": 40.485,
+        "offsetMeanMs": 0.843,
+        "offsetMinMs": 0.834
+      },
+      "muted": true,
+      "startTick": 0
+    },
+    {
+      "frames": 58010,
+      "measurement": {
+        "bursts": [
+          {
+            "atSeconds": 0.25,
+            "index": 0,
+            "levelDb": -42.284,
+            "offsetFrames": 40.991,
+            "score": 0.887
+          },
+          {
+            "atSeconds": 0.75,
+            "index": 1,
+            "levelDb": -42.29,
+            "offsetFrames": 41.026,
+            "score": 0.856
+          }
+        ],
+        "detected": 2,
+        "driftPpm": 1.455,
+        "jitterMs": 0.0,
+        "maxStepMs": 0.001,
+        "missed": 0,
+        "offsetMaxMs": 0.855,
+        "offsetMeanFrames": 41.009,
+        "offsetMeanMs": 0.854,
+        "offsetMinMs": 0.854
+      },
+      "muted": false,
+      "startTick": 0
+    }
+  ],
+  "profile": "dev",
+  "regionFrames": 96000.0,
+  "regionTicks": [
+    0,
+    3840
+  ],
+  "requested": {
+    "bufferFrames": 480,
+    "host": "WASAPI",
+    "outputChannels": null,
+    "outputDevice": "Realtek Digital Output (Realtek(R) Audio)",
+    "sampleRate": null
+  },
+  "scenario": "loop-takes",
+  "stimulus": {
+    "amplitude": 0.05000000074505806,
+    "burstSeconds": 0.004,
+    "leadSeconds": 0.25,
+    "minScore": 0.5,
+    "periodSeconds": 0.5
+  },
+  "takeGroup": {
+    "id": 31,
+    "lanes": [
+      {
+        "name": "Recorded input",
+        "takes": [
+          {
+            "clip": 21,
+            "pass": 0
+          },
+          {
+            "clip": 24,
+            "pass": 1
+          },
+          {
+            "clip": 27,
+            "pass": 2
+          },
+          {
+            "clip": 30,
+            "pass": 3
+          }
+        ]
+      }
+    ],
+    "name": "Loop recording"
+  },
+  "takesWhileRecording": [
+    {
+      "complete": true,
+      "frames": 96000,
+      "index": 0
+    },
+    {
+      "complete": true,
+      "frames": 96000,
+      "index": 1
+    },
+    {
+      "complete": true,
+      "frames": 96000,
+      "index": 2
+    },
+    {
+      "complete": false,
+      "frames": 58010,
+      "index": 3
+    }
+  ],
+  "tempoBpm": 120.0,
+  "threePassFrames": 288000,
+  "utcUnixSeconds": 1791878845,
+  "workingTreeDirty": true
+}

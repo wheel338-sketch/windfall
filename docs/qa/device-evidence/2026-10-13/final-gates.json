@@ -1,0 +1,72 @@
+{
+  "scenario": "final-gates",
+  "commitParent": "9244a26c3b1357d68606f191e97d47938108e34a",
+  "workingTreeDirty": true,
+  "utcUnixSeconds": 1791883480,
+  "osVersion": "10.0.26300.9550",
+  "cargoBuildJobs": 8,
+  "commandsSerialized": true,
+  "fmt": {
+    "passed": true
+  },
+  "clippy": {
+    "warnings": 0,
+    "passed": true
+  },
+  "rustHigherClass": {
+    "log": "target/device-workspace-tests-pcores.log",
+    "ignored": 40,
+    "affinityMask": "0xFFFF",
+    "failed": 0,
+    "passed": 4555
+  },
+  "rustUnrestricted": {
+    "ignored": 40,
+    "limitation": "unchanged offline instrument deadline tests",
+    "log": "target/device-workspace-tests-final.log",
+    "failed": 9,
+    "passed": 4546
+  },
+  "asio": {
+    "ignored": 2,
+    "failed": 0,
+    "passed": 305,
+    "drivers": []
+  },
+  "bindings": {
+    "files": 615,
+    "changed": false,
+    "passed": true
+  },
+  "simulator": {
+    "changed": false,
+    "bytes": 6957931,
+    "passed": true
+  },
+  "typecheck": {
+    "passed": true
+  },
+  "lint": {
+    "passed": true
+  },
+  "focusedSettings": {
+    "failed": 0,
+    "passed": 18
+  },
+  "frontend": {
+    "passed": 6430,
+    "log": "target/device-frontend-tests-final.log",
+    "seconds": 530.7,
+    "maxWorkers": 4,
+    "files": 519,
+    "failed": 0
+  },
+  "rowRecommendations": {
+    "win-mixer-audio-io": "done",
+    "win-mixer-record-arm": "done",
+    "wf-audio-settings": "done",
+    "wf-loop-recording": "done",
+    "wf-count-in": "done",
+    "core-audio-recording": "done"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "scenario": "asio-build-and-enumeration",
+  "commit": "9244a26c3b1357d68606f191e97d47938108e34a",
+  "workingTreeDirty": true,
+  "osVersion": "10.0.26300.9550",
+  "utcUnixSeconds": 1791879406,
+  "feature": "windfall-engine/asio",
+  "libclangVersion": "18.1.1",
+  "libclangPath": "target/device-venv/Lib/site-packages/clang/native/libclang.dll",
+  "sdkUrl": "https://download.steinberg.net/sdk_downloads/ASIO-SDK_2.3.4_2025-10-15.zip",
+  "sdkSha256": "D5EBF0C20DD2C5F43771FD0C1418F4B361BF52434EE670097CFA6B3A335E2ECA",
+  "compiled": true,
+  "nonDeviceTests": {
+    "ignored": 2,
+    "failed": 0,
+    "passed": 305
+  },
+  "drivers": [],
+  "driverEnumerationCommand": "cargo run -p windfall-engine --features asio --bin windfall-soak -- --list-devices",
+  "physicalDeviceTested": false,
+  "passed": true
+}

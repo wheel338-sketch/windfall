@@ -404,6 +404,7 @@ fn open_group(
             rate,
             frame: 0,
             fault: fault.clone(),
+            timebase: crate::recording_clock::DriverTimebase::default(),
         };
         let stream = match config.sample_format() {
             SampleFormat::F32 => build_group::<f32>(&device, &config.config(), feed, fault.clone()),
@@ -424,6 +425,7 @@ struct GroupFeed {
     rate: u32,
     frame: u64,
     fault: Arc<InputFault>,
+    timebase: crate::recording_clock::DriverTimebase,
 }
 impl GroupFeed {
     fn push<T: SizedSample>(&mut self, data: &[T], info: &cpal::InputCallbackInfo)
@@ -437,10 +439,7 @@ impl GroupFeed {
             self.fault.raise(FaultReason::InvalidAudio);
             return;
         }
-        let stamp = info.timestamp();
-        let latency = stamp.callback.checked_duration_since(stamp.capture);
-        let latency_ns = latency.map_or(0, nanos);
-        let captured = self.clock.now_nanos().saturating_sub(latency_ns);
+        let (captured, latency_ns, measured) = self.timebase.capture(info.timestamp(), &self.clock);
         for (chunk_index, chunk) in data.chunks(PACKET_FRAMES * self.channels).enumerate() {
             let len = chunk.len() / self.channels;
             let capture_ns = captured.saturating_add(
@@ -453,7 +452,7 @@ impl GroupFeed {
                     frame: self.frame,
                     capture_ns,
                     latency_ns,
-                    measured: latency.is_some(),
+                    measured,
                 };
                 for (output, input) in packet
                     .audio
@@ -487,12 +486,23 @@ fn build_group<T: SizedSample>(
 where
     f32: FromSample<T>,
 {
-    device
+    let timebase = feed.timebase.clone();
+    let clock = feed.clock.clone();
+    let startup = Arc::new(crate::recording_endpoint::InputStartup::new(
+        device.id().map(|id| id.host().name()).unwrap_or(""),
+    ));
+    let data_startup = startup.clone();
+    let stream = device
         .build_input_stream(
             *config,
-            move |data: &[T], info| feed.push(data, info),
-            move |error: cpal::Error| fault.report(error),
+            move |data: &[T], info| {
+                data_startup.received();
+                feed.push(data, info);
+            },
+            move |error: cpal::Error| startup.report(&fault, error),
             None,
         )
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+    timebase.initialize(&stream, &clock);
+    Ok(stream)
 }

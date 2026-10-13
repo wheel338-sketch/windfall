@@ -13,7 +13,7 @@
 //! of an idle endpoint ends a take with the ordinary missing-audio error
 //! instead of inventing silence at the wrong time.
 
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 
 use cpal::traits::{DeviceTrait, HostTrait};
 use cpal::{ErrorKind, SupportedStreamConfig, SupportedStreamConfigRange};
@@ -85,6 +85,37 @@ pub fn fault_of(kind: ErrorKind) -> Option<FaultReason> {
 /// it is one atomic exchange: safe from the driver's callback.
 #[derive(Debug, Default)]
 pub struct InputFault(AtomicU8);
+
+/// WASAPI's first packet can carry a discontinuity flag at a nonzero device
+/// position (especially loopback). CPAL 0.18 treats that as an xrun. There is
+/// no previous packet to lose at this boundary; every later xrun remains fatal.
+/// This state belongs to one stream, not a whole multitrack capture group.
+pub(crate) struct InputStartup {
+    wasapi: bool,
+    received: AtomicBool,
+}
+
+impl InputStartup {
+    pub fn new(host: &str) -> Self {
+        Self {
+            wasapi: host == "WASAPI",
+            received: AtomicBool::new(false),
+        }
+    }
+
+    pub fn received(&self) {
+        self.received.store(true, Ordering::Release);
+    }
+
+    pub fn report(&self, fault: &InputFault, error: cpal::Error) {
+        if self.wasapi && !self.received.load(Ordering::Acquire) && error.kind() == ErrorKind::Xrun
+        {
+            std::mem::forget(error);
+        } else {
+            fault.report(error);
+        }
+    }
+}
 
 impl InputFault {
     pub fn new() -> Self {
@@ -240,6 +271,23 @@ pub(crate) fn loopback_inputs(host: &cpal::Host) -> Vec<(String, SupportedStream
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_wasapi_discontinuity_before_the_first_packet_is_a_start_boundary() {
+        let startup = InputStartup::new("WASAPI");
+        let fault = InputFault::new();
+        startup.report(&fault, ErrorKind::Xrun.into());
+        assert_eq!(fault.reason(), None);
+        startup.received();
+        startup.report(&fault, ErrorKind::Xrun.into());
+        assert_eq!(fault.reason(), Some(FaultReason::Dropout));
+        let fault = InputFault::new();
+        InputStartup::new("ASIO").report(&fault, ErrorKind::Xrun.into());
+        assert_eq!(fault.reason(), Some(FaultReason::Dropout));
+        let fault = InputFault::new();
+        InputStartup::new("WASAPI").report(&fault, ErrorKind::DeviceNotAvailable.into());
+        assert_eq!(fault.reason(), Some(FaultReason::DeviceLost));
+    }
 
     #[test]
     fn a_loopback_name_round_trips_and_an_ordinary_name_is_not_one() {

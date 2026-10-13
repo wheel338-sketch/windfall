@@ -1,0 +1,4839 @@
+{
+  "actual": {
+    "bufferFrames": 480,
+    "bufferLatencyMs": 10.0,
+    "host": "WASAPI",
+    "outputChannels": 2,
+    "outputDevice": "Realtek Digital Output (Realtek(R) Audio)",
+    "processingLatencyFrames": 0,
+    "sampleRate": 48000
+  },
+  "arch": "x86_64",
+  "calibrated": {
+    "alignment": {
+      "driftPpm": 0.995,
+      "inputLatencyMs": 0.0,
+      "inputSampleRate": 48000,
+      "measuredTimestamps": true,
+      "outputLatencyMs": 31.852,
+      "trimmedFrames": 1251
+    },
+    "countInBars": 0,
+    "firstWrittenAtMs": 100,
+    "measurement": {
+      "bursts": [
+        {
+          "atSeconds": 0.25,
+          "index": 0,
+          "levelDb": -42.283,
+          "offsetFrames": -178.991,
+          "score": 0.929
+        },
+        {
+          "atSeconds": 0.75,
+          "index": 1,
+          "levelDb": -42.284,
+          "offsetFrames": -178.988,
+          "score": 0.937
+        },
+        {
+          "atSeconds": 1.25,
+          "index": 2,
+          "levelDb": -42.282,
+          "offsetFrames": -179.02,
+          "score": 0.965
+        },
+        {
+          "atSeconds": 1.75,
+          "index": 3,
+          "levelDb": -42.281,
+          "offsetFrames": -178.988,
+          "score": 0.937
+        },
+        {
+          "atSeconds": 2.25,
+          "index": 4,
+          "levelDb": -42.285,
+          "offsetFrames": -178.99,
+          "score": 0.932
+        },
+        {
+          "atSeconds": 2.75,
+          "index": 5,
+          "levelDb": -42.28,
+          "offsetFrames": -179.015,
+          "score": 0.945
+        },
+        {
+          "atSeconds": 3.25,
+          "index": 6,
+          "levelDb": -42.282,
+          "offsetFrames": -178.988,
+          "score": 0.936
+        },
+        {
+          "atSeconds": 3.75,
+          "index": 7,
+          "levelDb": -42.282,
+          "offsetFrames": -178.989,
+          "score": 0.933
+        },
+        {
+          "atSeconds": 4.25,
+          "index": 8,
+          "levelDb": -42.282,
+          "offsetFrames": -178.984,
+          "score": 0.95
+        },
+        {
+          "atSeconds": 4.75,
+          "index": 9,
+          "levelDb": -42.283,
+          "offsetFrames": -179.012,
+          "score": 0.937
+        },
+        {
+          "atSeconds": 5.25,
+          "index": 10,
+          "levelDb": -42.284,
+          "offsetFrames": -178.985,
+          "score": 0.947
+        },
+        {
+          "atSeconds": 5.75,
+          "index": 11,
+          "levelDb": -42.283,
+          "offsetFrames": -178.982,
+          "score": 0.956
+        },
+        {
+          "atSeconds": 6.25,
+          "index": 12,
+          "levelDb": -42.281,
+          "offsetFrames": -178.98,
+          "score": 0.962
+        },
+        {
+          "atSeconds": 6.75,
+          "index": 13,
+          "levelDb": -42.281,
+          "offsetFrames": -178.982,
+          "score": 0.954
+        },
+        {
+          "atSeconds": 7.25,
+          "index": 14,
+          "levelDb": -42.282,
+          "offsetFrames": -178.98,
+          "score": 0.963
+        },
+        {
+          "atSeconds": 7.75,
+          "index": 15,
+          "levelDb": -42.282,
+          "offsetFrames": -178.995,
+          "score": 0.917
+        },
+        {
+          "atSeconds": 8.25,
+          "index": 16,
+          "levelDb": -42.282,
+          "offsetFrames": -178.996,
+          "score": 0.914
+        },
+        {
+          "atSeconds": 8.75,
+          "index": 17,
+          "levelDb": -42.282,
+          "offsetFrames": -178.984,
+          "score": 0.967
+        },
+        {
+          "atSeconds": 9.25,
+          "index": 18,
+          "levelDb": -42.282,
+          "offsetFrames": -178.998,
+          "score": 0.969
+        },
+        {
+          "atSeconds": 9.75,
+          "index": 19,
+          "levelDb": -42.285,
+          "offsetFrames": -179.036,
+          "score": 0.84
+        },
+        {
+          "atSeconds": 10.25,
+          "index": 20,
+          "levelDb": -42.282,
+          "offsetFrames": -178.985,
+          "score": 0.945
+        },
+        {
+          "atSeconds": 10.75,
+          "index": 21,
+          "levelDb": -42.282,
+          "offsetFrames": -178.98,
+          "score": 0.965
+        },
+        {
+          "atSeconds": 11.25,
+          "index": 22,
+          "levelDb": -42.283,
+          "offsetFrames": -178.981,
+          "score": 0.96
+        },
+        {
+          "atSeconds": 11.75,
+          "index": 23,
+          "levelDb": -42.281,
+          "offsetFrames": -179.02,
+          "score": 0.965
+        }
+      ],
+      "detected": 24,
+      "driftPpm": -0.002,
+      "jitterMs": 0.0,
+      "maxStepMs": 0.001,
+      "missed": 0,
+      "offsetMaxMs": -3.729,
+      "offsetMeanFrames": -178.994,
+      "offsetMeanMs": -3.729,
+      "offsetMinMs": -3.73
+    },
+    "offsetMs": 4.543855024697652,
+    "openMs": 6,
+    "progress": [
+      {
+        "alignment": {
+          "driftPpm": 0.0,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": false,
+          "outputLatencyMs": 0.0,
+          "trimmedFrames": 0
+        },
+        "atMs": 0,
+        "countInRemaining": 1,
+        "cpuPeak": 0.019009999930858612,
+        "error": null,
+        "frames": 0,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.0,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 1235
+        },
+        "atMs": 100,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006399999838322401,
+        "error": null,
+        "frames": 3549,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.0,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1235
+        },
+        "atMs": 200,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007670000195503235,
+        "error": null,
+        "frames": 8349,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.0,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 32.02,
+          "trimmedFrames": 1235
+        },
+        "atMs": 300,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006149999797344208,
+        "error": null,
+        "frames": 13149,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.0,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1235
+        },
+        "atMs": 401,
+        "countInRemaining": 0,
+        "cpuPeak": 0.0059899999760091305,
+        "error": null,
+        "frames": 17949,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.0,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1234
+        },
+        "atMs": 501,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006639999803155661,
+        "error": null,
+        "frames": 22749,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.0,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1235
+        },
+        "atMs": 602,
+        "countInRemaining": 0,
+        "cpuPeak": 0.009990000165998936,
+        "error": null,
+        "frames": 27549,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.0,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.707,
+          "trimmedFrames": 1236
+        },
+        "atMs": 702,
+        "countInRemaining": 0,
+        "cpuPeak": 0.01107999961823225,
+        "error": null,
+        "frames": 32349,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.0,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.936,
+          "trimmedFrames": 1236
+        },
+        "atMs": 802,
+        "countInRemaining": 0,
+        "cpuPeak": 0.010820000432431698,
+        "error": null,
+        "frames": 37149,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.0,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1235
+        },
+        "atMs": 903,
+        "countInRemaining": 0,
+        "cpuPeak": 0.008460000157356262,
+        "error": null,
+        "frames": 41949,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.0,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1233
+        },
+        "atMs": 1003,
+        "countInRemaining": 0,
+        "cpuPeak": 0.00863999966531992,
+        "error": null,
+        "frames": 46749,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.552,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.915,
+          "trimmedFrames": 1234
+        },
+        "atMs": 1103,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007120000198483467,
+        "error": null,
+        "frames": 51549,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.516,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1235
+        },
+        "atMs": 1203,
+        "countInRemaining": 0,
+        "cpuPeak": 0.008290000259876251,
+        "error": null,
+        "frames": 56349,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.499,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1234
+        },
+        "atMs": 1303,
+        "countInRemaining": 0,
+        "cpuPeak": 0.00687999976798892,
+        "error": null,
+        "frames": 61150,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.442,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 32.02,
+          "trimmedFrames": 1235
+        },
+        "atMs": 1404,
+        "countInRemaining": 0,
+        "cpuPeak": 0.009840000420808792,
+        "error": null,
+        "frames": 65949,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.187,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1234
+        },
+        "atMs": 1505,
+        "countInRemaining": 0,
+        "cpuPeak": 0.0071000000461936,
+        "error": null,
+        "frames": 70749,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.285,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.936,
+          "trimmedFrames": 1235
+        },
+        "atMs": 1605,
+        "countInRemaining": 0,
+        "cpuPeak": 0.005940000060945749,
+        "error": null,
+        "frames": 75549,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.064,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1234
+        },
+        "atMs": 1705,
+        "countInRemaining": 0,
+        "cpuPeak": 0.0064500002190470695,
+        "error": null,
+        "frames": 80349,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.757,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.894,
+          "trimmedFrames": 1236
+        },
+        "atMs": 1805,
+        "countInRemaining": 0,
+        "cpuPeak": 0.010850000195205212,
+        "error": null,
+        "frames": 85149,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 3.391,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.894,
+          "trimmedFrames": 1237
+        },
+        "atMs": 1905,
+        "countInRemaining": 0,
+        "cpuPeak": 0.010780000127851963,
+        "error": null,
+        "frames": 89949,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 3.629,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1235
+        },
+        "atMs": 2006,
+        "countInRemaining": 0,
+        "cpuPeak": 0.011830000206828117,
+        "error": null,
+        "frames": 94749,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 2.737,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1232
+        },
+        "atMs": 2106,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006289999932050705,
+        "error": null,
+        "frames": 99549,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 2.319,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1233
+        },
+        "atMs": 2207,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007019999902695417,
+        "error": null,
+        "frames": 104349,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 2.256,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.914,
+          "trimmedFrames": 1233
+        },
+        "atMs": 2307,
+        "countInRemaining": 0,
+        "cpuPeak": 0.009630000218749046,
+        "error": null,
+        "frames": 109629,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.936,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.894,
+          "trimmedFrames": 1235
+        },
+        "atMs": 2408,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007369999773800373,
+        "error": null,
+        "frames": 113949,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.4,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1234
+        },
+        "atMs": 2508,
+        "countInRemaining": 0,
+        "cpuPeak": 0.005760000087320805,
+        "error": null,
+        "frames": 119230,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.511,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.873,
+          "trimmedFrames": 1234
+        },
+        "atMs": 2608,
+        "countInRemaining": 0,
+        "cpuPeak": 0.010280000045895576,
+        "error": null,
+        "frames": 124029,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.664,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1236
+        },
+        "atMs": 2709,
+        "countInRemaining": 0,
+        "cpuPeak": 0.010329999960958958,
+        "error": null,
+        "frames": 128829,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.186,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1234
+        },
+        "atMs": 2809,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006560000125318766,
+        "error": null,
+        "frames": 133630,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.257,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1234
+        },
+        "atMs": 2909,
+        "countInRemaining": 0,
+        "cpuPeak": 0.01075000036507845,
+        "error": null,
+        "frames": 138429,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.9,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.916,
+          "trimmedFrames": 1232
+        },
+        "atMs": 3010,
+        "countInRemaining": 0,
+        "cpuPeak": 0.0081599997356534,
+        "error": null,
+        "frames": 143229,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.646,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 1232
+        },
+        "atMs": 3110,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007519999984651804,
+        "error": null,
+        "frames": 148029,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.501,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1233
+        },
+        "atMs": 3211,
+        "countInRemaining": 0,
+        "cpuPeak": 0.005909999832510948,
+        "error": null,
+        "frames": 152829,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.852,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1236
+        },
+        "atMs": 3311,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007569999899715185,
+        "error": null,
+        "frames": 157629,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.45,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1233
+        },
+        "atMs": 3411,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007000000216066837,
+        "error": null,
+        "frames": 162429,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.689,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.915,
+          "trimmedFrames": 1237
+        },
+        "atMs": 3511,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007679999805986881,
+        "error": null,
+        "frames": 167229,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.284,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 1232
+        },
+        "atMs": 3611,
+        "countInRemaining": 0,
+        "cpuPeak": 0.008799999952316284,
+        "error": null,
+        "frames": 172029,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.177,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1235
+        },
+        "atMs": 3711,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007710000034421682,
+        "error": null,
+        "frames": 176830,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.236,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.979,
+          "trimmedFrames": 1235
+        },
+        "atMs": 3812,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006060000043362379,
+        "error": null,
+        "frames": 181629,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.535,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1239
+        },
+        "atMs": 3912,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007960000075399876,
+        "error": null,
+        "frames": 186429,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.653,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.958,
+          "trimmedFrames": 1235
+        },
+        "atMs": 4013,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006829999852925539,
+        "error": null,
+        "frames": 191229,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.602,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1233
+        },
+        "atMs": 4113,
+        "countInRemaining": 0,
+        "cpuPeak": 0.005969999823719263,
+        "error": null,
+        "frames": 196029,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.676,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1234
+        },
+        "atMs": 4213,
+        "countInRemaining": 0,
+        "cpuPeak": 0.005900000222027302,
+        "error": null,
+        "frames": 200829,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.732,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1234
+        },
+        "atMs": 4314,
+        "countInRemaining": 0,
+        "cpuPeak": 0.005890000145882368,
+        "error": null,
+        "frames": 205629,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.422,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 1232
+        },
+        "atMs": 4414,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007329999934881926,
+        "error": null,
+        "frames": 210429,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.036,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.852,
+          "trimmedFrames": 1243
+        },
+        "atMs": 4514,
+        "countInRemaining": 0,
+        "cpuPeak": 0.011350000277161598,
+        "error": null,
+        "frames": 215229,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.626,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.894,
+          "trimmedFrames": 1242
+        },
+        "atMs": 4615,
+        "countInRemaining": 0,
+        "cpuPeak": 0.011789999902248383,
+        "error": null,
+        "frames": 220029,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.725,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1235
+        },
+        "atMs": 4715,
+        "countInRemaining": 0,
+        "cpuPeak": 0.011269999668002129,
+        "error": null,
+        "frames": 224830,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.202,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.894,
+          "trimmedFrames": 1231
+        },
+        "atMs": 4815,
+        "countInRemaining": 0,
+        "cpuPeak": 0.009469999931752682,
+        "error": null,
+        "frames": 229630,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.447,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.873,
+          "trimmedFrames": 1234
+        },
+        "atMs": 4915,
+        "countInRemaining": 0,
+        "cpuPeak": 0.014829999767243862,
+        "error": null,
+        "frames": 234429,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.108,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1230
+        },
+        "atMs": 5016,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006850000005215406,
+        "error": null,
+        "frames": 239229,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.241,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.936,
+          "trimmedFrames": 1233
+        },
+        "atMs": 5116,
+        "countInRemaining": 0,
+        "cpuPeak": 0.013059999793767929,
+        "error": null,
+        "frames": 244029,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.103,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1234
+        },
+        "atMs": 5216,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007149999961256981,
+        "error": null,
+        "frames": 248829,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.921,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 32.02,
+          "trimmedFrames": 1231
+        },
+        "atMs": 5316,
+        "countInRemaining": 0,
+        "cpuPeak": 0.00610999995842576,
+        "error": null,
+        "frames": 253629,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.879,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1230
+        },
+        "atMs": 5417,
+        "countInRemaining": 0,
+        "cpuPeak": 0.005059999879449606,
+        "error": null,
+        "frames": 258429,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.916,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.916,
+          "trimmedFrames": 1234
+        },
+        "atMs": 5517,
+        "countInRemaining": 0,
+        "cpuPeak": 0.00634999992325902,
+        "error": null,
+        "frames": 263229,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.681,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1231
+        },
+        "atMs": 5618,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006680000107735395,
+        "error": null,
+        "frames": 268509,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.492,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1234
+        },
+        "atMs": 5718,
+        "countInRemaining": 0,
+        "cpuPeak": 0.0071000000461936,
+        "error": null,
+        "frames": 273309,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.704,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.937,
+          "trimmedFrames": 1242
+        },
+        "atMs": 5818,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006899999920278788,
+        "error": null,
+        "frames": 278109,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.607,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.936,
+          "trimmedFrames": 1240
+        },
+        "atMs": 5919,
+        "countInRemaining": 0,
+        "cpuPeak": 0.008379999548196793,
+        "error": null,
+        "frames": 282430,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.545,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1235
+        },
+        "atMs": 6019,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006320000160485506,
+        "error": null,
+        "frames": 287710,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.541,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.937,
+          "trimmedFrames": 1234
+        },
+        "atMs": 6119,
+        "countInRemaining": 0,
+        "cpuPeak": 0.00791999977082014,
+        "error": null,
+        "frames": 292510,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.575,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.977,
+          "trimmedFrames": 1234
+        },
+        "atMs": 6219,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007340000011026859,
+        "error": null,
+        "frames": 297310,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.513,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.936,
+          "trimmedFrames": 1230
+        },
+        "atMs": 6319,
+        "countInRemaining": 0,
+        "cpuPeak": 0.0071000000461936,
+        "error": null,
+        "frames": 302109,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.816,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.936,
+          "trimmedFrames": 1239
+        },
+        "atMs": 6420,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006409999914467335,
+        "error": null,
+        "frames": 306909,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.623,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 32.0,
+          "trimmedFrames": 1234
+        },
+        "atMs": 6520,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006149999797344208,
+        "error": null,
+        "frames": 311710,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.555,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1230
+        },
+        "atMs": 6620,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007319999858736992,
+        "error": null,
+        "frames": 316509,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.695,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1233
+        },
+        "atMs": 6721,
+        "countInRemaining": 0,
+        "cpuPeak": 0.009359999559819698,
+        "error": null,
+        "frames": 321309,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.829,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1241
+        },
+        "atMs": 6821,
+        "countInRemaining": 0,
+        "cpuPeak": 0.00848000030964613,
+        "error": null,
+        "frames": 326110,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.679,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 32.02,
+          "trimmedFrames": 1235
+        },
+        "atMs": 6921,
+        "countInRemaining": 0,
+        "cpuPeak": 0.008949999697506428,
+        "error": null,
+        "frames": 330910,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.683,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1233
+        },
+        "atMs": 7021,
+        "countInRemaining": 0,
+        "cpuPeak": 0.009580000303685665,
+        "error": null,
+        "frames": 335709,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.926,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 1238
+        },
+        "atMs": 7122,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006409999914467335,
+        "error": null,
+        "frames": 340509,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.022,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.977,
+          "trimmedFrames": 1235
+        },
+        "atMs": 7222,
+        "countInRemaining": 0,
+        "cpuPeak": 0.009909999556839466,
+        "error": null,
+        "frames": 345309,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.864,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1232
+        },
+        "atMs": 7322,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007439999841153622,
+        "error": null,
+        "frames": 350109,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.769,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.916,
+          "trimmedFrames": 1232
+        },
+        "atMs": 7423,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007980000227689743,
+        "error": null,
+        "frames": 354909,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.604,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 32.0,
+          "trimmedFrames": 1227
+        },
+        "atMs": 7523,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007340000011026859,
+        "error": null,
+        "frames": 359709,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.561,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1234
+        },
+        "atMs": 7623,
+        "countInRemaining": 0,
+        "cpuPeak": 0.008369999937713146,
+        "error": null,
+        "frames": 364509,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.696,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1241
+        },
+        "atMs": 7723,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007110000122338533,
+        "error": null,
+        "frames": 369309,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.817,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1239
+        },
+        "atMs": 7824,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006440000142902136,
+        "error": null,
+        "frames": 374109,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.774,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.935,
+          "trimmedFrames": 1237
+        },
+        "atMs": 7924,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006579999811947346,
+        "error": null,
+        "frames": 378909,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.795,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1234
+        },
+        "atMs": 8024,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006479999981820583,
+        "error": null,
+        "frames": 383709,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.626,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1234
+        },
+        "atMs": 8125,
+        "countInRemaining": 0,
+        "cpuPeak": 0.008379999548196793,
+        "error": null,
+        "frames": 388509,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.484,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1227
+        },
+        "atMs": 8225,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006200000178068876,
+        "error": null,
+        "frames": 393309,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.608,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 1234
+        },
+        "atMs": 8325,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006430000066757202,
+        "error": null,
+        "frames": 398109,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.443,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1225
+        },
+        "atMs": 8426,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006099999882280827,
+        "error": null,
+        "frames": 402909,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.523,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1236
+        },
+        "atMs": 8526,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007939999923110008,
+        "error": null,
+        "frames": 407709,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.557,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 32.0,
+          "trimmedFrames": 1236
+        },
+        "atMs": 8626,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007259999867528677,
+        "error": null,
+        "frames": 412509,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.598,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.958,
+          "trimmedFrames": 1239
+        },
+        "atMs": 8727,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007019999902695417,
+        "error": null,
+        "frames": 417309,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.484,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 1233
+        },
+        "atMs": 8827,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007029999978840351,
+        "error": null,
+        "frames": 422110,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.516,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 1238
+        },
+        "atMs": 8927,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006599999964237213,
+        "error": null,
+        "frames": 426910,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.61,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1232
+        },
+        "atMs": 9027,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006459999829530716,
+        "error": null,
+        "frames": 431709,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.52,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1231
+        },
+        "atMs": 9127,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006029999814927578,
+        "error": null,
+        "frames": 436509,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.467,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1232
+        },
+        "atMs": 9228,
+        "countInRemaining": 0,
+        "cpuPeak": 0.009019999764859676,
+        "error": null,
+        "frames": 441309,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.432,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1234
+        },
+        "atMs": 9328,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006769999861717224,
+        "error": null,
+        "frames": 446589,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.514,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1235
+        },
+        "atMs": 9428,
+        "countInRemaining": 0,
+        "cpuPeak": 0.0057299998588860035,
+        "error": null,
+        "frames": 451389,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.621,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.935,
+          "trimmedFrames": 1239
+        },
+        "atMs": 9529,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007199999876320362,
+        "error": null,
+        "frames": 456189,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.842,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 32.02,
+          "trimmedFrames": 1239
+        },
+        "atMs": 9629,
+        "countInRemaining": 0,
+        "cpuPeak": 0.0066200001165270805,
+        "error": null,
+        "frames": 460989,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.584,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.977,
+          "trimmedFrames": 1222
+        },
+        "atMs": 9729,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006120000034570694,
+        "error": null,
+        "frames": 465789,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.631,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.935,
+          "trimmedFrames": 1226
+        },
+        "atMs": 9829,
+        "countInRemaining": 0,
+        "cpuPeak": 0.010409999638795853,
+        "error": null,
+        "frames": 470589,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.029,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.915,
+          "trimmedFrames": 1247
+        },
+        "atMs": 9930,
+        "countInRemaining": 0,
+        "cpuPeak": 0.010619999840855598,
+        "error": null,
+        "frames": 475389,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.237,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 1248
+        },
+        "atMs": 10030,
+        "countInRemaining": 0,
+        "cpuPeak": 0.011090000160038471,
+        "error": null,
+        "frames": 480189,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.176,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1237
+        },
+        "atMs": 10130,
+        "countInRemaining": 0,
+        "cpuPeak": 0.010590000078082085,
+        "error": null,
+        "frames": 484990,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.925,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.936,
+          "trimmedFrames": 1221
+        },
+        "atMs": 10230,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006479999981820583,
+        "error": null,
+        "frames": 489789,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.801,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1227
+        },
+        "atMs": 10331,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006149999797344208,
+        "error": null,
+        "frames": 494589,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.776,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.979,
+          "trimmedFrames": 1235
+        },
+        "atMs": 10431,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006169999949634075,
+        "error": null,
+        "frames": 499389,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.823,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1243
+        },
+        "atMs": 10532,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006029999814927578,
+        "error": null,
+        "frames": 504190,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.767,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.958,
+          "trimmedFrames": 1239
+        },
+        "atMs": 10632,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006029999814927578,
+        "error": null,
+        "frames": 508990,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.793,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1235
+        },
+        "atMs": 10732,
+        "countInRemaining": 0,
+        "cpuPeak": 0.0062500000931322575,
+        "error": null,
+        "frames": 513789,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.864,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1236
+        },
+        "atMs": 10833,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007670000195503235,
+        "error": null,
+        "frames": 518589,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.846,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.958,
+          "trimmedFrames": 1235
+        },
+        "atMs": 10933,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007170000113546848,
+        "error": null,
+        "frames": 523390,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.769,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.937,
+          "trimmedFrames": 1222
+        },
+        "atMs": 11034,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006779999937862158,
+        "error": null,
+        "frames": 528189,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.793,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.937,
+          "trimmedFrames": 1238
+        },
+        "atMs": 11134,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006850000005215406,
+        "error": null,
+        "frames": 532990,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.785,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.937,
+          "trimmedFrames": 1234
+        },
+        "atMs": 11234,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006570000201463699,
+        "error": null,
+        "frames": 537789,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.846,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1233
+        },
+        "atMs": 11334,
+        "countInRemaining": 0,
+        "cpuPeak": 0.0065100002102553844,
+        "error": null,
+        "frames": 542589,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.839,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1241
+        },
+        "atMs": 11434,
+        "countInRemaining": 0,
+        "cpuPeak": 0.00674000009894371,
+        "error": null,
+        "frames": 547390,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.875,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.937,
+          "trimmedFrames": 1242
+        },
+        "atMs": 11535,
+        "countInRemaining": 0,
+        "cpuPeak": 0.0052999998442828655,
+        "error": null,
+        "frames": 552190,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.867,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1241
+        },
+        "atMs": 11635,
+        "countInRemaining": 0,
+        "cpuPeak": 0.005309999920427799,
+        "error": null,
+        "frames": 556990,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.849,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1235
+        },
+        "atMs": 11736,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007660000119358301,
+        "error": null,
+        "frames": 561790,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.736,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1220
+        },
+        "atMs": 11836,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007579999975860119,
+        "error": null,
+        "frames": 566589,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.681,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.893,
+          "trimmedFrames": 1226
+        },
+        "atMs": 11936,
+        "countInRemaining": 0,
+        "cpuPeak": 0.01092000026255846,
+        "error": null,
+        "frames": 571389,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.995,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.852,
+          "trimmedFrames": 1251
+        },
+        "atMs": 12037,
+        "countInRemaining": 0,
+        "cpuPeak": 0.010879999957978725,
+        "error": null,
+        "frames": 576189,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      }
+    ],
+    "stopMs": 26,
+    "takeChannels": 2,
+    "takeFrames": 576189,
+    "takeSampleRate": 48000,
+    "takeStartTick": 0,
+    "transportRestored": true,
+    "xrunsDuringTake": 0
+  },
+  "checks": [
+    {
+      "check": "every burst is found in the take",
+      "passed": true
+    },
+    {
+      "check": "the bursts keep their spacing: jitter at most 1 ms",
+      "passed": false
+    },
+    {
+      "check": "no dropped or repeated block: no step over 1 ms between bursts",
+      "passed": false
+    },
+    {
+      "check": "residual drift within 50 ppm",
+      "passed": false
+    },
+    {
+      "check": "the systematic offset is within the manual offset's range",
+      "passed": true
+    },
+    {
+      "check": "stopping restores the transport and the region",
+      "passed": true
+    },
+    {
+      "check": "undo removes the kept take's clip",
+      "passed": true
+    },
+    {
+      "check": "redo restores it",
+      "passed": true
+    },
+    {
+      "check": "with the measured offset applied the bursts land within 1 ms",
+      "passed": false
+    }
+  ],
+  "commit": "469be35c274f4e3d3dd47b6163f9da9609ed1c4e",
+  "inputDevice": "Loopback: Realtek Digital Output (Realtek(R) Audio)",
+  "label": "realtek-serial",
+  "os": "windows",
+  "osVersion": "Microsoft Windows [Version 10.0.26300.9550]",
+  "passed": false,
+  "profile": "dev",
+  "raw": {
+    "alignment": {
+      "driftPpm": 0.907,
+      "inputLatencyMs": 0.0,
+      "inputSampleRate": 48000,
+      "measuredTimestamps": true,
+      "outputLatencyMs": 31.999,
+      "trimmedFrames": 1019
+    },
+    "countInBars": 0,
+    "firstWrittenAtMs": 100,
+    "measurement": {
+      "bursts": [
+        {
+          "atSeconds": 0.25,
+          "index": 0,
+          "levelDb": -42.289,
+          "offsetFrames": 903.995,
+          "score": 0.918
+        },
+        {
+          "atSeconds": 0.75,
+          "index": 1,
+          "levelDb": -42.294,
+          "offsetFrames": 844.064,
+          "score": 0.803
+        },
+        {
+          "atSeconds": 1.25,
+          "index": 2,
+          "levelDb": -42.295,
+          "offsetFrames": 766.01,
+          "score": 0.925
+        },
+        {
+          "atSeconds": 1.75,
+          "index": 3,
+          "levelDb": -42.297,
+          "offsetFrames": 673.009,
+          "score": 0.884
+        },
+        {
+          "atSeconds": 2.25,
+          "index": 4,
+          "levelDb": -42.301,
+          "offsetFrames": 569.138,
+          "score": 0.732
+        },
+        {
+          "atSeconds": 2.75,
+          "index": 5,
+          "levelDb": -42.304,
+          "offsetFrames": 456.784,
+          "score": 0.681
+        },
+        {
+          "atSeconds": 3.25,
+          "index": 6,
+          "levelDb": -42.304,
+          "offsetFrames": 336.979,
+          "score": 0.857
+        },
+        {
+          "atSeconds": 3.75,
+          "index": 7,
+          "levelDb": -42.306,
+          "offsetFrames": 212.66,
+          "score": 0.632
+        },
+        {
+          "atSeconds": 4.25,
+          "index": 8,
+          "levelDb": -42.307,
+          "offsetFrames": 83.965,
+          "score": 0.832
+        },
+        {
+          "atSeconds": 4.75,
+          "index": 9,
+          "levelDb": -42.295,
+          "offsetFrames": -3.981,
+          "score": 0.953
+        },
+        {
+          "atSeconds": 5.25,
+          "index": 10,
+          "levelDb": -42.285,
+          "offsetFrames": -33.011,
+          "score": 0.934
+        },
+        {
+          "atSeconds": 5.75,
+          "index": 11,
+          "levelDb": -42.284,
+          "offsetFrames": -22.993,
+          "score": 0.923
+        },
+        {
+          "atSeconds": 6.25,
+          "index": 12,
+          "levelDb": -42.274,
+          "offsetFrames": 16.0,
+          "score": 0.907
+        },
+        {
+          "atSeconds": 6.75,
+          "index": 13,
+          "levelDb": -42.279,
+          "offsetFrames": 42.018,
+          "score": 0.869
+        },
+        {
+          "atSeconds": 7.25,
+          "index": 14,
+          "levelDb": -42.282,
+          "offsetFrames": 39.013,
+          "score": 0.968
+        },
+        {
+          "atSeconds": 7.75,
+          "index": 15,
+          "levelDb": -42.281,
+          "offsetFrames": 39.011,
+          "score": 0.934
+        },
+        {
+          "atSeconds": 8.25,
+          "index": 16,
+          "levelDb": -42.283,
+          "offsetFrames": 38.981,
+          "score": 0.96
+        },
+        {
+          "atSeconds": 8.75,
+          "index": 17,
+          "levelDb": -42.282,
+          "offsetFrames": 38.981,
+          "score": 0.96
+        },
+        {
+          "atSeconds": 9.25,
+          "index": 18,
+          "levelDb": -42.283,
+          "offsetFrames": 38.984,
+          "score": 0.949
+        },
+        {
+          "atSeconds": 9.75,
+          "index": 19,
+          "levelDb": -42.282,
+          "offsetFrames": 38.986,
+          "score": 0.941
+        },
+        {
+          "atSeconds": 10.25,
+          "index": 20,
+          "levelDb": -42.282,
+          "offsetFrames": 38.983,
+          "score": 0.951
+        },
+        {
+          "atSeconds": 10.75,
+          "index": 21,
+          "levelDb": -42.283,
+          "offsetFrames": 38.98,
+          "score": 0.964
+        },
+        {
+          "atSeconds": 11.25,
+          "index": 22,
+          "levelDb": -42.284,
+          "offsetFrames": 38.985,
+          "score": 0.968
+        },
+        {
+          "atSeconds": 11.75,
+          "index": 23,
+          "levelDb": -42.282,
+          "offsetFrames": 38.98,
+          "score": 0.963
+        }
+      ],
+      "detected": 24,
+      "driftPpm": -1439.391,
+      "jitterMs": 3.738,
+      "maxStepMs": 2.681,
+      "missed": 0,
+      "offsetMaxMs": 18.833,
+      "offsetMeanFrames": 218.105,
+      "offsetMeanMs": 4.544,
+      "offsetMinMs": -0.688
+    },
+    "offsetMs": 0.0,
+    "openMs": 6,
+    "progress": [
+      {
+        "alignment": {
+          "driftPpm": 0.0,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": false,
+          "outputLatencyMs": 0.0,
+          "trimmedFrames": 0
+        },
+        "atMs": 0,
+        "countInRemaining": 1,
+        "cpuPeak": 0.007069999817758799,
+        "error": null,
+        "frames": 0,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.0,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 132
+        },
+        "atMs": 100,
+        "countInRemaining": 0,
+        "cpuPeak": 0.011020000092685223,
+        "error": null,
+        "frames": 4648,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.0,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 136
+        },
+        "atMs": 200,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006120000034570694,
+        "error": null,
+        "frames": 9440,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.0,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 138
+        },
+        "atMs": 301,
+        "countInRemaining": 0,
+        "cpuPeak": 0.009750000201165676,
+        "error": null,
+        "frames": 14230,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.0,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.937,
+          "trimmedFrames": 140
+        },
+        "atMs": 401,
+        "countInRemaining": 0,
+        "cpuPeak": 0.005830000154674053,
+        "error": null,
+        "frames": 19020,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.0,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 141
+        },
+        "atMs": 501,
+        "countInRemaining": 0,
+        "cpuPeak": 0.0062500000931322575,
+        "error": null,
+        "frames": 23808,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.0,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 141
+        },
+        "atMs": 602,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006049999967217445,
+        "error": null,
+        "frames": 28596,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.0,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.956,
+          "trimmedFrames": 141
+        },
+        "atMs": 702,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006279999855905771,
+        "error": null,
+        "frames": 33383,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.0,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 140
+        },
+        "atMs": 802,
+        "countInRemaining": 0,
+        "cpuPeak": 0.0067900000140070915,
+        "error": null,
+        "frames": 38169,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.0,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 139
+        },
+        "atMs": 902,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007040000054985285,
+        "error": null,
+        "frames": 42955,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.0,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.958,
+          "trimmedFrames": 137
+        },
+        "atMs": 1003,
+        "countInRemaining": 0,
+        "cpuPeak": 0.005799999926239252,
+        "error": null,
+        "frames": 47740,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.414,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 135
+        },
+        "atMs": 1103,
+        "countInRemaining": 0,
+        "cpuPeak": 0.008999999612569809,
+        "error": null,
+        "frames": 52524,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 2.242,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 133
+        },
+        "atMs": 1203,
+        "countInRemaining": 0,
+        "cpuPeak": 0.0067900000140070915,
+        "error": null,
+        "frames": 57307,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 2.197,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 130
+        },
+        "atMs": 1303,
+        "countInRemaining": 0,
+        "cpuPeak": 0.008860000409185886,
+        "error": null,
+        "frames": 62569,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 2.469,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 128
+        },
+        "atMs": 1404,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006769999861717224,
+        "error": null,
+        "frames": 66873,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 2.223,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.936,
+          "trimmedFrames": 125
+        },
+        "atMs": 1504,
+        "countInRemaining": 0,
+        "cpuPeak": 0.008290000259876251,
+        "error": null,
+        "frames": 71654,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 2.9,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.936,
+          "trimmedFrames": 122
+        },
+        "atMs": 1604,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006310000084340572,
+        "error": null,
+        "frames": 76435,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.701,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 118
+        },
+        "atMs": 1705,
+        "countInRemaining": 0,
+        "cpuPeak": 0.005890000145882368,
+        "error": null,
+        "frames": 81695,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.517,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 115
+        },
+        "atMs": 1805,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006039999891072512,
+        "error": null,
+        "frames": 86475,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 2.103,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 112
+        },
+        "atMs": 1905,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006300000008195639,
+        "error": null,
+        "frames": 90777,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 2.122,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 109
+        },
+        "atMs": 2006,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006639999803155661,
+        "error": null,
+        "frames": 96034,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.8,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 106
+        },
+        "atMs": 2106,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006670000031590462,
+        "error": null,
+        "frames": 100813,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 2.081,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 103
+        },
+        "atMs": 2206,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006909999996423721,
+        "error": null,
+        "frames": 105592,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.306,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 99
+        },
+        "atMs": 2306,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006169999949634075,
+        "error": null,
+        "frames": 110370,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.66,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 96
+        },
+        "atMs": 2407,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007120000198483467,
+        "error": null,
+        "frames": 115148,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 2.633,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.935,
+          "trimmedFrames": 93
+        },
+        "atMs": 2507,
+        "countInRemaining": 0,
+        "cpuPeak": 0.011029999703168869,
+        "error": null,
+        "frames": 119926,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 2.655,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 90
+        },
+        "atMs": 2607,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006289999932050705,
+        "error": null,
+        "frames": 124703,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 2.529,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.936,
+          "trimmedFrames": 87
+        },
+        "atMs": 2708,
+        "countInRemaining": 0,
+        "cpuPeak": 0.009510000236332417,
+        "error": null,
+        "frames": 129480,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 2.223,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.894,
+          "trimmedFrames": 85
+        },
+        "atMs": 2808,
+        "countInRemaining": 0,
+        "cpuPeak": 0.00989999994635582,
+        "error": null,
+        "frames": 134257,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 2.274,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.936,
+          "trimmedFrames": 82
+        },
+        "atMs": 2908,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007180000189691782,
+        "error": null,
+        "frames": 139033,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 2.427,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 80
+        },
+        "atMs": 3008,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007790000177919865,
+        "error": null,
+        "frames": 143810,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 2.38,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 77
+        },
+        "atMs": 3109,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006599999964237213,
+        "error": null,
+        "frames": 148586,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 2.699,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.915,
+          "trimmedFrames": 75
+        },
+        "atMs": 3209,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007639999967068434,
+        "error": null,
+        "frames": 153361,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 3.108,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.936,
+          "trimmedFrames": 73
+        },
+        "atMs": 3309,
+        "countInRemaining": 0,
+        "cpuPeak": 0.008170000277459621,
+        "error": null,
+        "frames": 158137,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 3.605,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.874,
+          "trimmedFrames": 71
+        },
+        "atMs": 3410,
+        "countInRemaining": 0,
+        "cpuPeak": 0.011169999837875366,
+        "error": null,
+        "frames": 162912,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 4.096,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.894,
+          "trimmedFrames": 69
+        },
+        "atMs": 3510,
+        "countInRemaining": 0,
+        "cpuPeak": 0.011789999902248383,
+        "error": null,
+        "frames": 167687,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 4.66,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.873,
+          "trimmedFrames": 67
+        },
+        "atMs": 3610,
+        "countInRemaining": 0,
+        "cpuPeak": 0.011049999855458736,
+        "error": null,
+        "frames": 172462,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 4.194,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 65
+        },
+        "atMs": 3711,
+        "countInRemaining": 0,
+        "cpuPeak": 0.008949999697506428,
+        "error": null,
+        "frames": 177237,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 2.837,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 64
+        },
+        "atMs": 3812,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006500000134110451,
+        "error": null,
+        "frames": 182012,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 2.091,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 63
+        },
+        "atMs": 3912,
+        "countInRemaining": 0,
+        "cpuPeak": 0.008310000412166119,
+        "error": null,
+        "frames": 186787,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.622,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 62
+        },
+        "atMs": 4012,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006599999964237213,
+        "error": null,
+        "frames": 191561,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 2.065,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 61
+        },
+        "atMs": 4113,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006380000151693821,
+        "error": null,
+        "frames": 196335,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.545,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 60
+        },
+        "atMs": 4213,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007350000087171793,
+        "error": null,
+        "frames": 201109,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.437,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 59
+        },
+        "atMs": 4313,
+        "countInRemaining": 0,
+        "cpuPeak": 0.005880000069737434,
+        "error": null,
+        "frames": 205883,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.366,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 59
+        },
+        "atMs": 4414,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007799999788403511,
+        "error": null,
+        "frames": 210657,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.187,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 131
+        },
+        "atMs": 4514,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007240000180900097,
+        "error": null,
+        "frames": 215917,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.294,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 224
+        },
+        "atMs": 4614,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007770000025629997,
+        "error": null,
+        "frames": 220223,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.247,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.916,
+          "trimmedFrames": 305
+        },
+        "atMs": 4714,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006029999814927578,
+        "error": null,
+        "frames": 225011,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.025,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.936,
+          "trimmedFrames": 402
+        },
+        "atMs": 4815,
+        "countInRemaining": 0,
+        "cpuPeak": 0.0064500002190470695,
+        "error": null,
+        "frames": 230280,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.965,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 487
+        },
+        "atMs": 4915,
+        "countInRemaining": 0,
+        "cpuPeak": 0.005979999899864197,
+        "error": null,
+        "frames": 235071,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.923,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.915,
+          "trimmedFrames": 570
+        },
+        "atMs": 5015,
+        "countInRemaining": 0,
+        "cpuPeak": 0.009139999747276306,
+        "error": null,
+        "frames": 239865,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.242,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 650
+        },
+        "atMs": 5116,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007379999849945307,
+        "error": null,
+        "frames": 244660,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.625,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 727
+        },
+        "atMs": 5216,
+        "countInRemaining": 0,
+        "cpuPeak": 0.0075599998235702515,
+        "error": null,
+        "frames": 249456,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.522,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 802
+        },
+        "atMs": 5316,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006769999861717224,
+        "error": null,
+        "frames": 254255,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.371,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 874
+        },
+        "atMs": 5417,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007029999978840351,
+        "error": null,
+        "frames": 259055,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.038,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 944
+        },
+        "atMs": 5517,
+        "countInRemaining": 0,
+        "cpuPeak": 0.00610999995842576,
+        "error": null,
+        "frames": 263856,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.261,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.936,
+          "trimmedFrames": 1012
+        },
+        "atMs": 5617,
+        "countInRemaining": 0,
+        "cpuPeak": 0.010850000195205212,
+        "error": null,
+        "frames": 268658,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.479,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.936,
+          "trimmedFrames": 1077
+        },
+        "atMs": 5718,
+        "countInRemaining": 0,
+        "cpuPeak": 0.0065899998880922794,
+        "error": null,
+        "frames": 273462,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.235,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1140
+        },
+        "atMs": 5818,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006779999937862158,
+        "error": null,
+        "frames": 278268,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.391,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.874,
+          "trimmedFrames": 1201
+        },
+        "atMs": 5918,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006140000186860561,
+        "error": null,
+        "frames": 283074,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.319,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 1260
+        },
+        "atMs": 6018,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006169999949634075,
+        "error": null,
+        "frames": 287881,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.316,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1316
+        },
+        "atMs": 6119,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006719999946653843,
+        "error": null,
+        "frames": 292690,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.273,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.935,
+          "trimmedFrames": 1371
+        },
+        "atMs": 6219,
+        "countInRemaining": 0,
+        "cpuPeak": 0.008679999969899654,
+        "error": null,
+        "frames": 297499,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.416,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.936,
+          "trimmedFrames": 1423
+        },
+        "atMs": 6319,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007300000172108412,
+        "error": null,
+        "frames": 302309,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.397,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.916,
+          "trimmedFrames": 1474
+        },
+        "atMs": 6419,
+        "countInRemaining": 0,
+        "cpuPeak": 0.00610999995842576,
+        "error": null,
+        "frames": 307121,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.098,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1471
+        },
+        "atMs": 6520,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006300000008195639,
+        "error": null,
+        "frames": 311929,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.03,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.936,
+          "trimmedFrames": 1376
+        },
+        "atMs": 6621,
+        "countInRemaining": 0,
+        "cpuPeak": 0.005739999935030937,
+        "error": null,
+        "frames": 316731,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.925,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 1285
+        },
+        "atMs": 6721,
+        "countInRemaining": 0,
+        "cpuPeak": 0.008030000142753124,
+        "error": null,
+        "frames": 321532,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.121,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 1196
+        },
+        "atMs": 6821,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006399999838322401,
+        "error": null,
+        "frames": 326331,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.144,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1112
+        },
+        "atMs": 6922,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006399999838322401,
+        "error": null,
+        "frames": 331130,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.28,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 1053
+        },
+        "atMs": 7022,
+        "countInRemaining": 0,
+        "cpuPeak": 0.009150000289082527,
+        "error": null,
+        "frames": 335929,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.349,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1015
+        },
+        "atMs": 7122,
+        "countInRemaining": 0,
+        "cpuPeak": 0.0065899998880922794,
+        "error": null,
+        "frames": 340728,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.144,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.998,
+          "trimmedFrames": 998
+        },
+        "atMs": 7222,
+        "countInRemaining": 0,
+        "cpuPeak": 0.00610999995842576,
+        "error": null,
+        "frames": 345528,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.123,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1002
+        },
+        "atMs": 7323,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006089999806135893,
+        "error": null,
+        "frames": 350327,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.139,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1007
+        },
+        "atMs": 7423,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007300000172108412,
+        "error": null,
+        "frames": 355127,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.11,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1012
+        },
+        "atMs": 7523,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007060000207275152,
+        "error": null,
+        "frames": 359927,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.173,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 1018
+        },
+        "atMs": 7624,
+        "countInRemaining": 0,
+        "cpuPeak": 0.009639999829232693,
+        "error": null,
+        "frames": 365207,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.142,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1011
+        },
+        "atMs": 7724,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006730000022798777,
+        "error": null,
+        "frames": 370007,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.212,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.936,
+          "trimmedFrames": 1019
+        },
+        "atMs": 7824,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007420000154525042,
+        "error": null,
+        "frames": 374807,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.259,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1019
+        },
+        "atMs": 7925,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006310000084340572,
+        "error": null,
+        "frames": 379128,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.256,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1020
+        },
+        "atMs": 8025,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006750000175088644,
+        "error": null,
+        "frames": 384408,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.234,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 1014
+        },
+        "atMs": 8125,
+        "countInRemaining": 0,
+        "cpuPeak": 0.009109999984502792,
+        "error": null,
+        "frames": 389208,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.17,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 1018
+        },
+        "atMs": 8225,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006219999864697456,
+        "error": null,
+        "frames": 393528,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.157,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 32.02,
+          "trimmedFrames": 1012
+        },
+        "atMs": 8326,
+        "countInRemaining": 0,
+        "cpuPeak": 0.005450000055134296,
+        "error": null,
+        "frames": 398807,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.161,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.998,
+          "trimmedFrames": 1014
+        },
+        "atMs": 8426,
+        "countInRemaining": 0,
+        "cpuPeak": 0.005539999809116125,
+        "error": null,
+        "frames": 403608,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.14,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1013
+        },
+        "atMs": 8526,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006209999788552523,
+        "error": null,
+        "frames": 408408,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.133,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1017
+        },
+        "atMs": 8627,
+        "countInRemaining": 0,
+        "cpuPeak": 0.005739999935030937,
+        "error": null,
+        "frames": 413208,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.066,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 32.0,
+          "trimmedFrames": 1016
+        },
+        "atMs": 8727,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007439999841153622,
+        "error": null,
+        "frames": 418008,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.083,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1016
+        },
+        "atMs": 8827,
+        "countInRemaining": 0,
+        "cpuPeak": 0.00977999996393919,
+        "error": null,
+        "frames": 422808,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.049,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1010
+        },
+        "atMs": 8928,
+        "countInRemaining": 0,
+        "cpuPeak": 0.00749000022187829,
+        "error": null,
+        "frames": 427607,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.923,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1015
+        },
+        "atMs": 9028,
+        "countInRemaining": 0,
+        "cpuPeak": 0.005789999850094318,
+        "error": null,
+        "frames": 432408,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.901,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1013
+        },
+        "atMs": 9128,
+        "countInRemaining": 0,
+        "cpuPeak": 0.008729999884963036,
+        "error": null,
+        "frames": 437208,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.062,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.936,
+          "trimmedFrames": 1020
+        },
+        "atMs": 9229,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007600000128149986,
+        "error": null,
+        "frames": 442007,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.089,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 32.02,
+          "trimmedFrames": 1019
+        },
+        "atMs": 9329,
+        "countInRemaining": 0,
+        "cpuPeak": 0.00546000013127923,
+        "error": null,
+        "frames": 446808,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.949,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1006
+        },
+        "atMs": 9429,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007249999791383743,
+        "error": null,
+        "frames": 451608,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.983,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1009
+        },
+        "atMs": 9530,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006310000084340572,
+        "error": null,
+        "frames": 456407,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.953,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1019
+        },
+        "atMs": 9630,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006399999838322401,
+        "error": null,
+        "frames": 461207,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.003,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1024
+        },
+        "atMs": 9730,
+        "countInRemaining": 0,
+        "cpuPeak": 0.005659999791532755,
+        "error": null,
+        "frames": 466008,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.208,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.894,
+          "trimmedFrames": 1037
+        },
+        "atMs": 9831,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007930000312626362,
+        "error": null,
+        "frames": 470807,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.046,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 32.0,
+          "trimmedFrames": 1015
+        },
+        "atMs": 9931,
+        "countInRemaining": 0,
+        "cpuPeak": 0.0071000000461936,
+        "error": null,
+        "frames": 475608,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.044,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.916,
+          "trimmedFrames": 1014
+        },
+        "atMs": 10031,
+        "countInRemaining": 0,
+        "cpuPeak": 0.008299999870359898,
+        "error": null,
+        "frames": 480407,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.995,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 1009
+        },
+        "atMs": 10132,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007780000101774931,
+        "error": null,
+        "frames": 485207,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.046,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1016
+        },
+        "atMs": 10232,
+        "countInRemaining": 0,
+        "cpuPeak": 0.00930000003427267,
+        "error": null,
+        "frames": 490008,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.911,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1008
+        },
+        "atMs": 10332,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007269999943673611,
+        "error": null,
+        "frames": 494808,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.894,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1011
+        },
+        "atMs": 10433,
+        "countInRemaining": 0,
+        "cpuPeak": 0.00610999995842576,
+        "error": null,
+        "frames": 499607,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.951,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1016
+        },
+        "atMs": 10533,
+        "countInRemaining": 0,
+        "cpuPeak": 0.00791999977082014,
+        "error": null,
+        "frames": 504407,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.049,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.998,
+          "trimmedFrames": 1024
+        },
+        "atMs": 10635,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006819999776780605,
+        "error": null,
+        "frames": 509208,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.047,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 32.02,
+          "trimmedFrames": 1018
+        },
+        "atMs": 10736,
+        "countInRemaining": 0,
+        "cpuPeak": 0.008050000295042992,
+        "error": null,
+        "frames": 514488,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.087,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 1014
+        },
+        "atMs": 10836,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007540000136941671,
+        "error": null,
+        "frames": 519287,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.986,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.979,
+          "trimmedFrames": 1010
+        },
+        "atMs": 10936,
+        "countInRemaining": 0,
+        "cpuPeak": 0.007449999917298555,
+        "error": null,
+        "frames": 524087,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.861,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.998,
+          "trimmedFrames": 1008
+        },
+        "atMs": 11037,
+        "countInRemaining": 0,
+        "cpuPeak": 0.008750000037252903,
+        "error": null,
+        "frames": 528887,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.99,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.894,
+          "trimmedFrames": 1025
+        },
+        "atMs": 11137,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006339999847114086,
+        "error": null,
+        "frames": 533687,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.111,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.894,
+          "trimmedFrames": 1027
+        },
+        "atMs": 11238,
+        "countInRemaining": 0,
+        "cpuPeak": 0.009580000303685665,
+        "error": null,
+        "frames": 538487,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.054,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 1016
+        },
+        "atMs": 11338,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006779999937862158,
+        "error": null,
+        "frames": 543288,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.099,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.872,
+          "trimmedFrames": 1022
+        },
+        "atMs": 11438,
+        "countInRemaining": 0,
+        "cpuPeak": 0.011049999855458736,
+        "error": null,
+        "frames": 548087,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1.077,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.957,
+          "trimmedFrames": 1018
+        },
+        "atMs": 11538,
+        "countInRemaining": 0,
+        "cpuPeak": 0.010230000130832195,
+        "error": null,
+        "frames": 552888,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.959,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 32.02,
+          "trimmedFrames": 1007
+        },
+        "atMs": 11639,
+        "countInRemaining": 0,
+        "cpuPeak": 0.008449999615550041,
+        "error": null,
+        "frames": 557687,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.993,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1016
+        },
+        "atMs": 11739,
+        "countInRemaining": 0,
+        "cpuPeak": 0.0063299997709691525,
+        "error": null,
+        "frames": 562487,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.97,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.978,
+          "trimmedFrames": 1020
+        },
+        "atMs": 11839,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006479999981820583,
+        "error": null,
+        "frames": 567288,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.921,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 32.0,
+          "trimmedFrames": 1014
+        },
+        "atMs": 11939,
+        "countInRemaining": 0,
+        "cpuPeak": 0.006899999920278788,
+        "error": null,
+        "frames": 572088,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.907,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 31.999,
+          "trimmedFrames": 1019
+        },
+        "atMs": 12040,
+        "countInRemaining": 0,
+        "cpuPeak": 0.0071000000461936,
+        "error": null,
+        "frames": 576888,
+        "lastProcessingOverrun": "None",
+        "processingOverruns": 0,
+        "xruns": 0
+      }
+    ],
+    "stopMs": 20,
+    "takeChannels": 2,
+    "takeFrames": 576888,
+    "takeSampleRate": 48000,
+    "takeStartTick": 0,
+    "transportRestored": true,
+    "xrunsDuringTake": 0
+  },
+  "requested": {
+    "bufferFrames": 480,
+    "host": "WASAPI",
+    "outputChannels": null,
+    "outputDevice": "Realtek Digital Output (Realtek(R) Audio)",
+    "sampleRate": null
+  },
+  "scenario": "round-trip",
+  "stimulus": {
+    "amplitude": 0.05000000074505806,
+    "burstSeconds": 0.004,
+    "leadSeconds": 0.25,
+    "minScore": 0.5,
+    "periodSeconds": 0.5
+  },
+  "utcUnixSeconds": 1791878258,
+  "workingTreeDirty": true,
+  "xrunsTotal": 0
+}

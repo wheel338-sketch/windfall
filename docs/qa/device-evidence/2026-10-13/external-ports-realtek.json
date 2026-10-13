@@ -1,0 +1,151 @@
+{
+  "actual": {
+    "bufferFrames": 480,
+    "bufferLatencyMs": 10.0,
+    "host": "WASAPI",
+    "outputChannels": 2,
+    "outputDevice": "Realtek Digital Output (Realtek(R) Audio)",
+    "processingLatencyFrames": 0,
+    "sampleRate": 48000
+  },
+  "arch": "x86_64",
+  "checks": [
+    {
+      "check": "the assigned ports carry every burst",
+      "passed": true
+    },
+    {
+      "check": "the other ports carry none of it: the assignment replaced the ordinary output",
+      "passed": true
+    }
+  ],
+  "commit": "9244a26c3b1357d68606f191e97d47938108e34a",
+  "inputChannels": 2,
+  "inputDevice": "Loopback: Realtek Digital Output (Realtek(R) Audio)",
+  "label": "realtek",
+  "mode": "mono fold on port 2 of a two-port device",
+  "os": "windows",
+  "osVersion": "Microsoft Windows [Version 10.0.26300.9550]",
+  "pairs": [
+    {
+      "measurement": {
+        "bursts": [
+          {
+            "atSeconds": 0.25,
+            "index": 0,
+            "levelDb": -42.285,
+            "offsetFrames": 40.985,
+            "score": 0.876
+          },
+          {
+            "atSeconds": 0.75,
+            "index": 1,
+            "levelDb": -42.281,
+            "offsetFrames": 40.982,
+            "score": 0.957
+          },
+          {
+            "atSeconds": 1.25,
+            "index": 2,
+            "levelDb": -42.281,
+            "offsetFrames": 42.015,
+            "score": 0.945
+          },
+          {
+            "atSeconds": 1.75,
+            "index": 3,
+            "levelDb": -42.284,
+            "offsetFrames": 41.008,
+            "score": 0.926
+          },
+          {
+            "atSeconds": 2.25,
+            "index": 4,
+            "levelDb": -42.287,
+            "offsetFrames": 41.109,
+            "score": 0.757
+          },
+          {
+            "atSeconds": 2.75,
+            "index": 5,
+            "levelDb": -42.283,
+            "offsetFrames": 40.045,
+            "score": 0.827
+          },
+          {
+            "atSeconds": 3.25,
+            "index": 6,
+            "levelDb": -42.285,
+            "offsetFrames": 40.242,
+            "score": 0.676
+          },
+          {
+            "atSeconds": 3.75,
+            "index": 7,
+            "levelDb": -42.283,
+            "offsetFrames": 41.012,
+            "score": 0.935
+          },
+          {
+            "atSeconds": 4.25,
+            "index": 8,
+            "levelDb": -42.28,
+            "offsetFrames": 39.992,
+            "score": 0.926
+          },
+          {
+            "atSeconds": 4.75,
+            "index": 9,
+            "levelDb": -42.29,
+            "offsetFrames": 41.144,
+            "score": 0.73
+          }
+        ],
+        "detected": 10,
+        "driftPpm": -3.504,
+        "jitterMs": 0.011,
+        "maxStepMs": 0.024,
+        "missed": 0,
+        "offsetMaxMs": 0.875,
+        "offsetMeanFrames": 40.853,
+        "offsetMeanMs": 0.851,
+        "offsetMinMs": 0.833
+      },
+      "peak": 0.027788151055574417,
+      "ports": [
+        2,
+        null
+      ]
+    },
+    {
+      "measurement": {
+        "detected": 0,
+        "missed": 10
+      },
+      "peak": 1.0144242112986035e-9,
+      "ports": [
+        1,
+        null
+      ]
+    }
+  ],
+  "passed": true,
+  "profile": "dev",
+  "requested": {
+    "bufferFrames": 480,
+    "host": "WASAPI",
+    "outputChannels": null,
+    "outputDevice": "Realtek Digital Output (Realtek(R) Audio)",
+    "sampleRate": null
+  },
+  "scenario": "external-ports",
+  "stimulus": {
+    "amplitude": 0.05000000074505806,
+    "burstSeconds": 0.004,
+    "leadSeconds": 0.25,
+    "minScore": 0.5,
+    "periodSeconds": 0.5
+  },
+  "utcUnixSeconds": 1791878875,
+  "workingTreeDirty": true
+}

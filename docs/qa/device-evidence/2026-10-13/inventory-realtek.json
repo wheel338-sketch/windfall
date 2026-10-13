@@ -1,0 +1,288 @@
+{
+  "actual": {
+    "bufferFrames": 1056,
+    "bufferLatencyMs": 22.0,
+    "host": "WASAPI",
+    "outputChannels": 2,
+    "outputDevice": "Realtek Digital Output (Realtek(R) Audio)",
+    "processingLatencyFrames": 0,
+    "sampleRate": 48000
+  },
+  "arch": "x86_64",
+  "checks": [
+    {
+      "check": "an output host is listed",
+      "passed": true
+    },
+    {
+      "check": "the open device is one of the listed devices",
+      "passed": true
+    },
+    {
+      "check": "every listed input has channels and a rate",
+      "passed": true
+    },
+    {
+      "check": "each WASAPI output is also listed as a loopback input",
+      "passed": true
+    }
+  ],
+  "commit": "469be35c274f4e3d3dd47b6163f9da9609ed1c4e",
+  "hosts": [
+    {
+      "devices": [
+        {
+          "isDefault": false,
+          "maxBufferFrames": 480,
+          "minBufferFrames": 480,
+          "name": "Speakers (Steam Streaming Microphone)",
+          "outputChannels": [
+            2
+          ],
+          "sampleRates": [
+            8000,
+            11025,
+            16000,
+            22050,
+            32000,
+            44100,
+            48000,
+            88200,
+            96000,
+            176400,
+            192000,
+            352800,
+            384000
+          ]
+        },
+        {
+          "isDefault": true,
+          "maxBufferFrames": 480,
+          "minBufferFrames": 480,
+          "name": "Speakers (Stealth 700X Gen 3)",
+          "outputChannels": [
+            2
+          ],
+          "sampleRates": [
+            8000,
+            11025,
+            16000,
+            22050,
+            32000,
+            44100,
+            48000,
+            88200,
+            96000,
+            176400,
+            192000,
+            352800,
+            384000
+          ]
+        },
+        {
+          "isDefault": false,
+          "maxBufferFrames": 480,
+          "minBufferFrames": 480,
+          "name": "Realtek Digital Output (Realtek(R) Audio)",
+          "outputChannels": [
+            2
+          ],
+          "sampleRates": [
+            8000,
+            11025,
+            16000,
+            22050,
+            32000,
+            44100,
+            48000,
+            88200,
+            96000,
+            176400,
+            192000,
+            352800,
+            384000
+          ]
+        },
+        {
+          "isDefault": false,
+          "maxBufferFrames": 480,
+          "minBufferFrames": 480,
+          "name": "AI Noise-Canceling Speaker (ASUS Utility)",
+          "outputChannels": [
+            2
+          ],
+          "sampleRates": [
+            8000,
+            11025,
+            16000,
+            22050,
+            32000,
+            44100,
+            48000,
+            88200,
+            96000,
+            176400,
+            192000,
+            352800,
+            384000
+          ]
+        },
+        {
+          "isDefault": false,
+          "maxBufferFrames": 480,
+          "minBufferFrames": 480,
+          "name": "Speakers (Steam Streaming Speakers)",
+          "outputChannels": [
+            2
+          ],
+          "sampleRates": [
+            8000,
+            11025,
+            16000,
+            22050,
+            32000,
+            44100,
+            48000,
+            88200,
+            96000,
+            176400,
+            192000,
+            352800,
+            384000
+          ]
+        },
+        {
+          "isDefault": false,
+          "maxBufferFrames": 480,
+          "minBufferFrames": 480,
+          "name": "SAMSUNG (NVIDIA High Definition Audio)",
+          "outputChannels": [
+            2
+          ],
+          "sampleRates": [
+            8000,
+            11025,
+            16000,
+            22050,
+            32000,
+            44100,
+            48000,
+            88200,
+            96000,
+            176400,
+            192000,
+            352800,
+            384000
+          ]
+        }
+      ],
+      "isDefault": true,
+      "name": "WASAPI"
+    }
+  ],
+  "inputDevice": "Loopback: Realtek Digital Output (Realtek(R) Audio)",
+  "inputs": [
+    {
+      "channels": 2,
+      "device": "Microphone (Stealth 700X Gen 3)",
+      "host": "WASAPI",
+      "sampleRates": [
+        48000
+      ]
+    },
+    {
+      "channels": 2,
+      "device": "AI Noise-Canceling Microphone (ASUS Utility)",
+      "host": "WASAPI",
+      "sampleRates": [
+        48000
+      ]
+    },
+    {
+      "channels": 2,
+      "device": "Microphone (Logitech BRIO)",
+      "host": "WASAPI",
+      "sampleRates": [
+        48000
+      ]
+    },
+    {
+      "channels": 1,
+      "device": "Microphone (Steam Streaming Microphone)",
+      "host": "WASAPI",
+      "sampleRates": [
+        44100
+      ]
+    },
+    {
+      "channels": 2,
+      "device": "Loopback: Speakers (Steam Streaming Microphone)",
+      "host": "WASAPI",
+      "sampleRates": [
+        48000
+      ]
+    },
+    {
+      "channels": 2,
+      "device": "Loopback: Speakers (Stealth 700X Gen 3)",
+      "host": "WASAPI",
+      "sampleRates": [
+        48000
+      ]
+    },
+    {
+      "channels": 2,
+      "device": "Loopback: Realtek Digital Output (Realtek(R) Audio)",
+      "host": "WASAPI",
+      "sampleRates": [
+        48000
+      ]
+    },
+    {
+      "channels": 2,
+      "device": "Loopback: AI Noise-Canceling Speaker (ASUS Utility)",
+      "host": "WASAPI",
+      "sampleRates": [
+        48000
+      ]
+    },
+    {
+      "channels": 2,
+      "device": "Loopback: Speakers (Steam Streaming Speakers)",
+      "host": "WASAPI",
+      "sampleRates": [
+        48000
+      ]
+    },
+    {
+      "channels": 2,
+      "device": "Loopback: SAMSUNG (NVIDIA High Definition Audio)",
+      "host": "WASAPI",
+      "sampleRates": [
+        48000
+      ]
+    }
+  ],
+  "label": "realtek",
+  "os": "windows",
+  "osVersion": "Microsoft Windows [Version 10.0.26300.9550]",
+  "passed": true,
+  "profile": "dev",
+  "requested": {
+    "bufferFrames": null,
+    "host": "WASAPI",
+    "outputChannels": null,
+    "outputDevice": "Realtek Digital Output (Realtek(R) Audio)",
+    "sampleRate": null
+  },
+  "scenario": "inventory",
+  "stimulus": {
+    "amplitude": 0.05000000074505806,
+    "burstSeconds": 0.004,
+    "leadSeconds": 0.25,
+    "minScore": 0.5,
+    "periodSeconds": 0.5
+  },
+  "utcUnixSeconds": 1791877302,
+  "workingTreeDirty": false
+}

@@ -1,0 +1,344 @@
+{
+  "actual": {
+    "bufferFrames": 480,
+    "bufferLatencyMs": 10.0,
+    "host": "WASAPI",
+    "outputChannels": 2,
+    "outputDevice": "Realtek Digital Output (Realtek(R) Audio)",
+    "processingLatencyFrames": 0,
+    "sampleRate": 48000
+  },
+  "arch": "x86_64",
+  "checks": [
+    {
+      "check": "every armed track is kept as its own clip",
+      "passed": true
+    },
+    {
+      "check": "all tracks of the group have the same length",
+      "passed": true
+    },
+    {
+      "check": "the mixer tap holds the stimulus within one frame of where it plays",
+      "passed": true
+    },
+    {
+      "check": "each hardware input holds every burst",
+      "passed": true
+    },
+    {
+      "check": "the group is saved as one take group with a lane for each track",
+      "passed": true
+    },
+    {
+      "check": "one undo removes every track of the group",
+      "passed": true
+    }
+  ],
+  "commit": "9244a26c3b1357d68606f191e97d47938108e34a",
+  "inputDevice": "Loopback: Realtek Digital Output (Realtek(R) Audio)",
+  "label": "realtek",
+  "os": "windows",
+  "osVersion": "Microsoft Windows [Version 10.0.26300.9550]",
+  "passed": true,
+  "profile": "dev",
+  "requested": {
+    "bufferFrames": 480,
+    "host": "WASAPI",
+    "outputChannels": null,
+    "outputDevice": "Realtek Digital Output (Realtek(R) Audio)",
+    "sampleRate": null
+  },
+  "scenario": "multitrack",
+  "stimulus": {
+    "amplitude": 0.05000000074505806,
+    "burstSeconds": 0.004,
+    "leadSeconds": 0.25,
+    "minScore": 0.5,
+    "periodSeconds": 0.5
+  },
+  "tracks": [
+    {
+      "frames": 384411,
+      "measurement": {
+        "bursts": [
+          {
+            "atSeconds": 0.25,
+            "index": 0,
+            "levelDb": -34.787,
+            "offsetFrames": 0.0,
+            "score": 1.0
+          },
+          {
+            "atSeconds": 0.75,
+            "index": 1,
+            "levelDb": -34.787,
+            "offsetFrames": 0.0,
+            "score": 1.0
+          },
+          {
+            "atSeconds": 1.25,
+            "index": 2,
+            "levelDb": -34.787,
+            "offsetFrames": 0.0,
+            "score": 1.0
+          },
+          {
+            "atSeconds": 1.75,
+            "index": 3,
+            "levelDb": -34.787,
+            "offsetFrames": 0.0,
+            "score": 1.0
+          },
+          {
+            "atSeconds": 2.25,
+            "index": 4,
+            "levelDb": -34.787,
+            "offsetFrames": 0.0,
+            "score": 1.0
+          },
+          {
+            "atSeconds": 2.75,
+            "index": 5,
+            "levelDb": -34.787,
+            "offsetFrames": 0.0,
+            "score": 1.0
+          },
+          {
+            "atSeconds": 3.25,
+            "index": 6,
+            "levelDb": -34.787,
+            "offsetFrames": 0.0,
+            "score": 1.0
+          },
+          {
+            "atSeconds": 3.75,
+            "index": 7,
+            "levelDb": -34.787,
+            "offsetFrames": 0.0,
+            "score": 1.0
+          },
+          {
+            "atSeconds": 4.25,
+            "index": 8,
+            "levelDb": -34.787,
+            "offsetFrames": 0.0,
+            "score": 1.0
+          },
+          {
+            "atSeconds": 4.75,
+            "index": 9,
+            "levelDb": -34.787,
+            "offsetFrames": 0.0,
+            "score": 1.0
+          },
+          {
+            "atSeconds": 5.25,
+            "index": 10,
+            "levelDb": -34.787,
+            "offsetFrames": 0.0,
+            "score": 1.0
+          },
+          {
+            "atSeconds": 5.75,
+            "index": 11,
+            "levelDb": -34.787,
+            "offsetFrames": 0.0,
+            "score": 1.0
+          },
+          {
+            "atSeconds": 6.25,
+            "index": 12,
+            "levelDb": -34.787,
+            "offsetFrames": 0.0,
+            "score": 1.0
+          },
+          {
+            "atSeconds": 6.75,
+            "index": 13,
+            "levelDb": -34.787,
+            "offsetFrames": 0.0,
+            "score": 1.0
+          },
+          {
+            "atSeconds": 7.25,
+            "index": 14,
+            "levelDb": -34.787,
+            "offsetFrames": 0.0,
+            "score": 1.0
+          },
+          {
+            "atSeconds": 7.75,
+            "index": 15,
+            "levelDb": -34.787,
+            "offsetFrames": 0.0,
+            "score": 1.0
+          }
+        ],
+        "detected": 16,
+        "driftPpm": 0.0,
+        "jitterMs": 0.0,
+        "maxStepMs": 0.0,
+        "missed": 0,
+        "offsetMaxMs": 0.0,
+        "offsetMeanFrames": 0.0,
+        "offsetMeanMs": 0.0,
+        "offsetMinMs": 0.0
+      },
+      "mixerTrack": "stimulus",
+      "source": "post-fader mixer tap"
+    },
+    {
+      "frames": 384411,
+      "measurement": {
+        "bursts": [
+          {
+            "atSeconds": 0.25,
+            "index": 0,
+            "levelDb": -42.284,
+            "offsetFrames": 43.014,
+            "score": 0.944
+          },
+          {
+            "atSeconds": 0.75,
+            "index": 1,
+            "levelDb": -42.286,
+            "offsetFrames": 43.081,
+            "score": 0.784
+          },
+          {
+            "atSeconds": 1.25,
+            "index": 2,
+            "levelDb": -42.282,
+            "offsetFrames": 42.993,
+            "score": 0.922
+          },
+          {
+            "atSeconds": 1.75,
+            "index": 3,
+            "levelDb": -42.283,
+            "offsetFrames": 43.018,
+            "score": 0.957
+          },
+          {
+            "atSeconds": 2.25,
+            "index": 4,
+            "levelDb": -42.286,
+            "offsetFrames": 42.706,
+            "score": 0.655
+          },
+          {
+            "atSeconds": 2.75,
+            "index": 5,
+            "levelDb": -42.286,
+            "offsetFrames": 42.286,
+            "score": 0.658
+          },
+          {
+            "atSeconds": 3.25,
+            "index": 6,
+            "levelDb": -42.285,
+            "offsetFrames": 43.057,
+            "score": 0.812
+          },
+          {
+            "atSeconds": 3.75,
+            "index": 7,
+            "levelDb": -42.287,
+            "offsetFrames": 43.406,
+            "score": 0.622
+          },
+          {
+            "atSeconds": 4.25,
+            "index": 8,
+            "levelDb": -42.284,
+            "offsetFrames": 42.007,
+            "score": 0.968
+          },
+          {
+            "atSeconds": 4.75,
+            "index": 9,
+            "levelDb": -42.287,
+            "offsetFrames": 43.041,
+            "score": 0.833
+          },
+          {
+            "atSeconds": 5.25,
+            "index": 10,
+            "levelDb": -42.284,
+            "offsetFrames": 42.982,
+            "score": 0.957
+          },
+          {
+            "atSeconds": 5.75,
+            "index": 11,
+            "levelDb": -42.28,
+            "offsetFrames": 42.003,
+            "score": 0.899
+          },
+          {
+            "atSeconds": 6.25,
+            "index": 12,
+            "levelDb": -42.282,
+            "offsetFrames": 42.991,
+            "score": 0.968
+          },
+          {
+            "atSeconds": 6.75,
+            "index": 13,
+            "levelDb": -42.287,
+            "offsetFrames": 42.999,
+            "score": 0.907
+          },
+          {
+            "atSeconds": 7.25,
+            "index": 14,
+            "levelDb": -42.28,
+            "offsetFrames": 44.014,
+            "score": 0.942
+          },
+          {
+            "atSeconds": 7.75,
+            "index": 15,
+            "levelDb": -42.289,
+            "offsetFrames": 43.654,
+            "score": 0.638
+          }
+        ],
+        "detected": 16,
+        "driftPpm": 1.143,
+        "jitterMs": 0.01,
+        "maxStepMs": 0.029,
+        "missed": 0,
+        "offsetMaxMs": 0.917,
+        "offsetMeanFrames": 42.953,
+        "offsetMeanMs": 0.895,
+        "offsetMinMs": 0.875
+      },
+      "mixerTrack": "Device input",
+      "source": "hardware input"
+    }
+  ],
+  "tracksWhileRecording": [
+    {
+      "driftPpm": 0.0,
+      "frames": 385440,
+      "inputLatencyMs": 0.0,
+      "inputSampleRate": 48000,
+      "measuredTimestamps": true,
+      "name": "stimulus",
+      "outputLatencyMs": 31.916
+    },
+    {
+      "driftPpm": 0.087,
+      "frames": 384411,
+      "inputLatencyMs": 0.0,
+      "inputSampleRate": 48000,
+      "measuredTimestamps": true,
+      "name": "Device input",
+      "outputLatencyMs": 31.916
+    }
+  ],
+  "utcUnixSeconds": 1791878854,
+  "workingTreeDirty": true
+}

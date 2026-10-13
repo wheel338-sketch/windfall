@@ -277,11 +277,18 @@ fn build<T: SizedSample>(
 where
     f32: FromSample<T>,
 {
+    let startup = Arc::new(crate::recording_endpoint::InputStartup::new(
+        device.id().map(|id| id.host().name()).unwrap_or(""),
+    ));
+    let data_startup = startup.clone();
     device
         .build_input_stream(
             *config,
-            move |data: &[T], _| feed.push(data),
-            move |error: cpal::Error| fault.report(error),
+            move |data: &[T], _| {
+                data_startup.received();
+                feed.push(data);
+            },
+            move |error: cpal::Error| startup.report(&fault, error),
             None,
         )
         .map_err(|e| e.to_string())

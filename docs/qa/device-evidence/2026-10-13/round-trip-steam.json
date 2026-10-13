@@ -1,0 +1,92 @@
+{
+  "actual": {
+    "bufferFrames": 960,
+    "bufferLatencyMs": 20.0,
+    "host": "WASAPI",
+    "outputChannels": 2,
+    "outputDevice": "Speakers (Steam Streaming Speakers)",
+    "processingLatencyFrames": 0,
+    "sampleRate": 48000
+  },
+  "arch": "x86_64",
+  "checks": [
+    {
+      "check": "the uncalibrated take is kept",
+      "passed": false
+    }
+  ],
+  "commit": "469be35c274f4e3d3dd47b6163f9da9609ed1c4e",
+  "inputDevice": "Loopback: Speakers (Steam Streaming Speakers)",
+  "label": "steam",
+  "os": "windows",
+  "osVersion": "Microsoft Windows [Version 10.0.26300.9550]",
+  "passed": false,
+  "profile": "dev",
+  "raw": {
+    "alignment": {
+      "driftPpm": 0.0,
+      "inputLatencyMs": 0.0,
+      "inputSampleRate": 48000,
+      "measuredTimestamps": false,
+      "outputLatencyMs": 0.0,
+      "trimmedFrames": 0
+    },
+    "countInBars": 0,
+    "firstWrittenAtMs": null,
+    "offsetMs": 0.0,
+    "openMs": 6,
+    "progress": [
+      {
+        "alignment": {
+          "driftPpm": 0.0,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": false,
+          "outputLatencyMs": 0.0,
+          "trimmedFrames": 0
+        },
+        "atMs": 0,
+        "countInRemaining": 1,
+        "error": null,
+        "frames": 0,
+        "xruns": 4
+      },
+      {
+        "alignment": {
+          "driftPpm": 0.0,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 48000,
+          "measuredTimestamps": false,
+          "outputLatencyMs": 0.0,
+          "trimmedFrames": 0
+        },
+        "atMs": 100,
+        "countInRemaining": 0,
+        "error": "Input failed. Stop to discard this take.",
+        "frames": 0,
+        "xruns": 8
+      }
+    ],
+    "stopError": "The input device reported a dropout: samples were lost. The take was discarded so nothing is kept out of time.",
+    "stopMs": 0,
+    "transportRestored": true,
+    "xrunsDuringTake": 7
+  },
+  "requested": {
+    "bufferFrames": null,
+    "host": "WASAPI",
+    "outputChannels": null,
+    "outputDevice": "Speakers (Steam Streaming Speakers)",
+    "sampleRate": null
+  },
+  "scenario": "round-trip",
+  "stimulus": {
+    "amplitude": 0.05000000074505806,
+    "burstSeconds": 0.004,
+    "leadSeconds": 0.25,
+    "minScore": 0.5,
+    "periodSeconds": 0.5
+  },
+  "utcUnixSeconds": 1791877345,
+  "workingTreeDirty": false
+}

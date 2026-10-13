@@ -1,0 +1,21 @@
+{
+  "scenario": "soak-final",
+  "commit": "9244a26c3b1357d68606f191e97d47938108e34a",
+  "workingTreeDirty": true,
+  "osVersion": "10.0.26300.9550",
+  "utcUnixSeconds": 1791879541,
+  "profile": "release",
+  "host": "WASAPI",
+  "outputDevice": "Realtek Digital Output (Realtek(R) Audio)",
+  "processingThreads": "Automatic",
+  "seconds": 120,
+  "requestedBufferFrames": 480,
+  "actualBufferFrames": 480,
+  "sampleRate": 48000,
+  "xruns": 0,
+  "maxCpuPercent": 44.92,
+  "framesPlayed": 5770656,
+  "passed": true,
+  "command": "cargo run --release -p windfall-engine --bin windfall-soak -- --seconds 120 --host WASAPI --device \"Realtek Digital Output (Realtek(R) Audio)\" --sample-rate 48000 --buffer 480 --song --silent",
+  "log": "target/device-soak-final.log"
+}

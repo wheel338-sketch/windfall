@@ -128,7 +128,7 @@ struct DeviceRig {
 impl DeviceRig {
     fn open(options: &Options) -> Self {
         let requested = AudioSettings {
-            processing_threads: None,
+            processing_threads: number("WINDFALL_DEVICE_THREADS"),
             host: options.host.clone(),
             device: options.output.clone(),
             sample_rate: options.rate,
@@ -636,6 +636,9 @@ fn record_for(rig: &DeviceRig, seconds: f64, patience: Duration) -> (RecordingSt
                 "atMs": started.elapsed().as_millis() as u64,
                 "frames": state.frames,
                 "xruns": stats.xruns,
+                "cpuPeak": stats.cpu_peak,
+                "processingOverruns": stats.processing_overruns,
+                "lastProcessingOverrun": format!("{:?}", stats.last_processing_overrun),
                 "error": state.error,
                 "countInRemaining": rig.session.transport_state().count_in_remaining,
                 "alignment": alignment_json(&state),
@@ -794,6 +797,85 @@ fn device_inventory() {
 /// Plays the bursts, records them back synchronized, and measures where they
 /// land. A second take applies the measured offset as the manual recording
 /// offset and must land on the grid.
+#[test]
+#[ignore = "opens real audio devices; set WINDFALL_DEVICE_EVIDENCE"]
+fn device_audio_settings() {
+    let options = options();
+    assert!(options.output.is_some(), "select an output explicitly");
+    let rig = DeviceRig::open(&options);
+    let mut result = header(&rig, &options, "audio-settings");
+    let mut checks = Vec::new();
+    let hosts = rig.session.engine_devices();
+    let device = hosts
+        .iter()
+        .find(|host| host.name == rig.host())
+        .unwrap()
+        .devices
+        .iter()
+        .find(|device| Some(&device.name) == options.output.as_ref())
+        .unwrap();
+    let mut trials = Vec::new();
+    for rate in &device.sample_rates {
+        for buffer in [1, 128, device.min_buffer_frames.unwrap_or(480), 1024] {
+            let request = AudioSettings {
+                sample_rate: Some(*rate),
+                buffer_frames: Some(buffer),
+                ..rig.requested.clone()
+            };
+            let old_gate = rig.engine.controller().recording_clock().arm(true);
+            let status = rig.session.engine_configure(request.clone());
+            let frames_before = rig.engine.controller().stream_stats().frames;
+            std::thread::sleep(Duration::from_millis(300));
+            let settled = rig.session.engine_status();
+            let stats = rig.engine.controller().stream_stats();
+            trials.push(
+                json!({"requested": request, "initial": status, "settled": settled,
+                "frames": stats.frames, "xruns": stats.xruns,
+                "cpuPeak": stats.cpu_peak, "previousClockInvalidated": old_gate.window().is_err()}),
+            );
+            check(
+                &mut checks,
+                format!("{rate} Hz / {buffer}: stream runs at the offered rate"),
+                settled.running && settled.sample_rate == *rate && stats.frames > frames_before,
+            );
+            check(
+                &mut checks,
+                format!("{rate} Hz / {buffer}: requested settings remembered exactly"),
+                rig.session.engine_settings() == request,
+            );
+            check(
+                &mut checks,
+                format!("{rate} Hz / {buffer}: driver buffer reported, old clock invalidated"),
+                settled.buffer_frames > 0 && old_gate.window().is_err(),
+            );
+        }
+    }
+    // A refused configuration must be recoverable through the same session
+    // call; this does not claim an actual unplug or driver error was induced.
+    let refused = rig.session.engine_configure(AudioSettings {
+        output_channels: Some(0),
+        ..rig.requested.clone()
+    });
+    check(
+        &mut checks,
+        "invalid layout stops with an explicit error",
+        !refused.running && refused.error.is_some(),
+    );
+    let recovered = rig.session.engine_configure(rig.requested.clone());
+    std::thread::sleep(Duration::from_millis(300));
+    check(
+        &mut checks,
+        "real driver reopens after configuration failure",
+        recovered.running && rig.engine.controller().stream_stats().frames > 0,
+    );
+    result["trials"] = json!(trials);
+    result["refused"] = json!(refused);
+    result["recovered"] = json!(rig.session.engine_status());
+    result["recoveryScope"] =
+        json!("configuration failure and real driver reopen; physical removal remains external");
+    finish(&options, "audio-settings", result, checks);
+}
+
 #[test]
 #[ignore = "opens real audio devices; set WINDFALL_DEVICE_EVIDENCE"]
 fn device_round_trip_alignment() {
@@ -1311,6 +1393,35 @@ fn device_input_monitoring() {
     let listed = rig.input(&input);
     let mut result = header(&rig, &options, "monitoring");
     let mut checks = Vec::new();
+    let loopback = windfall_engine::recording_endpoint::loopback_target(&input)
+        == rig.status().device.as_deref();
+    // A same-device loopback must never feed its own input channel. Stimulus
+    // on port 2 is captured in mono and monitored exclusively onto port 1.
+    // This still exercises the real monitor reader/mixer/hardware path.
+    if loopback {
+        assert!(listed.channels >= 2 && rig.status().output_channels >= 2);
+        let (_, _, stimulus_track) = rig.add_stimulus(&options, options.seconds.min(8.0) + 1.0);
+        rig.session
+            .dispatch(
+                Command::SetTrackExternalOutput {
+                    id: stimulus_track,
+                    route: Some(ExternalOutputRoute {
+                        left: 1,
+                        right: None,
+                        exclusive: true,
+                    }),
+                },
+                None,
+            )
+            .expect("stimulus goes only to the captured port");
+        rig.session
+            .transport_set(TransportPatch {
+                mode: Some(windfall_ipc::PlayMode::Song),
+                ..TransportPatch::default()
+            })
+            .unwrap();
+        result["loopbackIsolation"] = json!({"stimulusPort": 2, "inputPort": 2, "monitorPort": 1});
+    }
     let created = rig
         .session
         .dispatch(
@@ -1329,8 +1440,8 @@ fn device_input_monitoring() {
                         input: Some(AudioInputRoute {
                             host: listed.host,
                             device: listed.device,
-                            left: 0,
-                            right: (listed.channels > 1).then_some(1),
+                            left: if loopback { 1 } else { 0 },
+                            right: (!loopback && listed.channels > 1).then_some(1),
                         }),
                         monitor: true,
                         monitor_gain: 0.1,
@@ -1342,6 +1453,22 @@ fn device_input_monitoring() {
             None,
         )
         .expect("monitoring is enabled on the track");
+    if loopback {
+        rig.session
+            .dispatch(
+                Command::SetTrackExternalOutput {
+                    id: TrackId(created.created[0]),
+                    route: Some(ExternalOutputRoute {
+                        left: 0,
+                        right: None,
+                        exclusive: true,
+                    }),
+                },
+                None,
+            )
+            .expect("monitor goes only to the uncaptured port");
+        rig.session.controller().play();
+    }
     let started = rig.session.input_monitor_start();
     if let Err(error) = &started {
         result["startError"] = json!(error);
@@ -1406,6 +1533,7 @@ fn device_input_monitoring() {
         .sum::<u64>();
     check(&mut checks, "no monitor frames are dropped", dropped == 0);
     let stopped = rig.session.input_monitor_stop();
+    rig.session.controller().stop();
     check(&mut checks, "stopping ends the group", !stopped.active);
     result["xrunsTotal"] = json!(rig.engine.controller().stream_stats().xruns);
     finish(&options, "monitoring", result, checks);

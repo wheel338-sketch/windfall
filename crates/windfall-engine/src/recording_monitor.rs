@@ -15,6 +15,7 @@ pub struct MonitorTelemetry {
 #[derive(Default)]
 struct Counters {
     queued: AtomicU64,
+    producer_quantum: AtomicU64,
     dropped: AtomicU64,
     starved: AtomicU64,
 }
@@ -78,6 +79,13 @@ impl MonitorWriter {
     /// and DAC fits, keeping the live queue bounded over long sessions.
     pub(crate) fn push(&mut self, audio: &[Frame], step: f64) {
         let step = step.clamp(0.01, 100.0);
+        // Driver packets arrive in bursts larger than a mixer subdivision.
+        // Publish their converted quantum so normal packet delivery cannot
+        // be mistaken for an accumulated monitor backlog on the callback.
+        self.telemetry
+            .inner
+            .producer_quantum
+            .fetch_max((audio.len() as f64 / step).ceil() as u64, Ordering::Relaxed);
         for sample in audio {
             self.history[self.seen as usize % 128] = *sample;
             self.seen += 1;
@@ -126,7 +134,15 @@ impl MonitorReader {
         }
         // Drop excess with a fixed callback work bound, then ramp back in.
         let excess = available
-            .saturating_sub(self.target + out.len() * 2)
+            .saturating_sub(
+                self.target
+                    + out.len().max(
+                        self.telemetry
+                            .inner
+                            .producer_quantum
+                            .load(Ordering::Relaxed) as usize,
+                    ) * 2,
+            )
             .min(1024);
         for _ in 0..excess {
             if self.queue.pop().is_ok() {
@@ -156,5 +172,35 @@ impl MonitorReader {
         if self.queue.slots() == 0 {
             self.primed = false;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn driver_packet_bursts_are_not_dropped_as_mixer_subdivision_backlog() {
+        let (mut writer, mut reader) = channel(
+            RecordingMonitorSettings {
+                track: windfall_project::TrackId(0),
+                gain: 0.1,
+                buffer_ms: 20,
+            },
+            48_000,
+        );
+        // Initial priming plus the packet arriving just before the callback.
+        for _ in 0..5 {
+            writer.push(&[[0.25; 2]; 256], 1.0);
+        }
+        reader.render(&mut [[0.0; 2]; 64]);
+        assert_eq!(writer.telemetry.snapshot().dropped_frames, 0);
+        assert_eq!(writer.telemetry.snapshot().starved_frames, 0);
+        // A genuinely stalled reader still bounds backlog and reports drops.
+        for _ in 0..30 {
+            writer.push(&[[0.25; 2]; 256], 1.0);
+        }
+        reader.render(&mut [[0.0; 2]; 64]);
+        assert!(writer.telemetry.snapshot().dropped_frames > 0);
     }
 }

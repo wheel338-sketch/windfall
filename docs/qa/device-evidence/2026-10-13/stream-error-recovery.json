@@ -1,0 +1,13 @@
+{
+  "scenario": "stream-error-recovery",
+  "faultInjection": "recoverable stream-ended notice; real Cpal backend",
+  "physicalRemoval": false,
+  "opened": true,
+  "firstFrames": 14976,
+  "outageObserved": true,
+  "reopened": true,
+  "resumedFrames": 14976,
+  "oldTicketInvalidated": true,
+  "sampleRate": 48000,
+  "passed": true
+}

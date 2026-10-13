@@ -877,22 +877,28 @@ fn build(
         coverage: Coverage::new(config.sample_rate()),
     };
     let (mut reporter, faults) = fault_channel(controller.shared().clone());
+    let timebase = crate::recording_clock::DriverTimebase::default();
+    let callback_timebase = timebase.clone();
     let built = device
         .build_output_stream_raw(
             stream_config,
             format,
             move |data: &mut cpal::Data, info: &cpal::OutputCallbackInfo| {
-                feeder.shared.recording_clock.publish_output(
+                feeder.shared.recording_clock.publish_driver_output(
                     feeder.processor.output_frame(),
                     feeder.processor.sample_rate(),
                     info.timestamp(),
+                    &callback_timebase,
                 );
                 feeder.fill(data);
             },
             move |error: cpal::Error| reporter.report(error),
             Some(OPEN_TIMEOUT),
         )
-        .map(|stream| (stream, faults, admission));
+        .map(|stream| {
+            timebase.initialize(&stream, &controller.shared().recording_clock);
+            (stream, faults, admission)
+        });
     match built {
         Ok(stream) => Ok(stream),
         Err(error) => {
@@ -1115,6 +1121,79 @@ mod tests {
     use super::*;
     use crate::pool::SamplePool;
     use crate::test_alloc::allocator_calls;
+
+    /// Exercises the real backend's close/reopen under the supervisor's actual
+    /// fault handling. Only the invalidation notice is injected; no endpoint
+    /// setting, volume, or system device is changed.
+    #[test]
+    #[ignore = "opens a real output; set WINDFALL_DEVICE_EVIDENCE and WINDFALL_DEVICE_OUTPUT"]
+    fn device_stream_error_recovery() {
+        let evidence = std::path::PathBuf::from(std::env::var("WINDFALL_DEVICE_EVIDENCE").unwrap());
+        let output = std::env::var("WINDFALL_DEVICE_OUTPUT").unwrap();
+        assert!(matches!(
+            output.as_str(),
+            "Realtek Digital Output (Realtek(R) Audio)" | "Speakers (Steam Streaming Speakers)"
+        ));
+        let settings = AudioSettings {
+            host: Some("WASAPI".into()),
+            device: Some(output),
+            buffer_frames: Some(480),
+            ..AudioSettings::default()
+        };
+        let controller = Controller::new();
+        let status = Arc::new(Mutex::new(stopped(&settings, "starting")));
+        let now = Rc::new(Cell::new(Instant::now()));
+        let mut supervisor = Supervisor::new(
+            Cpal {
+                controller: controller.clone(),
+            },
+            controller.clone(),
+            status.clone(),
+            {
+                let now = now.clone();
+                move || now.get()
+            },
+        );
+        supervisor.configure(settings);
+        std::thread::sleep(Duration::from_millis(300));
+        let opened = lock(&status).running;
+        let first_frames = controller.stream_stats().frames;
+        let gate = controller.recording_clock().arm(true);
+        // Same atomic fallback used if an error callback finds its queue full.
+        supervisor
+            .stream
+            .as_mut()
+            .expect("allowed output opens")
+            .faults
+            .ended
+            .store(ENDED_RECOVERABLE, Ordering::Release);
+        supervisor.poll();
+        let lost = lock(&status).clone();
+        now.set(now.get() + Duration::from_secs(2));
+        supervisor.poll();
+        std::thread::sleep(Duration::from_millis(300));
+        let reopened = lock(&status).clone();
+        let resumed_frames = controller.stream_stats().frames;
+        let invalidated = gate.window().is_err();
+        let passed = opened
+            && first_frames > 0
+            && !lost.running
+            && lost
+                .error
+                .as_ref()
+                .is_some_and(|e| e.contains("reconnecting"))
+            && reopened.running
+            && resumed_frames > 0
+            && invalidated;
+        std::fs::create_dir_all(&evidence).unwrap();
+        std::fs::write(evidence.join("stream-error-recovery.json"), format!(
+            "{{\n  \"scenario\": \"stream-error-recovery\",\n  \"faultInjection\": \"recoverable stream-ended notice; real Cpal backend\",\n  \"physicalRemoval\": false,\n  \"opened\": {opened},\n  \"firstFrames\": {first_frames},\n  \"outageObserved\": {},\n  \"reopened\": {},\n  \"resumedFrames\": {resumed_frames},\n  \"oldTicketInvalidated\": {invalidated},\n  \"sampleRate\": {},\n  \"passed\": {passed}\n}}\n", !lost.running, reopened.running, reopened.sample_rate
+        )).unwrap();
+        assert!(
+            passed,
+            "real driver recovery failed: {lost:?} -> {reopened:?}"
+        );
+    }
 
     #[derive(Debug, Default)]
     struct PreparationProbe {

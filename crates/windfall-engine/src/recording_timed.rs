@@ -1,6 +1,6 @@
 //! Timestamped ADC packets and worker-side conversion to the output time grid.
 use super::*;
-use crate::recording_clock::{CaptureGate, RecordingClock, nanos};
+use crate::recording_clock::{CaptureGate, RecordingClock};
 use std::sync::atomic::AtomicU32;
 use windfall_ipc::{RecordingAlignment, RecordingAlignmentStatus};
 
@@ -129,6 +129,7 @@ struct TimedFeed {
     rate: u32,
     frame: u64,
     fault: Arc<InputFault>,
+    timebase: crate::recording_clock::DriverTimebase,
 }
 impl TimedFeed {
     fn push<T: SizedSample>(&mut self, data: &[T], info: &cpal::InputCallbackInfo)
@@ -142,10 +143,7 @@ impl TimedFeed {
             self.fault.raise(FaultReason::InvalidAudio);
             return;
         }
-        let stamp = info.timestamp();
-        let latency = stamp.callback.checked_duration_since(stamp.capture);
-        let latency_ns = latency.map_or(0, nanos);
-        let captured = self.clock.now_nanos().saturating_sub(latency_ns);
+        let (captured, latency_ns, measured) = self.timebase.capture(info.timestamp(), &self.clock);
         for (index, chunk) in data.chunks(PACKET_FRAMES * self.channels).enumerate() {
             let len = chunk.len() / self.channels;
             let mut packet = Packet {
@@ -156,7 +154,7 @@ impl TimedFeed {
                     (index as u64 * PACKET_FRAMES as u64 * 1_000_000_000) / u64::from(self.rate),
                 ),
                 latency_ns,
-                measured: latency.is_some(),
+                measured,
             };
             for (out, frame) in packet
                 .audio
@@ -228,6 +226,7 @@ fn open_timed(
         rate,
         frame: 0,
         fault: fault.clone(),
+        timebase: crate::recording_clock::DriverTimebase::default(),
     };
     let stream = match config.sample_format() {
         SampleFormat::F32 => build_timed::<f32>(&device, &config.config(), feed, fault),
@@ -248,14 +247,25 @@ fn build_timed<T: SizedSample>(
 where
     f32: FromSample<T>,
 {
-    device
+    let timebase = feed.timebase.clone();
+    let clock = feed.clock.clone();
+    let startup = Arc::new(crate::recording_endpoint::InputStartup::new(
+        device.id().map(|id| id.host().name()).unwrap_or(""),
+    ));
+    let data_startup = startup.clone();
+    let stream = device
         .build_input_stream(
             *config,
-            move |data: &[T], info| feed.push(data, info),
-            move |error: cpal::Error| fault.report(error),
+            move |data: &[T], info| {
+                data_startup.received();
+                feed.push(data, info);
+            },
+            move |error: cpal::Error| startup.report(&fault, error),
             None,
         )
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    timebase.initialize(&stream, &clock);
+    Ok(stream)
 }
 
 /// A bounded circular history with a symmetric windowed-sinc interpolator.

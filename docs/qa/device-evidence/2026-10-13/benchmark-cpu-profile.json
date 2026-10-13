@@ -1,0 +1,249 @@
+{
+  "selectedLogical": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15
+  ],
+  "affinityMask": "0xFFFF",
+  "scope": "This gate process and descendants only",
+  "cpuSets": [
+    {
+      "group": 0,
+      "logical": 0,
+      "core": 0,
+      "efficiencyClass": 1,
+      "schedulingClass": 1
+    },
+    {
+      "group": 0,
+      "logical": 1,
+      "core": 0,
+      "efficiencyClass": 1,
+      "schedulingClass": 1
+    },
+    {
+      "group": 0,
+      "logical": 2,
+      "core": 2,
+      "efficiencyClass": 1,
+      "schedulingClass": 1
+    },
+    {
+      "group": 0,
+      "logical": 3,
+      "core": 2,
+      "efficiencyClass": 1,
+      "schedulingClass": 1
+    },
+    {
+      "group": 0,
+      "logical": 4,
+      "core": 4,
+      "efficiencyClass": 1,
+      "schedulingClass": 1
+    },
+    {
+      "group": 0,
+      "logical": 5,
+      "core": 4,
+      "efficiencyClass": 1,
+      "schedulingClass": 1
+    },
+    {
+      "group": 0,
+      "logical": 6,
+      "core": 6,
+      "efficiencyClass": 1,
+      "schedulingClass": 1
+    },
+    {
+      "group": 0,
+      "logical": 7,
+      "core": 6,
+      "efficiencyClass": 1,
+      "schedulingClass": 1
+    },
+    {
+      "group": 0,
+      "logical": 8,
+      "core": 8,
+      "efficiencyClass": 1,
+      "schedulingClass": 2
+    },
+    {
+      "group": 0,
+      "logical": 9,
+      "core": 8,
+      "efficiencyClass": 1,
+      "schedulingClass": 2
+    },
+    {
+      "group": 0,
+      "logical": 10,
+      "core": 10,
+      "efficiencyClass": 1,
+      "schedulingClass": 2
+    },
+    {
+      "group": 0,
+      "logical": 11,
+      "core": 10,
+      "efficiencyClass": 1,
+      "schedulingClass": 2
+    },
+    {
+      "group": 0,
+      "logical": 12,
+      "core": 12,
+      "efficiencyClass": 1,
+      "schedulingClass": 1
+    },
+    {
+      "group": 0,
+      "logical": 13,
+      "core": 12,
+      "efficiencyClass": 1,
+      "schedulingClass": 1
+    },
+    {
+      "group": 0,
+      "logical": 14,
+      "core": 14,
+      "efficiencyClass": 1,
+      "schedulingClass": 1
+    },
+    {
+      "group": 0,
+      "logical": 15,
+      "core": 14,
+      "efficiencyClass": 1,
+      "schedulingClass": 1
+    },
+    {
+      "group": 0,
+      "logical": 16,
+      "core": 16,
+      "efficiencyClass": 0,
+      "schedulingClass": 0
+    },
+    {
+      "group": 0,
+      "logical": 17,
+      "core": 17,
+      "efficiencyClass": 0,
+      "schedulingClass": 0
+    },
+    {
+      "group": 0,
+      "logical": 18,
+      "core": 18,
+      "efficiencyClass": 0,
+      "schedulingClass": 0
+    },
+    {
+      "group": 0,
+      "logical": 19,
+      "core": 19,
+      "efficiencyClass": 0,
+      "schedulingClass": 0
+    },
+    {
+      "group": 0,
+      "logical": 20,
+      "core": 20,
+      "efficiencyClass": 0,
+      "schedulingClass": 0
+    },
+    {
+      "group": 0,
+      "logical": 21,
+      "core": 21,
+      "efficiencyClass": 0,
+      "schedulingClass": 0
+    },
+    {
+      "group": 0,
+      "logical": 22,
+      "core": 22,
+      "efficiencyClass": 0,
+      "schedulingClass": 0
+    },
+    {
+      "group": 0,
+      "logical": 23,
+      "core": 23,
+      "efficiencyClass": 0,
+      "schedulingClass": 0
+    },
+    {
+      "group": 0,
+      "logical": 24,
+      "core": 24,
+      "efficiencyClass": 0,
+      "schedulingClass": 0
+    },
+    {
+      "group": 0,
+      "logical": 25,
+      "core": 25,
+      "efficiencyClass": 0,
+      "schedulingClass": 0
+    },
+    {
+      "group": 0,
+      "logical": 26,
+      "core": 26,
+      "efficiencyClass": 0,
+      "schedulingClass": 0
+    },
+    {
+      "group": 0,
+      "logical": 27,
+      "core": 27,
+      "efficiencyClass": 0,
+      "schedulingClass": 0
+    },
+    {
+      "group": 0,
+      "logical": 28,
+      "core": 28,
+      "efficiencyClass": 0,
+      "schedulingClass": 0
+    },
+    {
+      "group": 0,
+      "logical": 29,
+      "core": 29,
+      "efficiencyClass": 0,
+      "schedulingClass": 0
+    },
+    {
+      "group": 0,
+      "logical": 30,
+      "core": 30,
+      "efficiencyClass": 0,
+      "schedulingClass": 0
+    },
+    {
+      "group": 0,
+      "logical": 31,
+      "core": 31,
+      "efficiencyClass": 0,
+      "schedulingClass": 0
+    }
+  ],
+  "gate": "profile"
+}

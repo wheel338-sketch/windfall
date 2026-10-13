@@ -1,0 +1,514 @@
+{
+  "actual": {
+    "bufferFrames": 480,
+    "bufferLatencyMs": 10.0,
+    "host": "WASAPI",
+    "outputChannels": 2,
+    "outputDevice": "Realtek Digital Output (Realtek(R) Audio)",
+    "processingLatencyFrames": 0,
+    "sampleRate": 48000
+  },
+  "arch": "x86_64",
+  "checks": [
+    {
+      "check": "monitoring stays active with no error",
+      "passed": true
+    },
+    {
+      "check": "the input reports its rate",
+      "passed": true
+    },
+    {
+      "check": "no underrun once the monitor queue has settled",
+      "passed": true
+    },
+    {
+      "check": "no monitor frames are dropped",
+      "passed": false
+    },
+    {
+      "check": "stopping ends the group",
+      "passed": true
+    }
+  ],
+  "commit": "9244a26c3b1357d68606f191e97d47938108e34a",
+  "inputDevice": "Loopback: Realtek Digital Output (Realtek(R) Audio)",
+  "label": "realtek",
+  "loopbackIsolation": {
+    "inputPort": 2,
+    "monitorPort": 1,
+    "stimulusPort": 2
+  },
+  "os": "windows",
+  "osVersion": "Microsoft Windows [Version 10.0.26300.9550]",
+  "passed": false,
+  "profile": "dev",
+  "requested": {
+    "bufferFrames": 480,
+    "host": "WASAPI",
+    "outputChannels": null,
+    "outputDevice": "Realtek Digital Output (Realtek(R) Audio)",
+    "sampleRate": null
+  },
+  "samples": [
+    {
+      "active": true,
+      "atMs": 250,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 24.333,
+          "driftPpm": -0.0,
+          "droppedFrames": 0,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 500,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 20.5,
+          "driftPpm": -0.0,
+          "droppedFrames": 184,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 751,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 20.5,
+          "driftPpm": -0.0,
+          "droppedFrames": 184,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 1001,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 20.0,
+          "driftPpm": -0.0,
+          "droppedFrames": 209,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 1252,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 20.0,
+          "driftPpm": 5.758,
+          "droppedFrames": 209,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 1503,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 20.021,
+          "driftPpm": 9.707,
+          "droppedFrames": 209,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 1753,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 29.25,
+          "driftPpm": 10.075,
+          "droppedFrames": 209,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 2004,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 20.0,
+          "driftPpm": 7.72,
+          "droppedFrames": 211,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 2255,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 19.667,
+          "driftPpm": 5.879,
+          "droppedFrames": 228,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 2505,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 19.333,
+          "driftPpm": 6.504,
+          "droppedFrames": 244,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 2756,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 19.333,
+          "driftPpm": 5.753,
+          "droppedFrames": 245,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 3006,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 24.667,
+          "driftPpm": 3.95,
+          "droppedFrames": 245,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 3257,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 19.354,
+          "driftPpm": 3.521,
+          "droppedFrames": 245,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 3507,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 19.354,
+          "driftPpm": 3.046,
+          "droppedFrames": 245,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 3757,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 19.354,
+          "driftPpm": 2.774,
+          "droppedFrames": 245,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 4008,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 19.333,
+          "driftPpm": 4.335,
+          "droppedFrames": 247,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 4259,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 19.333,
+          "driftPpm": 4.382,
+          "droppedFrames": 247,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 4510,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 19.333,
+          "driftPpm": 4.522,
+          "droppedFrames": 247,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 4760,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 19.354,
+          "driftPpm": 4.207,
+          "droppedFrames": 247,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 5011,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 19.354,
+          "driftPpm": 3.711,
+          "droppedFrames": 247,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 5263,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 29.333,
+          "driftPpm": 3.298,
+          "droppedFrames": 248,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 5514,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 13.75,
+          "driftPpm": 3.276,
+          "droppedFrames": 517,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 5764,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 13.75,
+          "driftPpm": 2.985,
+          "droppedFrames": 517,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 6015,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 13.75,
+          "driftPpm": 3.449,
+          "droppedFrames": 517,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 6266,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 13.75,
+          "driftPpm": 3.413,
+          "droppedFrames": 517,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 6517,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 19.083,
+          "driftPpm": 3.093,
+          "droppedFrames": 517,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 6767,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 13.771,
+          "driftPpm": 2.515,
+          "droppedFrames": 517,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 7018,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 13.771,
+          "driftPpm": 2.474,
+          "droppedFrames": 517,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 7268,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 14.521,
+          "driftPpm": 2.44,
+          "droppedFrames": 517,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 7519,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 13.771,
+          "driftPpm": 2.059,
+          "droppedFrames": 517,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 7769,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 13.771,
+          "driftPpm": 2.189,
+          "droppedFrames": 517,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    },
+    {
+      "active": true,
+      "atMs": 8020,
+      "error": null,
+      "tracks": [
+        {
+          "bufferedMs": 13.792,
+          "driftPpm": 2.029,
+          "droppedFrames": 517,
+          "inputSampleRate": 48000,
+          "starvedFrames": 0
+        }
+      ]
+    }
+  ],
+  "scenario": "monitoring",
+  "stimulus": {
+    "amplitude": 0.05000000074505806,
+    "burstSeconds": 0.004,
+    "leadSeconds": 0.25,
+    "minScore": 0.5,
+    "periodSeconds": 0.5
+  },
+  "utcUnixSeconds": 1791878865,
+  "workingTreeDirty": true,
+  "xrunsTotal": 3
+}

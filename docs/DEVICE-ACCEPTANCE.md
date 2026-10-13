@@ -52,6 +52,7 @@ hand (a train 37 frames late running 100 ppm slow, and silence).
 | Test | What it establishes |
 | --- | --- |
 | `device_inventory` | Hosts, outputs with rates/buffer range/channel counts, inputs. Every WASAPI output is also listed as a `Loopback:` input. |
+| `device_audio_settings` | Every advertised rate with small, minimum and larger requested buffers; remembered request versus real delivered callback size, stream/clock restart, failed configuration and driver reopen. Select an output explicitly. |
 | `device_round_trip_alignment` | One synchronized take: all bursts found, jitter ≤ 1 ms, no step > 1 ms, drift within 50 ppm, transport/region restored, undo/redo of the take. Then a second take with the measured mean offset applied as the manual recording offset must land within 1 ms. |
 | `device_count_in_gate` | A take with no count-in and one with a one-bar count-in. Audio starts about one bar later, the bursts land within 1 ms of the take without a count-in, nothing of the pre-roll is in the take, pre-roll was trimmed, transport restored. |
 | `device_loop_takes` | Loops one bar for 3.6 passes and keeps all. Three complete passes and a final partial one, three passes together exactly three regions long, every pass on the region's first tick, earlier passes muted, bursts at the same place in every pass within 1 ms, one saved take group, one undo removes all. |
@@ -85,6 +86,7 @@ disturb each other. Results are named `<scenario>-<label>.json`.
 | `WINDFALL_DEVICE_INPUT` | Input device, or `Loopback: <output device>`. Required by all but the inventory. |
 | `WINDFALL_DEVICE_INPUT2` | A second input for the multitrack check. |
 | `WINDFALL_DEVICE_RATE`, `_BUFFER`, `_CHANNELS` | What to ask of the output. |
+| `WINDFALL_DEVICE_THREADS` | Processing threads to request; absent uses Automatic. Use 1 only to diagnose DSP handoff starvation, not to substitute for Automatic acceptance. |
 | `WINDFALL_DEVICE_SECONDS` | Take length. Default 12. |
 | `WINDFALL_DEVICE_GAIN` | Burst amplitude. Default 0.05. |
 | `WINDFALL_DEVICE_MIN_SCORE` | Lowest normalised correlation that counts as a burst. Default 0.5; an acoustic path may need less. |
@@ -107,8 +109,18 @@ disturb each other. Results are named `<scenario>-<label>.json`.
 - **A cable from an interface output to its input**: the only route that
   measures converter round-trip latency and closes the analogue gate.
 
-For monitoring, choose a route that cannot feed back: the input must not hear
-the output. Never monitor a device's own loopback.
+For monitoring, choose a route that cannot feed back: the monitored signal must
+not reach the captured channel. On a same-output stereo loopback the harness
+isolates stimulus/capture on port 2 and routes the monitor exclusively to port
+1. It records that isolation in its result. This exercises the live queue and
+mixer path safely; it does not establish physical microphone/headphone latency.
+
+`windfall-engine` also provides the opt-in `device_stream_error_recovery`
+test. It injects the supervisor's recoverable stream-ended notice while using
+a real CPAL backend, verifies the old clock ticket is invalidated, and closes
+and reopens the explicitly selected allowed output. This is a software error
+injection on a real driver, separate from the manually induced physical loss
+scenario above; it never disables an endpoint or changes system settings.
 
 ### Device loss
 
@@ -148,3 +160,9 @@ capture queue, unusable audio data, or another driver error. The take's error
 is that reason as a sentence followed by what became of the take. Two driver
 notices lose no audio and no longer end a capture: realtime priority denied,
 and a change of the system's default device.
+
+WASAPI can mark the first capture packet discontinuous at a nonzero device
+position. A notice before that stream's first packet is its start boundary;
+every later xrun is still fatal. Driver stream timestamps are mapped to the
+recording epoch using `Stream::now()` before playback, so a zero loopback
+callback clock cannot replace a valid capture timestamp with delivery time.
