@@ -48,6 +48,7 @@ mod plugin_update;
 mod plugins;
 mod project_preparation;
 mod rack_second_pass;
+mod rack_assets;
 mod recording;
 #[path = "../recording_completion_qa.rs"]
 mod recording_completion_qa;

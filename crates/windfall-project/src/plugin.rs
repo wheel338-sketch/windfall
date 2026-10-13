@@ -15,6 +15,11 @@ pub use wrapper::{PluginProcessingMode, PluginWrapperOptions};
 pub enum PluginTarget {
     Instrument { channel: ChannelId },
     Effect { effect: EffectId },
+    /// A graph-local owner, with zero padding after the nested node path.
+    Rack { channel: ChannelId, path: [u32; 4], instrument: bool },
+}
+impl PluginTarget {
+    pub fn is_instrument(self) -> bool { matches!(self, Self::Instrument { .. } | Self::Rack { instrument: true, .. }) }
 }
 
 /// A discovered parameter in native units. Its id survives list reordering.
@@ -118,6 +123,27 @@ impl PluginBinding {
 impl crate::Project {
     /// The saved plugin that replaces this instrument or effect.
     pub fn plugin(&self, target: PluginTarget) -> Option<&PluginBinding> {
+        if let PluginTarget::Rack { channel, path, .. } = target {
+            let count = path.iter().take_while(|id| **id != 0).count();
+            return self.settings.modular_racks.iter().find(|r| r.channel == channel)?.graph.node_at(&path[..count])?.hosted.as_ref().filter(|p| p.target == target);
+        }
         self.plugins.iter().find(|plugin| plugin.target == target)
+    }
+    /// Control-side inventory shared by hosting, capture and file review.
+    pub fn plugin_bindings(&self) -> Vec<&PluginBinding> {
+        fn add<'a>(graph: &'a crate::RackGraph, out: &mut Vec<&'a PluginBinding>) {
+            for node in &graph.nodes { if let Some(binding) = &node.hosted { out.push(binding); } if let crate::RackProcessor::Rack { graph } = &node.processor { add(graph, out); } }
+        }
+        let mut out: Vec<_> = self.plugins.iter().collect();
+        for rack in &self.settings.modular_racks { add(&rack.graph, &mut out); }
+        out
+    }
+    pub fn plugin_bindings_mut(&mut self) -> Vec<&mut PluginBinding> {
+        fn add<'a>(graph: &'a mut crate::RackGraph, out: &mut Vec<&'a mut PluginBinding>) {
+            for node in &mut graph.nodes { if let Some(binding) = &mut node.hosted { out.push(binding); } if let crate::RackProcessor::Rack { graph } = &mut node.processor { add(graph, out); } }
+        }
+        let mut out: Vec<_> = self.plugins.iter_mut().collect();
+        for rack in &mut self.settings.modular_racks { add(&mut rack.graph, &mut out); }
+        out
     }
 }

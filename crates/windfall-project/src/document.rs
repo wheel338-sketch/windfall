@@ -65,13 +65,15 @@ struct Entry {
 }
 
 fn project_asset_pins(project: &Project) -> windfall_dsp::asset::AssetPins {
-    windfall_dsp::asset::AssetPins::for_effects(
+    let mut pins = windfall_dsp::asset::AssetPins::for_effects(
         project
             .mixer
             .tracks
             .iter()
             .flat_map(|track| track.effects.iter().map(|effect| &effect.params)),
-    )
+    );
+    for rack in &project.settings.modular_racks { pins.extend(rack.graph.effect_asset_pins()); }
+    pins
 }
 
 fn history_asset_pins(edits: &[Edit]) -> windfall_dsp::asset::AssetPins {

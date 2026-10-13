@@ -139,6 +139,7 @@ impl Transaction<'_> {
         }
         let mut local = std::collections::HashMap::new();
         let destination = match target {
+            PluginTarget::Rack { channel, .. } => channel.0,
             PluginTarget::Instrument { channel } => channel.0,
             PluginTarget::Effect { effect } => effect.0,
         };
@@ -160,6 +161,11 @@ impl Transaction<'_> {
         let old = Processor::of_state(&current.state);
         let new = Processor::of_state(&preset.state);
         match (target, preset.state) {
+            (target @ PluginTarget::Rack { instrument, .. }, PluginPresetState::Hosted { instrument: wanted, mut binding }) if instrument == wanted => {
+                binding.target = target;
+                self.edit_rack_plugin(target, |plugin| { *plugin = binding; Ok(()) })?;
+            }
+            (PluginTarget::Rack { .. }, _) => return Err(CommandError::invalid("A hosted rack node requires a native preset of the same instrument/effect role")),
             (PluginTarget::Instrument { channel }, state) if state.is_instrument() => {
                 let index = self.channel_index(channel)?;
                 self.remove_automations_of(|automation| match *automation {

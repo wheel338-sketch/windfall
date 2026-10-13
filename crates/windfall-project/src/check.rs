@@ -192,6 +192,7 @@ impl Project {
                     .tracks
                     .iter()
                     .any(|track| track.effect(effect).is_some()),
+                crate::PluginTarget::Rack { .. } => false, // bindings live in their node
             };
             if !exists || !targets.insert(plugin.target) {
                 return Err("a plugin binding has a missing or repeated owner".to_owned());

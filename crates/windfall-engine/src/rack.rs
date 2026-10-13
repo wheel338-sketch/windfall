@@ -620,6 +620,7 @@ impl HeldInstrumentNote {
 
 pub(crate) struct InstrumentUnit {
     modular: Option<crate::modular::ModularRack>,
+    retiring_racks: Box<[Option<crate::modular::ModularRack>]>,
     voice_envelopes: Option<crate::channel_voice::PreparedChannelEnvelopes>,
     voice_glide: f64,
     /// What the stored controls of a note drive. A built-in instrument is
@@ -672,6 +673,8 @@ impl InstrumentUnit {
     }
     pub fn parallel_safe(&self) -> bool {
         self.external.is_none()
+            && self.modular.as_ref().is_none_or(crate::modular::ModularRack::parallel_safe)
+            && self.retiring_racks.iter().flatten().all(crate::modular::ModularRack::parallel_safe)
             && !matches!(
                 self.params,
                 InstrumentParams::MidiOut(_) | InstrumentParams::Dashboard(_)
@@ -708,6 +711,7 @@ impl InstrumentUnit {
             voice_envelopes: None,
             voice_glide: 1.0,
             modular: None,
+            retiring_racks: (0..64).map(|_| None).collect(),
             map: ExpressionMap::DEFAULT,
             external: None,
             plugin_params: Box::new([]),
@@ -747,6 +751,19 @@ impl InstrumentUnit {
 
     pub fn install_rack(&mut self, rack: crate::modular::ModularRack) {
         self.modular = Some(rack);
+    }
+    pub fn inherit_rack_retirement(&mut self, previous: &mut Self, audible: bool) {
+        std::mem::swap(&mut self.retiring_racks, &mut previous.retiring_racks);
+        if let Some(slot) = self.retiring_racks.iter_mut().find(|slot| slot.is_none()) {
+            if let Some(mut rack) = previous.modular.take() {
+                rack.retire_from_document();
+                rack.retirement_audible = audible;
+                *slot = Some(rack);
+            }
+        }
+    }
+    pub fn take_retired_rack(&mut self) -> Option<crate::modular::ModularRack> {
+        self.retiring_racks.iter_mut().find(|slot| slot.as_ref().is_some_and(crate::modular::ModularRack::finished_retiring)).and_then(Option::take)
     }
 
     /// Prepared replacements replay current parent occurrences. The old DSP
@@ -845,6 +862,8 @@ impl InstrumentUnit {
         self.apply_plugin(binding);
     }
     pub fn plugin_control_boundary(&mut self) {
+        if let Some(rack) = &mut self.modular { rack.control_boundary(); }
+        for rack in self.retiring_racks.iter_mut().flatten() { rack.control_boundary(); }
         if let Some(Some(unit)) = &mut self.external {
             unit.control_boundary();
         }
@@ -870,6 +889,7 @@ impl InstrumentUnit {
         }
     }
     pub fn plugin_transport(&mut self, transport: crate::plugins::PluginTransport) {
+        if let Some(rack) = &mut self.modular { rack.transport(transport); }
         if let Some(Some(unit)) = &mut self.external {
             unit.transport(transport);
         }
@@ -959,6 +979,7 @@ impl InstrumentUnit {
     /// True once nothing more can come out of the instrument until its
     /// next note.
     pub fn settled(&self, now: u64) -> bool {
+        if self.retiring_racks.iter().flatten().any(|rack| !rack.finished_retiring()) { return false; }
         if let Some(rack) = &self.modular {
             return self.voices() == 0
                 && self.last_sound.saturating_add(rack.tail_samples() as u64) <= now;
@@ -1428,6 +1449,15 @@ impl InstrumentUnit {
         }
         if let Some(rack) = &mut self.modular {
             rack.process(left, right);
+        }
+        for rack in self.retiring_racks.iter_mut().flatten() {
+            if rack.finished_retiring() { continue; }
+            // Outgoing processors receive no new source audio or notes. Their
+            // accepted releases and convolution/delay histories keep running.
+            let mut tail_left = [0.0; MAX_BLOCK];
+            let mut tail_right = [0.0; MAX_BLOCK];
+            rack.process(&mut tail_left[..to-from], &mut tail_right[..to-from]);
+            if rack.retirement_audible { for index in 0..to-from { left[index] += tail_left[index]; right[index] += tail_right[index]; } }
         }
         let last = (0..to - from)
             .rev()

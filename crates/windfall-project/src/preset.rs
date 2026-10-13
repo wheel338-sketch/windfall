@@ -487,11 +487,17 @@ impl PluginPreset {
     /// preset. The native state of a hosted plugin is whatever the project
     /// holds for it, so capture the live state into the project first.
     pub fn capture(project: &Project, target: PluginTarget) -> Result<Self, String> {
+        if matches!(target, PluginTarget::Rack { .. }) {
+            let mut binding = project.plugin(target).cloned().ok_or("The hosted rack node no longer exists")?;
+            binding.target = placeholder(target.is_instrument());
+            return Ok(Self { tables: None, state: PluginPresetState::Hosted { instrument: target.is_instrument(), binding } });
+        }
         let binding = project.plugin(target).cloned().map(|mut binding| {
             binding.target = placeholder(matches!(target, PluginTarget::Instrument { .. }));
             binding
         });
         let state = match target {
+            PluginTarget::Rack { .. } => unreachable!("rack capture handled above"),
             PluginTarget::Instrument { channel } => {
                 let channel = project
                     .channel(channel)
@@ -534,6 +540,7 @@ impl PluginPreset {
             }
         };
         let owner = match target {
+            PluginTarget::Rack { channel, .. } => channel.0,
             PluginTarget::Instrument { channel } => channel.0,
             PluginTarget::Effect { effect } => effect.0,
         };
@@ -769,7 +776,7 @@ impl ChannelPreset {
         if let Some(graph) = &self.rack {
             project.settings.modular_racks.push(crate::ChannelRack {
                 channel: id,
-                graph: graph.clone(),
+                graph: { let mut graph = graph.clone(); graph.bind_hosted_owners(id); graph },
             });
         }
         if let Some(binding) = &self.plugin {

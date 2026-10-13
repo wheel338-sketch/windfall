@@ -428,6 +428,15 @@ pub async fn plugins_insert(
         let plugin = session.while_recording_idle(|| manager.binding(&path, &id, target))?;
         let project = session.document_snapshot().project;
         let command = match destination {
+            Some(target @ PluginTarget::Rack { channel, path, .. }) => {
+                let before = project.settings.modular_racks.iter().find(|rack| rack.channel == channel).ok_or("The plugin rack was removed")?.graph.clone();
+                let mut graph = before.clone();
+                let count = path.iter().take_while(|id| **id != 0).count();
+                let mut plugin = plugin;
+                plugin.target = target;
+                graph.replace_hosted_provider(&path[..count], plugin)?;
+                Command::SetChannelRack { id: channel, graph: Some(graph), expected: Some(before) }
+            }
             Some(PluginTarget::Instrument { channel }) => {
                 let expected = project
                     .channel(channel)

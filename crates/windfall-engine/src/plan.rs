@@ -821,6 +821,7 @@ impl Plan {
                 .iter()
                 .flat_map(|track| track.effects.iter().map(|effect| &effect.params)),
         );
+        for channel in &self.channels { if let Some(graph) = &channel.rack { self._asset_pins.extend(graph.effect_asset_pins()); } }
         for track in &mut self.tracks {
             track.instruments.clear();
         }
@@ -1063,7 +1064,7 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
             &project.playlist.timeline.meters,
         )
         .map(|map| map.segments().to_vec()),
-        plugins: project.plugins.clone(),
+        plugins: project.plugin_bindings().into_iter().cloned().collect(),
         plugin_factory: pool.plugin_factory.clone(),
         // T1 refuses invalid meter maps before any provider metadata access.
         // snapshot_native_owners below fills this only for a valid plan.
