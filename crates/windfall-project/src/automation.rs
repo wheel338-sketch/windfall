@@ -286,6 +286,9 @@ impl Project {
                 (AutomationRange::MIX, effect(track, id)?.mix)
             }
             AutomationTarget::InstrumentParam { channel, param } => {
+                if param >= crate::scripting::SCRIPT_PARAMETER_BASE {
+                    return self.settings.scripts.parameter_state(channel, param);
+                }
                 if let Some(rack) = self
                     .settings
                     .modular_racks

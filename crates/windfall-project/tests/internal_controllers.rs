@@ -380,3 +380,26 @@ fn source_specific_settings_and_nonfinite_duration_are_refused_without_history_c
         assert_eq!(doc.history(), history);
     }
 }
+
+#[test]
+fn synced_source_tempo_links_are_checked_bounded_undoable_and_saved() {
+    let mut doc = Document::new(Project::new("Clock links"));
+    let source = effect(&mut doc, TrackId::MASTER, EffectKind::EnvelopeFollower);
+    config(&mut doc, vec![InternalControllerSettings { controller: source.0, sync_beats: Some(0.25), ..Default::default() }]).unwrap();
+    let mut connection = link(source, 1, AutomationTarget::Tempo);
+    connection.map.min = (90.0-10.0)/512.0;
+    connection.map.max = (150.0-10.0)/512.0;
+    set(&mut doc, vec![connection.clone()]).unwrap();
+    assert_eq!(doc.project().settings.controller_links[0], connection);
+    let before = doc.snapshot(None);
+    let mut invalid = connection.clone();
+    invalid.map.max = 2.0;
+    assert!(set(&mut doc, vec![invalid]).is_err());
+    assert_eq!(doc.snapshot(None), before);
+    let reopened = file::from_json(&file::to_json(doc.project()).unwrap()).unwrap();
+    assert_eq!(reopened.settings.controller_links, vec![connection]);
+    doc.undo().unwrap();
+    assert!(doc.project().settings.controller_links.is_empty());
+    doc.redo().unwrap();
+    assert_eq!(doc.project().settings.controller_links.len(), 1);
+}

@@ -571,6 +571,9 @@ impl Program {
             len: self.len,
             registers: self.registers(parameters)?,
             copies: copies.unwrap_or((1, 0, 0)),
+            parameter_count: self.parameters.len(),
+            dynamic: false,
+            parameter_bounds: std::array::from_fn(|i| self.parameters.get(i).map_or((0.0, 0.0), |p| (p.min, p.max))),
         })
     }
 }
@@ -722,6 +725,9 @@ pub struct NoteTransform {
     len: usize,
     registers: [f64; REGISTERS],
     copies: (u8, i8, u32),
+    parameter_count: usize,
+    dynamic: bool,
+    parameter_bounds: [(f64, f64); MAX_PARAMETERS],
 }
 
 /// Tiny nonallocating runtime error. Format it on the control thread.
@@ -732,6 +738,77 @@ pub enum TransformError {
 }
 
 impl NoteTransform {
+    pub fn parameter_count(&self) -> usize { self.parameter_count }
+    pub fn dynamic(&self) -> bool { self.dynamic }
+    pub fn set_dynamic(&mut self, dynamic: bool) { self.dynamic = dynamic; }
+    pub fn parameter_value(&self, index: usize) -> Option<f32> {
+        (index < self.parameter_count).then(|| self.registers[8 + index] as f32)
+    }
+    pub fn set_parameter(&mut self, index: usize, value: f32) -> bool {
+        if index >= self.parameter_count || !value.is_finite() { return false; }
+        let (min, max) = self.parameter_bounds[index];
+        self.registers[8 + index] = f64::from(value).clamp(min, max);
+        true
+    }
+    /// Control-side interval proof of the largest end over declared parameter
+    /// bounds. This reserves a stable pattern/clip extent while parameters move.
+    /// Division through zero and non-finite/unbounded time are refused atomically.
+    pub fn maximum_end(&self, input: ScriptNote) -> Result<u32, TransformError> {
+        let mut initial = self.registers;
+        set_note(&mut initial, input);
+        let mut registers = initial.map(|v| (v, v));
+        for (register, bounds) in registers[FIELDS.len()..].iter_mut().zip(&self.parameter_bounds[..self.parameter_count]) {
+            *register = *bounds;
+        }
+        let mut stack = [(0.0, 0.0); STACK];
+        let mut sp = 0usize;
+        for instruction in &self.code[..self.len] {
+            match instruction.op {
+                Op::Constant(value) => { stack[sp] = (value, value); sp += 1; }
+                Op::Load(index) => { stack[sp] = registers[usize::from(index)]; sp += 1; }
+                Op::Store(index) => { sp -= 1; registers[usize::from(index)] = stack[sp]; }
+                Op::Add | Op::Sub | Op::Mul | Op::Div | Op::Min | Op::Max => {
+                    sp -= 1; let b = stack[sp]; sp -= 1; let a = stack[sp];
+                    let result = match instruction.op {
+                        Op::Add => (a.0 + b.0, a.1 + b.1),
+                        Op::Sub => (a.0 - b.1, a.1 - b.0),
+                        Op::Min => (a.0.min(b.0), a.1.min(b.1)),
+                        Op::Max => (a.0.max(b.0), a.1.max(b.1)),
+                        Op::Mul | Op::Div => {
+                            if instruction.op == Op::Div && b.0 <= 0.0 && b.1 >= 0.0 { return Err(TransformError::Arithmetic); }
+                            let b = if instruction.op == Op::Div { (1.0 / b.1, 1.0 / b.0) } else { b };
+                            let values = [a.0*b.0, a.0*b.1, a.1*b.0, a.1*b.1];
+                            (values.into_iter().fold(f64::INFINITY, f64::min), values.into_iter().fold(f64::NEG_INFINITY, f64::max))
+                        }
+                        _ => unreachable!(),
+                    };
+                    if !result.0.is_finite() || !result.1.is_finite() { return Err(TransformError::Arithmetic); }
+                    stack[sp] = result; sp += 1;
+                }
+                Op::Clamp => {
+                    sp -= 1; let max = stack[sp]; sp -= 1; let min = stack[sp]; sp -= 1; let value = stack[sp];
+                    if min.1 > max.0 { return Err(TransformError::Arithmetic); }
+                    stack[sp] = (value.0.max(min.0).min(max.0), value.1.max(min.1).min(max.1)); sp += 1;
+                }
+                Op::Emit => {
+                    let start = registers[0].1.round();
+                    let length = registers[1].1.round();
+                    let end = start + length + f64::from(self.copies.0 - 1) * f64::from(self.copies.2);
+                    if registers[0].0 < 0.0 || registers[1].0.round() < 1.0
+                        || (self.parameter_count > 0 && registers[0].0.round() < f64::from(input.start))
+                        || !end.is_finite() || end > f64::from(crate::MAX_PATTERN_TICKS) { return Err(TransformError::NoteBounds); }
+                    return Ok(end as u32);
+                }
+                Op::Copies(_, _, _) | Op::Nop => {}
+                _ => return Err(TransformError::Arithmetic),
+            }
+        }
+        Err(TransformError::Arithmetic)
+    }
+
+    pub fn gates_live_notes(&self) -> bool {
+        self.code[..self.len].iter().any(|i| i.op == Op::Store(1))
+    }
     /// Fixed stack/register arrays, straight-line bytecode, one input/output.
     /// No allocation, deallocation, clock, lock or IO on success or failure.
     pub fn evaluate(&self, input: ScriptNote) -> Result<ScriptNote, TransformError> {
