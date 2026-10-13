@@ -99,9 +99,9 @@ impl Workers {
             let thread = std::thread::Builder::new()
                 .name(format!("windfall-dsp-{index}"))
                 .spawn(move || {
-                    // Affinity setup belongs to this newly-created control-side lane,
-                    // before accepting any audio job. Failure is harmless (OS policy).
-                    pin(index);
+                    // Let the scheduler spread lanes across physical cores.
+                    // Consecutive logical CPU IDs can be SMT siblings; pinning
+                    // the first lanes there makes them compete with each other.
                     worker_ready.store(true, Ordering::Release);
                     while !stop.load(Ordering::Acquire) {
                         let mut received = receive.pop().ok();
@@ -239,25 +239,6 @@ impl Drop for Workers {
         }
     }
 }
-
-#[cfg(windows)]
-fn pin(index: usize) {
-    #[link(name = "kernel32")]
-    unsafe extern "system" {
-        fn GetCurrentThread() -> *mut std::ffi::c_void;
-        fn SetThreadAffinityMask(thread: *mut std::ffi::c_void, mask: usize) -> usize;
-    }
-    let cores = std::thread::available_parallelism()
-        .map_or(1, usize::from)
-        .min(usize::BITS as usize);
-    // SAFETY: pseudo-handle names this worker, and a bounded shift makes a valid
-    // mask. A restricted processor group may refuse it; no callback is involved.
-    unsafe {
-        SetThreadAffinityMask(GetCurrentThread(), 1usize << (index % cores));
-    }
-}
-#[cfg(not(windows))]
-fn pin(_: usize) {}
 
 #[cfg(test)]
 mod tests {

@@ -60,11 +60,17 @@ fn collector_lease(managed: &Path) -> std::io::Result<File> {
     // the same OS lock without deleting a lock inode while a waiter owns it.
     let identity = fs::canonicalize(managed).or_else(|_| {
         let parent = managed.parent().ok_or_else(|| {
-            std::io::Error::new(std::io::ErrorKind::InvalidInput, "Missing extraction parent")
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Missing extraction parent",
+            )
         })?;
         Ok::<_, std::io::Error>(fs::canonicalize(parent)?.join(managed.file_name().unwrap()))
     })?;
-    let mut identity = paths::clean(&identity).as_os_str().as_encoded_bytes().to_vec();
+    let mut identity = paths::clean(&identity)
+        .as_os_str()
+        .as_encoded_bytes()
+        .to_vec();
     if cfg!(windows) {
         identity.make_ascii_lowercase();
     }
