@@ -105,10 +105,10 @@ export function PluginControls({ binding }: { binding: PluginBinding }) {
   useLanguageStore((state) => state.language)
   const tracks = useProjectStore((state) => state.project.mixer.tracks)
   const capabilities = binding.capabilities
-  const outputs = [...(capabilities?.outputs ?? []), ...(capabilities?.routes ?? []).filter((route) => !(capabilities?.outputs ?? []).some((port) => port.index === route.output)).map((route) => ({ index: route.output, name: `Saved output ${route.output + 1} (unavailable)`, channels: 0 }))]
+  const outputs = [...(capabilities?.outputs ?? []), ...(capabilities?.routes ?? []).filter((route) => !(capabilities?.outputs ?? []).some((port) => port.index === route.output)).map((route) => ({ index: route.output, name: i18nMessage("Saved output {output} (unavailable)", { output: route.output + 1 }), channels: 0 }))]
   const diagnostics = [
-    ...(capabilities?.unavailableParameters ?? []).map((id) => `Parameter ${id} is unavailable. Its automation and controller links are retained and will resume when it returns.`),
-    ...(capabilities?.routes ?? []).filter((route) => !(capabilities?.outputs ?? []).some((port) => port.index === route.output) || !tracks.some((track) => track.id === route.track)).map((route) => `Saved output ${route.output + 1} to mixer track ${route.track} is unavailable. The route is retained.`),
+    ...(capabilities?.unavailableParameters ?? []).map((id) => i18nMessage("Parameter {id} is unavailable. Its automation and controller links are retained and will resume when it returns.", { id })),
+    ...(capabilities?.routes ?? []).filter((route) => !(capabilities?.outputs ?? []).some((port) => port.index === route.output) || !tracks.some((track) => track.id === route.track)).map((route) => i18nMessage("Saved output {output} to mixer track {track} is unavailable. The route is retained.", { output: route.output + 1, track: route.track })),
   ]
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {
@@ -173,17 +173,17 @@ export function PluginControls({ binding }: { binding: PluginBinding }) {
         >{t("Close native editor")}</Button>
         <Button size="sm" variant="outline" onClick={() => openPluginManager()}>{t("Manage plugins")}</Button>
       </div>
-      {diagnostics.length > 0 && <Alert><AlertTitle>Plugin capabilities changed</AlertTitle><AlertDescription>{diagnostics.map((diagnostic) => <p key={diagnostic}>{diagnostic}</p>)}</AlertDescription></Alert>}
+      {diagnostics.length > 0 && <Alert><AlertTitle>{t("Plugin capabilities changed")}</AlertTitle><AlertDescription>{diagnostics.map((diagnostic) => <p key={diagnostic}>{diagnostic}</p>)}</AlertDescription></Alert>}
       <PluginWrapperControls binding={binding} />
       <FieldGroup>
         {outputs.map((port) => {
           const route = capabilities?.routes.find((route) => route.output === port.index)
-          const items = [{ value: -1, label: "Disconnected" }, ...tracks.filter((track) => !track.current).map((track) => ({ value: track.id, label: track.name }))]
-          return <Field key={port.index}><FieldLabel>{port.name || `Output ${port.index + 1}`}</FieldLabel>
+          const items = [{ value: -1, label: t("Disconnected") }, ...tracks.filter((track) => !track.current).map((track) => ({ value: track.id, label: track.name }))]
+          return <Field key={port.index}><FieldLabel>{port.name || i18nMessage("Output {output}", { output: port.index + 1 })}</FieldLabel>
             <Select value={route?.track ?? -1} items={items} onValueChange={(track: number | null) => {
-              if (track !== null) void dispatch({ type: "setPluginOutputRoute", target: binding.target, output: port.index, track: track < 0 ? null : track }).catch((error: unknown) => reportError(error, "Could not route the native output"))
+              if (track !== null) void dispatch({ type: "setPluginOutputRoute", target: binding.target, output: port.index, track: track < 0 ? null : track }).catch((error: unknown) => reportError(error, t("Could not route the native output")))
             }}>
-              <SelectTrigger aria-label={`Route plugin output ${port.index + 1}`}><SelectValue /></SelectTrigger>
+              <SelectTrigger aria-label={i18nMessage("Route plugin output {output}", { output: port.index + 1 })}><SelectValue /></SelectTrigger>
               <SelectContent><SelectGroup>{items.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent>
             </Select>
           </Field>
@@ -228,7 +228,8 @@ export function PluginControls({ binding }: { binding: PluginBinding }) {
 }
 
 function RackParameter({ binding, parameter }: { binding: PluginBinding; parameter: PluginParameter }) {
+  const unavailable = binding.capabilities?.unavailableParameters.includes(parameter.id) ?? false
   const id = useId()
   const value = useGestureValue(parameter.value, (value) => ({ type: "setPluginParam", target: binding.target, id: parameter.id, value }), (value) => Math.min(parameter.max, Math.max(parameter.min, parameter.stepped ? Math.round(value) : value)))
-  return <Field data-disabled={parameter.readOnly || undefined}><FieldLabel htmlFor={id}>{parameter.name}</FieldLabel><Input id={id} type="number" min={parameter.min} max={parameter.max} step={parameter.stepped ? 1 : "any"} disabled={parameter.readOnly} value={value.value} onFocus={value.onGestureStart} onBlur={value.onGestureEnd} onChange={(e) => { const next = Number(e.target.value); if (Number.isFinite(next)) value.onValueChange(next) }} /></Field>
+  return <Field data-disabled={parameter.readOnly || unavailable || undefined}><FieldLabel htmlFor={id}>{parameter.name}</FieldLabel><Input id={id} type="number" min={parameter.min} max={parameter.max} step={parameter.stepped ? 1 : "any"} disabled={parameter.readOnly || unavailable} value={value.value} onFocus={value.onGestureStart} onBlur={value.onGestureEnd} onChange={(e) => { const next = Number(e.target.value); if (Number.isFinite(next)) value.onValueChange(next) }} /></Field>
 }

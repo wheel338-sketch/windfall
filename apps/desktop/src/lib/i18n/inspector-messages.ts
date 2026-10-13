@@ -1,4 +1,12 @@
 export const inspectorEn = {
+  "Saved output {output} (unavailable)": "Saved output {output} (unavailable)",
+  "Parameter {id} is unavailable. Its automation and controller links are retained and will resume when it returns.": "Parameter {id} is unavailable. Its automation and controller links are retained and will resume when it returns.",
+  "Saved output {output} to mixer track {track} is unavailable. The route is retained.": "Saved output {output} to mixer track {track} is unavailable. The route is retained.",
+  "Plugin capabilities changed": "Plugin capabilities changed",
+  "Could not route the native output": "Could not route the native output",
+  "Output {output}": "Output {output}",
+  "Route plugin output {output}": "Route plugin output {output}",
+  "Disconnected": "Disconnected",
   "Scan your folders, then add instruments to the rack or effects to mixer track {track}.": "Scan your folders, then add instruments to the rack or effects to mixer track {track}.",
   "{count} channels": "{count} channels",
   "{name} effects": "{name} effects",
@@ -614,6 +622,14 @@ export const inspectorEn = {
 } as const
 
 export const inspectorEs = {
+  "Saved output {output} (unavailable)": "Salida guardada {output} (no disponible)",
+  "Parameter {id} is unavailable. Its automation and controller links are retained and will resume when it returns.": "El parámetro {id} no está disponible. Su automatización y enlaces de controlador se conservan y se reanudarán cuando vuelva.",
+  "Saved output {output} to mixer track {track} is unavailable. The route is retained.": "La salida guardada {output} a la pista de mezclador {track} no está disponible. La ruta se conserva.",
+  "Plugin capabilities changed": "Han cambiado las capacidades del plugin",
+  "Could not route the native output": "No se pudo enrutar la salida nativa",
+  "Output {output}": "Salida {output}",
+  "Route plugin output {output}": "Enrutar la salida {output} del plugin",
+  "Disconnected": "Desconectado",
   "Scan your folders, then add instruments to the rack or effects to mixer track {track}.": "Escanee sus carpetas y despuÃ©s aÃ±ada instrumentos al rack o efectos a la pista de mezcla {track}.",
   "{count} channels": "{count} canales",
   "{name} effects": "Efectos de {name}",
