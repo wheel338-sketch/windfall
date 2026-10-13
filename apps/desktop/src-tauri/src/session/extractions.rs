@@ -53,12 +53,28 @@ fn write_record(root: &Path, record: &ExtractionRecord) -> Result<(), String> {
 // using a lock outside the child being reclaimed, then release its owner lease.
 // Another session cannot claim the child during that short filesystem operation.
 fn collector_lease(managed: &Path) -> std::io::Result<File> {
+    use sha2::{Digest, Sha256};
+
+    // Keep synchronization metadata out of project and export directories.
+    // The stable canonical identity lets independent sessions/processes share
+    // the same OS lock without deleting a lock inode while a waiter owns it.
+    let identity = fs::canonicalize(managed).or_else(|_| {
+        let parent = managed.parent().ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidInput, "Missing extraction parent")
+        })?;
+        Ok::<_, std::io::Error>(fs::canonicalize(parent)?.join(managed.file_name().unwrap()))
+    })?;
+    let mut identity = paths::clean(&identity).as_os_str().as_encoded_bytes().to_vec();
+    if cfg!(windows) {
+        identity.make_ascii_lowercase();
+    }
+    let hash = Sha256::digest(&identity);
     let lease = File::options()
         .read(true)
         .write(true)
         .create(true)
         .truncate(false)
-        .open(managed.join("collector.owner-lock"))?;
+        .open(std::env::temp_dir().join(format!("windfall-project-collector-{hash:x}.lock")))?;
     lease.lock()?;
     Ok(lease)
 }

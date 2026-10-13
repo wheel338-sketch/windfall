@@ -35,6 +35,9 @@ impl Server {
                     }
                     Err(error) => panic!("accept failed: {error}"),
                 };
+                // Windows accepted sockets inherit the listener's nonblocking mode.
+                // The listener polls for shutdown, but each HTTP exchange is blocking.
+                stream.set_nonblocking(false).unwrap();
                 stream
                     .set_read_timeout(Some(Duration::from_secs(2)))
                     .unwrap();

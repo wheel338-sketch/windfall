@@ -504,7 +504,10 @@ impl InstanceBackend for ClapInstance {
             let (width, height) = self
                 .instance
                 .access_shared_handler(|shared| shared.requested_size());
-            resized = editor.apply_requested_size(width, height);
+            // An idempotent queued request must not erase the DPI notification
+            // already negotiated on this same idle turn. A changed request
+            // still takes precedence and reports the final actual dimensions.
+            resized = editor.apply_requested_size(width, height).or(resized);
         }
         if let Some((width, height)) = resized.or_else(|| editor.poll_size()) {
             notify(PluginNotification::EditorResized { width, height });

@@ -139,6 +139,12 @@ fn peak_memory_bytes() -> Option<u64> {
 #[test]
 #[ignore = "requires WINDFALL_ORT_DYLIB and a licensed WINDFALL_STEM_MODEL_PACK; writes real-model quality evidence"]
 fn real_onnx_four_stem_synthetic_mix_evidence() {
+    for rate in [44100, 48000] {
+        real_onnx_four_stem_rate_evidence(rate);
+    }
+}
+
+fn real_onnx_four_stem_rate_evidence(rate: u32) {
     let library =
         PathBuf::from(std::env::var_os("WINDFALL_ORT_DYLIB").expect("Set WINDFALL_ORT_DYLIB"));
     let pack = PathBuf::from(
@@ -155,7 +161,7 @@ fn real_onnx_four_stem_synthetic_mix_evidence() {
         .unwrap_or_else(|| {
             Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../target/stem-evidence")
         })
-        .join(format!("{epoch}-{}", std::process::id()));
+        .join(format!("{epoch}-{}-{rate}Hz", std::process::id()));
     std::fs::create_dir_all(&evidence).unwrap();
     let bytes = std::fs::read(pack.join("manifest.json")).unwrap();
     assert!(bytes.len() <= 16384);
@@ -174,7 +180,6 @@ fn real_onnx_four_stem_synthetic_mix_evidence() {
     rig.session
         .analysis_model_import(&crate::paths::display(&pack.join("model.onnx")), spec)
         .unwrap();
-    let rate = 48000;
     let frames = 12 * rate as usize;
     // Stereo playback view; mono model packs are explicitly downmixed by job capture.
     let channels = model.input_channels;
