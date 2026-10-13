@@ -295,7 +295,7 @@ export function MidiHardwareSettingsSection() {
           }
         />
         {(state?.settings.extraInputs ?? []).map((input, index) => <FieldSet key={input.id}>
-          <FieldLegend>{t("Additional input")}{index + 1}</FieldLegend>
+          <FieldLegend>{i18nMessage("Additional input {value0}", { value0: index + 1 })}</FieldLegend>
           <Choice label={i18nMessage("Additional input {value0}", { value0: index + 1 })} value={`port:${input.id}`} options={portOptions(state?.inputs ?? [], input.id).filter((option) => option.value === `port:${input.id}` || option.value === OFF || ![state?.settings.input, ...(state?.settings.extraInputs ?? []).map((item) => item.id)].includes(option.value.slice(5)))} disabled={disabled} change={(value) => configure({ extraInputs: (state?.settings.extraInputs ?? []).flatMap((item, at) => at === index ? value === OFF ? [] : [{ ...item, id: value.slice(5) }] : [item]) })} />
           <Choice label={i18nMessage("Additional input {value0} profile", { value0: index + 1 })} value={input.profile ?? NO_PROFILE} options={[{ value: NO_PROFILE, label: t("None") }, ...(controllers?.profiles ?? []).map((profile) => ({ value: profile.id, label: profile.name }))]} disabled={disabled} change={(value) => configure({ extraInputs: (state?.settings.extraInputs ?? []).map((item, at) => at === index ? { ...item, profile: value === NO_PROFILE ? null : value } : item) })} />
           <Button variant="outline" size="sm" disabled={disabled} onClick={() => configure({ extraInputs: (state?.settings.extraInputs ?? []).filter((_, at) => at !== index) })}>{i18nMessage("Remove additional input {index}", { index: index + 1 })}</Button>

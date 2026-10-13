@@ -400,7 +400,7 @@ export function SampleSection({ channel }: { channel: SamplerChannel }) {
             <span className="flex shrink-0 gap-2.5 font-readout text-[0.625rem] text-muted-foreground">
               <span>{formatMs(info.durationSecs * 1000)}</span>
               <span>{formatSampleRate(info.sampleRate)}</span>
-              <span>{info.channels === 1 ? "mono" : "stereo"}</span>
+              <span>{info.channels === 1 ? t("mono") : t("stereo")}</span>
             </span>
           )}
         </div>

@@ -246,6 +246,11 @@ function pluginBinding() {
         automatable: true,
       },
     ],
+    capabilities: {
+      unavailableParameters: [],
+      outputs: [{ index: 0, name: "Main", channels: 2 }, { index: 1, name: "Auxiliary", channels: 2 }],
+      routes: [],
+    },
   }
 }
 
@@ -597,7 +602,7 @@ const EVERY_COMMAND: { [Type in Command["type"]]: (ids: Ids) => Command } = {
     state: [1, 2],
   }),
   readmitPlugin: (ids) => ({ type: "readmitPlugin", target: { type: "effect", effect: ids.pluginEffect }, state: [], parameters: [], auxiliaryInputs: [], outputs: [] }),
-  setPluginOutputRoute: (ids) => ({ type: "setPluginOutputRoute", target: { type: "effect", effect: ids.pluginEffect }, output: 1, track: null }),
+  setPluginOutputRoute: (ids) => ({ type: "setPluginOutputRoute", target: { type: "effect", effect: ids.pluginEffect }, output: 1, track: 0 }),
   setPluginWrapper: (ids) => ({
     type: "setPluginWrapper",
     target: { type: "instrument", channel: ids.pluginChannel },

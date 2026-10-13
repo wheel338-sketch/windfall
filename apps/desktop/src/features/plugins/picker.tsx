@@ -1,4 +1,4 @@
-import { message as i18nMessage } from "@/lib/i18n"
+import { formatNumber, message as i18nMessage } from "@/lib/i18n"
 import { translatedText as t, useLanguageStore } from "@/lib/i18n"
 import { create } from "zustand"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -17,7 +17,7 @@ export function PluginPicker() {
       <div className="flex max-h-36 flex-wrap gap-2 overflow-auto">
         {project.channels.map((channel) => <button type="button" key={`channel-${channel.id}`} {...pluginDropHandlers({ channel: channel.id })} aria-label={i18nMessage("Drop instrument on {value0}", { value0: channel.name })} className="rounded border px-3 py-2 text-sm">{channel.name}</button>)}
         {project.mixer.tracks.map((track) => <div key={`track-${track.id}`} className="flex flex-wrap gap-1 rounded border p-1">
-          {track.effects.map((effect,index) => <button type="button" key={effect.id} {...pluginDropHandlers({ track: track.id, effect: effect.id })} aria-label={i18nMessage("Drop effect on {value0} slot {value1}", { value0: track.name, value1: index+1 })} className="rounded border px-2 py-1 text-sm">{track.name} · {index+1}</button>)}
+          {track.effects.map((effect,index) => <button type="button" key={effect.id} {...pluginDropHandlers({ track: track.id, effect: effect.id })} aria-label={i18nMessage("Drop effect on {value0} slot {value1}", { value0: track.name, value1: index+1 })} className="rounded border px-2 py-1 text-sm">{track.name} · {formatNumber(index+1)}</button>)}
           <button type="button" {...pluginDropHandlers({ track: track.id })} aria-label={i18nMessage("Drop effect on {value0} new slot", { value0: track.name })} className="rounded border px-2 py-1 text-sm">{i18nMessage("{track} · add effect", { track: track.name })}</button>
         </div>)}
       </div>

@@ -63,8 +63,14 @@ fn unit(kind: InstrumentKind) -> AnyInstrument {
     let mut params = kind.default_params();
     // Effects which cross-feed stereo remain independently covered by their
     // family suites; isolate per-note gains here, before their sends.
+    // Pack width also drives chorus; echo/space name delay/reverb macros.
+    // Disable these shared effect-bearing controls for the same dry oracle.
     for (index, descriptor) in kind.descriptors().iter().enumerate() {
-        if ["chorus", "delay", "phaser", "reverb"].contains(&descriptor.id) {
+        if [
+            "chorus", "delay", "phaser", "reverb", "width", "echo", "space",
+        ]
+        .contains(&descriptor.id)
+        {
             params.set(index, 0.0);
         }
     }

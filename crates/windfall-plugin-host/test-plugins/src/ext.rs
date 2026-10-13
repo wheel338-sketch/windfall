@@ -104,17 +104,75 @@ const SINE_PARAMS: &[ParamDef] = &[ParamDef {
 }];
 
 const DYNAMIC_PARAMS: &[ParamDef] = &[
-    ParamDef { id: 7, slot: slot::GAIN, name: "Gain", module: "", min: 0.0, max: 2.0, default: 1.0, flags: CLAP_PARAM_IS_AUTOMATABLE },
-    ParamDef { id: 12000, slot: slot::MODE, name: "Capability switch", module: "", min: 0.0, max: 6.0, default: 0.0, flags: CLAP_PARAM_IS_AUTOMATABLE | CLAP_PARAM_IS_STEPPED },
-    ParamDef { id: 31, slot: slot::TIMER_TICKS, name: "Returning parameter", module: "", min: 0.0, max: 1.0, default: 0.5, flags: CLAP_PARAM_IS_AUTOMATABLE },
+    ParamDef {
+        id: 7,
+        slot: slot::GAIN,
+        name: "Gain",
+        module: "",
+        min: 0.0,
+        max: 2.0,
+        default: 1.0,
+        flags: CLAP_PARAM_IS_AUTOMATABLE,
+    },
+    ParamDef {
+        id: 12000,
+        slot: slot::MODE,
+        name: "Capability switch",
+        module: "",
+        min: 0.0,
+        max: 6.0,
+        default: 0.0,
+        flags: CLAP_PARAM_IS_AUTOMATABLE | CLAP_PARAM_IS_STEPPED,
+    },
+    ParamDef {
+        id: 31,
+        slot: slot::TIMER_TICKS,
+        name: "Returning parameter",
+        module: "",
+        min: 0.0,
+        max: 1.0,
+        default: 0.5,
+        flags: CLAP_PARAM_IS_AUTOMATABLE,
+    },
 ];
 const DYNAMIC_CHANGED: &[ParamDef] = &[
-    ParamDef { id: 12000, slot: slot::MODE, name: "Capability switch", module: "", min: 0.0, max: 6.0, default: 0.0, flags: CLAP_PARAM_IS_AUTOMATABLE | CLAP_PARAM_IS_STEPPED },
-    ParamDef { id: 7, slot: slot::GAIN, name: "Gain", module: "", min: 0.0, max: 2.0, default: 1.0, flags: CLAP_PARAM_IS_AUTOMATABLE },
-    ParamDef { id: 32, slot: slot::MAIN_THREAD_CALLS, name: "New parameter", module: "", min: 0.0, max: 1.0, default: 0.25, flags: CLAP_PARAM_IS_AUTOMATABLE },
+    ParamDef {
+        id: 12000,
+        slot: slot::MODE,
+        name: "Capability switch",
+        module: "",
+        min: 0.0,
+        max: 6.0,
+        default: 0.0,
+        flags: CLAP_PARAM_IS_AUTOMATABLE | CLAP_PARAM_IS_STEPPED,
+    },
+    ParamDef {
+        id: 7,
+        slot: slot::GAIN,
+        name: "Gain",
+        module: "",
+        min: 0.0,
+        max: 2.0,
+        default: 1.0,
+        flags: CLAP_PARAM_IS_AUTOMATABLE,
+    },
+    ParamDef {
+        id: 32,
+        slot: slot::MAIN_THREAD_CALLS,
+        name: "New parameter",
+        module: "",
+        min: 0.0,
+        max: 1.0,
+        default: 0.25,
+        flags: CLAP_PARAM_IS_AUTOMATABLE,
+    },
 ];
 pub(crate) fn params_for(plugin: &Plugin) -> &'static [ParamDef] {
-    if plugin.kind == Kind::Dynamic && plugin.value(slot::MODE) == 3.0 { DYNAMIC_CHANGED } else { params_of(plugin.kind) }
+    if plugin.kind == Kind::Dynamic && plugin.value(slot::MODE) == 3.0 {
+        DYNAMIC_CHANGED
+    } else {
+        params_of(plugin.kind)
+    }
 }
 pub(crate) fn params_of(kind: Kind) -> &'static [ParamDef] {
     match kind {
@@ -311,7 +369,12 @@ fn state_magic(kind: Kind) -> &'static [u8; 4] {
 /// The slots a plugin saves, in order.
 fn state_slots(kind: Kind) -> &'static [usize] {
     match kind {
-        Kind::Dynamic => &[slot::GAIN, slot::MODE, slot::TIMER_TICKS, slot::MAIN_THREAD_CALLS],
+        Kind::Dynamic => &[
+            slot::GAIN,
+            slot::MODE,
+            slot::TIMER_TICKS,
+            slot::MAIN_THREAD_CALLS,
+        ],
         Kind::Gain => &[slot::GAIN, slot::MODE],
         _ => &[slot::LEVEL],
     }
@@ -497,9 +560,27 @@ fn ports_of(kind: Kind, is_input: bool) -> &'static [Port] {
 fn dynamic_ports(plugin: &Plugin, input: bool) -> &'static [Port] {
     if plugin.kind == Kind::Dynamic && plugin.value(slot::MODE) == 2.0 {
         if input { WITH_EXTRA } else { DYNAMIC_OUTPUTS }
-    } else { ports_of(plugin.kind, input) }
+    } else {
+        ports_of(plugin.kind, input)
+    }
 }
-const DYNAMIC_OUTPUTS: &[Port] = &[stereo(false), Port { id: 1, name: "Mono mark", channels: 1, main: false, in_place: false }, Port { id: 2, name: "Stereo mark", channels: 2, main: false, in_place: false }];
+const DYNAMIC_OUTPUTS: &[Port] = &[
+    stereo(false),
+    Port {
+        id: 1,
+        name: "Mono mark",
+        channels: 1,
+        main: false,
+        in_place: false,
+    },
+    Port {
+        id: 2,
+        name: "Stereo mark",
+        channels: 2,
+        main: false,
+        in_place: false,
+    },
+];
 unsafe extern "C" fn audio_ports_count(plugin: *const clap_plugin, is_input: bool) -> u32 {
     // SAFETY: the host passes the plugin it was given.
     let kind = unsafe { Plugin::from_raw(plugin) }.kind;
@@ -526,7 +607,9 @@ unsafe extern "C" fn audio_ports_get(
         info.in_place_pair = CLAP_INVALID_ID;
         return true;
     }
-    let Some(port) = dynamic_ports(unsafe { Plugin::from_raw(plugin) }, is_input).get(index as usize) else {
+    let Some(port) =
+        dynamic_ports(unsafe { Plugin::from_raw(plugin) }, is_input).get(index as usize)
+    else {
         return false;
     };
     info.id = port.id;
@@ -560,7 +643,13 @@ unsafe extern "C" fn note_ports_count(plugin: *const clap_plugin, is_input: bool
     // SAFETY: the host passes the plugin it was given.
     match unsafe { Plugin::from_raw(plugin) }.kind {
         Kind::AbsurdPorts => u32::MAX,
-        Kind::Dynamic if is_input => if unsafe { Plugin::from_raw(plugin) }.value(slot::MODE) == 4.0 { 2 } else { 1 },
+        Kind::Dynamic if is_input => {
+            if unsafe { Plugin::from_raw(plugin) }.value(slot::MODE) == 4.0 {
+                2
+            } else {
+                1
+            }
+        }
         Kind::Gain | Kind::Sine | Kind::MidiSine | Kind::BridgeNoteProbe if is_input => 1,
         _ => 0,
     }
@@ -576,8 +665,12 @@ unsafe extern "C" fn note_ports_get(
     let (kind, info) = unsafe { (Plugin::from_raw(plugin).kind, &mut *info) };
     let dialects = match kind {
         Kind::Dynamic if is_input && index < unsafe { note_ports_count(plugin, true) } => {
-            if unsafe { Plugin::from_raw(plugin) }.value(slot::MODE) == 5.0 { CLAP_NOTE_DIALECT_MIDI } else { CLAP_NOTE_DIALECT_CLAP }
-        },
+            if unsafe { Plugin::from_raw(plugin) }.value(slot::MODE) == 5.0 {
+                CLAP_NOTE_DIALECT_MIDI
+            } else {
+                CLAP_NOTE_DIALECT_CLAP
+            }
+        }
         Kind::AbsurdPorts => CLAP_NOTE_DIALECT_CLAP,
         Kind::Gain | Kind::Sine | Kind::BridgeNoteProbe if is_input && index == 0 => {
             CLAP_NOTE_DIALECT_CLAP | CLAP_NOTE_DIALECT_MIDI
@@ -603,7 +696,13 @@ static NOTE_PORTS: clap_plugin_note_ports = clap_plugin_note_ports {
 
 unsafe extern "C" fn latency_get(plugin: *const clap_plugin) -> u32 {
     let dynamic = unsafe { Plugin::from_raw(plugin) };
-    if dynamic.kind == Kind::Dynamic { return if dynamic.value(slot::MODE) == 1.0 { crate::bridge_behaviors::DELAY as u32 } else { 0 }; }
+    if dynamic.kind == Kind::Dynamic {
+        return if dynamic.value(slot::MODE) == 1.0 {
+            crate::bridge_behaviors::DELAY as u32
+        } else {
+            0
+        };
+    }
     if unsafe { Plugin::from_raw(plugin) }.kind == Kind::BridgeBadLatency {
         return u32::MAX;
     }

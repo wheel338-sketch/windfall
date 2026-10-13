@@ -328,8 +328,22 @@ impl IComponentTrait for Component {
     }
     unsafe fn getBusCount(&self, media: MediaType, dir: BusDirection) -> i32 {
         if self.dynamic {
-            if media == 0 { return if self.dynamic_mode.load(std::sync::atomic::Ordering::Relaxed) == 2 { if dir == 0 { 2 } else { 3 } } else { 1 }; }
-            return if dir == 0 { if self.dynamic_mode.load(std::sync::atomic::Ordering::Relaxed) == 4 { 2 } else { 1 } } else { 0 };
+            if media == 0 {
+                return if self.dynamic_mode.load(std::sync::atomic::Ordering::Relaxed) == 2 {
+                    if dir == 0 { 2 } else { 3 }
+                } else {
+                    1
+                };
+            }
+            return if dir == 0 {
+                if self.dynamic_mode.load(std::sync::atomic::Ordering::Relaxed) == 4 {
+                    2
+                } else {
+                    1
+                }
+            } else {
+                0
+            };
         }
         if self.absurd {
             1000
@@ -518,10 +532,19 @@ impl Component {
         self.gain
             .store(value.to_bits(), std::sync::atomic::Ordering::Relaxed);
         if self.dynamic {
-            let mut mode = [0; 4]; let mut count = 0;
-            if unsafe { stream.read(mode.as_mut_ptr().cast(), 4, &mut count) } != kResultOk || count != 4 { return kResultFalse; }
-            let mode = u32::from_le_bytes(mode); if mode > 6 { return kInvalidArgument; }
-            self.dynamic_mode.store(mode, std::sync::atomic::Ordering::Relaxed);
+            let mut mode = [0; 4];
+            let mut count = 0;
+            if unsafe { stream.read(mode.as_mut_ptr().cast(), 4, &mut count) } != kResultOk
+                || count != 4
+            {
+                return kResultFalse;
+            }
+            let mode = u32::from_le_bytes(mode);
+            if mode > 6 {
+                return kInvalidArgument;
+            }
+            self.dynamic_mode
+                .store(mode, std::sync::atomic::Ordering::Relaxed);
         }
         kResultOk
     }
@@ -581,9 +604,16 @@ impl Component {
             && count == 8
         {
             if self.dynamic {
-                let mut mode = self.dynamic_mode.load(std::sync::atomic::Ordering::Relaxed).to_le_bytes();
+                let mut mode = self
+                    .dynamic_mode
+                    .load(std::sync::atomic::Ordering::Relaxed)
+                    .to_le_bytes();
                 let mut count = 0;
-                if unsafe { stream.write(mode.as_mut_ptr().cast(), 4, &mut count) } != kResultOk || count != 4 { return kResultFalse; }
+                if unsafe { stream.write(mode.as_mut_ptr().cast(), 4, &mut count) } != kResultOk
+                    || count != 4
+                {
+                    return kResultFalse;
+                }
             }
             kResultOk
         } else {
@@ -600,7 +630,13 @@ impl IAudioProcessorTrait for Component {
         numOuts: i32,
     ) -> tresult {
         if self.dynamic {
-            return if numIns == unsafe { self.getBusCount(0, 0) } && numOuts == unsafe { self.getBusCount(0, 1) } { kResultOk } else { kResultFalse };
+            return if numIns == unsafe { self.getBusCount(0, 0) }
+                && numOuts == unsafe { self.getBusCount(0, 1) }
+            {
+                kResultOk
+            } else {
+                kResultFalse
+            };
         }
         if numIns
             == if self.sidechain {
@@ -623,8 +659,15 @@ impl IAudioProcessorTrait for Component {
         index: i32,
         arr: *mut SpeakerArrangement,
     ) -> tresult {
-        if self.dynamic && index >= 0 && index < unsafe { self.getBusCount(0, dir) } && !arr.is_null() {
-            unsafe { arr.write(if index == 1 { 1 } else { 3 }); } return kResultOk;
+        if self.dynamic
+            && index >= 0
+            && index < unsafe { self.getBusCount(0, dir) }
+            && !arr.is_null()
+        {
+            unsafe {
+                arr.write(if index == 1 { 1 } else { 3 });
+            }
+            return kResultOk;
         }
         if self.multi_sidechain && dir == 0 && (1..=MULTI_KEYS.len() as i32).contains(&index) {
             if arr.is_null() {
@@ -647,7 +690,13 @@ impl IAudioProcessorTrait for Component {
         if size == 0 { kResultOk } else { kResultFalse }
     }
     unsafe fn getLatencySamples(&self) -> u32 {
-        if self.dynamic { return if self.dynamic_mode.load(std::sync::atomic::Ordering::Relaxed) == 1 { crate::bridge_behaviors::DELAY as u32 } else { 0 }; }
+        if self.dynamic {
+            return if self.dynamic_mode.load(std::sync::atomic::Ordering::Relaxed) == 1 {
+                crate::bridge_behaviors::DELAY as u32
+            } else {
+                0
+            };
+        }
         if self.expression_probe {
             return 0;
         }
@@ -738,7 +787,10 @@ impl IAudioProcessorTrait for Component {
         .enumerate()
         {
             self.meters[index].store(value.to_bits(), std::sync::atomic::Ordering::Relaxed);
-            if !self.dynamic && let Some(changes) = unsafe { vst3::ComRef::from_raw(data.outputParameterChanges) } {
+            if !self.dynamic
+                && let Some(changes) =
+                    unsafe { vst3::ComRef::from_raw(data.outputParameterChanges) }
+            {
                 let mut at = 0;
                 let id = 22 + index as u32;
                 if let Some(queue) =
@@ -789,9 +841,14 @@ impl IAudioProcessorTrait for Component {
                         if unsafe { queue.getPoint(point, &mut offset, &mut value) } == kResultOk
                             && offset == frame
                         {
-                            if self.dynamic && id == 12000 { unsafe { self.setParamNormalized(id, value); } }
-                            else if self.dynamic && (31..=32).contains(&id) { self.extra[0].store(value.to_bits(), std::sync::atomic::Ordering::Relaxed); }
-                            else if id == 7 {
+                            if self.dynamic && id == 12000 {
+                                unsafe {
+                                    self.setParamNormalized(id, value);
+                                }
+                            } else if self.dynamic && (31..=32).contains(&id) {
+                                self.extra[0]
+                                    .store(value.to_bits(), std::sync::atomic::Ordering::Relaxed);
+                            } else if id == 7 {
                                 gain = value;
                                 self.gain
                                     .store(gain.to_bits(), std::sync::atomic::Ordering::Relaxed);
@@ -875,7 +932,9 @@ impl IAudioProcessorTrait for Component {
                         (audio.midi_phases[midi_channel] + frequency / audio.rate).fract();
                 }
             }
-            if self.bridge_delayed || self.dynamic && self.dynamic_mode.load(std::sync::atomic::Ordering::Relaxed) == 1 {
+            if self.bridge_delayed
+                || self.dynamic && self.dynamic_mode.load(std::sync::atomic::Ordering::Relaxed) == 1
+            {
                 let input = unsafe { &*data.inputs };
                 let pair = unsafe {
                     [
@@ -902,7 +961,11 @@ impl IAudioProcessorTrait for Component {
                 for bus in 1..data.numOutputs {
                     let extra = unsafe { &*data.outputs.add(bus as usize) };
                     for channel in 0..extra.numChannels {
-                        unsafe { (*extra.__field0.channelBuffers32.add(channel as usize)).add(frame as usize).write((bus * 10 + channel + 1) as f32 / 100.0); }
+                        unsafe {
+                            (*extra.__field0.channelBuffers32.add(channel as usize))
+                                .add(frame as usize)
+                                .write((bus * 10 + channel + 1) as f32 / 100.0);
+                        }
                     }
                 }
             }
@@ -988,7 +1051,9 @@ impl IEditControllerTrait for Component {
         unsafe { self.write_state(state) }
     }
     unsafe fn getParameterCount(&self) -> i32 {
-        if self.dynamic { 3 } else if self.midi_mapping {
+        if self.dynamic {
+            3
+        } else if self.midi_mapping {
             20
         } else if self.multi_params {
             6
@@ -1002,9 +1067,31 @@ impl IEditControllerTrait for Component {
         }
         if self.dynamic {
             let mode = self.dynamic_mode.load(std::sync::atomic::Ordering::Relaxed);
-            let (id, label, steps) = if index == 0 { (7, "Gain", 0) } else if index == 1 { (12000, "Capability switch", 6) } else if mode == 3 { (32, "New parameter", 0) } else { (31, "Returning parameter", 0) };
-            let mut title = [0; 128]; for (slot, unit) in title.iter_mut().zip(label.encode_utf16()) { *slot = unit; }
-            unsafe { info.write(ParameterInfo { id, title, shortTitle: title, units: [0; 128], stepCount: steps, defaultNormalizedValue: if id == 12000 { 0.0 } else { 0.5 }, unitId: 0, flags: 1 }); }
+            let (id, label, steps) = if index == 0 {
+                (7, "Gain", 0)
+            } else if index == 1 {
+                (12000, "Capability switch", 6)
+            } else if mode == 3 {
+                (32, "New parameter", 0)
+            } else {
+                (31, "Returning parameter", 0)
+            };
+            let mut title = [0; 128];
+            for (slot, unit) in title.iter_mut().zip(label.encode_utf16()) {
+                *slot = unit;
+            }
+            unsafe {
+                info.write(ParameterInfo {
+                    id,
+                    title,
+                    shortTitle: title,
+                    units: [0; 128],
+                    stepCount: steps,
+                    defaultNormalizedValue: if id == 12000 { 0.0 } else { 0.5 },
+                    unitId: 0,
+                    flags: 1,
+                });
+            }
             return kResultOk;
         }
         if self.midi_mapping && index >= 4 {
@@ -1109,8 +1196,12 @@ impl IEditControllerTrait for Component {
         value * 0.5
     }
     unsafe fn getParamNormalized(&self, id: u32) -> f64 {
-        if self.dynamic && id == 12000 { return f64::from(self.dynamic_mode.load(std::sync::atomic::Ordering::Relaxed)) / 6.0; }
-        if self.dynamic && (31..=32).contains(&id) { return f64::from_bits(self.extra[0].load(std::sync::atomic::Ordering::Relaxed)); }
+        if self.dynamic && id == 12000 {
+            return f64::from(self.dynamic_mode.load(std::sync::atomic::Ordering::Relaxed)) / 6.0;
+        }
+        if self.dynamic && (31..=32).contains(&id) {
+            return f64::from_bits(self.extra[0].load(std::sync::atomic::Ordering::Relaxed));
+        }
 
         if self.midi_mapping && (100..116).contains(&id) {
             return f64::from_bits(
@@ -1141,10 +1232,21 @@ impl IEditControllerTrait for Component {
         }
         if self.dynamic && id == 12000 && value.is_finite() && (0.0..=1.0).contains(&value) {
             let mode = (value * 6.0).round() as u32;
-            if self.dynamic_mode.swap(mode, std::sync::atomic::Ordering::Relaxed) != mode { unsafe { self.notify_owner(1 | 2 | 8 | 16 | 64); } }
+            if self
+                .dynamic_mode
+                .swap(mode, std::sync::atomic::Ordering::Relaxed)
+                != mode
+            {
+                unsafe {
+                    self.notify_owner(1 | 2 | 8 | 16 | 64);
+                }
+            }
             return kResultOk;
         }
-        if self.dynamic && (31..=32).contains(&id) { self.extra[0].store(value.to_bits(), std::sync::atomic::Ordering::Relaxed); return kResultOk; }
+        if self.dynamic && (31..=32).contains(&id) {
+            self.extra[0].store(value.to_bits(), std::sync::atomic::Ordering::Relaxed);
+            return kResultOk;
+        }
         if self.multi_params
             && (8..=9).contains(&id)
             && value.is_finite()

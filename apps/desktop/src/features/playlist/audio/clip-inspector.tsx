@@ -473,7 +473,7 @@ function Settings({ clips }: { clips: AudioClip[] }) {
               className="w-16 font-readout text-[0.625rem] whitespace-nowrap text-muted-foreground"
               title={t("Pitch changes the speed too, like a tape")}
             >
-              {speed.toFixed(2)}× speed
+              {i18nMessage("{value0}× speed", { value0: speed.toFixed(2) })}
             </span>
           </Labelled>
           <Labelled label={t("Pitch presets")}>

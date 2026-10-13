@@ -914,31 +914,7 @@ fn run(address: SocketAddr) -> io::Result<()> {
             reply(&mut socket, &response)?;
             native.adopt_timeline()?;
         }
-        let mut worked = false;
-        if native.processor.is_some()
-            && let Some((slot, sequence)) = native.region.take_input(&mut input).map_err(error)?
-        {
-            worked = true;
-            let result = native.admit_input(input.epoch).and_then(|admitted| {
-                if admitted {
-                    native.process(sequence, &input, &mut output).map(|()| true)
-                } else {
-                    Ok(false)
-                }
-            });
-            match result {
-                Ok(false) => native.region.retire_input(slot).map_err(error)?,
-                Ok(true) => native.region.complete(slot, sequence, &output, OUTPUT_OK),
-                Err(error_value) => {
-                    native.region.latch_helper_failure();
-                    native
-                        .region
-                        .complete(slot, sequence, &output, OUTPUT_FAILED);
-                    return Err(error_value);
-                }
-            }
-        }
-        native.adopt_timeline()?;
+        // Service requested main-thread work before accepting another audio block.
         crate::gui::pump_events(Some(Duration::ZERO));
         let mut changed = false;
         let mut restart = false;
@@ -977,6 +953,31 @@ fn run(address: SocketAddr) -> io::Result<()> {
         if changed {
             native.region.publish_native_change().map_err(error)?;
         }
+        let mut worked = false;
+        if native.processor.is_some()
+            && let Some((slot, sequence)) = native.region.take_input(&mut input).map_err(error)?
+        {
+            worked = true;
+            let result = native.admit_input(input.epoch).and_then(|admitted| {
+                if admitted {
+                    native.process(sequence, &input, &mut output).map(|()| true)
+                } else {
+                    Ok(false)
+                }
+            });
+            match result {
+                Ok(false) => native.region.retire_input(slot).map_err(error)?,
+                Ok(true) => native.region.complete(slot, sequence, &output, OUTPUT_OK),
+                Err(error_value) => {
+                    native.region.latch_helper_failure();
+                    native
+                        .region
+                        .complete(slot, sequence, &output, OUTPUT_FAILED);
+                    return Err(error_value);
+                }
+            }
+        }
+        native.adopt_timeline()?;
         native.region.owner_completed().map_err(error)?;
         if !worked {
             std::thread::sleep(Duration::from_micros(200));

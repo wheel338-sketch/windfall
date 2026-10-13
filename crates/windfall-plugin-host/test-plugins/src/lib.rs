@@ -254,7 +254,12 @@ const SPECS: &[Spec] = &[
         name: c"Test Multi Sidechain",
         features: EFFECT,
     },
-    Spec { kind: Kind::Dynamic, id: c"org.windfall.test.dynamic", name: c"Test Dynamic Capabilities", features: EFFECT },
+    Spec {
+        kind: Kind::Dynamic,
+        id: c"org.windfall.test.dynamic",
+        name: c"Test Dynamic Capabilities",
+        features: EFFECT,
+    },
 ];
 
 /// The file name the host loaded this library under, in lower case.

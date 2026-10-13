@@ -1,6 +1,5 @@
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, expect, it, vi } from "vitest"
-import { backend } from "@/lib/ipc"
 import { startTestApp } from "@/test/harness"
 import { NativeNoteCapabilities } from "./note-capabilities-view"
 import { panLawSupported } from "./note-capabilities"
@@ -11,7 +10,7 @@ afterEach(()=>{cleanup();setLanguage("en");vi.restoreAllMocks()})
 it("shows all native capabilities and visible refusal, then updates the real settings surface",async()=>{
   const app=await startTestApp()
   try {
-    const query=vi.spyOn(backend,"pluginNoteCapabilities").mockResolvedValue({projectPanLaw:true,instances:true,nativePan:Array(16).fill(true),nativeVolume:Array(16).fill(false)})
+    const query=vi.spyOn(app.backend,"pluginNoteCapabilities").mockResolvedValue({projectPanLaw:true,instances:true,nativePan:Array(16).fill(true),nativeVolume:Array(16).fill(false)})
     render(<NativeNoteCapabilities binding={binding}/>);
     await waitFor(()=>expect(screen.getByText(/Pan: Available; Volume: Unavailable/)).toBeVisible())
     expect(screen.getByText(/cannot apply the project law/)).toBeVisible()

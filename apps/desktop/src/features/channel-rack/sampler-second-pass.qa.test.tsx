@@ -108,7 +108,7 @@ it("auditions a prepared result without changing the WASM document and exposes c
   await userEvent.click(screen.getByRole("checkbox", { name: "Normalize to −1 dBFS" }))
   await userEvent.click(screen.getByRole("button", { name: "Preview prepared sample" }))
   await waitFor(() => expect(preview).toHaveBeenCalledWith(expect.objectContaining({ channel: channel("Kick").id, normalize: true })))
-  expect(screen.getByLabelText("Prepared sample duration")).toHaveTextContent("1600 frames")
+  expect(screen.getByLabelText("Prepared sample duration")).toHaveTextContent("1,600 frames")
   expect(screen.getByRole("img", { name: "Prepared sample waveform" })).toBeVisible()
   expect(project()).toEqual(before)
   expect(history().cursor).toBe(cursor)

@@ -70,12 +70,15 @@ describe("sample instrument purpose-built editors",()=>{
   })
   it("browses bank/program presets and retains their file reference",async()=>{
     backend.soundfontPresets=vi.fn().mockResolvedValue([{name:"Own piano",bank:3,program:7}])
-    backend.soundfontLoad=vi.fn().mockImplementation(async(channel,expected,path,bank,program)=>backend.dispatch({
-      type:"batch",label:"Load SoundFont",commands:[
+    backend.soundfontLoad=vi.fn().mockImplementation(async(channel,expected,path,bank,program)=>{
+      // Patches do not carry the allocator frontier; query the owning document.
+      const source=(await backend.documentSnapshot()).project.nextId
+      return backend.dispatch({type:"batch",label:"Load SoundFont",commands:[
         {type:"addSample",name:"Own bank",path:{kind:"external",path}},
-        {type:"registerSoundFontSource",sample:useProjectStore.getState().project.nextId,expected:{kind:"external",path}},
-        {type:"setSampleInstrumentAsset",channel,expected,asset:{type:"soundFont",path:{kind:"external",path},bank,program,source:useProjectStore.getState().project.nextId}}
-      ]}))
+        {type:"registerSoundFontSource",sample:source,expected:{kind:"external",path}},
+        {type:"setSampleInstrumentAsset",channel,expected,asset:{type:"soundFont",path:{kind:"external",path},bank,program,source}}
+      ]})
+    })
     const id=await open("soundFont")
     fireEvent.change(screen.getByRole("textbox",{name:"SoundFont file"}),{target:{value:"C:/Own/keys.sf2"}})
     fireEvent.click(screen.getByRole("button",{name:"Browse presets"}));await act(()=>settle())
@@ -111,7 +114,7 @@ describe("sample instrument purpose-built editors",()=>{
     backend.sampleInstrumentMissingSources=vi.fn().mockResolvedValue([source])
     backend.soundfontRelink=vi.fn().mockRejectedValue(new Error("Replacement does not contain selected preset"))
     render(<ValueContextMenus><Panel id={id}/></ValueContextMenus>);await act(()=>settle())
-    expect(screen.getByRole("alert")).toHaveTextContent("Missing SoundFont file")
+    expect(screen.getByText("Missing SoundFont file. Relink its project source to restore playback.").closest('[role="alert"]')).toHaveTextContent("Missing SoundFont file")
     fireEvent.click(screen.getByRole("button",{name:"Relink SoundFont source"}))
     const dialog=within(screen.getByRole("dialog"))
     fireEvent.change(dialog.getByRole("textbox",{name:"Replacement SoundFont file"}),{target:{value:"C:/Recovered/bank.sf2"}})

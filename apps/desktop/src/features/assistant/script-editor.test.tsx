@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { ValueContextMenus } from "@/components/value-context-menu"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { dispatch, useProjectStore } from "@/lib/store/project"
 import { startRoll, currentPattern, channel, notesOf } from "@/features/piano-roll/test-utils"
@@ -11,7 +12,7 @@ import { SimDocument } from "@/lib/ipc/sim/document"
 let roll: Awaited<ReturnType<typeof startRoll>>
 beforeEach(async () => { roll = await startRoll() })
 afterEach(() => { cleanup(); closeScripts(); roll.stop(); vi.restoreAllMocks() })
-function open() { render(<TooltipProvider><ScriptEditor /></TooltipProvider>); act(() => openScripts()) }
+function open() { render(<ValueContextMenus><TooltipProvider><ScriptEditor /></TooltipProvider></ValueContextMenus>); act(() => openScripts()) }
 
 describe("script editor mounted cases (worker responses are explicit fixtures)", () => {
   it("reports native worker capability and builds parameter controls with the Rust parser", async () => {

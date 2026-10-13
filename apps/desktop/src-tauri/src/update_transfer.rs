@@ -78,6 +78,31 @@ fn append(bytes: &mut Vec<u8>, chunk: &[u8], cap: usize) -> Result<(), String> {
     bytes.extend_from_slice(chunk);
     Ok(())
 }
+// An idle read timeout alone is insufficient: a peer can continually send
+// one byte just before it expires. Cancellation and the absolute replay
+// deadline must bound every header read, including incomplete capability URLs.
+fn read_request(
+    stream: &mut std::net::TcpStream,
+    stopped: &AtomicBool,
+    deadline: Instant,
+) -> std::io::Result<Vec<u8>> {
+    let mut request = Vec::new();
+    let mut byte = [0];
+    while request.len() < 8192 && !request.ends_with(b"\r\n\r\n") {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if stopped.load(Ordering::Acquire) || remaining.is_zero() {
+            return Err(std::io::Error::from(std::io::ErrorKind::TimedOut));
+        }
+        stream.set_read_timeout(Some(remaining.min(Duration::from_secs(1))))?;
+        stream.read_exact(&mut byte)?;
+        request.push(byte[0]);
+    }
+    if !request.ends_with(b"\r\n\r\n") {
+        return Err(std::io::Error::from(std::io::ErrorKind::InvalidData));
+    }
+    Ok(request)
+}
+
 /// The URL is an unguessable capability served only on 127.0.0.1. No redirects,
 /// proxy, network trust exceptions or remote endpoints participate in replay.
 pub(crate) struct Reply {
@@ -110,10 +135,7 @@ impl Reply {
                     Ok((mut stream,_))=>{
                         let _=stream.set_read_timeout(Some(Duration::from_secs(1)));
                         let _=stream.set_write_timeout(Some(Duration::from_secs(2)));
-                        let mut request=Vec::new(); let mut byte=[0];
-                        while request.len()<8192 && !request.ends_with(b"\r\n\r\n") {
-                            if stream.read_exact(&mut byte).is_err(){ break; } request.push(byte[0]);
-                        }
+                        let Ok(request) = read_request(&mut stream, &cancel, deadline) else { continue; };
                         let expected=format!("GET /{path} HTTP/1.1\r\n");
                         if !request.starts_with(expected.as_bytes()){ let _=stream.write_all(b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n"); continue; }
                         let header=format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",bytes.len());
@@ -143,6 +165,41 @@ impl Drop for Reply {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn dripfed_replay_headers_cannot_extend_the_absolute_deadline() {
+        let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let mut client = std::net::TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        client
+            .set_write_timeout(Some(Duration::from_secs(1)))
+            .unwrap();
+        let (mut server, _) = listener.accept().unwrap();
+        let stopped = Arc::new(AtomicBool::new(false));
+        let reader_stop = stopped.clone();
+        let (send, receive) = std::sync::mpsc::channel();
+        let reader = std::thread::spawn(move || {
+            let result = read_request(
+                &mut server,
+                &reader_stop,
+                Instant::now() + Duration::from_millis(50),
+            );
+            send.send(result.map_err(|error| error.kind())).unwrap();
+        });
+        let writer_stop = stopped.clone();
+        let writer = std::thread::spawn(move || {
+            while !writer_stop.load(Ordering::Acquire) {
+                if client.write_all(b"G").is_err() {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(1));
+            }
+        });
+        let result = receive.recv_timeout(Duration::from_secs(1));
+        stopped.store(true, Ordering::Release);
+        writer.join().unwrap();
+        reader.join().unwrap();
+        assert_eq!(result.unwrap().unwrap_err(), std::io::ErrorKind::TimedOut);
+    }
+
     #[test]
     fn streamed_chunks_are_refused_before_buffer_growth_including_a_missing_length() {
         let mut bytes = vec![1; 3];

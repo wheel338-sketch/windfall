@@ -257,6 +257,16 @@ unsafe extern "C" fn activate(
     audio.ringing = 0;
     audio.bridge_delay.reset();
     audio.bridge_notes.fill(false);
+    let plugin = unsafe { Plugin::from_raw(plugin) };
+    if plugin.kind == Kind::BridgeIdleHang
+        && let Some(callback) = unsafe { (*plugin.host).request_callback }
+    {
+        // Metadata discovery is healthy. The first active owner turn hangs
+        // before any audio acknowledgement, as the idle-watchdog oracle requires.
+        unsafe {
+            callback(plugin.host);
+        }
+    }
     true
 }
 
@@ -287,23 +297,62 @@ unsafe extern "C" fn on_main_thread(plugin: *const clap_plugin) {
         crate::bridge_behaviors::hang();
     }
     if plugin.kind == Kind::Dynamic {
-        if plugin.dynamic_changed.swap(false, Ordering::AcqRel) { unsafe { notify_dynamic(plugin); } }
-    } else { plugin.add_value(slot::MAIN_THREAD_CALLS, 1.0); }
+        if plugin.dynamic_changed.swap(false, Ordering::AcqRel) {
+            unsafe {
+                notify_dynamic(plugin);
+            }
+        }
+    } else {
+        plugin.add_value(slot::MAIN_THREAD_CALLS, 1.0);
+    }
 }
 
 unsafe fn notify_dynamic(plugin: &Plugin) {
     // Host requests are emitted only on the fixture's creating owner.
     unsafe {
-        if let Some(restart) = (*plugin.host).request_restart { restart(plugin.host); }
-        let Some(get) = (*plugin.host).get_extension else { return; };
-        let audio = get(plugin.host, clap_sys::ext::audio_ports::CLAP_EXT_AUDIO_PORTS.as_ptr()).cast::<clap_sys::ext::audio_ports::clap_host_audio_ports>();
-        if !audio.is_null() && let Some(rescan) = (*audio).rescan { rescan(plugin.host, u32::MAX); }
-        let notes = get(plugin.host, clap_sys::ext::note_ports::CLAP_EXT_NOTE_PORTS.as_ptr()).cast::<clap_sys::ext::note_ports::clap_host_note_ports>();
-        if !notes.is_null() && let Some(rescan) = (*notes).rescan { rescan(plugin.host, u32::MAX); }
-        let params = get(plugin.host, clap_sys::ext::params::CLAP_EXT_PARAMS.as_ptr()).cast::<clap_sys::ext::params::clap_host_params>();
-        if !params.is_null() && let Some(rescan) = (*params).rescan { rescan(plugin.host, u32::MAX); }
-        let latency = get(plugin.host, clap_sys::ext::latency::CLAP_EXT_LATENCY.as_ptr()).cast::<clap_sys::ext::latency::clap_host_latency>();
-        if !latency.is_null() && let Some(changed) = (*latency).changed { changed(plugin.host); }
+        if let Some(restart) = (*plugin.host).request_restart {
+            restart(plugin.host);
+        }
+        let Some(get) = (*plugin.host).get_extension else {
+            return;
+        };
+        let audio = get(
+            plugin.host,
+            clap_sys::ext::audio_ports::CLAP_EXT_AUDIO_PORTS.as_ptr(),
+        )
+        .cast::<clap_sys::ext::audio_ports::clap_host_audio_ports>();
+        if !audio.is_null()
+            && let Some(rescan) = (*audio).rescan
+        {
+            rescan(plugin.host, u32::MAX);
+        }
+        let notes = get(
+            plugin.host,
+            clap_sys::ext::note_ports::CLAP_EXT_NOTE_PORTS.as_ptr(),
+        )
+        .cast::<clap_sys::ext::note_ports::clap_host_note_ports>();
+        if !notes.is_null()
+            && let Some(rescan) = (*notes).rescan
+        {
+            rescan(plugin.host, u32::MAX);
+        }
+        let params = get(plugin.host, clap_sys::ext::params::CLAP_EXT_PARAMS.as_ptr())
+            .cast::<clap_sys::ext::params::clap_host_params>();
+        if !params.is_null()
+            && let Some(rescan) = (*params).rescan
+        {
+            rescan(plugin.host, u32::MAX);
+        }
+        let latency = get(
+            plugin.host,
+            clap_sys::ext::latency::CLAP_EXT_LATENCY.as_ptr(),
+        )
+        .cast::<clap_sys::ext::latency::clap_host_latency>();
+        if !latency.is_null()
+            && let Some(changed) = (*latency).changed
+        {
+            changed(plugin.host);
+        }
     }
 }
 unsafe extern "C" fn get_extension(plugin: *const clap_plugin, id: *const c_char) -> *const c_void {
@@ -463,13 +512,6 @@ unsafe fn process_bridge_delayed(
     audio: &mut Audio,
     block: &clap_process,
 ) -> clap_process_status {
-    if plugin.kind == Kind::BridgeIdleHang && audio.blocks == 1
-        && let Some(callback) = unsafe { (*plugin.host).request_callback }
-    {
-        // Request on the first actual audio block, so startup is healthy and
-        // the existing watchdog test measures the intended running-owner fault.
-        unsafe { callback(plugin.host); }
-    }
     let channels = unsafe {
         [
             channel(block.audio_inputs, block.audio_inputs_count, 0, 0),
@@ -563,22 +605,47 @@ unsafe fn process_bridge_note_probe(
     CLAP_PROCESS_CONTINUE
 }
 
-unsafe fn process_dynamic(plugin: &Plugin, audio: &mut Audio, block: &clap_process) -> clap_process_status {
+unsafe fn process_dynamic(
+    plugin: &Plugin,
+    audio: &mut Audio,
+    block: &clap_process,
+) -> clap_process_status {
     let mut incoming = unsafe { Incoming::new(block.in_events) };
     for frame in 0..block.frames_count {
-        while let Some(event) = unsafe { incoming.due(frame) } { unsafe { handle_param_event(plugin, event, block.out_events); } }
+        while let Some(event) = unsafe { incoming.due(frame) } {
+            unsafe {
+                handle_param_event(plugin, event, block.out_events);
+            }
+        }
         let mode = plugin.value(slot::MODE);
         let mut pair = [0.0; 2];
         for ch in 0..2 {
             let input = unsafe { channel(block.audio_inputs, block.audio_inputs_count, 0, ch) };
-            if !input.is_null() { pair[ch as usize] = unsafe { *input.add(frame as usize) } * plugin.value(slot::GAIN) as f32; }
+            if !input.is_null() {
+                pair[ch as usize] =
+                    unsafe { *input.add(frame as usize) } * plugin.value(slot::GAIN) as f32;
+            }
         }
-        if mode == 1.0 { pair = audio.bridge_delay.tick(pair, 1.0); }
-        for ch in 0..2 { let out = unsafe { channel(block.audio_outputs, block.audio_outputs_count, 0, ch) }; if !out.is_null() { unsafe { *out.add(frame as usize) = pair[ch as usize]; } } }
+        if mode == 1.0 {
+            pair = audio.bridge_delay.tick(pair, 1.0);
+        }
+        for ch in 0..2 {
+            let out = unsafe { channel(block.audio_outputs, block.audio_outputs_count, 0, ch) };
+            if !out.is_null() {
+                unsafe {
+                    *out.add(frame as usize) = pair[ch as usize];
+                }
+            }
+        }
         for bus in 1..block.audio_outputs_count {
             for ch in 0..unsafe { (*block.audio_outputs.add(bus as usize)).channel_count } {
-                let out = unsafe { channel(block.audio_outputs, block.audio_outputs_count, bus, ch) };
-                if !out.is_null() { unsafe { *out.add(frame as usize) = (bus * 10 + ch + 1) as f32 / 100.0; } }
+                let out =
+                    unsafe { channel(block.audio_outputs, block.audio_outputs_count, bus, ch) };
+                if !out.is_null() {
+                    unsafe {
+                        *out.add(frame as usize) = (bus * 10 + ch + 1) as f32 / 100.0;
+                    }
+                }
             }
         }
     }
@@ -767,9 +834,16 @@ pub(crate) unsafe fn handle_param_event(
                 .find(|param| param.id == event.param_id)
             {
                 let value = event.value.clamp(param.min, param.max);
-                if plugin.kind == Kind::Dynamic && event.param_id == 12000 && value != plugin.value(slot::MODE) {
+                if plugin.kind == Kind::Dynamic
+                    && event.param_id == 12000
+                    && value != plugin.value(slot::MODE)
+                {
                     plugin.dynamic_changed.store(true, Ordering::Release);
-                    unsafe { if let Some(callback) = (*plugin.host).request_callback { callback(plugin.host); } }
+                    unsafe {
+                        if let Some(callback) = (*plugin.host).request_callback {
+                            callback(plugin.host);
+                        }
+                    }
                 }
                 plugin.set_value(param.slot, value);
             }
