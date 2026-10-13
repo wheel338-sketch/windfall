@@ -94,8 +94,13 @@ fn soundfont_native_hardware_cc_changes_real_pcm_without_document_edits() {
     let epoch=rig.session.controller().hardware_epoch();assert!(rig.session.hardware_note(epoch,60,127));
     let before=rig.session.document_snapshot();
     let baseline=rig.run(2048).iter().map(|x|x*x).sum::<f32>();assert!(baseline>0.001);
+    rig.session.soundfont_hardware_message(InputMessage {device:1,at:std::time::Instant::now(),stamp_micros:0,
+        message:MidiMessage::Controller{channel:0,number:7,value:0}});
+    assert!(rig.run(2048).iter().map(|x|x*x).sum::<f32>()>0.001);
     rig.session.soundfont_hardware_message(InputMessage {device:0,at:std::time::Instant::now(),stamp_micros:0,
         message:MidiMessage::Controller{channel:0,number:7,value:0}});
+    let latency=rig.session.controller().latency_frames() as usize;
+    rig.run(latency+512);
     let quiet=rig.run(2048).iter().map(|x|x*x).sum::<f32>();
     assert!(quiet<baseline*0.0001);
     assert_eq!(rig.session.document_snapshot(),before);

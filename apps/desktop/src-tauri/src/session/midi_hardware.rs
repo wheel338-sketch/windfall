@@ -41,6 +41,7 @@ impl Session {
     pub(super) fn soundfont_hardware_message(&self,input:windfall_engine::midi_hardware::InputMessage) {
         use windfall_engine::midi_hardware::MidiMessage;
         use windfall_dsp::sample_bank::SoundFontMidi;
+        if input.device!=0 {return;} // Additional ports keep explicit controller-link routing.
         let (midi_channel,message)=match input.message {
             MidiMessage::Controller {channel,number,value}=>(channel,SoundFontMidi::Controller{number,value}),
             MidiMessage::ChannelPressure {channel,value}=>(channel,SoundFontMidi::Pressure(value)),
