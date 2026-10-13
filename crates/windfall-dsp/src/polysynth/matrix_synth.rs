@@ -236,6 +236,12 @@ int [polyphony] "polyphony" "Polyphony" { None, 1, 16, 8 }
 float [gain] "gain" "Output level" { Gain, Linear, 0.0, 1.0, 0.5 }
 });
 impl Patch for MatrixSynthParams {
+    fn configuration_changed(&self, previous: &Self) -> bool {
+        self.operators != previous.operators
+            || self.fm != previous.fm
+            || self.ring != previous.ring
+            || self.lfo_index != previous.lfo_index
+    }
     fn frame(&self) -> Frame {
         Frame {
             amp: self.envelope,

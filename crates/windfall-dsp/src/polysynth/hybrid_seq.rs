@@ -238,6 +238,12 @@ int [polyphony] "polyphony" "Polyphony" { None, 1, 16, 8 }
 float [gain] "gain" "Output level" { Gain, Linear, 0.0, 1.0, 0.5 }
 });
 impl Patch for HybridSeqParams {
+    fn configuration_changed(&self, previous: &Self) -> bool {
+        self.operators != previous.operators
+            || self.algorithm != previous.algorithm
+            || self.index != previous.index
+            || self.envelope != previous.envelope
+    }
     fn frame(&self) -> Frame {
         Frame {
             amp: self.envelope,

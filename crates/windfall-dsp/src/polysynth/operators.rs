@@ -59,6 +59,10 @@ pub(super) fn configure(operators: &[MatrixOperator; 6], tone: &mut Tone, rate: 
 }
 #[derive(Clone, Copy)]
 pub(super) struct MatrixCache {
+    graph_ready: bool,
+    ratio_offsets: [f32; 6],
+    requested: [f32; 6],
+    highest_source: [u8; 6],
     key: [f32; 3],
     increments: [f32; 6],
     scales: [f32; 6],
@@ -73,6 +77,10 @@ pub(super) struct MatrixCache {
 impl Default for MatrixCache {
     fn default() -> Self {
         Self {
+            graph_ready: false,
+            ratio_offsets: [0.0; 6],
+            requested: [0.0; 6],
+            highest_source: [6; 6],
             key: [f32::NAN; 3],
             increments: [0.0; 6],
             scales: [0.0; 6],
@@ -100,40 +108,27 @@ pub(super) fn matrix(
     let previous = t.previous[u];
     let mut now = [0.0; 6];
     let key = [pitch, c.rate, f32::from(c.key)];
-    if t.matrix_cache[u].key != key {
+    if !t.matrix_cache[u].graph_ready {
         let cache = &mut t.matrix_cache[u];
-        cache.key = key;
+        cache.graph_ready = true;
+        cache.ratio_offsets = std::array::from_fn(|i| 12.0 * ops[i].ratio.log2());
         cache.sine_only = ops.iter().all(|op| op.waveform == OperatorWave::Sine);
         cache.ring_free = ring.iter().flatten().all(|depth| *depth == 0.0);
-        cache.increments = std::array::from_fn(|i| {
-            core::increment(
-                pitch + 12.0 * ops[i].ratio.log2() + ops[i].detune_cents / 100.0,
-                c.rate,
-            )
-        });
-        let sources: [f32; 6] =
-            std::array::from_fn(|i| core::increment(pitch + 12.0 * ops[i].ratio.log2(), c.rate));
         for (to, op) in ops.iter().enumerate() {
-            let inc = cache.increments[to];
-            let mut highest = inc * c.rate;
             let mut requested = op.feedback * op.level * 4.0 + lfo_index;
+            let mut highest = None;
             for (source, depth) in fm[to].iter().enumerate() {
                 if *depth > 0.0 {
-                    highest = highest.max(sources[source] * c.rate);
+                    if highest.is_none_or(|previous: usize| {
+                        cache.ratio_offsets[source] > cache.ratio_offsets[previous]
+                    }) {
+                        highest = Some(source);
+                    }
                     requested += depth * ops[source].level * 4.0;
                 }
             }
-            // Conservative Carson sideband budget against the host Nyquist. Large
-            // indices roll down as keys rise; low musical indices remain unchanged.
-            let budget = ((c.rate * 0.24 - inc * c.rate) / highest.max(1.0) - 1.0).max(0.0);
-            cache.scales[to] = if requested > 0.0 {
-                (budget / requested).min(1.0)
-            } else {
-                1.0
-            };
-            cache.gains[to] = (op.key_scale * (c.key as f32 - 60.0) / 12.0)
-                .exp2()
-                .min(4.0);
+            cache.highest_source[to] = highest.map_or(6, |source| source as u8);
+            cache.requested[to] = requested;
             cache.fm_masks[to] = fm[to]
                 .iter()
                 .enumerate()
@@ -146,6 +141,46 @@ pub(super) fn matrix(
             cache.ring_aliases[to] = (0..to)
                 .find(|&source| ring[source] == ring[to])
                 .unwrap_or(to) as u8;
+        }
+    }
+    if t.matrix_cache[u].key != key {
+        let cache = &mut t.matrix_cache[u];
+        if cache.key[2] != key[2] {
+            for (to, op) in ops.iter().enumerate() {
+                cache.gains[to] = (op.key_scale * (c.key as f32 - 60.0) / 12.0)
+                    .exp2()
+                    .min(4.0);
+            }
+        }
+        cache.key = key;
+        cache.increments = std::array::from_fn(|i| {
+            core::increment(
+                pitch + cache.ratio_offsets[i] + ops[i].detune_cents / 100.0,
+                c.rate,
+            )
+        });
+        let mut sources = [0.0_f32; 6];
+        let mut computed = 0_u32;
+        for to in 0..6 {
+            let inc = cache.increments[to];
+            let mut highest = inc * c.rate;
+            let source = usize::from(cache.highest_source[to]);
+            if source < 6 {
+                // Increment is monotone in pitch, including both clamps. The
+                // largest routed ratio gives the exact same maximum as the
+                // original six-source scan. Every actual FM edge stays active.
+                if computed & (1 << source) == 0 {
+                    sources[source] = core::increment(pitch + cache.ratio_offsets[source], c.rate);
+                    computed |= 1 << source;
+                }
+                highest = highest.max(sources[source] * c.rate);
+            }
+            let budget = ((c.rate * 0.24 - inc * c.rate) / highest.max(1.0) - 1.0).max(0.0);
+            cache.scales[to] = if cache.requested[to] > 0.0 {
+                (budget / cache.requested[to]).min(1.0)
+            } else {
+                1.0
+            };
         }
     }
     let cache = &t.matrix_cache[u];
@@ -260,5 +295,80 @@ fn route_sum(depths: &[f32; 6], previous: &[f32; 6], mut mask: u32) -> f32 {
             mask &= mask - 1;
         }
         sum
+    }
+}
+
+#[cfg(test)]
+mod metadata_tests {
+    use super::*;
+    #[test]
+    fn moving_pitch_metadata_matches_original_ordered_carson_scan_bits() {
+        let ops = std::array::from_fn(|i| MatrixOperator {
+            ratio: 0.73 + i as f32 * 1.317,
+            detune_cents: -47.0 + i as f32 * 17.3,
+            level: 1.0 - i as f32 * 0.061,
+            feedback: 6.0 - i as f32 * 0.271,
+            key_scale: -1.7 + i as f32 * 0.61,
+            ..Default::default()
+        });
+        for rate in [16000.0, 96000.0, 384000.0] {
+            for sparse in [false, true] {
+                let fm = std::array::from_fn(|to| {
+                    std::array::from_fn(|source| {
+                        if sparse && (to + source) % 3 == 0 {
+                            0.0
+                        } else {
+                            0.1 + (to * 6 + source) as f32 * 0.17
+                        }
+                    })
+                });
+                let ring = std::array::from_fn(|to| {
+                    std::array::from_fn(|source| 0.1 + (to * 6 + source) as f32 * 0.01)
+                });
+                let mut tone = Tone::default();
+                tone.levels = [1.0; 6];
+                for frame in 0..257 {
+                    let pitch = -70.0 + frame as f32 * 1.17;
+                    let context = Context {
+                        operator_graph: None,
+                        pitch,
+                        key: (frame % 128) as u8,
+                        held: true,
+                        slot: 0,
+                        lfo: 0.3,
+                        cutoff: 1300.0,
+                        rate,
+                        bpm: 120.0,
+                        assets: None,
+                    };
+                    matrix(&mut tone, &context, &ops, &fm, &ring, 0, pitch, 1.37);
+                    for to in 0..6 {
+                        let inc = core::increment(
+                            pitch + 12.0 * ops[to].ratio.log2() + ops[to].detune_cents / 100.0,
+                            rate,
+                        );
+                        let mut highest = inc * rate;
+                        let mut requested = ops[to].feedback * ops[to].level * 4.0 + 1.37;
+                        for source in 0..6 {
+                            if fm[to][source] > 0.0 {
+                                highest = highest.max(
+                                    core::increment(pitch + 12.0 * ops[source].ratio.log2(), rate)
+                                        * rate,
+                                );
+                                requested += fm[to][source] * ops[source].level * 4.0;
+                            }
+                        }
+                        let budget = ((rate * 0.24 - inc * rate) / highest.max(1.0) - 1.0).max(0.0);
+                        let scale = if requested > 0.0 {
+                            (budget / requested).min(1.0)
+                        } else {
+                            1.0
+                        };
+                        assert_eq!(tone.matrix_cache[0].increments[to].to_bits(), inc.to_bits());
+                        assert_eq!(tone.matrix_cache[0].scales[to].to_bits(), scale.to_bits());
+                    }
+                }
+            }
+        }
     }
 }

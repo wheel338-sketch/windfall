@@ -1,6 +1,78 @@
 use super::*;
 use crate::{AnyInstrument, InstrumentKind, InstrumentParams};
 
+#[test]
+fn moving_filter_and_graph_edits_match_per_sample_operator_reconfiguration_bits() {
+    use super::runtime::{Context, Patch, Tone};
+    let mut patch = MatrixSynthParams {
+        output: [1.0; 6],
+        unison: 7,
+        lfo_pitch: 3.7,
+        lfo_index: 1.3,
+        ..Default::default()
+    };
+    for index in 0..6 {
+        patch.operators[index].ratio = 0.71 + index as f32 * 1.17;
+        patch.operators[index].detune_cents = -19.0 + index as f32 * 7.3;
+        patch.operators[index].level = 0.93 - index as f32 * 0.073;
+        for source in 0..6 {
+            patch.fm[index][source] = 0.17 + (index * 6 + source) as f32 * 0.023;
+            patch.ring[index][source] = 0.03 + (index * 6 + source) as f32 * 0.007;
+        }
+    }
+    let mut cached = Tone::default();
+    let mut legacy = Tone::default();
+    cached.levels = [1.0; 6];
+    legacy.levels = [1.0; 6];
+    patch.configure(&mut cached, 48000.0);
+    let mut configured = patch;
+    let mut energy = 0.0_f64;
+    for frame in 0..4096 {
+        let phase = frame as f32 * 0.031;
+        patch.cutoff_hz = 2100.0 + phase.sin() * 1700.0;
+        if frame == 731 {
+            patch.fm[3][2] = 1.73;
+        }
+        if frame == 1223 {
+            patch.operators[4].ratio = 2.31;
+        }
+        if frame == 1931 {
+            patch.ring[2][5] = 0.71;
+        }
+        if frame == 2741 {
+            patch.lfo_index = 2.91;
+        }
+        if patch.configuration_changed(&configured) {
+            patch.configure(&mut cached, 48000.0);
+            configured = patch;
+        }
+        // Original setup path recomputed every operator/cache for any moving
+        // control. It is an independent exact oracle for the hoisted setup.
+        patch.configure(&mut legacy, 48000.0);
+        let context = Context {
+            operator_graph: None,
+            pitch: 43.0 + phase.cos() * 0.7,
+            key: 43,
+            held: true,
+            slot: 0,
+            lfo: phase.sin(),
+            cutoff: patch.cutoff_hz,
+            rate: 96000.0,
+            bpm: 120.0,
+            assets: None,
+        };
+        let actual = patch.sample(&mut cached, &context);
+        let expected = patch.sample(&mut legacy, &context);
+        assert_eq!(
+            (actual.0.to_bits(), actual.1.to_bits()),
+            (expected.0.to_bits(), expected.1.to_bits()),
+            "frame {frame}"
+        );
+        energy += f64::from(actual.0).powi(2) + f64::from(actual.1).powi(2);
+    }
+    assert!(energy > 1e-4);
+}
+
 fn render(p: InstrumentParams, key: u8, count: usize, block: usize) -> (Vec<f32>, Vec<f32>) {
     let mut synth = AnyInstrument::new(&p);
     synth.prepare(48000.0, 1024);

@@ -206,6 +206,10 @@ pub(super) trait Patch: ParamSet {
     const NEEDS_ASSETS: bool = false;
     fn frame(&self) -> Frame;
     fn configure(&self, _tone: &mut Tone, _rate: f32) {}
+    /// Whether graph/operator setup depends on this smoothed parameter change.
+    fn configuration_changed(&self, _previous: &Self) -> bool {
+        true
+    }
     fn operator_graph(&self) -> Option<OperatorGraph> {
         None
     }
@@ -213,6 +217,8 @@ pub(super) trait Patch: ParamSet {
 }
 
 pub(super) struct Runtime<P: Patch> {
+    configuration: Option<P>,
+    envelope_configuration: Option<(EnvelopeParams, EnvelopeParams)>,
     operator_graph: Option<OperatorGraph>,
     rate: f32,
     bpm: f32,
@@ -231,6 +237,8 @@ pub(super) struct Runtime<P: Patch> {
 impl<P: Patch> Default for Runtime<P> {
     fn default() -> Self {
         Self {
+            configuration: None,
+            envelope_configuration: None,
             operator_graph: None,
             rate: 48000.0,
             bpm: 120.0,
@@ -263,6 +271,8 @@ impl<P: Patch> Instrument for Runtime<P> {
         self.reset();
     }
     fn reset(&mut self) {
+        self.configuration = None;
+        self.envelope_configuration = None;
         self.operator_graph = None;
         self.controls.reset();
         self.notes.reset();
@@ -318,10 +328,23 @@ impl<P: Patch> Instrument for Runtime<P> {
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
         for (left, right) in left.iter_mut().zip(right) {
             let (p, changed) = self.controls.tick();
-            if changed {
+            let configure = changed
+                && self
+                    .configuration
+                    .as_ref()
+                    .is_none_or(|previous| p.configuration_changed(previous));
+            if configure {
                 self.operator_graph = p.operator_graph();
+                self.configuration = Some(p);
             }
             let f = p.frame();
+            let amp_changed = self
+                .envelope_configuration
+                .is_none_or(|(amp, _)| amp != f.amp);
+            let filter_changed = self
+                .envelope_configuration
+                .is_none_or(|(_, filter)| filter != f.filter_env);
+            self.envelope_configuration = Some((f.amp, f.filter_env));
             let lfo = (TAU * self.lfo_phase).sin();
             core::advance(&mut self.lfo_phase, f.lfo_rate / self.rate);
             let mut sum = (0.0, 0.0);
@@ -342,9 +365,13 @@ impl<P: Patch> Instrument for Runtime<P> {
                         }
                     }
                 }
-                if changed || note.start {
+                if amp_changed || note.start {
                     envelope(&mut tone.amp, f.amp, self.rate);
+                }
+                if filter_changed || note.start {
                     envelope(&mut tone.filter_env, f.filter_env, self.rate);
+                }
+                if configure || note.start {
                     p.configure(tone, self.rate);
                 }
                 if note.start {
