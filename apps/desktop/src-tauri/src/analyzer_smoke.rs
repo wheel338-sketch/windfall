@@ -140,6 +140,58 @@ mod debug {
         value: Option<f64>,
     ) -> Result<Value, String> {
         match operation {
+            "prepareVideo" => {
+                session.transport_stop();
+                session.project_new()?;
+                // Authored by video-player-window-smoke.mjs before app launch.
+                // No test-tone audio clips: all sound must come from this AVI.
+                let directory = paths::absolute(
+                    &std::env::var("WINDFALL_CONFIG_DIR").map_err(|error| error.to_string())?,
+                )?
+                .join("video-smoke");
+                let path = paths::display(&directory.join("authored-rgb-pcm.avi"));
+                let mut media = windfall_project::StageMedia::default();
+                media.videos.push(windfall_project::VideoPlacement {
+                    path: path.clone(),
+                    start_tick: 0,
+                    length_ticks: 7680,
+                    offset_seconds: 0.0,
+                    muted: false,
+                    mixer_track: TrackId::MASTER,
+                });
+                session.dispatch(
+                    Command::UpdateSettings {
+                        patch: windfall_project::SettingsPatch {
+                            tempo_bpm: Some(120.0),
+                            ..Default::default()
+                        },
+                    },
+                    None,
+                )?;
+                session.dispatch(Command::SetStageMedia { media }, None)?;
+                let project = paths::display(&directory.join("Video smoke.windfall"));
+                session.project_save(Some(&project))?;
+                session.project_open(&project)?;
+                session.transport_set(TransportPatch {
+                    mode: Some(PlayMode::Song),
+                    loop_song: Some(true),
+                    ..Default::default()
+                })?;
+                Ok(
+                    json!({"project":project,"path":path,"muted":false,"startTick":0,
+                    "lengthTicks":7680,"offsetSeconds":0,"mixerTrack":0,"tempoBpm":120}),
+                )
+            }
+            "videoOffset" => {
+                let offset = value
+                    .filter(|v| v.is_finite() && *v >= 0.0)
+                    .ok_or("A finite nonnegative video offset is required")?;
+                let mut media = session.document_snapshot().project.settings.stage_media;
+                let placement = media.videos.first_mut().ok_or("Prepare video first")?;
+                placement.offset_seconds = offset;
+                session.dispatch(Command::SetStageMedia { media }, None)?;
+                Ok(json!({"offsetSeconds":offset}))
+            }
             "prepare" => {
                 session.transport_stop();
                 session.project_new()?;

@@ -2,6 +2,152 @@ use super::Rig;
 use windfall_project::{ChannelId, Command, InstrumentKind, SampleInstrumentAsset, SamplePath};
 
 #[test]
+fn piano_keys_native_recipe_history_reopen_and_live_export_pcm_use_the_real_kind() {
+    use windfall_project::{ChannelPatch, ChannelSource, NoteInit};
+    let mut rig = Rig::new();
+    for channel in rig.project().channels {
+        rig.session
+            .dispatch(
+                Command::UpdateChannel {
+                    id: channel.id,
+                    patch: ChannelPatch {
+                        muted: Some(true),
+                        ..Default::default()
+                    },
+                },
+                None,
+            )
+            .unwrap();
+    }
+    let channel = ChannelId(
+        rig.session
+            .dispatch(
+                Command::AddChannel {
+                    name: Some("Authored piano evidence".into()),
+                    sample: None,
+                    instrument: Some(InstrumentKind::PianoKeys),
+                    index: None,
+                    mixer_track: None,
+                },
+                None,
+            )
+            .unwrap()
+            .created[0],
+    );
+    rig.session
+        .dispatch(
+            Command::AddNotes {
+                pattern: rig.pattern(),
+                channel,
+                notes: vec![
+                    NoteInit {
+                        start: 0,
+                        length: 960,
+                        key: 48,
+                        velocity: Some(0.31),
+                        pan: Some(-0.4),
+                        expression: None,
+                    },
+                    NoteInit {
+                        start: 0,
+                        length: 960,
+                        key: 72,
+                        velocity: Some(0.87),
+                        pan: Some(0.4),
+                        expression: None,
+                    },
+                ],
+            },
+            None,
+        )
+        .unwrap();
+    let acoustic = rig.project();
+    assert!(matches!(
+        acoustic.channel(channel).unwrap().source,
+        ChannelSource::Instrument {
+            params: windfall_dsp::InstrumentParams::PianoKeys(_),
+            ..
+        }
+    ));
+    let render =
+        |project: &windfall_project::Project, pool: &windfall_engine::SamplePool, block| {
+            windfall_engine::render(
+                project,
+                pool,
+                &windfall_engine::RenderOptions {
+                    block_frames: block,
+                    ..Default::default()
+                },
+                &mut |_| true,
+            )
+        };
+    let acoustic_pool = rig.session.state().pool.clone();
+    let pcm = render(&acoustic, &acoustic_pool, 64);
+    assert!(pcm.samples().iter().any(|sample| sample.abs() > 0.01));
+    assert_eq!(
+        pcm.samples(),
+        render(&acoustic, &acoustic_pool, 7).samples()
+    );
+    rig.session.controller().play();
+    let latency = rig.session.controller().latency_frames() as usize;
+    let live = rig.run(36_000 + latency);
+    assert_eq!(
+        &live[latency * 2..(latency + 36_000) * 2],
+        &pcm.samples()[..72_000]
+    );
+    rig.session.transport_stop();
+    rig.run(2048);
+    let recipe = Some(SampleInstrumentAsset::Piano {
+        electric: true,
+        version: 1,
+    });
+    rig.session
+        .dispatch(
+            Command::SetSampleInstrumentAsset {
+                channel,
+                expected: acoustic.channel(channel).unwrap().sample_instrument.clone(),
+                asset: recipe.clone(),
+            },
+            None,
+        )
+        .unwrap();
+    let electric = rig.project();
+    let electric_pool = rig.session.state().pool.clone();
+    let electric_pcm = render(&electric, &electric_pool, 64);
+    assert_ne!(
+        electric_pcm.samples(),
+        pcm.samples(),
+        "recipe must change real piano PCM"
+    );
+    rig.session.undo().unwrap();
+    assert_eq!(rig.project(), acoustic);
+    rig.session.redo().unwrap();
+    assert_eq!(rig.project(), electric);
+    let file = rig.file("piano-evidence.windfall");
+    rig.session.project_save(Some(&file)).unwrap();
+    let mut reopened = rig.restart();
+    reopened.session.project_open(&file).unwrap();
+    let saved = reopened.project();
+    assert_eq!(saved.channel(channel).unwrap().sample_instrument, recipe);
+    assert!(matches!(
+        saved.channel(channel).unwrap().source,
+        ChannelSource::Instrument {
+            params: windfall_dsp::InstrumentParams::PianoKeys(_),
+            ..
+        }
+    ));
+    let pool = reopened.session.state().pool.clone();
+    assert_eq!(render(&saved, &pool, 127).samples(), electric_pcm.samples());
+    reopened.session.controller().play();
+    let latency = reopened.session.controller().latency_frames() as usize;
+    let live = reopened.run(36_000 + latency);
+    assert_eq!(
+        &live[latency * 2..(latency + 36_000) * 2],
+        &electric_pcm.samples()[..72_000]
+    );
+}
+
+#[test]
 fn speech_render_saves_a_source_as_one_history_step_and_reopens() {
     let rig = Rig::new();
     let channel = ChannelId(

@@ -238,4 +238,35 @@ mod windows {
         assert!(fastest(&bytes[..bytes.len() - 1]).is_none());
         assert!(fastest(&[0; 32]).is_none());
     }
+
+    #[test]
+    fn measuring_thread_cpu_selection_is_restored_after_return_and_unwind() {
+        fn selected() -> Option<Vec<u32>> {
+            let name: Vec<u16> = "kernel32.dll\0".encode_utf16().collect();
+            // SAFETY: permanent loaded module and NUL-terminated symbol name.
+            let symbol = unsafe {
+                GetProcAddress(GetModuleHandleW(name.as_ptr()), c"GetThreadSelectedCpuSets".as_ptr().cast())
+            };
+            if symbol.is_null() { return None; }
+            // SAFETY: exact signature of the checked exported API.
+            let get: Get = unsafe { std::mem::transmute(symbol) };
+            let mut count = 0;
+            // SAFETY: valid same-thread handle and size output pointer.
+            unsafe { get(GetCurrentThread(), std::ptr::null_mut(), 0, &mut count); }
+            let mut ids = vec![0; count as usize];
+            let ptr = if ids.is_empty() { std::ptr::null_mut() } else { ids.as_mut_ptr() };
+            // SAFETY: writable output with declared capacity, same-thread handle.
+            assert_ne!(unsafe { get(GetCurrentThread(), ptr, ids.len() as u32, &mut count) }, 0);
+            ids.truncate(count as usize);
+            Some(ids)
+        }
+        let before = selected();
+        { let _selection = PerformanceCore::enter(); }
+        assert_eq!(selected(), before);
+        assert!(std::panic::catch_unwind(|| {
+            let _selection = PerformanceCore::enter();
+            panic!("exercise measurement unwinding");
+        }).is_err());
+        assert_eq!(selected(), before);
+    }
 }

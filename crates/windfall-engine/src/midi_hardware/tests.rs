@@ -72,6 +72,21 @@ fn engine() -> (Processor, Controller) {
     engine_with_loop(SamplerLoopMode::Off)
 }
 fn engine_with_loop(loop_mode: SamplerLoopMode) -> (Processor, Controller) {
+    let mut pool = SamplePool::new();
+    pool.insert(
+        SampleId(900),
+        AudioBuffer::from_interleaved(48_000, 1, vec![0.5; 48_000]),
+    );
+    engine_with_source(
+        ChannelSource::Sampler(SamplerSettings {
+            sample: Some(SampleId(900)),
+            loop_mode,
+            ..Default::default()
+        }),
+        pool,
+    )
+}
+fn engine_with_source(source: ChannelSource, pool: SamplePool) -> (Processor, Controller) {
     let (processor, controller) = Processor::new(48_000);
     let mut project = Project::new("MIDI");
     project.channels.push(Channel {
@@ -89,17 +104,11 @@ fn engine_with_loop(loop_mode: SamplerLoopMode) -> (Processor, Controller) {
         sample_instrument: None,
         timing: windfall_project::ChannelTiming::default(),
         mixer_track: TrackId::MASTER,
-        source: ChannelSource::Sampler(SamplerSettings {
-            sample: Some(SampleId(900)),
-            loop_mode,
-            ..Default::default()
-        }),
+        source,
     });
-    let mut pool = SamplePool::new();
-    pool.insert(
-        SampleId(900),
-        AudioBuffer::from_interleaved(48_000, 1, vec![0.5; 48_000]),
-    );
+    let pool = pool
+        .prepare_sample_instruments(&project, &mut || true)
+        .unwrap();
     controller.set_project(&project, &pool);
     (processor, controller)
 }
@@ -180,6 +189,64 @@ fn hardware_loop_sustain_release_and_panic_preserve_callback_allocation_contract
         );
         assert_eq!(controller.frame().voices, 0);
     }
+}
+
+#[test]
+fn hardware_piano_keys_sustain_keeps_both_velocity_layers() {
+    let source = ChannelSource::Instrument {
+        params: windfall_project::InstrumentKind::PianoKeys.default_params(),
+        asset: None,
+    };
+    let (mut processor, controller) = engine_with_source(source, SamplePool::new());
+    processor.process(&mut [0.0; 128]);
+    let state = Arc::new(Mutex::new(FakeState {
+        present: true,
+        ..Default::default()
+    }));
+    let mut worker = Worker::new(
+        Box::new(FakePorts(state.clone())),
+        controller.clone(),
+        Arc::new(Target(controller.clone())),
+    );
+    worker.configure(MidiHardwareSettings {
+        input: Some("port".into()),
+        ..Default::default()
+    });
+    input(&state, &[0x90, 48, 40]);
+    input(&state, &[0x90, 72, 110]);
+    worker.service();
+    let mut pcm = [0.0; 960];
+    assert_eq!(
+        crate::test_alloc::allocator_calls(|| processor.process(&mut pcm)),
+        0
+    );
+    assert_eq!(controller.frame().voices, 2);
+    assert!(pcm.iter().any(|value| value.abs() > 0.001));
+    input(&state, &[0xb0, 64, 127]);
+    input(&state, &[0x80, 48, 0]);
+    input(&state, &[0x80, 72, 0]);
+    worker.service();
+    for _ in 0..30 {
+        assert_eq!(
+            crate::test_alloc::allocator_calls(|| processor.process(&mut pcm)),
+            0
+        );
+        assert_eq!(controller.frame().voices, 2);
+    }
+    assert!(
+        pcm.iter().any(|value| value.abs() > 0.001),
+        "CC64 must retain actual piano PCM after key-up"
+    );
+    input(&state, &[0xb0, 64, 0]);
+    worker.service();
+    for _ in 0..50 {
+        assert_eq!(
+            crate::test_alloc::allocator_calls(|| processor.process(&mut pcm)),
+            0
+        );
+    }
+    assert_eq!(controller.frame().voices, 0);
+    assert!(pcm.iter().all(|value| *value == 0.0));
 }
 
 #[test]

@@ -31,7 +31,7 @@ child.stdout.on("data", (data) => { logs = (logs + data).slice(-16384) })
 child.stderr.on("data", (data) => { logs = (logs + data).slice(-16384) })
 let launchError
 child.on("error", (error) => { launchError = error })
-const report = { schema:1, executable, config, outputGain:0, started:new Date().toISOString(), fixture:null, samples:[], checks:[], passed:false }
+const report = { schema:1, executable, config, audioBackend:"software-memory-sink", outputGain:0, started:new Date().toISOString(), fixture:null, samples:[], checks:[], passed:false }
 let socket
 let requests = 0
 const server = createServer((request, response) => { requests++; response.writeHead(200); response.end("hostile resource") })

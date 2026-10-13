@@ -52,7 +52,9 @@ export function VideoPlayer({ placement }: { placement: VideoPlacement }) {
     if (current?.avi && canvas.current) {
       const avi = current.avi
       const map = songTempoMap(useProjectStore.getState().project)
-      const target = videoTarget(placement, frame.mediaClock, (tick) => map.secondsAt(tick))
+      // Stop resets the native tick into the clip. That is not a request to
+      // repaint its first frame: clear the picture until playback resumes.
+      const target = frame.mediaClock?.playing ? videoTarget(placement, frame.mediaClock, (tick) => map.secondsAt(tick)) : null
       const context = canvas.current.getContext("2d")
       if (!context) { if (!error) setLoaded({ ...current, error: "The webview canvas picture decoder is unavailable" }); return }
       if (pixels.current?.avi !== avi) pixels.current = { avi, image: context.createImageData(avi.width, avi.height), index: -2 }
@@ -62,6 +64,14 @@ export function VideoPlayer({ placement }: { placement: VideoPlacement }) {
         else { avi.drawFrame(index, pixels.current.image.data); context.putImageData(pixels.current.image, 0, 0) }
         pixels.current.index = index
       }
+      // Record the clock used for this actual paint, rather than a later IPC
+      // frame. The opt-in window acceptance reads these and getImageData.
+      canvas.current.dataset.frameIndex = String(index)
+      canvas.current.dataset.sourceSeconds = target === null ? "" : String(target)
+      canvas.current.dataset.tick = String(frame.mediaClock?.tick ?? "")
+      canvas.current.dataset.epoch = frame.mediaClock?.epoch ?? ""
+      canvas.current.dataset.outputFrame = frame.mediaClock?.outputFrame ?? ""
+      canvas.current.dataset.playing = String(frame.mediaClock?.playing ?? false)
       if (readout.current) readout.current.textContent = index < 0 ? "Outside the video picture range" : `Frame ${index + 1} | source ${target?.toFixed(3)} s | audio presentation clock`
       return
     }
@@ -71,6 +81,7 @@ export function VideoPlayer({ placement }: { placement: VideoPlacement }) {
     const project = useProjectStore.getState().project
     const map = songTempoMap(project)
     const target = videoTarget(placement, clock, (tick) => map.secondsAt(tick))
+    element.style.visibility = clock?.playing && target !== null ? "visible" : "hidden"
     const result = follower.current.follow(element, clock, target)
     if (readout.current) {
       readout.current.textContent = `Drift ${(result.drift * 1000).toFixed(1)} ms · ${result.correction} · driver latency ${clock ? clock.deviceLatencyFrames === null ? "unknown" : `${clock.deviceLatencyFrames} frames` : "unavailable"}`

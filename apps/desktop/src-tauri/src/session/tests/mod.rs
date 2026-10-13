@@ -66,6 +66,7 @@ mod timeline;
 mod transport_acceptance;
 mod update_shutdown;
 mod versions;
+mod video_playback;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
