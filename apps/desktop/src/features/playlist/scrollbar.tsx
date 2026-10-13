@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 
 import { physicalLimits } from "./row-geometry"
 import type { GridMetrics } from "./metrics"
+import { translatedText as t } from "@/lib/i18n"
 
 const MIN_THUMB_PX = 28
 
@@ -134,7 +135,7 @@ export function Scrollbar({
     <div
       ref={trackRef}
       role="scrollbar"
-      aria-label={horizontal ? "Scroll along the song" : "Scroll the tracks"}
+      aria-label={horizontal ? t("Scroll along the song") : t("Scroll the tracks")}
       aria-orientation={horizontal ? "horizontal" : "vertical"}
       aria-valuemin={0}
       aria-valuemax={100}

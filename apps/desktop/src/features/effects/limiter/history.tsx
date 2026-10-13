@@ -7,6 +7,7 @@ import {
 import { dbPosition, History, levelToDb } from "@/features/analyzers/math"
 import type { AnalyzerFrame } from "@/features/analyzers/types"
 import { cn } from "@/lib/utils"
+import { translatedText as t } from "@/lib/i18n"
 
 /** Blocks the display keeps: about 2.7 seconds at 48 kHz. */
 export const HISTORY_BLOCKS = 512
@@ -156,7 +157,7 @@ export function LimiterHistory({ slot, className }: HistoryProps) {
     >
       <AnalyzerCanvas
         slot={slot}
-        label="Limiter level history: input level, output level and gain reduction over the last seconds"
+        label={t("Limiter level history: input level, output level and gain reduction over the last seconds")}
         paint={paint}
         onFrame={onFrame}
         onClear={onClear}

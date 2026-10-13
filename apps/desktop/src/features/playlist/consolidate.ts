@@ -7,6 +7,7 @@ import { getProjectGeneration } from "@/lib/store/replaced"
 import { arrangementPlaylist } from "./arrangement-view"
 import { playlist, selectedClips } from "./selectors"
 import { usePlaylistStore } from "./store"
+import { translatedText as t } from "@/lib/i18n"
 
 /** A clip a consolidation prints: sound, not muted, in the layout shown. */
 const printable = (clip: Clip) =>
@@ -45,8 +46,8 @@ export async function consolidateTracks(
   const result = await attempt(
     backend.consolidatePlaylistTracks(chosen),
     chosen.length === 1
-      ? "Could not consolidate the track"
-      : "Could not consolidate the tracks"
+      ? t("Could not consolidate the track")
+      : t("Could not consolidate the tracks")
   )
   if (!result || generation !== getProjectGeneration()) return
   receivePatch(result.patch)

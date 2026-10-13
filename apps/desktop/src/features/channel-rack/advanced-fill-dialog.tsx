@@ -34,6 +34,7 @@ import {
   type FillRule,
 } from "./advanced-fill"
 import { nextFillRule } from "./fill-rule-step"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 const number = (value: string) => (value.trim() === "" ? NaN : Number(value))
 
@@ -139,10 +140,9 @@ function FillForm({ request }: { request: FillRequest }) {
         showCloseButton={!pending}
       >
         <DialogHeader>
-          <DialogTitle>Advanced step fill</DialogTitle>
+          <DialogTitle>{t("Advanced step fill")}</DialogTitle>
           <DialogDescription>
-            {request.channelName} · {request.patternName}. Review the rhythm
-            before applying it as one undo step.
+            {request.channelName} · {request.patternName}{t(". Review the rhythm before applying it as one undo step.")}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -163,9 +163,9 @@ function FillForm({ request }: { request: FillRequest }) {
         >
           <FieldGroup>
             <Field>
-              <FieldLabel>Rhythm rule</FieldLabel>
+              <FieldLabel>{t("Rhythm rule")}</FieldLabel>
               <ToggleGroup
-                aria-label="Rhythm rule"
+                aria-label={t("Rhythm rule")}
                 value={[rule]}
                 variant="outline"
                 size="sm"
@@ -180,65 +180,64 @@ function FillForm({ request }: { request: FillRequest }) {
                     setRule(value)
                 }}
               >
-                <ToggleGroupItem value="regular">Regular</ToggleGroupItem>
-                <ToggleGroupItem value="euclidean">Euclidean</ToggleGroupItem>
-                <ToggleGroupItem value="random">Seeded random</ToggleGroupItem>
+                <ToggleGroupItem value="regular">{t("Regular")}</ToggleGroupItem>
+                <ToggleGroupItem value="euclidean">{t("Euclidean")}</ToggleGroupItem>
+                <ToggleGroupItem value="random">{t("Seeded random")}</ToggleGroupItem>
               </ToggleGroup>
               <div className="flex gap-2">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  aria-label="Choose the previous rhythm rule"
+                  aria-label={t("Choose the previous rhythm rule")}
                   disabled={pending || nextFillRule(rule, "previous") === null}
                   onClick={() => {
                     const next = nextFillRule(rule, "previous")
                     if (next !== null) setRule(next)
                   }}
                 >
-                  Previous
+                  {t("Previous")}
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  aria-label="Choose the next rhythm rule"
+                  aria-label={t("Choose the next rhythm rule")}
                   disabled={pending || nextFillRule(rule, "next") === null}
                   onClick={() => {
                     const next = nextFillRule(rule, "next")
                     if (next !== null) setRule(next)
                   }}
                 >
-                  Next
+                  {t("Next")}
                 </Button>
               </div>
               <FieldDescription>
                 {rule === "regular"
-                  ? "Start each cycle with a hit, then repeat at the chosen spacing."
+                  ? t("Start each cycle with a hit, then repeat at the chosen spacing.")
                   : rule === "euclidean"
-                    ? "Distribute the chosen number of hits as evenly as possible around each cycle."
-                    : "Choose an exact number of distinct hits per cycle. The same seed gives the same rhythm."}{" "}
-                The cycle repeats from the first step and stops at the last
-                step.
+                    ? t("Distribute the chosen number of hits as evenly as possible around each cycle.")
+                    : t("Choose an exact number of distinct hits per cycle. The same seed gives the same rhythm.")}{" "}
+                {t("The cycle repeats from the first step and stops at the last step.")}
               </FieldDescription>
             </Field>
             <FieldGroup className="grid grid-cols-2 gap-3">
               <NumericField
-                label="First step"
+                label={t("First step")}
                 value={start}
                 set={setStart}
                 min={1}
                 max={request.lengthSteps}
               />
               <NumericField
-                label="Last step"
+                label={t("Last step")}
                 value={end}
                 set={setEnd}
                 min={number(start)}
                 max={request.lengthSteps}
               />
               <NumericField
-                label="Cycle steps"
+                label={t("Cycle steps")}
                 value={cycle}
                 set={setCycle}
                 min={1}
@@ -246,7 +245,7 @@ function FillForm({ request }: { request: FillRequest }) {
               />
               {rule === "regular" ? (
                 <NumericField
-                  label="Hit every (steps)"
+                  label={t("Hit every (steps)")}
                   value={every}
                   set={setEvery}
                   min={1}
@@ -254,7 +253,7 @@ function FillForm({ request }: { request: FillRequest }) {
                 />
               ) : (
                 <NumericField
-                  label="Hits per cycle"
+                  label={t("Hits per cycle")}
                   value={hits}
                   set={setHits}
                   min={0}
@@ -262,7 +261,7 @@ function FillForm({ request }: { request: FillRequest }) {
                 />
               )}
               <NumericField
-                label="Rotate right (steps)"
+                label={t("Rotate right (steps)")}
                 value={rotation}
                 set={setRotation}
                 min={0}
@@ -270,7 +269,7 @@ function FillForm({ request }: { request: FillRequest }) {
               />
               {rule === "random" && (
                 <NumericField
-                  label="Random seed"
+                  label={t("Random seed")}
                   value={seed}
                   set={setSeed}
                   min={0}
@@ -278,14 +277,14 @@ function FillForm({ request }: { request: FillRequest }) {
                 />
               )}
               <NumericField
-                label="MIDI key"
+                label={t("MIDI key")}
                 value={key}
                 set={setKey}
                 min={0}
                 max={127}
               />
               <NumericField
-                label="Velocity (%)"
+                label={t("Velocity (%)")}
                 value={velocity}
                 set={setVelocity}
                 min={0}
@@ -293,7 +292,7 @@ function FillForm({ request }: { request: FillRequest }) {
                 step={0.1}
               />
               <NumericField
-                label="Note length (%)"
+                label={t("Note length (%)")}
                 value={gate}
                 set={setGate}
                 min={0.1}
@@ -302,9 +301,9 @@ function FillForm({ request }: { request: FillRequest }) {
               />
             </FieldGroup>
             <Field>
-              <FieldLabel>Existing notes</FieldLabel>
+              <FieldLabel>{t("Existing notes")}</FieldLabel>
               <ToggleGroup
-                aria-label="Existing notes"
+                aria-label={t("Existing notes")}
                 value={[replace ? "replace" : "overlay"]}
                 variant="outline"
                 size="sm"
@@ -314,14 +313,14 @@ function FillForm({ request }: { request: FillRequest }) {
                     setReplace(values[0] === "replace")
                 }}
               >
-                <ToggleGroupItem value="replace">Replace range</ToggleGroupItem>
-                <ToggleGroupItem value="overlay">Add to range</ToggleGroupItem>
+                <ToggleGroupItem value="replace">{t("Replace range")}</ToggleGroupItem>
+                <ToggleGroupItem value="overlay">{t("Add to range")}</ToggleGroupItem>
               </ToggleGroup>
               <FieldDescription>
                 {replace
-                  ? "Replace notes starting in this range, including piano roll notes and chords."
-                  : "Keep all notes. Generated hits at an occupied onset are skipped."}{" "}
-                Notes starting outside the range stay.
+                  ? t("Replace notes starting in this range, including piano roll notes and chords.")
+                  : t("Keep all notes. Generated hits at an occupied onset are skipped.")}{" "}
+                {t("Notes starting outside the range stay.")}
               </FieldDescription>
             </Field>
           </FieldGroup>
@@ -332,13 +331,13 @@ function FillForm({ request }: { request: FillRequest }) {
                 aria-live="polite"
               >
                 {replace
-                  ? `${preview.length} hits in steps ${start}–${end}; ${existing.length} existing notes reviewed for replacement.`
-                  : `${additions.length} new hits; ${preview.length - additions.length} occupied onsets skipped.`}
+                  ? message("{count} hits in steps {start}–{end}; {count2} existing notes reviewed for replacement.", { count: plainNumber(preview.length), start, end, count2: plainNumber(existing.length) })
+                  : message("{count} new hits; {count2} occupied onsets skipped.", { count: plainNumber(additions.length), count2: plainNumber(preview.length - additions.length) })}
               </figcaption>
               <div className="max-h-28 overflow-y-auto">
                 <svg
                   role="img"
-                  aria-label={`Step fill preview: ${visible.size} occupied steps`}
+                  aria-label={message("Step fill preview: {count} occupied steps", { count: plainNumber(visible.size) })}
                   viewBox={`0 0 ${columns * 12} ${Math.ceil(count / columns) * 12}`}
                   className="block w-full"
                 >
@@ -367,16 +366,14 @@ function FillForm({ request }: { request: FillRequest }) {
           {!current && (
             <Alert variant="destructive">
               <AlertDescription>
-                The document or selected lane changed. Cancel and reopen
-                Advanced step fill to review it again.
+                {t("The document or selected lane changed. Cancel and reopen Advanced step fill to review it again.")}
               </AlertDescription>
             </Alert>
           )}
           {failure && (
             <Alert variant="destructive">
               <AlertDescription>
-                The fill could not be applied. Your notes were kept. Cancel and
-                reopen the tool to review the current lane.
+                {t("The fill could not be applied. Your notes were kept. Cancel and reopen the tool to review the current lane.")}
               </AlertDescription>
             </Alert>
           )}
@@ -387,10 +384,10 @@ function FillForm({ request }: { request: FillRequest }) {
               disabled={pending}
               onClick={closeAdvancedFill}
             >
-              Cancel
+              {t("Cancel")}
             </Button>
             <Button type="submit" disabled={!preview || !current || pending}>
-              {pending ? "Applying…" : "Apply"}
+              {pending ? t("Applying…") : t("Apply")}
             </Button>
           </DialogFooter>
         </form>

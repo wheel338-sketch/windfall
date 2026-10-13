@@ -110,6 +110,7 @@ import {
 import { usePlaylistStore } from "./store"
 import { snapTicks } from "./snap"
 import type { GridSurface } from "./surface"
+import { translatedText as t } from "@/lib/i18n"
 
 /** A pointer event, already placed inside the grid. */
 export type PointerInput = {
@@ -774,8 +775,8 @@ export class PlaylistSession {
         )
         if (!added) {
           refuse(
-            "This curve is full",
-            "A curve holds 4,096 points. Delete some to add more."
+            t("This curve is full"),
+            t("A curve holds 4,096 points. Delete some to add more.")
           )
           return false
         }
@@ -929,8 +930,8 @@ export class PlaylistSession {
 
   private refuseFullCurve(): void {
     refuse(
-      "This curve is full",
-      "A curve holds 4,096 points. Delete some to add more."
+      t("This curve is full"),
+      t("A curve holds 4,096 points. Delete some to add more.")
     )
   }
 
@@ -1456,7 +1457,7 @@ export class PlaylistSession {
         this.gesture = { kind: "committing" }
         await dispatch({
           type: "batch",
-          label: plural(clips.length, "Slice clip"),
+          label: plural(clips.length, t("Slice clip")),
           commands: [
             { type: "updateClips", updates },
             { type: "addClips", clips },
@@ -1597,7 +1598,7 @@ export class PlaylistSession {
         } else if (gesture.grouped) {
           await dispatch({
             type: "batch",
-            label: plural(gesture.clips.length, "Move clip"),
+            label: plural(gesture.clips.length, t("Move clip")),
             commands: [{ type: "updateClips", updates: gesture.updates! }],
           })
         } else {

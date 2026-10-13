@@ -15,7 +15,7 @@ import { backend, errorMessage } from "@/lib/ipc"
 import { reportError } from "@/lib/errors"
 import type { PanelId } from "@/lib/store/ui"
 import { cn } from "@/lib/utils"
-import { message, useTranslation } from "@/lib/i18n"
+import { message, useTranslation, translatedText as t } from "@/lib/i18n"
 import { openContextHelp } from "@/features/help/getting-started-store"
 
 import { panelMenu } from "./chrome-menus"
@@ -43,7 +43,7 @@ export class PanelBoundary extends Component<BoundaryProps, BoundaryState> {
         role="alert"
         className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center"
       >
-        <p className="font-medium">The {this.props.name} stopped working.</p>
+        <p className="font-medium">{t("The")}{" "}{this.props.name}{" "}{t("stopped working.")}</p>
         <p className="max-w-sm text-muted-foreground">
           {errorMessage(this.state.error)}
         </p>
@@ -52,7 +52,7 @@ export class PanelBoundary extends Component<BoundaryProps, BoundaryState> {
           size="sm"
           onClick={() => this.setState({ error: null })}
         >
-          Try again
+          {t("Try again")}
         </Button>
       </div>
     )

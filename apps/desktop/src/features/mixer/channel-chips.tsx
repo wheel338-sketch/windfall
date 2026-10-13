@@ -13,6 +13,7 @@ import { colorToCss } from "@/lib/units"
 import { cn } from "@/lib/utils"
 
 import { audioClipsOfTrack, channelsOfTrack, trackInputCount } from "./routing"
+import { message, translatedText as t, plainNumber } from "@/lib/i18n"
 
 /** The channels that play into a track, in rack order. */
 export function useTrackChannels(id: TrackId): Channel[] {
@@ -41,14 +42,14 @@ export function ChannelChip({
 }) {
   const selected = useUiStore((state) => state.selectedChannel === channel.id)
   const hint = useHint(
-    `The channel "${channel.name}" plays into this track. Click to select it in the channel rack`
+    message("The channel \"{channelName}\" plays into this track. Click to select it in the channel rack", { channelName: channel.name })
   )
   return (
     <button
       type="button"
       data-slot="channel-chip"
       aria-pressed={selected}
-      aria-label={`Channel ${channel.name}`}
+      aria-label={message("Channel {channelName}", { channelName: channel.name })}
       title={channel.name}
       style={{ "--chip": colorToCss(channel.color) } as CSSProperties}
       className={cn(
@@ -68,10 +69,10 @@ export function ChannelChip({
 }
 
 const clipsLabel = (count: number) =>
-  count === 1 ? "1 audio clip" : `${count} audio clips`
+  count === 1 ? t("1 audio clip") : message("{count} audio clips", { count: plainNumber(count) })
 
 const tracksLabel = (count: number) =>
-  count === 1 ? "1 track in" : `${count} tracks in`
+  count === 1 ? t("1 track in") : message("{count} tracks in", { count: plainNumber(count) })
 
 /**
  * The audio clips that play into the track, as a count. Clicking it selects
@@ -87,14 +88,14 @@ export function AudioClipsChip({
   const label = clipsLabel(clips.length)
   const hint = useHint(
     clips.length === 1
-      ? "An audio clip on the playlist plays into this track. Click to select it there"
-      : `${clips.length} audio clips on the playlist play into this track. Click to select them there`
+      ? t("An audio clip on the playlist plays into this track. Click to select it there")
+      : message("{count} audio clips on the playlist play into this track. Click to select them there", { count: plainNumber(clips.length) })
   )
   return (
     <button
       type="button"
       data-slot="track-audio-clips"
-      aria-label={`${label} of this track`}
+      aria-label={message("{label} of this track", { label })}
       className={cn(
         "flex h-4 min-w-0 items-center rounded-[3px] bg-muted px-1 text-[10px] leading-none text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-solid",
         className
@@ -116,8 +117,8 @@ function FedByTracks({
 }) {
   const hint = useHint(
     count === 1
-      ? "Another track plays into this one through its output or a send"
-      : `${count} other tracks play into this one through their outputs or sends`
+      ? t("Another track plays into this one through its output or a send")
+      : message("{count} other tracks play into this one through their outputs or sends", { count: plainNumber(count) })
   )
   return (
     <span
@@ -181,7 +182,7 @@ function MoreFeeds({ feeds, more }: { feeds: Feeds; more: number }) {
   const { channels, clips, inputs } = feeds
   const onlyChannels = clips.length === 0 && inputs === 0
   const what = describe(feeds)
-  const hint = useHint(`${what} play into this track. Click to list them`)
+  const hint = useHint(message("{what} play into this track. Click to list them", { what }))
   return (
     <Popover>
       <PopoverTrigger
@@ -190,8 +191,8 @@ function MoreFeeds({ feeds, more }: { feeds: Feeds; more: number }) {
             type="button"
             aria-label={
               onlyChannels
-                ? `All ${channels.length} channels of this track`
-                : `Everything that plays into this track: ${what}`
+                ? message("All {count} channels of this track", { count: plainNumber(channels.length) })
+                : message("Everything that plays into this track: {what}", { what })
             }
             className="h-4 shrink-0 rounded-[3px] bg-muted px-1 font-readout text-[9px] text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring aria-expanded:text-foreground"
             {...hint}
@@ -209,7 +210,7 @@ function MoreFeeds({ feeds, more }: { feeds: Feeds; more: number }) {
 
 function Unused() {
   const hint = useHint(
-    "Nothing plays into this track. Route a channel or an audio clip to it, or another track's output or a send"
+    t("Nothing plays into this track. Route a channel or an audio clip to it, or another track's output or a send")
   )
   return (
     <span
@@ -217,7 +218,7 @@ function Unused() {
       className="px-1 text-[10px] leading-none text-muted-foreground/70 italic"
       {...hint}
     >
-      unused
+      {t("unused")}
     </span>
   )
 }

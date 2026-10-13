@@ -9,6 +9,7 @@ import { GainReductionMeter } from "../gain-reduction"
 import { useSampleRate } from "../sample-rate"
 import { LimiterHistory } from "./history"
 import { formatLatency, lookaheadFrames } from "./latency"
+import { translatedText as t } from "@/lib/i18n"
 
 /** A gate threshold at or below this is the gate switched off. */
 export const GATE_OFF_DB = -90
@@ -35,7 +36,7 @@ export function LimiterEditor({
 
   return (
     <div data-slot="limiter-editor" className="flex max-w-[40rem] gap-3">
-      <GainReductionMeter effect={effect} label="Limiter" className="h-28" />
+      <GainReductionMeter effect={effect} label={t("Limiter")} className="h-28" />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <div className="flex flex-col gap-1">
           <LimiterHistory slot={slot} />
@@ -70,7 +71,7 @@ export function LimiterEditor({
           description="Limit holds peaks under the ceiling. Compress turns down what is over the threshold first"
         />
         <section
-          aria-label="Compression"
+          aria-label={t("Compression")}
           data-slot="limiter-compression"
           data-active={compressing ? "" : undefined}
           className={cn(!compressing && "opacity-60")}
@@ -95,7 +96,7 @@ export function LimiterEditor({
           </ParamRow>
         </section>
         <section
-          aria-label="Gate"
+          aria-label={t("Gate")}
           data-slot="limiter-gate"
           data-active={gated ? "" : undefined}
         >
@@ -115,11 +116,11 @@ export function LimiterEditor({
           data-slot="limiter-latency"
           className="text-[10px] leading-snug text-muted-foreground"
         >
-          Looking ahead delays this track by{" "}
+          {t("Looking ahead delays this track by")}{" "}
           <span className="font-readout text-foreground/85">
             {formatLatency(frames, sampleRate)}
           </span>
-          . The engine delays every other track to match.
+          {t(". The engine delays every other track to match.")}
         </p>
       </div>
     </div>

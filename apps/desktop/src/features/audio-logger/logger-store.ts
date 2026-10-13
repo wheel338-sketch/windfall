@@ -9,6 +9,7 @@ import type {
   AudioLoggerSource,
   AudioLoggerState,
 } from "./types"
+import { translatedText as t } from "@/lib/i18n"
 
 /**
  * The audio logger as the dialog shows it. `state` is what the native
@@ -87,7 +88,7 @@ export function dumpAudioLogger(source: AudioLoggerSource) {
     // where the audio editor opens it.
     const clip = result.created.at(-1)
     if (clip !== undefined) usePlaylistStore.getState().select([clip])
-    toast.success("Logged audio added to playlist")
+    toast.success(t("Logged audio added to playlist"))
     await refreshAudioLogger()
   })
 }

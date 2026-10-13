@@ -32,6 +32,7 @@ import {
   useAudioLoggerStore,
 } from "./logger-store"
 import { sourceKey, type AudioLoggerSourceStatus } from "./types"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 /** How often the open dialog asks how much each history holds. */
 const POLL_MS = 1000
@@ -76,7 +77,7 @@ function Choice({
       }}
     >
       <SelectTrigger aria-label={label}>
-        <SelectValue placeholder="Not available" />
+        <SelectValue placeholder={t("Not available")} />
       </SelectTrigger>
       <SelectContent>
         <SelectGroup>
@@ -105,22 +106,22 @@ function SourceRow({
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{status.label}</p>
           <p className="text-xs text-muted-foreground">
-            {status.active ? "Logging" : "Not receiving audio"} ·{" "}
-            {formatSeconds(status.availableSeconds)} of{" "}
-            {formatSeconds(status.capacitySeconds)} at {status.sampleRate} Hz ·{" "}
+            {status.active ? t("Logging") : t("Not receiving audio")} ·{" "}
+            {formatSeconds(status.availableSeconds)}{" "}{t("of")}{" "}
+            {formatSeconds(status.capacitySeconds)}{" "}{t("at")}{" "}{status.sampleRate} Hz ·{" "}
             {formatMemory(status.memoryBytes)}
             {status.droppedFrames > 0 &&
-              ` · ${status.droppedFrames} frames dropped`}
+              message(" · {droppedFrames} frames dropped", { droppedFrames: plainNumber(status.droppedFrames) })}
           </p>
         </div>
         <Button
           size="sm"
           variant="secondary"
           disabled={disabled || empty}
-          aria-label={`Add logged ${status.label} to playlist`}
+          aria-label={message("Add logged {statusLabel} to playlist", { statusLabel: status.label })}
           onClick={() => void dumpAudioLogger(status.source)}
         >
-          Add to playlist
+          {t("Add to playlist")}
         </Button>
       </div>
       {status.error && (
@@ -158,7 +159,7 @@ export function AudioLoggerDialog() {
       )
     : -1
   const inputItems = [
-    { value: -1, label: "No input" },
+    { value: -1, label: t("No input") },
     ...s.inputs.map((input, index) => ({
       value: index,
       label: `${input.device} (${input.host})`,
@@ -169,7 +170,7 @@ export function AudioLoggerDialog() {
   if (settings?.input && inputIndex < 0)
     inputItems.push({
       value: -2,
-      label: `${settings.input.device} (unavailable)`,
+      label: message("{device} (unavailable)", { device: settings.input.device }),
     })
   const lengths = LENGTHS.filter(
     (seconds) =>
@@ -187,11 +188,9 @@ export function AudioLoggerDialog() {
     >
       <DialogContent showCloseButton={!s.busy}>
         <DialogHeader>
-          <DialogTitle>Audio logger</DialogTitle>
+          <DialogTitle>{t("Audio logger")}</DialogTitle>
           <DialogDescription>
-            Keeps the last minutes of audio in memory while you work, so
-            something you played without recording can still be added to the
-            playlist. Nothing is written to disk until you add it.
+            {t("Keeps the last minutes of audio in memory while you work, so something you played without recording can still be added to the playlist. Nothing is written to disk until you add it.")}
           </DialogDescription>
         </DialogHeader>
         {(s.error || state?.error) && (
@@ -211,13 +210,13 @@ export function AudioLoggerDialog() {
                 }
               />
               <FieldLabel htmlFor="logger-enabled">
-                Keep audio in the background
+                {t("Keep audio in the background")}
               </FieldLabel>
             </Field>
             <Field>
-              <FieldLabel>History length</FieldLabel>
+              <FieldLabel>{t("History length")}</FieldLabel>
               <Choice
-                label="History length"
+                label={t("History length")}
                 value={settings.seconds}
                 disabled={disabled}
                 items={lengths
@@ -230,8 +229,7 @@ export function AudioLoggerDialog() {
                 onChange={(seconds) => void configureAudioLogger({ seconds })}
               />
               <FieldDescription>
-                Changing the length or the sources starts the history over.
-                Using {formatMemory(state.memoryBytes)} now.
+                {t("Changing the length or the sources starts the history over. Using")}{" "}{formatMemory(state.memoryBytes)}{" "}{t("now.")}
               </FieldDescription>
             </Field>
             <Field orientation="horizontal">
@@ -243,10 +241,10 @@ export function AudioLoggerDialog() {
                   void configureAudioLogger({ master: checked === true })
                 }
               />
-              <FieldLabel htmlFor="logger-master">Master output</FieldLabel>
+              <FieldLabel htmlFor="logger-master">{t("Master output")}</FieldLabel>
             </Field>
             <Field>
-              <FieldLabel>Mixer tracks, after their effects</FieldLabel>
+              <FieldLabel>{t("Mixer tracks, after their effects")}</FieldLabel>
               <div className="flex max-h-28 flex-col gap-1 overflow-y-auto">
                 {loggable.map((track) => {
                   const checked = settings.tracks.includes(track.id)
@@ -277,14 +275,13 @@ export function AudioLoggerDialog() {
                 })}
               </div>
               <FieldDescription>
-                At most {state.maxTracks} tracks. A logged track is what the
-                audio editor can pick up after the fact.
+                {t("At most")}{" "}{state.maxTracks}{" "}{t("tracks. A logged track is what the audio editor can pick up after the fact.")}
               </FieldDescription>
             </Field>
             <Field>
-              <FieldLabel>Audio input</FieldLabel>
+              <FieldLabel>{t("Audio input")}</FieldLabel>
               <Choice
-                label="Logged audio input"
+                label={t("Logged audio input")}
                 value={
                   settings.input ? (inputIndex >= 0 ? inputIndex : -2) : -1
                 }
@@ -306,40 +303,38 @@ export function AudioLoggerDialog() {
                 }}
               />
               <FieldDescription>
-                The input stays open in the background and gives way to a
-                recording take on the same device.
+                {t("The input stays open in the background and gives way to a recording take on the same device.")}
               </FieldDescription>
             </Field>
             <Field>
-              <FieldLabel>Add to playlist</FieldLabel>
+              <FieldLabel>{t("Add to playlist")}</FieldLabel>
               <Choice
-                label="Length to add"
+                label={t("Length to add")}
                 value={s.dumpSeconds}
                 disabled={disabled}
                 items={DUMP_LENGTHS.map((seconds) => ({
                   value: seconds,
                   label:
                     seconds === 0
-                      ? "Everything kept"
-                      : `Last ${formatSeconds(seconds)}`,
+                      ? t("Everything kept")
+                      : message("Last {seconds}", { seconds: formatSeconds(seconds) }),
                 }))}
                 onChange={(dumpSeconds) =>
                   useAudioLoggerStore.setState({ dumpSeconds })
                 }
               />
               <FieldDescription>
-                The clip starts at the playhead on a new playlist track. It is
-                one undo step.
+                {t("The clip starts at the playhead on a new playlist track. It is one undo step.")}
               </FieldDescription>
             </Field>
             {state.sources.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 {settings.enabled
-                  ? "No source is being logged."
-                  : "The audio logger is off."}
+                  ? t("No source is being logged.")
+                  : t("The audio logger is off.")}
               </p>
             ) : (
-              <ul aria-label="Logged sources" className="flex flex-col gap-2">
+              <ul aria-label={t("Logged sources")} className="flex flex-col gap-2">
                 {state.sources.map((status) => (
                   <SourceRow
                     key={sourceKey(status.source)}

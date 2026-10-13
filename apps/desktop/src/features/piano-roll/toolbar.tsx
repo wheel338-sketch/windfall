@@ -66,6 +66,7 @@ import { ChordReadout } from "./chords/readout-control"
 import { ScaleHighlightControl } from "./scale/control"
 import { useTypingKeyboardStore } from "./typing-keyboard"
 import { useStepEntryStore } from "./step-entry"
+import { translatedText as t } from "@/lib/i18n"
 
 type RollButtonProps = {
   action: string
@@ -129,7 +130,7 @@ function ChannelPicker({ channelId }: { channelId: ChannelId }) {
   const session = useSession()
   const channels = useProjectStore((state) => state.project.channels)
   const selectChannel = useUiStore((state) => state.selectChannel)
-  const hint = useHint("The channel whose notes are being edited")
+  const hint = useHint(t("The channel whose notes are being edited"))
   const items = channels.map((channel) => ({
     value: channel.id,
     label: channel.name,
@@ -146,7 +147,7 @@ function ChannelPicker({ channelId }: { channelId: ChannelId }) {
     >
       <SelectTrigger
         size="sm"
-        aria-label="Channel"
+        aria-label={t("Channel")}
         className="max-w-44 min-w-28"
         {...hint}
       >
@@ -177,7 +178,7 @@ function SnapPicker() {
   const snap = usePianoRollStore((state) => state.snap)
   const setSnap = usePianoRollStore((state) => state.setSnap)
   const hint = useHint(
-    "Snap: the grid that drawing, moving and resizing notes stick to. Hold Alt while dragging to ignore it"
+    t("Snap: the grid that drawing, moving and resizing notes stick to. Hold Alt while dragging to ignore it")
   )
   const items = SNAP_OPTIONS.map((option) => ({
     value: option.id,
@@ -186,7 +187,7 @@ function SnapPicker() {
 
   return (
     <label className="flex items-center gap-1.5">
-      <span className="text-muted-foreground">Snap</span>
+      <span className="text-muted-foreground">{t("Snap")}</span>
       <Select
         items={items}
         value={snap}
@@ -195,7 +196,7 @@ function SnapPicker() {
           session.focusGrid()
         }}
       >
-        <SelectTrigger size="sm" aria-label="Snap" className="w-24" {...hint}>
+        <SelectTrigger size="sm" aria-label={t("Snap")} className="w-24" {...hint}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent alignItemWithTrigger={false} align="start">
@@ -217,27 +218,27 @@ function SnapPicker() {
         type="button"
         variant="outline"
         size="sm"
-        aria-label="Choose a finer snap"
+        aria-label={t("Choose a finer snap")}
         disabled={nextSnapScale(snap, "finer") === null}
         onClick={() => {
           const next = nextSnapScale(usePianoRollStore.getState().snap, "finer")
           if (next !== null) usePianoRollStore.getState().setSnap(next)
         }}
       >
-        Finer
+        {t("Finer")}
       </Button>
       <Button
         type="button"
         variant="outline"
         size="sm"
-        aria-label="Choose a coarser snap"
+        aria-label={t("Choose a coarser snap")}
         disabled={nextSnapScale(snap, "coarser") === null}
         onClick={() => {
           const next = nextSnapScale(usePianoRollStore.getState().snap, "coarser")
           if (next !== null) usePianoRollStore.getState().setSnap(next)
         }}
       >
-        Coarser
+        {t("Coarser")}
       </Button>
     </label>
   )
@@ -256,12 +257,12 @@ function ArticulationPicker() {
   const setArticulation = usePianoRollStore((state) => state.setDrawArticulation)
   const setGlideTicks = usePianoRollStore((state) => state.setDrawGlideTicks)
   return (
-    <Group label="New note articulation">
+    <Group label={t("New note articulation")}>
       <Select items={NOTE_ARTICULATIONS} value={articulation} onValueChange={(next) => {
         if (isNoteArticulation(next)) setArticulation(next)
         session.focusGrid()
       }}>
-        <SelectTrigger size="sm" aria-label="New note articulation" className="w-36">
+        <SelectTrigger size="sm" aria-label={t("New note articulation")} className="w-36">
           <SelectValue />
         </SelectTrigger>
         <SelectContent alignItemWithTrigger={false} align="start">
@@ -274,7 +275,7 @@ function ArticulationPicker() {
         type="button"
         variant="outline"
         size="sm"
-        aria-label="Choose the previous articulation for new notes"
+        aria-label={t("Choose the previous articulation for new notes")}
         disabled={nextDrawArticulation(articulation, "previous") === null}
         onClick={() => {
           const latest = usePianoRollStore.getState().drawArticulation
@@ -282,13 +283,13 @@ function ArticulationPicker() {
           if (next !== null) setArticulation(next)
         }}
       >
-        Previous
+        {t("Previous")}
       </Button>
       <Button
         type="button"
         variant="outline"
         size="sm"
-        aria-label="Choose the next articulation for new notes"
+        aria-label={t("Choose the next articulation for new notes")}
         disabled={nextDrawArticulation(articulation, "next") === null}
         onClick={() => {
           const latest = usePianoRollStore.getState().drawArticulation
@@ -296,19 +297,19 @@ function ArticulationPicker() {
           if (next !== null) setArticulation(next)
         }}
       >
-        Next
+        {t("Next")}
       </Button>
       {articulation === "portamento" && (
         <>
           <NumberField
-            size="sm" aria-label="Portamento duration" value={glideTicks}
+            size="sm" aria-label={t("Portamento duration")} value={glideTicks}
             onValueChange={setGlideTicks} min={1} max={245760} step={1}
             coarseStep={60} unit="ticks" className="w-24"
           />
           <Button
             variant="outline"
             size="sm"
-            aria-label="Halve the duration for new portamento notes"
+            aria-label={t("Halve the duration for new portamento notes")}
             disabled={nextDrawGlideScale(glideTicks, "half") === null}
             onClick={() => {
               const next = nextDrawGlideScale(
@@ -318,12 +319,12 @@ function ArticulationPicker() {
               if (next !== null) usePianoRollStore.getState().setDrawGlideTicks(next)
             }}
           >
-            Halve
+            {t("Halve")}
           </Button>
           <Button
             variant="outline"
             size="sm"
-            aria-label="Double the duration for new portamento notes"
+            aria-label={t("Double the duration for new portamento notes")}
             disabled={nextDrawGlideScale(glideTicks, "double") === null}
             onClick={() => {
               const next = nextDrawGlideScale(
@@ -333,7 +334,7 @@ function ArticulationPicker() {
               if (next !== null) usePianoRollStore.getState().setDrawGlideTicks(next)
             }}
           >
-            Double
+            {t("Double")}
           </Button>
         </>
       )}
@@ -355,7 +356,7 @@ function DrawColorPicker() {
         type="button"
         variant="outline"
         size="sm"
-        aria-label="Choose the previous draw color"
+        aria-label={t("Choose the previous draw color")}
         disabled={nextDrawColor(color, "previous") === null}
         onClick={() => {
           const latest = usePianoRollStore.getState().drawColorGroup
@@ -363,13 +364,13 @@ function DrawColorPicker() {
           if (next !== null) setColor(next.color)
         }}
       >
-        Previous color
+        {t("Previous color")}
       </Button>
       <Button
         type="button"
         variant="outline"
         size="sm"
-        aria-label="Choose the next draw color"
+        aria-label={t("Choose the next draw color")}
         disabled={nextDrawColor(color, "next") === null}
         onClick={() => {
           const latest = usePianoRollStore.getState().drawColorGroup
@@ -377,7 +378,7 @@ function DrawColorPicker() {
           if (next !== null) setColor(next.color)
         }}
       >
-        Next color
+        {t("Next color")}
       </Button>
     </>
   )
@@ -391,14 +392,14 @@ export function PianoRollToolbar({ channelId, readoutRef }: ToolbarProps) {
   const typing = useTypingKeyboardStore((state) => state.enabled)
   const stepEntry = useStepEntryStore((state) => state.enabled)
   const readoutHint = useHint(
-    "Position under the pointer as bar, beat and tick, and the key"
+    t("Position under the pointer as bar, beat and tick, and the key")
   )
 
   return (
     <ContextActions items={VIEW_MENU}>
       <div
         role="toolbar"
-        aria-label="Piano roll"
+        aria-label={t("Piano roll")}
         className="flex h-9 shrink-0 items-center gap-3 overflow-x-auto overflow-y-hidden border-b bg-chassis/40 px-1.5 whitespace-nowrap"
       >
         <ChannelPicker channelId={channelId} />
@@ -416,7 +417,7 @@ export function PianoRollToolbar({ channelId, readoutRef }: ToolbarProps) {
           aria-pressed={stepEntry}
           className={stepEntry ? "text-brand" : undefined}
         />
-        <Group label="Tools">
+        <Group label={t("Tools")}>
           <RollButton action="pianoRoll.toolDraw" icon={PencilEdit02Icon} />
           <RollButton action="pianoRoll.toolPaint" icon={PaintBrush01Icon} />
           <RollButton action="pianoRoll.toolSelect" icon={Cursor01Icon} />
@@ -430,7 +431,7 @@ export function PianoRollToolbar({ channelId, readoutRef }: ToolbarProps) {
           type="button"
           variant="outline"
           size="sm"
-          aria-label="Choose the previous piano tool"
+          aria-label={t("Choose the previous piano tool")}
           disabled={nextPianoTool(tool, "previous") === null}
           onClick={() => {
             const latest = usePianoRollStore.getState().tool
@@ -438,13 +439,13 @@ export function PianoRollToolbar({ channelId, readoutRef }: ToolbarProps) {
             if (next !== null) setTool(next)
           }}
         >
-          Previous
+          {t("Previous")}
         </Button>
         <Button
           type="button"
           variant="outline"
           size="sm"
-          aria-label="Choose the next piano tool"
+          aria-label={t("Choose the next piano tool")}
           disabled={nextPianoTool(tool, "next") === null}
           onClick={() => {
             const latest = usePianoRollStore.getState().tool
@@ -452,7 +453,7 @@ export function PianoRollToolbar({ channelId, readoutRef }: ToolbarProps) {
             if (next !== null) setTool(next)
           }}
         >
-          Next
+          {t("Next")}
         </Button>
         <ActionButton
           action="pianoRoll.drum"
@@ -461,7 +462,7 @@ export function PianoRollToolbar({ channelId, readoutRef }: ToolbarProps) {
           aria-pressed={drum}
           className={drum ? "text-brand" : undefined}
         >
-          Drum
+          {t("Drum")}
         </ActionButton>
         <SnapPicker />
         <ArticulationPicker />
@@ -474,18 +475,18 @@ export function PianoRollToolbar({ channelId, readoutRef }: ToolbarProps) {
         <ScaleHighlightControl />
         <WaveformHelperControl />
         <ActionButton action="pianoRoll.quantize" variant="outline" size="sm">
-          Note tools
+          {t("Note tools")}
         </ActionButton>
-        <Group label="View">
+        <Group label={t("View")}>
           <RollButton action="pianoRoll.ghosts" icon={GhostIcon} />
-          <ActionButton action="pianoRoll.editGhosts" variant="ghost" size="sm">Edit ghosts</ActionButton>
+          <ActionButton action="pianoRoll.editGhosts" variant="ghost" size="sm">{t("Edit ghosts")}</ActionButton>
           <RollButton action="pianoRoll.follow" icon={ArrowRightDoubleIcon} />
           <RollButton action="pianoRoll.zoomFit" icon={FitToScreenIcon} />
           <RollButton action="pianoRoll.zoomSelection" icon={ZoomInAreaIcon} />
         </Group>
         <output
           ref={readoutRef}
-          aria-label="Position under the pointer"
+          aria-label={t("Position under the pointer")}
           className="ml-auto flex h-6 min-w-36 shrink-0 items-center justify-end rounded-sm bg-display px-2 font-readout text-[0.6875rem] whitespace-pre text-display-foreground empty:before:text-display-dim empty:before:content-['–.–.–––']"
           {...readoutHint}
         />

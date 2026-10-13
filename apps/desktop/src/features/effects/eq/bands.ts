@@ -8,6 +8,7 @@ import {
   type EqBandId,
   type EqBandShape,
 } from "./eq-response"
+import { message } from "@/lib/i18n"
 
 export type BandSpec = {
   id: EqBandId
@@ -61,7 +62,7 @@ export const EQ_BANDS: readonly BandSpec[] = EQ_BAND_IDS.map((id) => {
 
 export function bandSpec(id: EqBandId): BandSpec {
   const spec = EQ_BANDS.find((band) => band.id === id)
-  if (!spec) throw new Error(`The equaliser has no band "${id}"`)
+  if (!spec) throw new Error(message("The equaliser has no band \"{id}\"", { id }))
   return spec
 }
 

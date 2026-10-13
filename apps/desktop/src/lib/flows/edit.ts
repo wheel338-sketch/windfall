@@ -4,6 +4,7 @@ import { askConfirm, askText } from "@/lib/store/prompts"
 import { selectedPatternId } from "@/lib/store/selectors"
 import { setTransportPattern, useTransportStore } from "@/lib/store/transport"
 import { useUiStore } from "@/lib/store/ui"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 function patterns() {
   return useProjectStore.getState().project.patterns
@@ -32,10 +33,10 @@ export async function renamePattern(id = currentPatternId()): Promise<void> {
   const pattern = patterns().find((item) => item.id === id)
   if (!pattern) return
   const name = await askText({
-    title: "Rename pattern",
-    label: "Name",
+    title: t("Rename pattern"),
+    label: t("Name"),
     initial: pattern.name,
-    submitLabel: "Rename",
+    submitLabel: t("Rename"),
   })
   if (name === null || name === pattern.name) return
   await dispatch({ type: "updatePattern", id: pattern.id, patch: { name } })
@@ -62,13 +63,13 @@ export function patternLoss(id: PatternId): string | null {
   ).length
   if (notes === 0 && clips === 0) return null
   const has = `It has ${count(notes, "note", "notes")}`
-  if (clips === 0) return `${has}. Undo brings the pattern back.`
+  if (clips === 0) return message("{has}. Undo brings the pattern back.", { has })
   const used =
     clips === 1
-      ? "1 clip on the playlist plays it and is deleted with it"
-      : `${clips} clips on the playlist play it and are deleted with it`
-  const lost = notes === 0 ? used : `${has}, and ${used}`
-  return `${lost}. Undo brings everything back.`
+      ? t("1 clip on the playlist plays it and is deleted with it")
+      : message("{clips} clips on the playlist play it and are deleted with it", { clips: plainNumber(clips) })
+  const lost = notes === 0 ? used : message("{has}, and {used}", { has, used })
+  return message("{lost}. Undo brings everything back.", { lost })
 }
 
 export async function deletePattern(id = currentPatternId()): Promise<void> {
@@ -78,10 +79,10 @@ export async function deletePattern(id = currentPatternId()): Promise<void> {
   const loss = patternLoss(id)
   if (loss !== null) {
     const choice = await askConfirm({
-      title: `Delete ${pattern.name}?`,
+      title: message("Delete {patternName}?", { patternName: pattern.name }),
       description: loss,
       choices: [
-        { id: "delete", label: "Delete pattern", variant: "destructive" },
+        { id: "delete", label: t("Delete pattern"), variant: "destructive" },
       ],
     })
     if (choice !== "delete") return

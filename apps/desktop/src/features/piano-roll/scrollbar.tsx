@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { useSession } from "./context"
 import type { PianoRollSession } from "./session"
 import { ROW_COUNT, startAtThumbOffset, thumbGeometry } from "./view-math"
+import { translatedText as t } from "@/lib/i18n"
 
 const MIN_THUMB_PX = 28
 /** The ends of the thumb that zoom when dragged. */
@@ -58,8 +59,8 @@ export function Scrollbar({ axis }: { axis: Axis }) {
   const horizontal = axis === "time"
   const hint = useHint(
     horizontal
-      ? "Drag to scroll through time. Drag either end of the bar to zoom"
-      : "Drag to scroll through the keys. Drag either end of the bar to change the row height"
+      ? t("Drag to scroll through time. Drag either end of the bar to zoom")
+      : t("Drag to scroll through the keys. Drag either end of the bar to change the row height")
   )
 
   useEffect(() => {
@@ -183,7 +184,7 @@ export function Scrollbar({ axis }: { axis: Axis }) {
     <div
       ref={trackRef}
       role="scrollbar"
-      aria-label={horizontal ? "Scroll through time" : "Scroll through keys"}
+      aria-label={horizontal ? t("Scroll through time") : t("Scroll through keys")}
       aria-orientation={horizontal ? "horizontal" : "vertical"}
       aria-valuemin={0}
       aria-valuemax={100}

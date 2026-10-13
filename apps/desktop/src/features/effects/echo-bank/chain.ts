@@ -1,4 +1,5 @@
 /** The echo bank always has this many units. */
+import { translatedText as t } from "@/lib/i18n"
 export const UNIT_COUNT = 8
 
 /** The id of one unit's setting, as the descriptor spells it. */
@@ -57,7 +58,7 @@ export function chainRuns(units: readonly UnitRouting[]): number[][] {
  */
 export function chainSummary(units: readonly UnitRouting[]): string {
   const runs = chainRuns(units)
-  if (runs.length === 0) return "No unit is on"
+  if (runs.length === 0) return t("No unit is on")
   return runs.map((run) => run.join(" → ")).join(", ")
 }
 

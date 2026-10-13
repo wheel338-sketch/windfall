@@ -8,6 +8,7 @@ import { fileName, formatSampleRate } from "@/lib/time"
 import { cn } from "@/lib/utils"
 
 import { STATUS_MENU } from "./chrome-menus"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 function Dot({ className }: { className: string }) {
   return (
@@ -20,7 +21,7 @@ function Dot({ className }: { className: string }) {
 
 function EngineStatus() {
   const status = useEngineStore((state) => state.status)
-  const hint = useHint("Audio output. Click to choose a device or buffer size")
+  const hint = useHint(t("Audio output. Click to choose a device or buffer size"))
 
   // What the project's effects and instruments add on top of the buffer.
   const pluginMs =
@@ -31,7 +32,7 @@ function EngineStatus() {
   let content = (
     <>
       <Dot className="bg-foreground/30" />
-      <span>Starting audio…</span>
+      <span>{t("Starting audio…")}</span>
     </>
   )
   if (status?.running) {
@@ -44,14 +45,14 @@ function EngineStatus() {
         <span className="shrink-0 font-readout">
           {formatSampleRate(status.sampleRate)}
         </span>
-        <span className="shrink-0 font-readout">{status.bufferFrames} smp</span>
+        <span className="shrink-0 font-readout">{status.bufferFrames}{" "}{t("smp")}</span>
         <span className="shrink-0 font-readout">
           {status.latencyMs.toFixed(1)} ms
         </span>
         {pluginMs > 0 && (
           <span
             className="shrink-0 font-readout"
-            title={`Effects and instruments delay the output by ${status.latencyFrames} samples. Every track is lined up with the slowest.`}
+            title={message("Effects and instruments delay the output by {latencyFrames} samples. Every track is lined up with the slowest.", { latencyFrames: plainNumber(status.latencyFrames) })}
           >
             +{pluginMs.toFixed(1)} ms
           </span>
@@ -63,7 +64,7 @@ function EngineStatus() {
       <>
         <Dot className="bg-destructive" />
         <span className="truncate text-destructive">
-          No audio. {status.error ?? "The output is not running."}
+          {t("No audio.")}{" "}{status.error ?? t("The output is not running.")}
         </span>
       </>
     )
@@ -72,7 +73,7 @@ function EngineStatus() {
   return (
     <button
       type="button"
-      aria-label="Audio output status. Open audio settings"
+      aria-label={t("Audio output status. Open audio settings")}
       onClick={() => void runAction("options.settings")}
       // It gives way before the hint does: the name of the device is cut
       // short first.
@@ -111,7 +112,7 @@ function SaveState() {
   const dirty = useDirty()
   const path = useProjectPath()
 
-  let label = "Saved"
+  let label = t("Saved")
   if (path === null) label = "Not saved to a file yet"
   else if (dirty) label = "Edited"
 

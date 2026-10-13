@@ -98,7 +98,7 @@ function enlargeEffects() {
 export const EFFECT_ACTIONS: Action[] = [
   {
     id: "mixer.effects",
-    title: "Show effects",
+    ...dynamicTitle("Show effects", {}),
     section: SECTION,
     scope: "mixer",
     defaultShortcut: "E",
@@ -110,7 +110,7 @@ export const EFFECT_ACTIONS: Action[] = [
   },
   {
     id: "mixer.enlargeEffects",
-    title: "Enlarge effects",
+    ...dynamicTitle("Enlarge effects", {}),
     section: SECTION,
     scope: "mixer",
     defaultShortcut: "Shift+E",
@@ -120,7 +120,7 @@ export const EFFECT_ACTIONS: Action[] = [
   },
   {
     id: "mixer.effectsBack",
-    title: "Return effects to the mixer",
+    ...dynamicTitle("Return effects to the mixer", {}),
     section: SECTION,
     scope: "effectInspector",
     defaultShortcut: "Escape",
@@ -146,7 +146,7 @@ export const EFFECT_ACTIONS: Action[] = [
   })),
   {
     id: "mixer.openEffect",
-    title: "Open effect",
+    ...dynamicTitle("Open effect", {}),
     section: SECTION,
     keywords: "edit editor show",
     enabled: (state) => target(state) !== undefined,
@@ -154,7 +154,7 @@ export const EFFECT_ACTIONS: Action[] = [
   },
   {
     id: "mixer.bypassEffect",
-    title: "Bypass effect",
+    ...dynamicTitle("Bypass effect", {}),
     section: SECTION,
     keywords: "disable enable switch off on",
     enabled: (state) => target(state) !== undefined,
@@ -163,7 +163,7 @@ export const EFFECT_ACTIONS: Action[] = [
   },
   {
     id: "mixer.duplicateEffect",
-    title: "Duplicate effect",
+    ...dynamicTitle("Duplicate effect", {}),
     section: SECTION,
     // The key is the effect's while its slot or its header has the focus.
     scope: "effect",
@@ -180,7 +180,7 @@ export const EFFECT_ACTIONS: Action[] = [
   },
   {
     id: "mixer.moveEffectUp",
-    title: "Move effect up",
+    ...dynamicTitle("Move effect up", {}),
     section: SECTION,
     scope: "mixer",
     defaultShortcut: "Alt+ArrowUp",
@@ -191,7 +191,7 @@ export const EFFECT_ACTIONS: Action[] = [
   },
   {
     id: "mixer.moveEffectDown",
-    title: "Move effect down",
+    ...dynamicTitle("Move effect down", {}),
     section: SECTION,
     scope: "mixer",
     defaultShortcut: "Alt+ArrowDown",
@@ -219,7 +219,7 @@ export const EFFECT_ACTIONS: Action[] = [
   })),
   {
     id: "mixer.resetEffect",
-    title: "Reset effect to defaults",
+    ...dynamicTitle("Reset effect to defaults", {}),
     section: SECTION,
     keywords: "initialize settings",
     enabled: (state) => {
@@ -230,7 +230,7 @@ export const EFFECT_ACTIONS: Action[] = [
   },
   {
     id: "mixer.removeEffect",
-    title: "Remove effect",
+    ...dynamicTitle("Remove effect", {}),
     section: SECTION,
     scope: "effect",
     editCommand: "delete",

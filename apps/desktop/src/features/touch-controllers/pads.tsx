@@ -18,6 +18,7 @@ import {
 } from "./geometry"
 import { noteId, useHeldNotes, type HeldNotes } from "./held-notes"
 import { useTouchControllersStore } from "./store"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 /** What a pad plays and shows. Null is a pad with nothing on it. */
 type Pad = {
@@ -88,7 +89,7 @@ export function TouchPads({
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
         <ToggleGroup
-          aria-label="Pad layout"
+          aria-label={t("Pad layout")}
           value={[layout]}
           variant="outline"
           size="sm"
@@ -97,31 +98,31 @@ export function TouchPads({
               setLayout(values[0])
           }}
         >
-          <ToggleGroupItem value="notes">Notes</ToggleGroupItem>
-          <ToggleGroupItem value="channels">Channels</ToggleGroupItem>
+          <ToggleGroupItem value="notes">{t("Notes")}</ToggleGroupItem>
+          <ToggleGroupItem value="channels">{t("Channels")}</ToggleGroupItem>
         </ToggleGroup>
         <div className="flex items-center gap-1">
           <Button
             variant="outline"
             size="icon-lg"
-            aria-label="Bank down"
+            aria-label={t("Bank down")}
             disabled={!canGoDown}
             onClick={() => (byChannel ? setBank(bank - 1) : shiftBase(-1))}
           >
             <HugeiconsIcon icon={ArrowDown01Icon} strokeWidth={2} />
           </Button>
           <output
-            aria-label="Pad bank"
+            aria-label={t("Pad bank")}
             className="min-w-24 text-center font-readout text-xs"
           >
             {byChannel
-              ? `Channels ${first + 1} to ${Math.min(first + PAD_COUNT, channels.length)} of ${channels.length}`
-              : `${noteName(base)} to ${noteName(base + PAD_COUNT - 1)}`}
+              ? message("Channels {first} to {first2} of {count}", { first: plainNumber(first + 1), first2: plainNumber(Math.min(first + PAD_COUNT, channels.length)), count: plainNumber(channels.length) })
+              : message("{note} to {note2}", { note: noteName(base), note2: noteName(base + PAD_COUNT - 1) })}
           </output>
           <Button
             variant="outline"
             size="icon-lg"
-            aria-label="Bank up"
+            aria-label={t("Bank up")}
             disabled={!canGoUp}
             onClick={() => (byChannel ? setBank(bank + 1) : shiftBase(1))}
           >
@@ -130,7 +131,7 @@ export function TouchPads({
         </div>
       </div>
       <PadGrid
-        label={byChannel ? "Channel pads" : `Note pads, ${channel.name}`}
+        label={byChannel ? t("Channel pads") : message("Note pads, {channelName}", { channelName: channel.name })}
         pads={pads}
         notes={notes}
         held={held}
@@ -243,7 +244,7 @@ function PadGrid({
       onContextMenu={(event) => event.preventDefault()}
     >
       {pads.map((pad, index) => {
-        const name = `Pad ${index + 1}, ${pad ? pad.label : "empty"}`
+        const name = message("Pad {index}, {pad}", { index: plainNumber(index + 1), pad: pad ? pad.label : t("empty") })
         return (
           <button
             key={index}

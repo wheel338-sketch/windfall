@@ -20,6 +20,7 @@ import { HOME_KEY, MAX_KEY } from "./edit-math"
 import { handleWheel } from "./grid-input"
 import { VIEW_MENU } from "./menu"
 import { ROW_COUNT } from "./view-math"
+import { translatedText as t, dynamicTitle } from "@/lib/i18n"
 
 /** Below this row height the C labels would run into each other. */
 const MIN_LABEL_ROW_PX = 9
@@ -43,18 +44,18 @@ export function KeyGutter({ channelId, color, keyboardRef }: KeyGutterProps) {
   const [labels, setLabels] = useState(true)
   const [menuKey, setMenuKey] = useState(HOME_KEY)
   const hint = useHint(
-    "Click or drag across the keys to hear them. Right-click a key to select its notes"
+    t("Click or drag across the keys to hear them. Right-click a key to select its notes")
   )
 
   const name = noteName(menuKey)
   const entries: ContextItem[] = [
     { label: name },
     {
-      title: `Select the notes on ${name}`,
+      ...dynamicTitle("Select the notes on {name}", { name }),
       run: () => session.editor.selectKey(menuKey, false),
     },
     {
-      title: `Add the notes on ${name} to the selection`,
+      ...dynamicTitle("Add the notes on {name} to the selection", { name }),
       run: () => session.editor.selectKey(menuKey, true),
     },
     contextSeparator,

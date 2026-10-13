@@ -12,6 +12,7 @@ import { MASTER_TRACK } from "@/lib/units"
 import { cn } from "@/lib/utils"
 
 import type { AnalyzerSource } from "./types"
+import { translatedText as t, message } from "@/lib/i18n"
 
 const MIX = "mix"
 
@@ -36,19 +37,19 @@ export function sourceLabel(
   source: AnalyzerSource,
   tracks: readonly MixerTrack[]
 ): string {
-  if (source.type === "mixOutput") return "Mix output"
+  if (source.type === "mixOutput") return t("Mix output")
   const track = tracks.find((item) => item.id === source.track)
-  if (!track) return "A track that is gone"
+  if (!track) return t("A track that is gone")
   return track.id === MASTER_TRACK
-    ? "Master track, after its fader"
-    : `${track.name}, after its fader`
+    ? t("Master track, after its fader")
+    : message("{trackName}, after its fader", { trackName: track.name })
 }
 
 function Choices({ tracks }: { tracks: readonly MixerTrack[] }) {
   return (
     <>
       <DropdownMenuRadioItem value={MIX} closeOnClick>
-        Mix output
+        {t("Mix output")}
       </DropdownMenuRadioItem>
       <DropdownMenuSeparator />
       {tracks.map((track) => (
@@ -58,7 +59,7 @@ function Choices({ tracks }: { tracks: readonly MixerTrack[] }) {
           closeOnClick
         >
           <span className="truncate">
-            {track.id === MASTER_TRACK ? "Master track" : track.name}
+            {track.id === MASTER_TRACK ? t("Master track") : track.name}
           </span>
         </DropdownMenuRadioItem>
       ))}
@@ -92,7 +93,7 @@ export function AnalyzerSourceSelect({
             type="button"
             data-slot="analyzer-source"
             data-source={sourceValue(source)}
-            aria-label={`Source: ${label}`}
+            aria-label={message("Source: {label}", { label })}
             className={cn(
               "flex h-7 min-w-0 items-center gap-1.5 rounded-md border border-input bg-input/20 px-2 text-xs outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring aria-expanded:bg-muted",
               className
@@ -100,7 +101,7 @@ export function AnalyzerSourceSelect({
           />
         }
       >
-        <span className="shrink-0 text-muted-foreground">Source</span>
+        <span className="shrink-0 text-muted-foreground">{t("Source")}</span>
         <span className="truncate">{label}</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="max-h-80 w-auto min-w-52">

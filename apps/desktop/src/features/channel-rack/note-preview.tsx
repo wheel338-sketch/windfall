@@ -55,6 +55,7 @@ import {
   type NotePreviewTarget,
 } from "./note-preview-target"
 import { rackNoteView, useRackStore } from "./rack-store"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 const ROW_ACTION_IDS = [...NOTE_VIEW_ACTION_IDS, OPEN_NOTE_PREVIEW_ACTION]
 
@@ -101,7 +102,7 @@ function RowActionItems({ target }: { target: NotePreviewTarget }) {
         }
       }}
     >
-      <DropdownMenuLabel>Row view</DropdownMenuLabel>
+      <DropdownMenuLabel>{t("Row view")}</DropdownMenuLabel>
       {ROW_ACTION_IDS.map((id) => {
         const action = actions.find((item) => item.id === id)
         return (
@@ -152,7 +153,7 @@ const NotePreview = memo(function NotePreview({
     }
   }, [])
   const hint = useHint(
-    "Note preview in rack. Click or press Enter to open this channel in the piano roll. Space plays or stops. The row view menu offers step buttons"
+    t("Note preview in rack. Click or press Enter to open this channel in the piano roll. Space plays or stops. The row view menu offers step buttons")
   )
   // Cursor style writes per frame, independent of the number of notes; no React.
   usePlayhead((tick, playing) => {
@@ -208,7 +209,7 @@ const NotePreview = memo(function NotePreview({
     next?.focus({ preventScroll: true })
   }
 
-  const description = `${geometry.count} ${geometry.count === 1 ? "note" : "notes"} in the pattern${geometry.outside ? `; ${geometry.outside} outside the preview` : ""}${geometry.dense ? "; dense notes are combined in the thumbnail" : ""}`
+  const description = `${geometry.count} ${geometry.count === 1 ? "note" : "notes"} in the pattern${geometry.outside ? message("; {outside} outside the preview", { outside: plainNumber(geometry.outside) }) : ""}${geometry.dense ? "; dense notes are combined in the thumbnail" : ""}`
   return (
     // Keep the existing channel-name arrow-navigation hook, without step buttons.
     <div
@@ -226,7 +227,7 @@ const NotePreview = memo(function NotePreview({
           style={{ backgroundColor: "var(--wf-step-off)" }}
           tabIndex={0}
           data-slot="rack-note-preview"
-          aria-label={`${name} note preview. ${openAction?.title ?? ""}`}
+          aria-label={message("{name} note preview. {openActionTitle}", { name, openActionTitle: openAction?.title ?? "" })}
           title={`${description}. ${openAction?.title ?? ""}${openShortcut ? ` (${openShortcut})` : ""}`}
           onKeyDown={onKeyDown}
           onPointerDown={(event) => {
@@ -265,7 +266,7 @@ const NotePreview = memo(function NotePreview({
           />
           {geometry.count === 0 && (
             <span className="absolute inset-0 flex items-center justify-center text-muted-foreground">
-              No notes in this pattern
+              {t("No notes in this pattern")}
             </span>
           )}
         </Button>
@@ -327,7 +328,7 @@ export function RackNoteArea({
               variant="ghost"
               size="icon-xs"
               className="sticky right-0 z-10 -mr-3 h-5.5 w-3 rounded-none bg-background"
-              aria-label={`${name} row view`}
+              aria-label={message("{name} row view", { name })}
             />
           }
         >

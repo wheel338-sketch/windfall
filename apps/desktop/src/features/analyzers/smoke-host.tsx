@@ -14,6 +14,7 @@ import { useAnalyzerSelection } from "./feed"
 import { AnalyzerStatusLine } from "./status"
 import type { AnalyzerSource } from "./types"
 import { Oscilloscope, PeakMeter, Spectrogram, SpectrumCurve, Vectorscope } from "./views"
+import { translatedText as t } from "@/lib/i18n"
 
 type Fixture = {
   project: string
@@ -37,7 +38,7 @@ declare global { interface Window { __windfallAnalyzerSmoke?: SmokeApi } }
 
 /** Reads what the mounted views actually wrote, rather than echoing IPC. */
 export function readDisplays(root: HTMLElement | null) {
-  if (!root) throw new Error("Analyzer smoke views are not mounted")
+  if (!root) throw new Error(t("Analyzer smoke views are not mounted"))
   const text = (selector: string) => root.querySelector(selector)?.textContent ?? null
   const data = (selector: string) => [...root.querySelectorAll<HTMLElement>(selector)].map((element) => ({
     ...element.dataset,
@@ -45,7 +46,7 @@ export function readDisplays(root: HTMLElement | null) {
   }))
   const visualizer = [...root.querySelectorAll<HTMLCanvasElement>("canvas[aria-label='Audio reactive scene']")].map((canvas) => {
     const context = canvas.getContext("2d")
-    if (!context) throw new Error("Visualizer has no real CanvasRenderingContext2D")
+    if (!context) throw new Error(t("Visualizer has no real CanvasRenderingContext2D"))
     const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data
     let foreground = 0
     let opaque = 0
@@ -60,7 +61,7 @@ export function readDisplays(root: HTMLElement | null) {
   })
   const videos = [...root.querySelectorAll<HTMLCanvasElement>("canvas[aria-label='Timeline video']")].map((canvas) => {
     const context = canvas.getContext("2d")
-    if (!context) throw new Error("Timeline video has no real CanvasRenderingContext2D")
+    if (!context) throw new Error(t("Timeline video has no real CanvasRenderingContext2D"))
     return { ...canvas.dataset, width: canvas.width, height: canvas.height,
       pixels: [...context.getImageData(0, 0, canvas.width, canvas.height).data] }
   })
@@ -86,8 +87,8 @@ function SmokeViews({ fixture, source, effect, visualizer, video }: { fixture: F
   const selected = fixture && effect ? fixture[effect] : null
   const track = project.mixer.tracks.find((track) => track.effects.some((slot) => slot.id === selected))
   const slot = track?.effects.find((slot) => slot.id === selected)
-  return <section data-slot="analyzer-smoke" aria-label="Analyzer smoke displays" className="absolute inset-0 overflow-auto bg-chassis p-4">
-    <h1 className="mb-3 text-lg text-foreground">Analyzer smoke displays</h1>
+  return <section data-slot="analyzer-smoke" aria-label={t("Analyzer smoke displays")} className="absolute inset-0 overflow-auto bg-chassis p-4">
+    <h1 className="mb-3 text-lg text-foreground">{t("Analyzer smoke displays")}</h1>
     <div className="grid grid-cols-2 gap-4">
       <LargeClock /><LargeMasterMeter />
       <div className="col-span-2"><PeakMeter slot="scope" floorDb={-90} /><AnalyzerStatusLine slot="scope" /></div>
@@ -140,13 +141,13 @@ export function AnalyzerSmokeHost() {
       },
       control,
       select(side) {
-        if (!fixture) throw new Error("Prepare the native fixture first")
+        if (!fixture) throw new Error(t("Prepare the native fixture first"))
         setSource(side === "mix" ? { type:"mixOutput" } : { type:"trackPostFader", track:fixture.tracks[side === "left" ? 0 : 1] })
       },
       effect: setEffect,
       visualizer: setVisualizer,
       async deleteSource() {
-        if (source?.type !== "trackPostFader") throw new Error("Select a track before deleting it")
+        if (source?.type !== "trackPostFader") throw new Error(t("Select a track before deleting it"))
         await backend.dispatch({ type:"removeMixerTrack", id:source.track })
       },
       read: () => readDisplays(document.querySelector("[data-slot=analyzer-smoke]")),

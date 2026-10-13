@@ -9,6 +9,7 @@ import type {
   TargetLfo,
   VoiceFilter,
 } from "@/bindings"
+import { message } from "@/lib/i18n"
 export type {
   ChannelTargetLfos,
   LayerSettings,
@@ -136,7 +137,7 @@ function finite(value: number, low: number, high: number, fallback: number) {
 }
 
 export function assertNever(value: never): never {
-  throw new Error(`Unexpected channel voice value: ${String(value)}`)
+  throw new Error(message("Unexpected channel voice value: {value}", { value: String(value) }))
 }
 
 /** Match Rust ranges and ensure integer fields can deserialize into u8/i8. */

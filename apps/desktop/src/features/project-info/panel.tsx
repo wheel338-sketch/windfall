@@ -15,9 +15,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { projectNameChange } from "./project-name"
 
 const FIELDS = [
-  { key: "author", label: "Author", cap: 256 },
-  { key: "genre", label: "Genre", cap: 128 },
-  { key: "comments", label: "Comments", cap: 16_384 },
+  { key: "author", get label() { return t("Author") }, cap: 256 },
+  { key: "genre", get label() { return t("Genre") }, cap: 128 },
+  { key: "comments", get label() { return t("Comments") }, cap: 16_384 },
 ] as const
 
 export function ProjectInfoPanel({

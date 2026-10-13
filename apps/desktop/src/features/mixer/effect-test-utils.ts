@@ -6,6 +6,7 @@ import { dispatch } from "@/lib/store/project"
 
 import { EFFECT_DRAG_TYPE } from "./effect-drag"
 import { flush, strip, trackNamed } from "./test-utils"
+import { message, plainNumber } from "@/lib/i18n"
 
 /** Helpers the tests of the mixer's effects share. Not part of the app. */
 
@@ -27,7 +28,7 @@ export async function addEffects(
       track: trackNamed(track).id,
       kind,
     })
-    if (!result) throw new Error(`Could not add a ${kind} to "${track}"`)
+    if (!result) throw new Error(message("Could not add a {kind} to \"{track}\"", { kind, track }))
     created.push(result.created[0])
   }
   await flush()
@@ -41,7 +42,7 @@ export function slotRow(track: string, effect: EffectId): HTMLElement {
   const row = strip(track).querySelector<HTMLElement>(
     `[data-slot=effect-slot][data-effect-row="${effect}"]`
   )
-  if (!row) throw new Error(`"${track}" shows no slot for effect ${effect}`)
+  if (!row) throw new Error(message("\"{track}\" shows no slot for effect {effect}", { track, effect: plainNumber(effect) }))
   return row
 }
 
@@ -50,7 +51,7 @@ export function slotButton(track: string, effect: EffectId): HTMLElement {
   const button = slotRow(track, effect).querySelector<HTMLElement>(
     "[data-slot=effect-open]"
   )
-  if (!button) throw new Error(`The slot of effect ${effect} has no button`)
+  if (!button) throw new Error(message("The slot of effect {effect} has no button", { effect: plainNumber(effect) }))
   return button
 }
 

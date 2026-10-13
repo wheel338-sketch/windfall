@@ -1,7 +1,8 @@
+import { translatedText as t } from "@/lib/i18n"
 export const METRONOME_GAINS = [
-  { label: "Quiet", value: 0.25 },
-  { label: "Medium", value: 0.5 },
-  { label: "Loud", value: 1 },
+  { get label() { return t("Quiet") }, value: 0.25 },
+  { get label() { return t("Medium") }, value: 0.5 },
+  { get label() { return t("Loud") }, value: 1 },
 ] as const
 
 export function nextMetronomeGain(current: number, preset: number): number | null {

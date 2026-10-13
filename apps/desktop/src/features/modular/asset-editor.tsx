@@ -18,6 +18,7 @@ import { getProjectGeneration } from "@/lib/store/replaced"
 import { useProjectStore } from "@/lib/store"
 import { RackAudioInput } from "./audio-input"
 import { ChoiceField } from "./note-editor"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 const ASSET_EDITORS: Partial<Record<EffectKind, ReturnType<typeof customEditor>>> = {
   convolver: customEditor("convolver"),
@@ -79,7 +80,7 @@ function RackBankEditor({ asset, soundFont, apply }: { asset: RackNodeAsset | nu
   useEffect(() => () => { ++request.current }, [])
   const zones = asset?.type === "zones" ? asset.zones : []
   const update = async (next: RackNodeAsset | null) => {
-    try { if (!await apply(next)) throw new Error("Rack bank edit was refused; the previous bank was retained"); setError(null) }
+    try { if (!await apply(next)) throw new Error(t("Rack bank edit was refused; the previous bank was retained")); setError(null) }
     catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); return null }
     return true
   }
@@ -88,31 +89,31 @@ function RackBankEditor({ asset, soundFont, apply }: { asset: RackNodeAsset | nu
     void update({ type: "zones", zones: next })
   }
   return <FieldGroup>
-    <Field><FieldLabel htmlFor="rack-bank-root">New sample root MIDI key</FieldLabel><Input id="rack-bank-root" type="number" min={0} max={127} value={root} onChange={(e) => setRoot(Number(e.target.value))} /></Field>
-    <RackAudioInput label="Bank sample" audio={null} apply={async (audio) => {
+    <Field><FieldLabel htmlFor="rack-bank-root">{t("New sample root MIDI key")}</FieldLabel><Input id="rack-bank-root" type="number" min={0} max={127} value={root} onChange={(e) => setRoot(Number(e.target.value))} /></Field>
+    <RackAudioInput label={t("Bank sample")} audio={null} apply={async (audio) => {
       if (!audio) return null
       return update({ type: "zones", zones: [...zones, { audio, mapping: { sample: 0, rootKey: root, keyLow: 0, keyHigh: 127, velocityLow: 0, velocityHigh: 127, tuneCents: 0, gain: 1, pan: 0, keyFade: 0, velocityFade: 0, roundRobin: 0, chokeGroup: 0, loopMode: "off", loopStart: 0, loopEnd: 0, attackMs: 0, holdMs: 0, decayMs: 0, sustain: 1, releaseMs: 100, scaleTuning: 100 } }] })
     }} />
     {zones.map((zone, index) => <FieldGroup key={index}>
-      <RackAudioInput label={`Zone ${index + 1}`} audio={zone.audio} apply={(audio) => update(audio ? { type: "zones", zones: zones.map((z) => z === zone ? { ...z, audio } : z) } : zones.length === 1 ? null : { type: "zones", zones: zones.filter((z) => z !== zone) })} />
-      <ChoiceField<import("@/bindings").BankLoop> label={`Zone ${index + 1} loop`} value={zone.mapping.loopMode} choices={["off", "continuous", "untilRelease"]} onChange={(loopMode) => mapping(zone, { loopMode })} />
-      {(["rootKey", "keyLow", "keyHigh", "velocityLow", "velocityHigh", "loopStart", "loopEnd", "attackMs", "releaseMs", "gain", "pan", "tuneCents"] as const).map((field) => <Field key={field}><FieldLabel htmlFor={`rack-zone-${index}-${field}`}>{field}</FieldLabel><Input id={`rack-zone-${index}-${field}`} type="number" step="any" value={zone.mapping[field] ?? (field === "keyHigh" || field === "velocityHigh" ? 127 : field === "gain" ? 1 : 0)} onChange={(e) => mapping(zone, { [field]: Number(e.target.value) })} /></Field>)}
+      <RackAudioInput label={message("Zone {index}", { index: plainNumber(index + 1) })} audio={zone.audio} apply={(audio) => update(audio ? { type: "zones", zones: zones.map((z) => z === zone ? { ...z, audio } : z) } : zones.length === 1 ? null : { type: "zones", zones: zones.filter((z) => z !== zone) })} />
+      <ChoiceField<import("@/bindings").BankLoop> label={message("Zone {index} loop", { index: plainNumber(index + 1) })} value={zone.mapping.loopMode} choices={["off", "continuous", "untilRelease"]} onChange={(loopMode) => mapping(zone, { loopMode })} />
+      {(["rootKey", "keyLow", "keyHigh", "velocityLow", "velocityHigh", "loopStart", "loopEnd", "attackMs", "releaseMs", "gain", "pan", "tuneCents"] as const).map((field) => <Field key={field}><FieldLabel htmlFor={`rack-zone-${index}-${field}`}>{t(field)}</FieldLabel><Input id={`rack-zone-${index}-${field}`} type="number" step="any" value={zone.mapping[field] ?? (field === "keyHigh" || field === "velocityHigh" ? 127 : field === "gain" ? 1 : 0)} onChange={(e) => mapping(zone, { [field]: Number(e.target.value) })} /></Field>)}
     </FieldGroup>)}
     {soundFont && <>
-      <Field><FieldLabel htmlFor="rack-sf-bank">SoundFont bank</FieldLabel><Input id="rack-sf-bank" type="number" min={0} max={16383} value={bank} onChange={(e) => { const bank = Number(e.target.value); setBank(bank); if (asset?.type === "soundFont") void update({ ...asset, bank }) }} /></Field>
-      <Field><FieldLabel htmlFor="rack-sf-program">SoundFont program</FieldLabel><Input id="rack-sf-program" type="number" min={0} max={127} value={program} onChange={(e) => { const program = Number(e.target.value); setProgram(program); if (asset?.type === "soundFont") void update({ ...asset, program }) }} /></Field>
-      <Field><FieldLabel htmlFor="rack-sf-file">Load or relink SoundFont</FieldLabel><Input id="rack-sf-file" type="file" accept=".sf2" onChange={(e) => {
+      <Field><FieldLabel htmlFor="rack-sf-bank">{t("SoundFont bank")}</FieldLabel><Input id="rack-sf-bank" type="number" min={0} max={16383} value={bank} onChange={(e) => { const bank = Number(e.target.value); setBank(bank); if (asset?.type === "soundFont") void update({ ...asset, bank }) }} /></Field>
+      <Field><FieldLabel htmlFor="rack-sf-program">{t("SoundFont program")}</FieldLabel><Input id="rack-sf-program" type="number" min={0} max={127} value={program} onChange={(e) => { const program = Number(e.target.value); setProgram(program); if (asset?.type === "soundFont") void update({ ...asset, program }) }} /></Field>
+      <Field><FieldLabel htmlFor="rack-sf-file">{t("Load or relink SoundFont")}</FieldLabel><Input id="rack-sf-file" type="file" accept=".sf2" onChange={(e) => {
         const file = e.target.files?.[0]; e.target.value = ""; if (!file) return
         const ticket = ++request.current, generation = getProjectGeneration(), revision = useProjectStore.getState().revision
-        if (file.size > 64 * 1024 * 1024) { setError("Rack SoundFont exceeds 64 MiB"); return }
+        if (file.size > 64 * 1024 * 1024) { setError(t("Rack SoundFont exceeds 64 MiB")); return }
         void file.arrayBuffer().then((bytes) => {
           if (ticket !== request.current || generation !== getProjectGeneration()) return
-          if (revision !== useProjectStore.getState().revision) throw new Error("Project changed during SoundFont import; choose the file again")
+          if (revision !== useProjectStore.getState().revision) throw new Error(t("Project changed during SoundFont import; choose the file again"))
           return update({ type: "soundFont", name: file.name, bank, program, bytes: Array.from(new Uint8Array(bytes)) })
         }).catch((cause: unknown) => { if (ticket === request.current && generation === getProjectGeneration()) setError(cause instanceof Error ? cause.message : String(cause)) })
-      }} /><FieldDescription>{asset?.type === "soundFont" ? `${asset.name}: ${asset.bytes ? "embedded in rack presets" : "missing; choose a replacement file"}` : "SoundFont bytes and the selected preset travel with the rack"}</FieldDescription></Field>
+      }} /><FieldDescription>{asset?.type === "soundFont" ? `${asset.name}: ${asset.bytes ? "embedded in rack presets" : "missing; choose a replacement file"}` : t("SoundFont bytes and the selected preset travel with the rack")}</FieldDescription></Field>
     </>}
-    <Button variant="outline" disabled={!asset} onClick={() => { ++request.current; void update(null) }}>Clear rack bank</Button>
+    <Button variant="outline" disabled={!asset} onClick={() => { ++request.current; void update(null) }}>{t("Clear rack bank")}</Button>
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
   </FieldGroup>
 }

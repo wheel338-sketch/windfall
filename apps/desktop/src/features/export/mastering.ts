@@ -3,6 +3,7 @@ import type {
   MasteringOptions,
   MasteringReview,
 } from "@/bindings"
+import { translatedText as t, message } from "@/lib/i18n"
 
 /*
  * Mastering on export: the form's side of `windfall_dsp::mastering`. The
@@ -40,20 +41,20 @@ export type MasteringPreset = {
 
 /** Common destinations. Any other pair of values is "Custom". */
 export const MASTERING_PRESETS: readonly MasteringPreset[] = [
-  { id: "streaming", label: "Streaming, −14 LUFS", target: "-14", ceiling: "-1" },
-  { id: "dynamic", label: "Dynamic, −16 LUFS", target: "-16", ceiling: "-1" },
-  { id: "broadcast", label: "Broadcast, −23 LUFS", target: "-23", ceiling: "-1" },
-  { id: "loud", label: "Loud, −9 LUFS", target: "-9", ceiling: "-0.3" },
+  { id: "streaming", get label() { return t("Streaming, −14 LUFS") }, target: "-14", ceiling: "-1" },
+  { id: "dynamic", get label() { return t("Dynamic, −16 LUFS") }, target: "-16", ceiling: "-1" },
+  { id: "broadcast", get label() { return t("Broadcast, −23 LUFS") }, target: "-23", ceiling: "-1" },
+  { id: "loud", get label() { return t("Loud, −9 LUFS") }, target: "-9", ceiling: "-0.3" },
 ]
 
 export const CUSTOM_PRESET = "custom"
 
 export const DYNAMICS_CHOICES: readonly { value: number; label: string }[] = [
-  { value: 0, label: "Off: gain and limiting only" },
-  { value: 0.25, label: "Gentle" },
-  { value: 0.5, label: "Balanced" },
-  { value: 0.75, label: "Firm" },
-  { value: 1, label: "Tight" },
+  { value: 0, get label() { return t("Off: gain and limiting only") } },
+  { value: 0.25, get label() { return t("Gentle") } },
+  { value: 0.5, get label() { return t("Balanced") } },
+  { value: 0.75, get label() { return t("Firm") } },
+  { value: 1, get label() { return t("Tight") } },
 ]
 
 /** A number typed into the form, if it is one and lies in the range. */
@@ -125,7 +126,7 @@ function signed(value: number, digits = 1): string {
 
 /** "−14.0 LUFS", and "silent" for a reading at the floor. */
 export function formatLevel(value: number, unit: string): string {
-  if (!Number.isFinite(value) || value <= LOUDNESS_FLOOR) return "silent"
+  if (!Number.isFinite(value) || value <= LOUDNESS_FLOOR) return t("silent")
   const rounded = Number(value.toFixed(1))
   const text =
     rounded < 0 ? `−${Math.abs(rounded).toFixed(1)}` : rounded.toFixed(1)
@@ -186,14 +187,14 @@ export function reviewRows(review: MasteringReview): ReviewRow[] {
     ),
     {
       id: "loudnessRangeLu",
-      label: "Loudness range",
+      label: t("Loudness range"),
       before: range(before),
       after: range(after),
       change: `${signed(after.loudnessRangeLu - before.loudnessRangeLu)} LU`,
     },
     {
       id: "peakToLoudness",
-      label: "Peak to loudness",
+      label: t("Peak to loudness"),
       before: audible ? `${crest(before).toFixed(1)} LU` : "silent",
       after: audible ? `${crest(after).toFixed(1)} LU` : "silent",
       change: audible ? `${signed(crest(after) - crest(before))} LU` : "",
@@ -206,22 +207,22 @@ export function reviewVerdict(review: MasteringReview): string {
   const target = formatLevel(review.targetLufs, "LUFS")
   const ceiling = formatLevel(review.ceilingDbtp, "dBTP")
   if (review.targetReached) {
-    return `On target: ${target} under a ceiling of ${ceiling}.`
+    return message("On target: {target} under a ceiling of {ceiling}.", { target, ceiling })
   }
   const short = review.targetLufs - review.after.integratedLufs
   const over = review.after.truePeakDbtp - review.ceilingDbtp
   if (over > 0.05) {
-    return `The true peak is ${over.toFixed(1)} dB over the ceiling of ${ceiling}. Lower the target or the ceiling and export again.`
+    return message("The true peak is {over} dB over the ceiling of {ceiling}. Lower the target or the ceiling and export again.", { over: over.toFixed(1), ceiling })
   }
   if (short > MASTERING_TOLERANCE_LU) {
-    return `${short.toFixed(1)} LU under the target of ${target}: this mix cannot be that loud under a ceiling of ${ceiling} without being crushed. Lower the target or raise the ceiling.`
+    return message("{short} LU under the target of {target}: this mix cannot be that loud under a ceiling of {ceiling} without being crushed. Lower the target or raise the ceiling.", { short: short.toFixed(1), target, ceiling })
   }
-  return `${Math.abs(short).toFixed(1)} LU over the target of ${target}.`
+  return message("{short} LU over the target of {target}.", { short: Math.abs(short).toFixed(1), target })
 }
 
 /** What the chain did, for the line under the table. */
 export function reviewSummary(review: MasteringReview): string {
-  const parts = [`${signed(review.gainDb)} dB of gain`]
+  const parts = [message("{signed} dB of gain", { signed: signed(review.gainDb) })]
   if (review.compressionDb > 0.05) {
     parts.push(`up to ${review.compressionDb.toFixed(1)} dB of band compression`)
   }

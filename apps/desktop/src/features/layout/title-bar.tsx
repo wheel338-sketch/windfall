@@ -8,7 +8,7 @@ import { runAction, useShortcutLabel } from "@/lib/actions"
 import { useHint } from "@/lib/store/hint"
 import { useDirty, useProjectName } from "@/lib/store/selectors"
 import { resolveTheme, useUiStore } from "@/lib/store/ui"
-import { useTranslation } from "@/lib/i18n"
+import { useTranslation, translatedText as t } from "@/lib/i18n"
 
 import { TITLE_MENU } from "./chrome-menus"
 import { AppMenuBar } from "./menu-bar"
@@ -39,7 +39,7 @@ function ProjectTitle() {
         {dirty && (
           <span
             role="img"
-            aria-label="Unsaved changes"
+            aria-label={t("Unsaved changes")}
             className="size-1.5 shrink-0 rounded-full bg-brand"
           />
         )}
@@ -51,7 +51,7 @@ function ProjectTitle() {
 function PaletteButton() {
   const t = useTranslation()
   const shortcut = useShortcutLabel("view.commandPalette")
-  const hint = useHint("Find any action by name and see its shortcut")
+  const hint = useHint(t("Find any action by name and see its shortcut"))
   return (
     <button
       type="button"

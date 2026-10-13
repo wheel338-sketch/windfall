@@ -29,6 +29,7 @@ import {
   useLibraryStore,
 } from "./library-store"
 import { useBrowserStore } from "./store"
+import { translatedText } from "@/lib/i18n"
 
 /** Debounced requests and bounded polling. Late replies cannot replace a newer query or roots. */
 export function LibraryControls() {
@@ -81,12 +82,12 @@ export function LibraryControls() {
           size="sm"
           variant="outline"
           pressed={favoritesOnly}
-          aria-label="Favorites only"
+          aria-label={translatedText("Favorites only")}
           onPressedChange={(favoritesOnly) =>
             useLibraryStore.setState({ favoritesOnly })
           }
         >
-          Starred
+          {translatedText("Starred")}
         </Toggle>
         <Select
           value={tag}
@@ -96,14 +97,14 @@ export function LibraryControls() {
         >
           <SelectTrigger
             size="sm"
-            aria-label="Filter by tag"
+            aria-label={translatedText("Filter by tag")}
             className="min-w-0 flex-1"
           >
-            <SelectValue placeholder="All tags" />
+            <SelectValue placeholder={translatedText("All tags")} />
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              <SelectItem value="">All tags</SelectItem>
+              <SelectItem value="">{translatedText("All tags")}</SelectItem>
               {availableTags.map((tag) => (
                 <SelectItem key={tag} value={tag}>
                   {tag}
@@ -116,20 +117,20 @@ export function LibraryControls() {
           variant="ghost"
           size="sm"
           onClick={() =>
-            void attempt(refreshLibrary(), "Could not refresh the library")
+            void attempt(refreshLibrary(), translatedText("Could not refresh the library"))
           }
         >
-          Refresh
+          {translatedText("Refresh")}
         </Button>
       </div>
       <p className="text-muted-foreground">
-        Search paths: <code>kick* AND NOT tight</code>,{" "}
+        {translatedText("Search paths:")}{" "}<code>kick* AND NOT tight</code>,{" "}
         <code>kick OR snare</code>, <code>"vocal chop"</code>.
       </p>
       {results?.status === "indexing" && (
         <div role="status" className="flex items-center gap-1">
           <Spinner data-icon="inline-start" />
-          Indexing {results.indexed.toLocaleString()} files…
+          {translatedText("Indexing")}{" "}{results.indexed.toLocaleString()}{" "}{translatedText("files…")}
           <Button
             variant="ghost"
             size="sm"
@@ -140,29 +141,28 @@ export function LibraryControls() {
                     revision: s.revision + 1,
                   }))
                 ),
-                "Could not cancel indexing"
+                translatedText("Could not cancel indexing")
               )
             }
           >
-            Cancel
+            {translatedText("Cancel")}
           </Button>
         </div>
       )}
       {results?.status === "cancelled" && (
         <p role="status">
-          Indexing cancelled. Results cover {results.indexed.toLocaleString()}{" "}
-          files. Refresh to continue.
+          {translatedText("Indexing cancelled. Results cover")}{" "}{results.indexed.toLocaleString()}{" "}
+          {translatedText("files. Refresh to continue.")}
         </p>
       )}
       {results?.truncated && (
         <p role="status">
-          Index limit reached. Use smaller folders and refresh; some files were
-          not indexed.
+          {translatedText("Index limit reached. Use smaller folders and refresh; some files were not indexed.")}
         </p>
       )}
       {results?.resultsTruncated && (
         <p role="status">
-          Showing the first 500 results. Narrow your search or filter by a tag.
+          {translatedText("Showing the first 500 results. Narrow your search or filter by a tag.")}
         </p>
       )}
       {results?.limitation && (
@@ -240,16 +240,16 @@ function MetadataEditor({ path }: { path: string }) {
       <FieldGroup>
         <Field data-invalid={!!error} data-disabled={!ready || saving}>
           <div className="flex items-center justify-between gap-2">
-            <FieldLabel htmlFor="browser-file-tags">Tags</FieldLabel>
+            <FieldLabel htmlFor="browser-file-tags">{translatedText("Tags")}</FieldLabel>
             <Toggle
               size="sm"
               variant="outline"
               pressed={favorite}
               disabled={!ready || saving}
-              aria-label="Star selected file"
+              aria-label={translatedText("Star selected file")}
               onPressedChange={(value) => void save(value)}
             >
-              Star
+              {translatedText("Star")}
             </Toggle>
           </div>
           <Input
@@ -267,8 +267,7 @@ function MetadataEditor({ path }: { path: string }) {
             }}
           />
           <FieldDescription>
-            Comma separated; up to 16 tags of 32 characters. Saved for this
-            user.
+            {translatedText("Comma separated; up to 16 tags of 32 characters. Saved for this user.")}
           </FieldDescription>
         </Field>
       </FieldGroup>
@@ -284,7 +283,7 @@ function MetadataEditor({ path }: { path: string }) {
           disabled={!ready || saving}
           onClick={() => void save(favorite)}
         >
-          Save tags
+          {translatedText("Save tags")}
         </Button>
       </div>
       {error && (

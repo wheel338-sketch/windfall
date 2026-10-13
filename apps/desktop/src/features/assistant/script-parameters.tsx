@@ -8,6 +8,7 @@ import { newGestureId } from "@/lib/store/gesture"
 import { scriptParameter, scriptParameterTargets } from "@/lib/script-parameters"
 import { useRealtime } from "@/lib/store"
 import { errorMessage } from "@/lib/ipc/backend"
+import { translatedText as t, message } from "@/lib/i18n"
 
 function ScriptParameterControl({ target }: { target: Extract<AutomationTarget, { type: "instrumentParam" }> }) {
   const project = useProjectStore(state => state.project)
@@ -22,7 +23,7 @@ function ScriptParameterControl({ target }: { target: Extract<AutomationTarget, 
       onValueChange={value => {
         setError(null)
         void dispatch({ type: "setInstrumentParam", channel: target.channel, param: target.param, value }, gesture.current)
-          .then(result => { if (result === null) setError("The script parameter edit was refused. See the reported error.") })
+          .then(result => { if (result === null) setError(t("The script parameter edit was refused. See the reported error.")) })
           .catch(failure => setError(errorMessage(failure)))
       }} />
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
@@ -41,8 +42,8 @@ export function ScriptNoteRefusals() {
   const output = useRef<HTMLOutputElement>(null)
   useRealtime(frame => {
     const text = (frame.rejectedRackEvents ?? 0) > 0
-      ? `Note-path events refused: ${frame.rejectedRackEvents}. Check script bounds and simultaneous notes.` : ""
+      ? message("Note-path events refused: {rejectedRackEvents}. Check script bounds and simultaneous notes.", { rejectedRackEvents: String(frame.rejectedRackEvents) }) : ""
     if (output.current && output.current.textContent !== text) output.current.textContent = text
   })
-  return <output ref={output} aria-label="Script note refusals" aria-live="polite" className="text-sm text-destructive" />
+  return <output ref={output} aria-label={t("Script note refusals")} aria-live="polite" className="text-sm text-destructive" />
 }

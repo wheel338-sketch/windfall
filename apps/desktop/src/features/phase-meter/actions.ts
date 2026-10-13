@@ -1,6 +1,7 @@
 import { create } from "zustand"
 
 import { registry, type Action } from "@/lib/actions"
+import { dynamicTitle } from "@/lib/i18n"
 
 export const usePhaseMeterPanel = create(() => ({ open: false }))
 
@@ -11,7 +12,7 @@ export function closePhaseMeter() {
 const PHASE_METER_ACTIONS: Action[] = [
   {
     id: "view.phase-meter",
-    title: "Show phase meter",
+    ...dynamicTitle("Show phase meter", {}),
     section: "View",
     keywords: "stereo correlation side mid",
     run: () => usePhaseMeterPanel.setState({ open: true }),

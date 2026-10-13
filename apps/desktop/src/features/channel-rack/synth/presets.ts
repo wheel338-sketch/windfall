@@ -5,6 +5,7 @@ import {
   writeParam,
   type InstrumentParamsOf,
 } from "@/features/params"
+import { message, translatedText as t } from "@/lib/i18n"
 
 export type SynthSettings = InstrumentParamsOf<"subtractiveSynth">
 
@@ -34,7 +35,7 @@ function sound(changes: Changes): SynthSettings {
     let number: number
     if (typeof value === "string") {
       number = info.choices.findIndex((choice) => choice.value === value)
-      if (number < 0) throw new Error(`"${id}" has no option "${value}"`)
+      if (number < 0) throw new Error(message("\"{id}\" has no option \"{value}\"", { id, value }))
     } else {
       number = value
     }
@@ -64,13 +65,13 @@ export const SYNTH_PRESETS: readonly SynthPreset[] = [
   {
     id: "init",
     name: "Init",
-    description: "One saw oscillator with the filter open: a blank page",
+    get description() { return t("One saw oscillator with the filter open: a blank page") },
     params: descriptor.defaults,
   },
   {
     id: "softPad",
     name: "Soft pad",
-    description: "Slow, wide and warm, for held chords",
+    get description() { return t("Slow, wide and warm, for held chords") },
     params: sound({
       unisonVoices: 5,
       unisonDetuneCents: 16,
@@ -96,7 +97,7 @@ export const SYNTH_PRESETS: readonly SynthPreset[] = [
   {
     id: "pluck",
     name: "Pluck",
-    description: "A short, bright note that closes fast, for arpeggios",
+    get description() { return t("A short, bright note that closes fast, for arpeggios") },
     params: sound({
       "filter.slope": "db24",
       "filter.cutoffHz": 450,
@@ -118,8 +119,7 @@ export const SYNTH_PRESETS: readonly SynthPreset[] = [
   {
     id: "bass",
     name: "Bass",
-    description:
-      "One note at a time with a square an octave down and some grit",
+    get description() { return t("One note at a time with a square an octave down and some grit") },
     params: sound({
       "oscillators.1.waveform": "square",
       "oscillators.1.level": 0.6,
@@ -144,7 +144,7 @@ export const SYNTH_PRESETS: readonly SynthPreset[] = [
   {
     id: "lead",
     name: "Lead",
-    description: "A sliding solo voice with a touch of vibrato",
+    get description() { return t("A sliding solo voice with a touch of vibrato") },
     params: sound({
       "oscillators.1.waveform": "pulse",
       "oscillators.1.level": 0.6,
@@ -167,7 +167,7 @@ export const SYNTH_PRESETS: readonly SynthPreset[] = [
   {
     id: "keys",
     name: "Keys",
-    description: "A struck note that fades while held and answers to touch",
+    get description() { return t("A struck note that fades while held and answers to touch") },
     params: sound({
       "oscillators.0.waveform": "triangle",
       "oscillators.1.waveform": "pulse",
@@ -190,7 +190,7 @@ export const SYNTH_PRESETS: readonly SynthPreset[] = [
   {
     id: "brass",
     name: "Brass",
-    description: "Two saws that open up as each note swells",
+    get description() { return t("Two saws that open up as each note swells") },
     params: sound({
       "oscillators.1.level": 0.8,
       "oscillators.1.fineCents": -6,
@@ -213,7 +213,7 @@ export const SYNTH_PRESETS: readonly SynthPreset[] = [
   {
     id: "sub",
     name: "Sub",
-    description: "A plain sine for the very bottom, one note at a time",
+    get description() { return t("A plain sine for the very bottom, one note at a time") },
     params: sound({
       "oscillators.0.waveform": "sine",
       "oscillators.1.waveform": "triangle",

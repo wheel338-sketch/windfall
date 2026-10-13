@@ -4,6 +4,7 @@ import { selectChannel } from "@/features/channel-rack/channel-ops"
 import { closeProjectOverview } from "./actions"
 import type { ClipContent } from "@/bindings"
 import { useProjectStore } from "@/lib/store/project"
+import { translatedText as t, message } from "@/lib/i18n"
 
 type TargetNames = {
   patterns: Map<number, string>
@@ -14,11 +15,11 @@ type TargetNames = {
 function clipTargetName(content: ClipContent, names: TargetNames): string {
   switch (content.type) {
     case "pattern":
-      return `Pattern: ${names.patterns.get(content.pattern) ?? "Missing pattern target"}`
+      return message("Pattern: {get}", { get: names.patterns.get(content.pattern) ?? t("Missing pattern target") })
     case "audio":
-      return `Sample: ${names.samples.get(content.sample) ?? "Missing sample target"}`
+      return message("Sample: {get}", { get: names.samples.get(content.sample) ?? t("Missing sample target") })
     case "automation":
-      return `Automation: ${names.automations.get(content.automation) ?? "Missing automation target"}`
+      return message("Automation: {get}", { get: names.automations.get(content.automation) ?? t("Missing automation target") })
   }
 }
 
@@ -47,16 +48,16 @@ export function ProjectOverviewView() {
 
   return (
     <div className="flex min-h-0 flex-1 min-w-0 flex-col gap-4 overflow-y-auto">
-      <section aria-label="Channel and pattern relationships">
+      <section aria-label={t("Channel and pattern relationships")}>
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-xs">
             <caption className="mb-2 text-left font-medium">
-              Channels and patterns
+              {t("Channels and patterns")}
             </caption>
             <thead>
               <tr>
                 <th scope="col" className="border p-2 text-left">
-                  Channel
+                  {t("Channel")}
                 </th>
                 {patterns.map((pattern) => (
                   <th
@@ -80,10 +81,10 @@ export function ProjectOverviewView() {
                     return (
                       <td
                         key={pattern.id}
-                        aria-label={marked ? "Has notes" : "No notes"}
+                        aria-label={marked ? t("Has notes") : t("No notes")}
                         className="border p-2 text-center"
                       >
-                        <Button variant="ghost" size="sm" aria-label={`Open ${pattern.name} / ${channel.name}${marked ? " with notes" : " empty lane"}`} onClick={() => { void navigatePattern(pattern.id, channel.id); closeProjectOverview() }}><span aria-hidden="true">{marked ? "●" : "—"}</span></Button>
+                        <Button variant="ghost" size="sm" aria-label={message("Open {patternName} / {channelName}{marked}", { patternName: pattern.name, channelName: channel.name, marked: marked ? t(" with notes") : t(" empty lane") })} onClick={() => { void navigatePattern(pattern.id, channel.id); closeProjectOverview() }}><span aria-hidden="true">{marked ? "●" : "—"}</span></Button>
                       </td>
                     )
                   })}
@@ -92,7 +93,7 @@ export function ProjectOverviewView() {
               {project.channels.length === 0 && (
                 <tr>
                   <td colSpan={patterns.length + 1} className="p-2">
-                    No channels in this project.
+                    {t("No channels in this project.")}
                   </td>
                 </tr>
               )}
@@ -100,10 +101,10 @@ export function ProjectOverviewView() {
           </table>
         </div>
       </section>
-      <section aria-label="Playlist clips" className="flex flex-col gap-2">
-        <h2 className="font-medium">Playlist clips</h2>
+      <section aria-label={t("Playlist clips")} className="flex flex-col gap-2">
+        <h2 className="font-medium">{t("Playlist clips")}</h2>
         <ol
-          aria-label="Playlist clips in timeline order"
+          aria-label={t("Playlist clips in timeline order")}
           className="flex flex-col gap-1"
         >
           {clips.map((clip) => (
@@ -111,15 +112,15 @@ export function ProjectOverviewView() {
               key={clip.id}
               className="flex flex-wrap gap-x-3 gap-y-1 rounded border p-2"
             >
-              <span>{tracks.get(clip.track) ?? "Missing playlist track"}</span>
+              <span>{tracks.get(clip.track) ?? t("Missing playlist track")}</span>
               <Button variant="ghost" size="sm" onClick={() => { navigateClip(clip.id); closeProjectOverview() }}>{clipTargetName(clip.content, names)}</Button>
-              {clip.content.type === "pattern" && project.patterns.find((p) => p.id === (clip.content.type === "pattern" ? clip.content.pattern : -1))?.lanes.filter((lane) => lane.notes.length > 0).map((lane) => <Button variant="outline" size="sm" key={lane.channel} onClick={() => { if (clip.content.type === "pattern") void navigatePattern(clip.content.pattern, lane.channel); closeProjectOverview() }}>{project.channels.find((c) => c.id === lane.channel)?.name ?? "Missing channel"}</Button>)}
+              {clip.content.type === "pattern" && project.patterns.find((p) => p.id === (clip.content.type === "pattern" ? clip.content.pattern : -1))?.lanes.filter((lane) => lane.notes.length > 0).map((lane) => <Button variant="outline" size="sm" key={lane.channel} onClick={() => { if (clip.content.type === "pattern") void navigatePattern(clip.content.pattern, lane.channel); closeProjectOverview() }}>{project.channels.find((c) => c.id === lane.channel)?.name ?? t("Missing channel")}</Button>)}
               <span className="text-muted-foreground">
-                Start: {clip.start} ticks
+                {t("Start:")}{" "}{clip.start}{" "}{t("ticks")}
               </span>
             </li>
           ))}
-          {clips.length === 0 && <li>No playlist clips in this project.</li>}
+          {clips.length === 0 && <li>{t("No playlist clips in this project.")}</li>}
         </ol>
       </section>
     </div>

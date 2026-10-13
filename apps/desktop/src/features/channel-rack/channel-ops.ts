@@ -28,6 +28,7 @@ import { clamp } from "@/lib/units"
 
 import { useRackStore } from "./rack-store"
 import { clampPatternLength, fillCommand, shiftCommand } from "./steps"
+import { translatedText as t, message } from "@/lib/i18n"
 
 /*
  * Everything the rack does to a channel, in one place. Rows, menus, the
@@ -73,10 +74,10 @@ export async function renameChannel(id: ChannelId): Promise<void> {
   const channel = findChannel(id)
   if (!channel) return
   const name = await askText({
-    title: "Rename channel",
-    label: "Name",
+    title: t("Rename channel"),
+    label: t("Name"),
     initial: channel.name,
-    submitLabel: "Rename",
+    submitLabel: t("Rename"),
   })
   if (name === null || name === channel.name) return
   await dispatch({ type: "updateChannel", id, patch: { name } })
@@ -87,16 +88,16 @@ export async function deleteChannel(id: ChannelId): Promise<void> {
   if (!channel) return
   const automation = automationGoingWith({ type: "channel", channel: id })
   const choice = await askConfirm({
-    title: `Delete ${channel.name}?`,
+    title: message("Delete {channelName}?", { channelName: channel.name }),
     description: [
-      "Its steps in every pattern are deleted with it. Its mixer track stays.",
+      t("Its steps in every pattern are deleted with it. Its mixer track stays."),
       automation,
-      "Undo brings the channel back.",
+      t("Undo brings the channel back."),
     ]
       .filter((part) => part !== null)
       .join(" "),
     choices: [
-      { id: "delete", label: "Delete channel", variant: "destructive" },
+      { id: "delete", label: t("Delete channel"), variant: "destructive" },
     ],
   })
   if (choice !== "delete") return
@@ -165,7 +166,7 @@ export async function toggleSolo(id: ChannelId): Promise<void> {
   await dispatch(
     commands.length === 1
       ? commands[0]
-      : { type: "batch", label: "Solo channel", commands }
+      : { type: "batch", label: t("Solo channel"), commands }
   )
 }
 
@@ -178,7 +179,7 @@ export async function unmuteAllChannels(): Promise<void> {
       patch: { muted: false },
     }))
   if (commands.length === 0) return
-  await dispatch({ type: "batch", label: "Unmute channels", commands })
+  await dispatch({ type: "batch", label: t("Unmute channels"), commands })
 }
 
 export async function unsoloAllChannels(): Promise<void> {
@@ -190,7 +191,7 @@ export async function unsoloAllChannels(): Promise<void> {
       patch: { solo: false },
     }))
   if (commands.length === 0) return
-  await dispatch({ type: "batch", label: "Unsolo channels", commands })
+  await dispatch({ type: "batch", label: t("Unsolo channels"), commands })
 }
 
 /** Returns every channel's volume and pan to unity as a single undo step. */
@@ -204,7 +205,7 @@ export async function resetChannelLevels(): Promise<void> {
     commands.push({ type: "updateChannel", id: channel.id, patch })
   }
   if (commands.length === 0) return
-  await dispatch({ type: "batch", label: "Reset channel levels", commands })
+  await dispatch({ type: "batch", label: t("Reset channel levels"), commands })
 }
 
 export async function setChannelColor(
@@ -316,7 +317,7 @@ export async function addChannelFromFile(
       : browser
       ? backend.addChannelFromFile(path, at, browser)
       : backend.addChannelFromFile(path, at),
-    "Could not add the sample"
+    t("Could not add the sample")
   )
   if (!result || generation !== getProjectGeneration()) return
   receivePatch(result.patch)
@@ -367,7 +368,7 @@ export async function initInstrument(id: ChannelId): Promise<void> {
 /** Asks for an audio file and adds a channel that plays it. */
 export async function addChannelFromPickedFile(): Promise<void> {
   const generation = getProjectGeneration()
-  const path = await attempt(backend.pickAudioFile(), "Could not choose a file")
+  const path = await attempt(backend.pickAudioFile(), t("Could not choose a file"))
   if (path === null || generation !== getProjectGeneration()) return
   await addChannelFromFile(path)
   if (generation === getProjectGeneration())
@@ -379,7 +380,7 @@ export async function replaceSampleFromPickedFile(
   id: ChannelId
 ): Promise<void> {
   const generation = getProjectGeneration()
-  const path = await attempt(backend.pickAudioFile(), "Could not choose a file")
+  const path = await attempt(backend.pickAudioFile(), t("Could not choose a file"))
   if (path !== null && generation === getProjectGeneration())
     await replaceSampleFromFile(id, path)
 }
@@ -396,7 +397,7 @@ export async function replaceSampleFromFile(
       : browser
       ? backend.setChannelSampleFromFile(id, path, browser)
       : backend.setChannelSampleFromFile(id, path),
-    "Could not change the sample"
+    t("Could not change the sample")
   )
   if (result && generation === getProjectGeneration())
     receivePatch(result.patch)

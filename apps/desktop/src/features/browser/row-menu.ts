@@ -17,6 +17,7 @@ import {
 import { requestPreview } from "./preview"
 import { toggleFolder } from "./store"
 import type { EntryRow } from "./tree-model"
+import { dynamicTitle } from "@/lib/i18n"
 
 /** The browser's empty space, and its parts that have no menu of their own. */
 export const BROWSER_MENU: ContextItem[] = [
@@ -42,30 +43,30 @@ export function rowMenu(
   if (row === null) return BROWSER_MENU
 
   const copy: ContextItem = {
-    title: "Copy path",
+    ...dynamicTitle("Copy path", {}),
     run: () => copyPath(row.path),
   }
 
   if (row.kind === "audio") {
     return [
       {
-        title: "Preview",
+        ...dynamicTitle("Preview", {}),
         run: () => requestPreview(row.path, { browser: row.library }),
       },
       {
-        title: "Add to new channel",
+        ...dynamicTitle("Add to new channel", {}),
         shortcut: "Enter",
         run: () => addToRack(row.path, row.library),
       },
       {
-        title: "Add to playlist",
+        ...dynamicTitle("Add to playlist", {}),
         run: () => addToPlaylist(row.path, row.library),
       },
-      { title: "Separate into four stems", run: () => separateToPlaylist(row.path, row.library) },
+      { ...dynamicTitle("Separate into four stems", {}), run: () => separateToPlaylist(row.path, row.library) },
       {
-        title: channel
-          ? `Replace sample of ${channel.name}`
-          : "Replace selected channel's sample",
+        ...(channel
+          ? dynamicTitle("Replace sample of {channelName}", { channelName: channel.name })
+          : dynamicTitle("Replace selected channel's sample", {})),
         // An instrument has no sample to replace.
         disabled: channel?.source.type !== "sampler",
         shortcut:
@@ -80,7 +81,7 @@ export function rowMenu(
   if (row.kind === "project") {
     return [
       {
-        title: "Open project",
+        ...dynamicTitle("Open project", {}),
         shortcut: "Enter",
         run: () => openProjectPath(row.path),
       },
@@ -93,12 +94,12 @@ export function rowMenu(
 
   const items: ContextItem[] = [
     {
-      title: row.open ? "Collapse" : "Expand",
+      ...dynamicTitle(row.open ? "Collapse" : "Expand", {}),
       // The filter is holding it open to show what it found inside.
       disabled: row.forced,
       run: () => toggleFolder(row),
     },
-    { title: "Refresh", run: () => refresh(row.path) },
+    { ...dynamicTitle("Refresh", {}), run: () => refresh(row.path) },
     contextSeparator,
     copy,
   ]
@@ -107,7 +108,7 @@ export function rowMenu(
     items.push(contextSeparator, "browser.addFolder")
     if (root.kind === "user") {
       items.push({
-        title: "Remove from browser",
+        ...dynamicTitle("Remove from browser", {}),
         destructive: true,
         run: () => removeRoot(root),
       })

@@ -1,6 +1,7 @@
 import type { ParamInfo } from "@/bindings"
 
 import type { ParamDescriptor } from "./descriptors"
+import { translatedText as t } from "@/lib/i18n"
 
 export type GroupedParam = {
   info: ParamInfo
@@ -90,7 +91,7 @@ export function shortLabels(
   return infos.map((info) => {
     if (shared !== "") {
       if (info.name === shared) {
-        return info.kind === "toggle" ? "Enabled" : shared
+        return info.kind === "toggle" ? t("Enabled") : shared
       }
       const rest = withoutPrefix(info.name, shared)
       if (rest !== null) return rest

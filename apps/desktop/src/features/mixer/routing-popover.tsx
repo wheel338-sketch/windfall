@@ -14,6 +14,7 @@ import { FeedList, useTrackAudioClips, useTrackChannels } from "./channel-chips"
 import { OutputSelect } from "./output-select"
 import { AddSendMenu, SendList } from "./sends"
 import type { StripTrack } from "./strip-track"
+import { translatedText as t } from "@/lib/i18n"
 
 function Heading({ children }: { children: string }) {
   return (
@@ -29,12 +30,12 @@ function Channels({ track }: { track: StripTrack }) {
   const clips = useTrackAudioClips(track.id)
   return (
     <section className="flex flex-col gap-1.5">
-      <Heading>Plays into it</Heading>
+      <Heading>{t("Plays into it")}</Heading>
       {channels.length > 0 || clips.length > 0 ? (
         <FeedList channels={channels} clips={clips} inputs={0} />
       ) : (
         <p className="text-[10px] text-muted-foreground">
-          No channel and no audio clip plays into this track.
+          {t("No channel and no audio clip plays into this track.")}
         </p>
       )}
     </section>
@@ -57,8 +58,8 @@ export function RoutingButton({ track, withChannels }: RoutingButtonProps) {
   const marked = rerouted || track.sends.length > 0
   const hint = useHint(
     master
-      ? "Channels that play straight into the master"
-      : "Output and sends of this track"
+      ? t("Channels that play straight into the master")
+      : t("Output and sends of this track")
   )
 
   return (
@@ -68,7 +69,7 @@ export function RoutingButton({ track, withChannels }: RoutingButtonProps) {
           <button
             type="button"
             data-slot="track-routing"
-            aria-label={master ? "Channels" : "Routing"}
+            aria-label={master ? t("Channels") : t("Routing")}
             className={cn(
               "relative flex size-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring aria-expanded:bg-muted aria-expanded:text-foreground",
               marked && "text-foreground"
@@ -90,11 +91,11 @@ export function RoutingButton({ track, withChannels }: RoutingButtonProps) {
         {!master && (
           <>
             <section className="flex flex-col gap-1.5">
-              <Heading>Output</Heading>
+              <Heading>{t("Output")}</Heading>
               <OutputSelect id={track.id} output={track.output} />
             </section>
             <section className="flex flex-col gap-1">
-              <Heading>Sends</Heading>
+              <Heading>{t("Sends")}</Heading>
               <SendList
                 id={track.id}
                 sends={track.sends}

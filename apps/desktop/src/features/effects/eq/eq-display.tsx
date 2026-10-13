@@ -38,6 +38,7 @@ import {
   yToGain,
   type Plot,
 } from "./geometry"
+import { translatedText as t, message } from "@/lib/i18n"
 
 /** Points each curve is worked out at, whatever the display's width. */
 export const CURVE_POINTS = 256
@@ -165,7 +166,7 @@ export function EqDisplay({
     [params, sampleRate, size.width, plot]
   )
   const hint = useHint(
-    "Drag a node for frequency and gain. Alt-drag or the wheel for Q. Double-click resets the band"
+    t("Drag a node for frequency and gain. Alt-drag or the wheel for Q. Double-click resets the band")
   )
 
   useLayoutEffect(() => {
@@ -473,7 +474,7 @@ export function EqDisplay({
     <div
       ref={root}
       role="group"
-      aria-label="Equaliser curve"
+      aria-label={t("Equaliser curve")}
       data-slot="eq-display"
       className={cn(
         "relative h-40 touch-none overflow-hidden rounded-[5px] bg-(--wf-meter-bg) ring-1 ring-(--wf-grid-line-strong) select-none",
@@ -498,7 +499,7 @@ export function EqDisplay({
             aria-valuemax={bind.info(spec.frequency).max}
             aria-valuenow={point.frequencyHz}
             aria-valuetext={
-              point.enabled ? text.join(", ") : `Off, ${text.join(", ")}`
+              point.enabled ? text.join(", ") : message("Off, {text}", { text: text.join(", ") })
             }
             data-slot="eq-node"
             data-band={spec.id}

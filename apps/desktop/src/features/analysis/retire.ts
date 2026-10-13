@@ -4,6 +4,7 @@ import {
   type AnalysisBackend,
   type AnalysisJob,
 } from "./types"
+import { translatedText as t, message } from "@/lib/i18n"
 /** Bounded control retirement; refusal retains native quota/evidence and finals.
  * There is no static job map or speculative filesystem deletion in the UI.
  */
@@ -30,11 +31,11 @@ export async function retireJob(
       await new Promise<void>((resolve) => setTimeout(resolve, 200))
     }
     throw new Error(
-      "Retirement deadline reached; use native status and cleanup retry. No files were deleted by this panel."
+      t("Retirement deadline reached; use native status and cleanup retry. No files were deleted by this panel.")
     )
   } catch (error) {
     throw new Error(
-      `Analysis job ${job} remains retained: ${errorMessage(error)}`,
+      message("Analysis job {job} remains retained: {error}", { job, error: errorMessage(error) }),
       { cause: error }
     )
   }

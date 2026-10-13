@@ -21,6 +21,7 @@ import { playlist, project, selectedClips } from "../selectors"
 import { usePlaylistStore } from "../store"
 import { wholeClipTicks } from "./geometry"
 import { loadSamplePeaks } from "./peaks"
+import { translatedText as t, message } from "@/lib/i18n"
 
 /*
  * What the playlist does to audio clips: putting files and samples on the
@@ -118,7 +119,7 @@ export async function addAudioFile(
     browser
       ? backend.addAudioClipFromFile(path, target, browser)
       : backend.addAudioClipFromFile(path, target),
-    "Could not add the sound to the playlist"
+    t("Could not add the sound to the playlist")
   )
   if (!result || !valid()) return null
   // The same patch also arrives as an event; the store ignores the repeat.
@@ -166,8 +167,8 @@ export async function placeSampleClips(
   if (clips.length === 0) return []
   if (!clips.every((clip) => spanFits(clip.start, clip.length))) {
     refuse(
-      "Clips cannot go past the end of the timeline",
-      "The song is as long as it can get."
+      t("Clips cannot go past the end of the timeline"),
+      t("The song is as long as it can get.")
     )
     return null
   }
@@ -180,7 +181,7 @@ export async function placeSampleClips(
         start: Math.max(0, Math.round(clip.start)),
         mixerTrack: reuse,
       }),
-      "Could not add the audio clip"
+      t("Could not add the audio clip")
     )
     if (!result) return null
     receivePatch(result.patch)
@@ -190,8 +191,8 @@ export async function placeSampleClips(
   const peaks = await loadSamplePeaks(sample)
   if (peaks.status !== "ready") {
     refuse(
-      `"${sample.name}" cannot be placed`,
-      "Its audio is not loaded. Check that its file is there, then reload the samples."
+      message("\"{sampleName}\" cannot be placed", { sampleName: sample.name }),
+      t("Its audio is not loaded. Check that its file is there, then reload the samples.")
     )
     return null
   }

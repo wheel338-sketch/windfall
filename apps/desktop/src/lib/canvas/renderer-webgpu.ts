@@ -9,6 +9,7 @@ import {
 } from "./renderer"
 import type { GridTheme } from "./theme"
 import type { DeviceTransform } from "./viewport"
+import { message, plainNumber } from "@/lib/i18n"
 
 // The same instanced quad as the WebGL2 renderer, line for line, so both
 // put a rect on the same pixels.
@@ -424,7 +425,7 @@ class WebGPURenderer implements RectRenderer {
     resize: DrawOptions
   ): void {
     if (frame.slot >= MAX_SLOTS) {
-      throw new Error(`more than ${MAX_SLOTS} draws in one frame`)
+      throw new Error(message("more than {maxSlots} draws in one frame", { maxSlots: plainNumber(MAX_SLOTS) }))
     }
     const t = frame.transform
     const base = (frame.slot * SLOT_BYTES) / 4

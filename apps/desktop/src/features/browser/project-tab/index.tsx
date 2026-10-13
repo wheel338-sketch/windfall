@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { effectDescriptor } from "@/features/params/descriptors"
 import { useProjectStore } from "@/lib/store/project"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 function ProjectGroup({
   title,
@@ -46,7 +47,7 @@ function NamedGroup({
       {entries.length === 0 ? (
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>No patterns yet</EmptyTitle>
+            <EmptyTitle>{t("No patterns yet")}</EmptyTitle>
           </EmptyHeader>
         </Empty>
       ) : (
@@ -72,12 +73,12 @@ export function ProjectTab() {
 
   return (
     <div data-slot="project-browser" className="flex flex-col gap-4 p-2">
-      <p className="text-xs text-muted-foreground">Open project</p>
-      <NamedGroup title="Patterns" entries={project.patterns} always onPick={(index) => void navigatePattern(project.patterns[index].id)} />
-      <NamedGroup title="Channels" entries={project.channels} onPick={(index) => selectChannel(project.channels[index].id, { openSettings: true })} />
-      <NamedGroup title="Samples" entries={project.samples} />
+      <p className="text-xs text-muted-foreground">{t("Open project")}</p>
+      <NamedGroup title={t("Patterns")} entries={project.patterns} always onPick={(index) => void navigatePattern(project.patterns[index].id)} />
+      <NamedGroup title={t("Channels")} entries={project.channels} onPick={(index) => selectChannel(project.channels[index].id, { openSettings: true })} />
+      <NamedGroup title={t("Samples")} entries={project.samples} />
       {effectTracks.length > 0 && (
-        <ProjectGroup title="Mixer effects">
+        <ProjectGroup title={t("Mixer effects")}>
           {effectTracks.map((track) => (
             <section key={track.id} aria-label={track.name} className="px-2">
               <h3 className="text-xs font-medium break-words">{track.name}</h3>
@@ -98,7 +99,7 @@ export function ProjectTab() {
                           effectDescriptor(slot.params.type).name}
                       </span>
                       {!slot.enabled && (
-                        <Badge variant="outline">Bypassed</Badge>
+                        <Badge variant="outline">{t("Bypassed")}</Badge>
                       )}
                     </li>
                   )
@@ -108,23 +109,23 @@ export function ProjectTab() {
           ))}
         </ProjectGroup>
       )}
-      <NamedGroup title="Automations" entries={project.automations} onPick={(index) => navigateTarget(project.automations[index].target)} />
-      {(project.settings.controllerLinks?.length ?? 0) > 0 && <ProjectGroup title="Controller links">
+      <NamedGroup title={t("Automations")} entries={project.automations} onPick={(index) => navigateTarget(project.automations[index].target)} />
+      {(project.settings.controllerLinks?.length ?? 0) > 0 && <ProjectGroup title={t("Controller links")}>
         <ul className="flex flex-col gap-2">{project.settings.controllerLinks?.map((link, index) => <li key={index} className="flex flex-wrap items-center gap-2">
-          <span>{link.source.type === "midi" ? `${link.source.device ?? "Any MIDI input"} · ${link.source.control.type}` : `Internal ${link.source.controller}:${link.source.output}`}</span>
+          <span>{link.source.type === "midi" ? message("{device} · {control}", { device: link.source.device ?? t(t("Any MIDI input")), control: link.source.control.type }) : message("Internal {controller}:{output}", { controller: plainNumber(link.source.controller), output: plainNumber(link.source.output) })}</span>
           {link.target.type === "param" ? <Button variant="ghost" size="sm" onClick={() => { if (link.target.type === "param") navigateTarget(link.target.target) }}>{describeTarget(project, link.target.target)}</Button> : <span>{link.target.type === "action" ? controlActionLabel(link.target.action) : link.target.slot.type}</span>}
-          <Button variant="outline" size="sm" aria-label={`Remove controller link ${index + 1}`} onClick={() => { if (useProjectStore.getState().project !== project) return; void dispatch({ type: "setControllerLinks", links: project.settings.controllerLinks?.filter((_, at) => at !== index) ?? [] }) }}>Remove</Button>
+          <Button variant="outline" size="sm" aria-label={message("Remove controller link {index}", { index: plainNumber(index + 1) })} onClick={() => { if (useProjectStore.getState().project !== project) return; void dispatch({ type: "setControllerLinks", links: project.settings.controllerLinks?.filter((_, at) => at !== index) ?? [] }) }}>{t("Remove")}</Button>
         </li>)}</ul>
       </ProjectGroup>}
-      <NamedGroup title="Plugins" entries={project.plugins ?? []} />
+      <NamedGroup title={t("Plugins")} entries={project.plugins ?? []} />
       <NamedGroup
-        title="Retained plugin states"
+        title={t("Retained plugin states")}
         entries={(project.retainedPlugins ?? []).map((plugin) => ({
           name: plugin.name ?? plugin.internalName,
         }))}
       />
       {history.entries.length > 0 && (
-        <ProjectGroup title="Edit history">
+        <ProjectGroup title={t("Edit history")}>
           <ol className="flex flex-col gap-1">
             {history.entries.map((entry, index) => {
               const undone = index >= history.cursor
@@ -136,7 +137,7 @@ export function ProjectTab() {
                 >
                   <span className="min-w-0 break-words">{entry.label}</span>
                   <Badge variant={undone ? "outline" : "secondary"}>
-                    {undone ? "Undone" : "Applied"}
+                    {undone ? t("Undone") : t("Applied")}
                   </Badge>
                 </li>
               )

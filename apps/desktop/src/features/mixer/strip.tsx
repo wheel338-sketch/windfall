@@ -36,6 +36,7 @@ import { StripHeader } from "./strip-header"
 import { useStripTrack, type StripTrack } from "./strip-track"
 import { useTrackGroupGesture } from "./group-gesture"
 import { useMixerUi, selectMixerTrack } from "./mixer-ui"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 /** Fades the parts of a strip that solo on another track has silenced. */
 const DIMMED =
@@ -49,13 +50,13 @@ function PanKnob({
   showValue: boolean
 }) {
   const pan = useTrackGroupGesture(track.id, "pan")
-  const hint = useHint("Pan. Drag, or double-click to center")
+  const hint = useHint(t("Pan. Drag, or double-click to center"))
   // What the knob is bound to adds its own entries to the knob's menu.
   const items = useMemo<ContextItem[]>(
     () => [
       ...trackValueItems(track.id, "pan"),
       {
-        submenu: "Pan",
+        submenu: t("Pan"),
         items: [
           ...PAN_PRESETS.map((preset) => ({
             title: preset.label,
@@ -67,7 +68,7 @@ function PanKnob({
             },
           })),
           ...(["previous", "next"] as const).map((direction) => ({
-            title: direction === "previous" ? "Previous preset" : "Next preset",
+            title: direction === "previous" ? t("Previous preset") : t("Next preset"),
             disabled: nextMixerPanPreset(track.pan, direction) === null,
             run: () => {
               const latest = useProjectStore.getState().project.mixer.tracks.find(
@@ -80,7 +81,7 @@ function PanKnob({
             },
           })),
           ...(["half", "double"] as const).map((factor) => ({
-            title: factor === "half" ? "Half" : "Double",
+            title: factor === "half" ? t("Half") : t("Double"),
             disabled: nextMixerPanScale(track.pan, factor) === null,
             run: () => {
               const latest = useProjectStore.getState().project.mixer.tracks.find(
@@ -109,7 +110,7 @@ function PanKnob({
         showValue={showValue}
         live={live}
         marker={marker}
-        aria-label={`${track.name} pan`}
+        aria-label={message("{trackName} pan", { trackName: track.name })}
         className={cn(
           DIMMED,
           "[&_[data-slot=knob-value]]:font-readout [&_[data-slot=knob-value]]:text-[9px] [&_[data-slot=knob-value]]:text-muted-foreground"
@@ -123,9 +124,9 @@ function PanKnob({
 
 function MuteButtons({ track, small }: { track: StripTrack; small: boolean }) {
   const hint = useHint(
-    track.current ? "Mute the Current utility copy" : track.id === MASTER_TRACK
-      ? "Mute silences everything"
-      : "Mute silences this track. Solo leaves only it and what it needs to be heard"
+    track.current ? t("Mute the Current utility copy") : track.id === MASTER_TRACK
+      ? t("Mute silences everything")
+      : t("Mute silences this track. Solo leaves only it and what it needs to be heard")
   )
   const size = small ? "sm" : "md"
   if (track.id === MASTER_TRACK || track.current) {
@@ -134,7 +135,7 @@ function MuteButtons({ track, small }: { track: StripTrack; small: boolean }) {
         size={size}
         pressed={track.muted}
         color="var(--wf-mute, var(--wf-meter-mid))"
-        aria-label="Mute"
+        aria-label={t("Mute")}
         onPressedChange={(muted) => void patchTrack(track.id, { muted })}
         {...hint}
       >
@@ -160,13 +161,13 @@ function MasterOutput() {
     state.status?.running ? state.status.device : null
   )
   const hint = useHint(
-    "The master plays to the audio output. Click to choose a device"
+    t("The master plays to the audio output. Click to choose a device")
   )
   return (
     <button
       type="button"
       data-slot="track-output"
-      aria-label={`Output: ${device ?? "no audio device"}`}
+      aria-label={message("Output: {device}", { device: device ?? t("no audio device") })}
       className="flex h-[18px] w-full min-w-0 items-center gap-0.5 rounded-[3px] pr-1 pl-0.5 text-[10px] leading-none text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
       onClick={() => void runAction("options.settings")}
       {...hint}
@@ -176,7 +177,7 @@ function MasterOutput() {
         strokeWidth={2}
         className="size-3 shrink-0"
       />
-      <span className="truncate">{device ?? "No device"}</span>
+      <span className="truncate">{device ?? t("No device")}</span>
     </button>
   )
 }
@@ -184,7 +185,7 @@ function MasterOutput() {
 /** The output selector and the sends, inline. Every strip is equally tall. */
 function Routing({ track, sendRows }: { track: StripTrack; sendRows: number }) {
   const master = track.id === MASTER_TRACK
-  if (track.current) return <div className="shrink-0 px-1 text-[10px] text-muted-foreground" style={{ height: 38 + sendRows * SEND_ROW_HEIGHT }}>Follows selection</div>
+  if (track.current) return <div className="shrink-0 px-1 text-[10px] text-muted-foreground" style={{ height: 38 + sendRows * SEND_ROW_HEIGHT }}>{t("Follows selection")}</div>
   return (
     <div
       data-slot="track-routing-inline"
@@ -208,12 +209,12 @@ function Routing({ track, sendRows }: { track: StripTrack; sendRows: number }) {
 }
 
 function stripLabel(track: StripTrack, index: number, audible: Audibility) {
-  const place = track.id === MASTER_TRACK ? "master track" : `track ${index}`
+  const place = track.id === MASTER_TRACK ? t("master track") : message("track {index}", { index: plainNumber(index) })
   const state =
     audible === "muted"
-      ? ", muted"
+      ? t(", muted")
       : audible === "silenced"
-        ? ", silenced by solo"
+        ? t(", silenced by solo")
         : ""
   return `${track.name}, ${place}${state}`
 }

@@ -14,6 +14,7 @@ import {
   LANES,
   type Lane,
 } from "./bands"
+import { translatedText as t } from "@/lib/i18n"
 
 type FrequencyDelayParams = Extract<EffectParams, { type: "frequencyDelay" }>
 
@@ -43,7 +44,7 @@ function LaneTabs({ lane, onChange }: LaneTabsProps) {
   return (
     <div
       role="radiogroup"
-      aria-label="Band setting to draw"
+      aria-label={t("Band setting to draw")}
       data-slot="band-lanes"
       onKeyDown={onKeyDown}
       className="inline-flex rounded-[5px] bg-(--wf-step-off)/70 p-px"
@@ -95,7 +96,7 @@ export function FrequencyDelayEditor({
     <div
       data-slot="frequency-delay-editor"
       role="group"
-      aria-label="Frequency delay settings"
+      aria-label={t("Frequency delay settings")}
       className="flex min-w-0 flex-col gap-2"
     >
       <ParamGroup
@@ -112,7 +113,7 @@ export function FrequencyDelayEditor({
               data-slot="frequency-delay-longest"
               className="font-readout text-[10px] text-muted-foreground"
             >
-              <span className="sr-only">Longest echo: </span>
+              <span className="sr-only">{t("Longest echo:")}{" "}</span>
               {formatMs(longest)}
             </span>
           }

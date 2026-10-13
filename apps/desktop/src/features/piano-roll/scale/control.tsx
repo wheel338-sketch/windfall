@@ -23,6 +23,7 @@ import {
   PITCH_CLASSES,
   type ScaleHighlight,
 } from "./model"
+import { translatedText as t, message } from "@/lib/i18n"
 
 /** One toolbar control; its choice disappears when the open roll unmounts. */
 export function ScaleHighlightControl() {
@@ -35,7 +36,7 @@ export function ScaleHighlightControl() {
   const scale = HIGHLIGHT_SCALES.find((scale) => scale.id === choice.scale)!
   const label =
     choice.scale === "off"
-      ? "Off"
+      ? t("Off")
       : `${PITCH_CLASSES[choice.root]} ${scale.label}`
 
   return (
@@ -45,15 +46,15 @@ export function ScaleHighlightControl() {
           <Button
             variant={choice.scale === "off" ? "outline" : "secondary"}
             size="sm"
-            aria-label={`Scale highlight: ${label}`}
+            aria-label={message("Scale highlight: {label}", { label })}
           />
         }
       >
-        Highlight: {label}
+        {t("Highlight:")}{" "}{label}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64">
         <DropdownMenuGroup>
-          <DropdownMenuLabel>Scale highlight</DropdownMenuLabel>
+          <DropdownMenuLabel>{t("Scale highlight")}</DropdownMenuLabel>
           <DropdownMenuRadioGroup
             value={choice.scale}
             onValueChange={(scale) => {
@@ -73,11 +74,11 @@ export function ScaleHighlightControl() {
         <DropdownMenuGroup>
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
-              Highlight root: {PITCH_CLASSES[choice.root]}
+              {t("Highlight root:")}{" "}{PITCH_CLASSES[choice.root]}
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
               <DropdownMenuGroup>
-                <DropdownMenuLabel>Highlight root</DropdownMenuLabel>
+                <DropdownMenuLabel>{t("Highlight root")}</DropdownMenuLabel>
                 <DropdownMenuRadioGroup
                   value={String(choice.root)}
                   onValueChange={(value) => {
@@ -96,7 +97,7 @@ export function ScaleHighlightControl() {
               </DropdownMenuGroup>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
-          <DropdownMenuLabel>Dims pitches outside the scale.</DropdownMenuLabel>
+          <DropdownMenuLabel>{t("Dims pitches outside the scale.")}</DropdownMenuLabel>
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>

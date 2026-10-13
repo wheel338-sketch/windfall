@@ -1,10 +1,11 @@
 import type { AudioClipUpdate, ClipId } from "@/bindings"
+import { translatedText as t } from "@/lib/i18n"
 
 export const FADE_PRESETS = [
-  { label: "None", fraction: 0 },
-  { label: "Short", fraction: 1 / 16 },
-  { label: "Medium", fraction: 1 / 8 },
-  { label: "Long", fraction: 1 / 4 },
+  { get label() { return t("None") }, fraction: 0 },
+  { get label() { return t("Short") }, fraction: 1 / 16 },
+  { get label() { return t("Medium") }, fraction: 1 / 8 },
+  { get label() { return t("Long") }, fraction: 1 / 4 },
 ] as const
 
 type FadeClip = {

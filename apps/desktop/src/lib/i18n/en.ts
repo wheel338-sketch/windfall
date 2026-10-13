@@ -1,7 +1,9 @@
 import { inspectorEn } from "./inspector-messages"
 import { nativeEn } from "./native-messages"
 import { controlEn } from "./control-messages"
+import { areaEn } from "./messages"
 export const en = {
+  ...areaEn,
   ...controlEn,
   ...nativeEn,
   ...inspectorEn,

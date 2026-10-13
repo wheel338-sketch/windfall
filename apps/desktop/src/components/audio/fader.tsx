@@ -17,6 +17,7 @@ import {
   type ValueScale,
 } from "./use-drag-value"
 import { ValueInput } from "./value-input"
+import { translatedText as t } from "@/lib/i18n"
 
 /** The top of the fader: linear gain 2.0, about +6 dB. */
 export const FADER_MAX_GAIN = 2
@@ -574,7 +575,7 @@ function Fader({
         <ValueInput
           {...control.entryProps}
           aria-label={
-            ariaLabel ?? (typeof label === "string" ? label : "Value")
+            ariaLabel ?? (typeof label === "string" ? label : t("Value"))
           }
           className="absolute -bottom-[3px] left-1/2 z-10 h-4 w-14 -translate-x-1/2"
         />

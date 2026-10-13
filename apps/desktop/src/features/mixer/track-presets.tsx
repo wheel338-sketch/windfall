@@ -17,6 +17,7 @@ import type {
 } from "@/lib/ipc/mixer-presets"
 import { dispatch, useProjectStore } from "@/lib/store"
 import { getProjectGeneration } from "@/lib/store/replaced"
+import { translatedText as t, message as i18nMessage } from "@/lib/i18n"
 
 type SavedPreset = { key: string; preset: MixerTrackPreset }
 const STORAGE_KEY = "windfall.mixer-presets.v1"
@@ -62,7 +63,7 @@ const KEPT =
   "Their settings are kept with the project, and those effects pass audio through until the plugins are installed."
 
 function missingNote(missing: readonly string[]): string {
-  return `Not installed here: ${missing.join(", ")}`
+  return i18nMessage("Not installed here: {missing}", { missing: missing.join(", ") })
 }
 
 export function TrackPresetsPanel({ track }: { track: TrackId }) {
@@ -108,7 +109,7 @@ export function TrackPresetsPanel({ track }: { track: TrackId }) {
     const generation = getProjectGeneration()
     const guard = await backend.timelineState()
     const preset = await backend.mixerPresetCapture(track, guard.generation, guard.revision)
-    if (getProjectGeneration() !== generation) throw new Error("The project changed during preset capture")
+    if (getProjectGeneration() !== generation) throw new Error(t("The project changed during preset capture"))
     return { ...preset, name: name.trim() || trackName }
   }
   async function run(work: () => Promise<void>) {
@@ -118,7 +119,7 @@ export function TrackPresetsPanel({ track }: { track: TrackId }) {
   }
   function destination(): MixerTrack {
     const expected = structuredClone(useProjectStore.getState().project.mixer.tracks.find((item) => item.id === track))
-    if (!expected) throw new Error("The destination track no longer exists")
+    if (!expected) throw new Error(t("The destination track no longer exists"))
     return expected
   }
   async function apply(preset: MixerTrackPreset, generation: number, expected: MixerTrack) {
@@ -130,7 +131,7 @@ export function TrackPresetsPanel({ track }: { track: TrackId }) {
           () => null
         )
       : []
-    if (getProjectGeneration() !== generation) throw new Error("The project changed before loading the preset")
+    if (getProjectGeneration() !== generation) throw new Error(t("The project changed before loading the preset"))
     if (!(await dispatch({ type: "applyMixerTrackPreset", id: track, expected, preset, nameColor }))) {
       setMessage("Preset was not applied. The destination may have changed.")
       return
@@ -150,61 +151,61 @@ export function TrackPresetsPanel({ track }: { track: TrackId }) {
   }
 
   return <div className="shrink-0 border-b p-1.5"><Popover onOpenChange={(open) => { if (open) void refresh(); else setConfirming(null) }}>
-    <PopoverTrigger render={<Button size="sm" variant="outline" className="w-full justify-start">Track presets</Button>} />
+    <PopoverTrigger render={<Button size="sm" variant="outline" className="w-full justify-start">{t("Track presets")}</Button>} />
     <PopoverContent align="start" className="w-80 space-y-3">
-      <Input aria-label="Mixer preset name" value={name} onChange={(event) => setName(event.target.value)} disabled={busy} maxLength={120} />
+      <Input aria-label={t("Mixer preset name")} value={name} onChange={(event) => setName(event.target.value)} disabled={busy} maxLength={120} />
       <div className="flex flex-wrap gap-1">
         <Button size="sm" variant="outline" disabled={busy} onClick={() => void run(async () => {
           const saved = await backend.mixerPresetLibrarySave(await capture())
           setMessage(`Saved ${saved.name} to the preset library as ${saved.file}`)
           await refresh()
-        })}>Save to library</Button>
+        })}>{t("Save to library")}</Button>
         <Button size="sm" variant="outline" disabled={busy || entries.length >= 128} onClick={() => void run(async () => {
           const preset = await capture()
           writeShelf([...useShelf.getState().entries, { key: crypto.randomUUID(), preset }])
           setMessage(`Saved ${preset.name} to the preset shelf`)
-        })}>Save to shelf</Button>
+        })}>{t("Save to shelf")}</Button>
         <Button size="sm" variant="outline" disabled={busy} onClick={() => void run(async () => {
           const path = await backend.mixerPresetSave(await capture())
           if (path) setMessage(`Saved ${path}`)
-        })}>Save file…</Button>
+        })}>{t("Save file…")}</Button>
         <Button size="sm" variant="outline" disabled={busy} onClick={() => void run(async () => {
           const generation = getProjectGeneration()
           const expected = destination()
           const preset = await backend.mixerPresetLoad()
           if (preset) await apply(preset, generation, expected)
-        })}>Load file…</Button>
+        })}>{t("Load file…")}</Button>
       </div>
-      <label className="flex items-center gap-2 text-xs"><Checkbox checked={nameColor} onCheckedChange={(checked) => setNameColor(checked === true)} disabled={busy} />Restore preset name and color</label>
-      <p className="text-xs text-muted-foreground">Restores effects, their saved plugin state, fader, pan, mute, EQ, stereo controls and latency correction. Existing effect automation is removed. Routing, recording, dock and hardware assignments stay with this track.</p>
-      <section aria-label="Mixer preset library" className="space-y-1">
-        <p className="text-xs font-medium">Preset library</p>
+      <label className="flex items-center gap-2 text-xs"><Checkbox checked={nameColor} onCheckedChange={(checked) => setNameColor(checked === true)} disabled={busy} />{t("Restore preset name and color")}</label>
+      <p className="text-xs text-muted-foreground">{t("Restores effects, their saved plugin state, fader, pan, mute, EQ, stereo controls and latency correction. Existing effect automation is removed. Routing, recording, dock and hardware assignments stay with this track.")}</p>
+      <section aria-label={t("Mixer preset library")} className="space-y-1">
+        <p className="text-xs font-medium">{t("Preset library")}</p>
         {libraryError && <p role="alert" className="break-words text-xs text-destructive">{libraryError}</p>}
-        {library && library.entries.length === 0 && <p className="break-words text-xs text-muted-foreground">No presets in {library.folder} yet. Save to library puts one there.</p>}
-        {library && library.entries.length > 0 && <ul aria-label="Library presets" className="max-h-48 space-y-1 overflow-y-auto">
+        {library && library.entries.length === 0 && <p className="break-words text-xs text-muted-foreground">{t("No presets in")}{" "}{library.folder}{" "}{t("yet. Save to library puts one there.")}</p>}
+        {library && library.entries.length > 0 && <ul aria-label={t("Library presets")} className="max-h-48 space-y-1 overflow-y-auto">
           {library.entries.map((entry) => {
             const missing = installed ? missingPlugins(entry.plugins, installed) : []
             return <li key={entry.file} className="space-y-0.5">
               <div className="flex items-center gap-1">
                 <Button size="sm" variant="ghost" className="min-w-0 flex-1 justify-start truncate" title={entry.path} disabled={busy || entry.error !== null} onClick={() => void run(() => applyFromLibrary(entry))}>{entry.name} · {entry.effects} FX</Button>
                 {confirming === entry.file
-                  ? <Button size="sm" variant="destructive" aria-label={`Confirm deleting library preset ${entry.name}`} disabled={busy} onClick={() => void run(async () => {
+                  ? <Button size="sm" variant="destructive" aria-label={i18nMessage("Confirm deleting library preset {entryName}", { entryName: entry.name })} disabled={busy} onClick={() => void run(async () => {
                       setConfirming(null)
                       await backend.mixerPresetLibraryDelete(entry.file)
                       setMessage(`Deleted ${entry.file} from the preset library`)
                       await refresh()
-                    })}>Delete file</Button>
-                  : <Button size="sm" variant="ghost" aria-label={`Delete library preset ${entry.name}`} disabled={busy} onClick={() => setConfirming(entry.file)}>×</Button>}
+                    })}>{t("Delete file")}</Button>
+                  : <Button size="sm" variant="ghost" aria-label={i18nMessage("Delete library preset {entryName}", { entryName: entry.name })} disabled={busy} onClick={() => setConfirming(entry.file)}>×</Button>}
               </div>
               {entry.error !== null && <p className="break-words pl-2 text-[10px] text-destructive">{entry.file}: {entry.error}</p>}
               {missing.length > 0 && <p className="break-words pl-2 text-[10px] text-muted-foreground">{missingNote(missing)}</p>}
             </li>
           })}
         </ul>}
-        {library?.truncated && <p className="text-[10px] text-muted-foreground">The library folder holds more presets than are listed here.</p>}
+        {library?.truncated && <p className="text-[10px] text-muted-foreground">{t("The library folder holds more presets than are listed here.")}</p>}
       </section>
-      <p className="text-xs font-medium">Shelf</p>
-      <ul aria-label="Saved mixer presets" className="max-h-48 space-y-1 overflow-y-auto">
+      <p className="text-xs font-medium">{t("Shelf")}</p>
+      <ul aria-label={t("Saved mixer presets")} className="max-h-48 space-y-1 overflow-y-auto">
         {entries.map((entry) => {
           const missing = installed ? missingPlugins(entry.preset.plugins ?? [], installed) : []
           return <li key={entry.key} className="space-y-0.5">
@@ -212,7 +213,7 @@ export function TrackPresetsPanel({ track }: { track: TrackId }) {
               <Button size="sm" variant="ghost" className="min-w-0 flex-1 justify-start truncate" disabled={busy} onClick={() => void run(async () => {
                 await apply(entry.preset, getProjectGeneration(), destination())
               })}>{entry.preset.name} · {entry.preset.effects.length} FX</Button>
-              <Button size="sm" variant="ghost" aria-label={`Delete preset ${entry.preset.name}`} disabled={busy} onClick={() => void run(async () => writeShelf(useShelf.getState().entries.filter((item) => item.key !== entry.key)))}>×</Button>
+              <Button size="sm" variant="ghost" aria-label={i18nMessage("Delete preset {presetName}", { presetName: entry.preset.name })} disabled={busy} onClick={() => void run(async () => writeShelf(useShelf.getState().entries.filter((item) => item.key !== entry.key)))}>×</Button>
             </div>
             {missing.length > 0 && <p className="break-words pl-2 text-[10px] text-muted-foreground">{missingNote(missing)}</p>}
           </li>

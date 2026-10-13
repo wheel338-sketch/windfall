@@ -4,6 +4,7 @@ import { currentPatternId } from "@/lib/flows/edit"
 import { dispatch, useProjectStore } from "@/lib/store/project"
 import { getProjectGeneration } from "@/lib/store/replaced"
 import { setPlayMode } from "@/lib/store/transport"
+import { translatedText as t } from "@/lib/i18n"
 export type TutorialKind = "beat" | "record" | "import" | "export"
 export type Baseline = { channels: number[]; notes: number; clips: number[]; samples: number[] }
 export function baseline(project: Project): Baseline {
@@ -14,26 +15,26 @@ export type TutorialStep = { title: string; instruction: string; action: string;
 const notesAdded = (e: TutorialEvidence) => baseline(e.project).notes > e.before.notes
 const audioAdded = (e: TutorialEvidence) => e.project.playlist.clips.some((clip) => !e.before.clips.includes(clip.id) && clip.content.type === "audio")
 export const TUTORIALS: Record<TutorialKind, { title: string; steps: TutorialStep[] }> = {
-  beat: { title: "Build a beat", steps: [
-    { title: "Add a channel", instruction: "Add a sound channel or use the factory drum kit already in the rack.", action: "channel.add", complete: (e) => e.project.channels.length > 0 },
-    { title: "Open the piano roll", instruction: "Draw notes or turn on drum steps in the rack. Keep the guide open while editing.", action: "view.pianoRoll", complete: notesAdded },
-    { title: "Open the playlist", instruction: "Place the current pattern on a playlist lane using the button, or draw a pattern clip yourself.", action: "tutorial.placePattern", complete: (e) => e.project.playlist.clips.some((clip) => !e.before.clips.includes(clip.id) && clip.content.type === "pattern") },
-    { title: "Play", instruction: "Play the song, then stop and save your beat.", action: "tutorial.playSong", complete: (e) => e.playing && e.song },
-    { title: "Save", instruction: "Save the project. This step completes only when the document is clean.", action: "file.save", complete: (e) => !e.dirty },
+  beat: { get title() { return t("Build a beat") }, steps: [
+    { get title() { return t("Add a channel") }, instruction: "Add a sound channel or use the factory drum kit already in the rack.", action: "channel.add", complete: (e) => e.project.channels.length > 0 },
+    { get title() { return t("Open the piano roll") }, instruction: "Draw notes or turn on drum steps in the rack. Keep the guide open while editing.", action: "view.pianoRoll", complete: notesAdded },
+    { get title() { return t("Open the playlist") }, instruction: "Place the current pattern on a playlist lane using the button, or draw a pattern clip yourself.", action: "tutorial.placePattern", complete: (e) => e.project.playlist.clips.some((clip) => !e.before.clips.includes(clip.id) && clip.content.type === "pattern") },
+    { get title() { return t("Play") }, instruction: "Play the song, then stop and save your beat.", action: "tutorial.playSong", complete: (e) => e.playing && e.song },
+    { get title() { return t("Save") }, instruction: "Save the project. This step completes only when the document is clean.", action: "file.save", complete: (e) => !e.dirty },
   ] },
-  record: { title: "Record audio", steps: [
-    { title: "Record audio input", instruction: "Open recording and choose a real input device. Browser mode reports its native limitation.", action: "recording.open", complete: (e) => e.recordingOpen && e.inputs > 0 },
-    { title: "Start recording", instruction: "Select the input channels, timing and destination, then start recording.", action: "recording.start", complete: (e) => e.recording || audioAdded(e) },
-    { title: "Stop recording and keep take", instruction: "Stop and keep the take. Completion requires a new audio clip in the playlist.", action: "recording.stop", complete: audioAdded },
+  record: { get title() { return t("Record audio") }, steps: [
+    { get title() { return t("Record audio input") }, instruction: "Open recording and choose a real input device. Browser mode reports its native limitation.", action: "recording.open", complete: (e) => e.recordingOpen && e.inputs > 0 },
+    { get title() { return t("Start recording") }, instruction: "Select the input channels, timing and destination, then start recording.", action: "recording.start", complete: (e) => e.recording || audioAdded(e) },
+    { get title() { return t("Stop recording and keep take") }, instruction: "Stop and keep the take. Completion requires a new audio clip in the playlist.", action: "recording.stop", complete: audioAdded },
   ] },
-  import: { title: "Import audio", steps: [
-    { title: "Import audio", instruction: "Choose an audio file. A cancelled or failed picker does not complete the step.", action: "channel.addFromFile", complete: (e) => e.project.samples.some((sample) => !e.before.samples.includes(sample.id)) && e.project.channels.some((channel) => !e.before.channels.includes(channel.id)) },
-    { title: "Open the piano roll", instruction: "Draw a note for the imported sampler, or turn on a step in the rack.", action: "view.pianoRoll", complete: notesAdded },
-    { title: "Save", instruction: "Save the project and its sample reference before closing it.", action: "file.save", complete: (e) => !e.dirty },
+  import: { get title() { return t("Import audio") }, steps: [
+    { get title() { return t("Import audio") }, instruction: "Choose an audio file. A cancelled or failed picker does not complete the step.", action: "channel.addFromFile", complete: (e) => e.project.samples.some((sample) => !e.before.samples.includes(sample.id)) && e.project.channels.some((channel) => !e.before.channels.includes(channel.id)) },
+    { get title() { return t("Open the piano roll") }, instruction: "Draw a note for the imported sampler, or turn on a step in the rack.", action: "view.pianoRoll", complete: notesAdded },
+    { get title() { return t("Save") }, instruction: "Save the project and its sample reference before closing it.", action: "file.save", complete: (e) => !e.dirty },
   ] },
-  export: { title: "Export audio", steps: [
-    { title: "Export", instruction: "Open Export audio and choose pattern or song, file format and destination.", action: "file.export", complete: (e) => e.exportOpen },
-    { title: "Export audio", instruction: "Press Export in the real export dialog. Only successful completion counts; cancellation and errors do not.", action: "file.export", complete: (e) => e.exported },
+  export: { get title() { return t("Export audio") }, steps: [
+    { get title() { return t("Export") }, instruction: "Open Export audio and choose pattern or song, file format and destination.", action: "file.export", complete: (e) => e.exportOpen },
+    { get title() { return t("Export audio") }, instruction: "Press Export in the real export dialog. Only successful completion counts; cancellation and errors do not.", action: "file.export", complete: (e) => e.exported },
   ] },
 }
 

@@ -6,6 +6,7 @@ import { backend, errorMessage } from "@/lib/ipc"
 import { useTransportStore } from "@/lib/store/transport"
 import { useControllerStatus } from "./status"
 import { dumpNoteLog } from "./actions"
+import { message, plainNumber, translatedText as t } from "@/lib/i18n"
 
 /** Real session arms, shared by transport and controller status polling. */
 export function MidiRecordingControls() {
@@ -22,9 +23,9 @@ export function MidiRecordingControls() {
   const logError = state?.error && !state.error.startsWith("MIDI hardware is available") ? state.error : null
   const bars = useTransportStore((state) => state.countInBars ?? 0)
   return <div className="flex items-center gap-1">
-    <Button title={`Record MIDI notes; ${bars} count-in bars`} aria-label="Record MIDI notes" aria-pressed={state?.noteRecord.armed ?? false} disabled={!state || busy || backend.kind !== "tauri"} variant={state?.noteRecord.armed ? "destructive" : "secondary"} onClick={() => void arm()}>MIDI record</Button>
-    <Button size="sm" variant="ghost" onClick={() => void dumpNoteLog(null)}>Dump note log</Button>
-    <span role="status" aria-label="Controller pickup indicator">{state?.waiting.length ? `Pickup held: ${state.waiting.map((target) => describeTarget(project, target)).join(", ")}` : ""}</span>
-    <span role="status" aria-label="MIDI recording status">{error ?? logError ?? (state?.noteRecord.armed ? `${state.noteRecord.pending} notes captured` : "")}</span>
+    <Button title={message("Record MIDI notes; {bars} count-in bars", { bars: plainNumber(bars) })} aria-label={t("Record MIDI notes")} aria-pressed={state?.noteRecord.armed ?? false} disabled={!state || busy || backend.kind !== "tauri"} variant={state?.noteRecord.armed ? "destructive" : "secondary"} onClick={() => void arm()}>{t("MIDI record")}</Button>
+    <Button size="sm" variant="ghost" onClick={() => void dumpNoteLog(null)}>{t("Dump note log")}</Button>
+    <span role="status" aria-label={t("Controller pickup indicator")}>{state?.waiting.length ? message("Pickup held: {map}", { map: state.waiting.map((target) => describeTarget(project, target)).join(", ") }) : ""}</span>
+    <span role="status" aria-label={t("MIDI recording status")}>{error ?? logError ?? (state?.noteRecord.armed ? message("{pending} notes captured", { pending: plainNumber(state.noteRecord.pending) }) : "")}</span>
   </div>
 }

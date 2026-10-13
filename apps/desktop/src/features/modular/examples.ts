@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: CC0-1.0
 import type { InstrumentParams, RackGraph, RackNoteModule } from "@/bindings"
 import { defaultModule, initialGraph, node, NOTE_IN, NOTE_OUT } from "./model"
+import { translatedText as t } from "@/lib/i18n"
 
 /** Original Windfall example racks, dedicated to the public domain under
  * CC0 1.0. No external presets, samples, artwork or processor names. */
@@ -29,11 +30,11 @@ export function exampleRack(name: typeof RACK_EXAMPLES[number], instrument: Inst
  * existing automation never attaches to coincidentally equal preset node IDs. */
 export function importRackGraph(graph: RackGraph, nextId: number): RackGraph {
   const first = Math.max(1, nextId)
-  if (!Number.isSafeInteger(first) || first + graph.nodes.length > 0xffffffff) throw new Error("Rack node identity space is exhausted")
+  if (!Number.isSafeInteger(first) || first + graph.nodes.length > 0xffffffff) throw new Error(t("Rack node identity space is exhausted"))
   const ids = new Map(graph.nodes.map((node, i) => [node.id, first + i]))
   const endpoint = (node: number): number => {
     const id = ids.get(node)
-    if (id === undefined) throw new Error("Preset wire refers to a missing node")
+    if (id === undefined) throw new Error(t("Preset wire refers to a missing node"))
     return id
   }
   return { ...graph, parameters: [], nextId: first + graph.nodes.length,

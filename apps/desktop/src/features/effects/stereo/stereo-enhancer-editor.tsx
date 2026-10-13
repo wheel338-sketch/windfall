@@ -4,6 +4,7 @@ import { ParamControl, ParamGroup, ParamRow } from "@/features/params"
 import type { EditorProps } from "../editor-props"
 import { describeOffset } from "./stereo"
 import { StereoField } from "./stereo-field"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 /**
  * The stereo enhancer: width and balance, the phase between the sides (a
@@ -20,13 +21,13 @@ export function StereoEnhancerEditor({
     <div
       data-slot="stereo-enhancer-editor"
       role="group"
-      aria-label="Stereo Enhancer settings"
+      aria-label={t("Stereo Enhancer settings")}
       className="flex min-w-0 flex-col gap-2"
     >
       <StereoField
         width={width}
         balance={balance}
-        label={`Stereo image at ${Math.round(width * 100)}% of its width. ${describeOffset(offset)}`}
+        label={message("Stereo image at {width}% of its width. {offset}", { width: plainNumber(Math.round(width * 100)), offset: describeOffset(offset) })}
       />
       <div className="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] items-start gap-2">
         <ParamGroup title="Image">

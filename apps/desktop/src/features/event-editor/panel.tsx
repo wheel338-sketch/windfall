@@ -56,6 +56,7 @@ import {
   removePoint,
   samePoints,
 } from "./model"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 /** The curve's drawing area, in SVG units. */
 const WIDTH = 720
@@ -225,29 +226,27 @@ function LaneEditor({
 
   return (
     <div className="flex flex-col gap-3">
-      <Field><FieldLabel>Snap</FieldLabel><Select items={SNAP_OPTIONS.map(({ id, label }) => ({ value: id, label }))} value={snap} onValueChange={(value) => { if (isSnapId(value)) setSnap(value) }}>
-        <SelectTrigger aria-label="Event snap"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{SNAP_OPTIONS.map(({ id, label }) => <SelectItem key={id} value={id}>{label}</SelectItem>)}</SelectGroup></SelectContent>
+      <Field><FieldLabel>{t("Snap")}</FieldLabel><Select items={SNAP_OPTIONS.map(({ id, label }) => ({ value: id, label }))} value={snap} onValueChange={(value) => { if (isSnapId(value)) setSnap(value) }}>
+        <SelectTrigger aria-label={t("Event snap")}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{SNAP_OPTIONS.map(({ id, label }) => <SelectItem key={id} value={id}>{label}</SelectItem>)}</SelectGroup></SelectContent>
       </Select></Field>
       {!state && (
         <Alert>
           <AlertDescription>
-            The control this lane moved is no longer in the project. Clear the
-            lane to remove it.
+            {t("The control this lane moved is no longer in the project. Clear the lane to remove it.")}
           </AlertDescription>
         </Alert>
       )}
       {refused && (
         <Alert>
           <AlertDescription>
-            The lane changed while it was being edited, so the last change was
-            not made. The curve shows what the project has now.
+            {t("The lane changed while it was being edited, so the last change was not made. The curve shows what the project has now.")}
           </AlertDescription>
         </Alert>
       )}
       <svg
         ref={svg}
         role="application"
-        aria-label="Event curve"
+        aria-label={t("Event curve")}
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         className="h-56 w-full touch-none rounded border bg-display text-brand select-none"
         onDoubleClick={(event) => {
@@ -299,13 +298,13 @@ function LaneEditor({
             data-testid="event-curve"
           />
         )}
-        <line ref={playhead} aria-label="Event playhead" x1={PAD} x2={PAD} y1={PAD} y2={HEIGHT - PAD} className="stroke-primary" strokeWidth={2} style={{ display: "none" }} pointerEvents="none" />
+        <line ref={playhead} aria-label={t("Event playhead")} x1={PAD} x2={PAD} y1={PAD} y2={HEIGHT - PAD} className="stroke-primary" strokeWidth={2} style={{ display: "none" }} pointerEvents="none" />
         {points.map((point, index) => (
           <circle
             key={index}
             role="slider"
             tabIndex={0}
-            aria-label={`Point ${index + 1}: ${describe(point)}`}
+            aria-label={message("Point {index}: {describe}", { index: plainNumber(index + 1), describe: describe(point) })}
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={Math.round(point.value * 100)}
@@ -354,14 +353,14 @@ function LaneEditor({
       </svg>
       <p className="text-xs text-muted-foreground">
         {points.length === 0
-          ? "This pattern has no events for this control. Double-click the curve area to add a point."
-          : "Double-click to add a point. Drag a point or use the arrow keys to move it; Delete removes it."}
+          ? t("This pattern has no events for this control. Double-click the curve area to add a point.")
+          : t("Double-click to add a point. Drag a point or use the arrow keys to move it; Delete removes it.")}
         {state &&
-          ` Without a lane the control stays at ${formatAutomationValue(project, target, rangeNormalized(state.range, state.stored))}.`}
+          message(" Without a lane the control stays at {automationValue}.", { automationValue: formatAutomationValue(project, target, rangeNormalized(state.range, state.stored)) })}
       </p>
       <FieldGroup className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Field>
-          <FieldLabel htmlFor={tickId}>Tick</FieldLabel>
+          <FieldLabel htmlFor={tickId}>{t("Tick")}</FieldLabel>
           <Input
             id={tickId}
             type="number"
@@ -378,7 +377,7 @@ function LaneEditor({
           />
         </Field>
         <Field>
-          <FieldLabel htmlFor={valueId}>Value (%)</FieldLabel>
+          <FieldLabel htmlFor={valueId}>{t("Value (%)")}</FieldLabel>
           <Input
             id={valueId}
             type="number"
@@ -395,7 +394,7 @@ function LaneEditor({
           />
         </Field>
         <Field>
-          <FieldLabel htmlFor={curveId}>Bend (%)</FieldLabel>
+          <FieldLabel htmlFor={curveId}>{t("Bend (%)")}</FieldLabel>
           <Input
             id={curveId}
             type="number"
@@ -413,7 +412,7 @@ function LaneEditor({
         </Field>
         <div className="flex items-end justify-between gap-2 pb-1">
           <label htmlFor={holdId} className="text-sm">
-            Hold until next
+            {t("Hold until next")}
           </label>
           <Switch
             id={holdId}
@@ -441,7 +440,7 @@ function LaneEditor({
             add(0, value)
           }}
         >
-          Add point at start
+          {t("Add point at start")}
         </Button>
         <Button
           type="button"
@@ -452,7 +451,7 @@ function LaneEditor({
             if (selected !== null) remove(selected)
           }}
         >
-          Remove point
+          {t("Remove point")}
         </Button>
         <Button
           type="button"
@@ -461,7 +460,7 @@ function LaneEditor({
           disabled={!state}
           onClick={() => openEventLfo(pattern.id, target)}
         >
-          Write LFO…
+          {t("Write LFO…")}
         </Button>
         <Button
           type="button"
@@ -473,7 +472,7 @@ function LaneEditor({
             void commit([])
           }}
         >
-          Clear lane
+          {t("Clear lane")}
         </Button>
       </div>
     </div>
@@ -500,7 +499,7 @@ export function EventEditorPanel() {
   }))
   const targetOptions = targets.map((item) => ({
     value: item.key,
-    label: item.used ? `${item.label} (has events)` : item.label,
+    label: item.used ? message("{itemLabel} (has events)", { itemLabel: item.label }) : item.label,
   }))
 
   return (
@@ -512,18 +511,16 @@ export function EventEditorPanel() {
     >
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Event editor</DialogTitle>
+          <DialogTitle>{t("Event editor")}</DialogTitle>
           <DialogDescription>
-            Automation stored in a pattern. The control follows the curve
-            wherever the pattern plays, by itself or as a clip, with no
-            automation clip on the playlist.
+            {t("Automation stored in a pattern. The control follows the curve wherever the pattern plays, by itself or as a clip, with no automation clip on the playlist.")}
           </DialogDescription>
         </DialogHeader>
         {open && pattern && (
           <div className="flex flex-col gap-4">
             <FieldGroup className="grid gap-3 sm:grid-cols-2">
               <Field>
-                <FieldLabel>Pattern</FieldLabel>
+                <FieldLabel>{t("Pattern")}</FieldLabel>
                 <Select
                   items={patternOptions}
                   value={String(pattern.id)}
@@ -533,7 +530,7 @@ export function EventEditorPanel() {
                       showEventPattern(id)
                   }}
                 >
-                  <SelectTrigger aria-label="Event pattern">
+                  <SelectTrigger aria-label={t("Event pattern")}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -548,7 +545,7 @@ export function EventEditorPanel() {
                 </Select>
               </Field>
               <Field>
-                <FieldLabel>Control</FieldLabel>
+                <FieldLabel>{t("Control")}</FieldLabel>
                 <Select
                   items={targetOptions}
                   value={shown ? shown.key : null}
@@ -557,8 +554,8 @@ export function EventEditorPanel() {
                     if (found) showEventTarget(found.target)
                   }}
                 >
-                  <SelectTrigger aria-label="Event control">
-                    <SelectValue placeholder="Choose a control" />
+                  <SelectTrigger aria-label={t("Event control")}>
+                    <SelectValue placeholder={t("Choose a control")} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
@@ -580,15 +577,14 @@ export function EventEditorPanel() {
               />
             ) : (
               <p className="text-sm text-muted-foreground">
-                Choose a control, or right-click any knob or fader and pick
-                “Edit events in pattern”.
+                {t("Choose a control, or right-click any knob or fader and pick “Edit events in pattern”.")}
               </p>
             )}
           </div>
         )}
         <DialogFooter>
           <Button type="button" variant="ghost" onClick={closeEventEditor}>
-            Close
+            {t("Close")}
           </Button>
         </DialogFooter>
       </DialogContent>

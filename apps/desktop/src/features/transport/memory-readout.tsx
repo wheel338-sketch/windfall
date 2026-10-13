@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 
 import { backend } from "@/lib/ipc"
 import { useHint } from "@/lib/store/hint"
+import { translatedText as t, message } from "@/lib/i18n"
 
 const REFRESH_MS = 1000
 const MIB = 1024 * 1024
@@ -10,7 +11,7 @@ const MIB = 1024 * 1024
 export function MemoryReadout() {
   const [bytes, setBytes] = useState<number | null>(null)
   const hint = useHint(
-    "Host RAM: resident memory of the desktop audio host, excluding webviews and plugin helpers"
+    t("Host RAM: resident memory of the desktop audio host, excluding webviews and plugin helpers")
   )
 
   useEffect(() => {
@@ -48,8 +49,8 @@ export function MemoryReadout() {
   return (
     <span
       className="flex items-baseline gap-1"
-      aria-label={`Host RAM: ${bytes === null ? "unavailable" : value}; resident memory of the desktop host, excluding webviews and plugin helpers`}
-      title="Desktop host resident memory; excludes webviews and plugin helpers"
+      aria-label={message("Host RAM: {bytes}; resident memory of the desktop host, excluding webviews and plugin helpers", { bytes: bytes === null ? t("unavailable") : value })}
+      title={t("Desktop host resident memory; excludes webviews and plugin helpers")}
       {...hint}
     >
       RAM

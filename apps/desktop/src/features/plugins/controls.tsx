@@ -121,7 +121,7 @@ export function PluginControls({ binding }: { binding: PluginBinding }) {
             setError(
               state.instances.find((instance) =>
                 sameTarget(instance.target, binding.target)
-              )?.error ?? (backend.kind === "mock" ? "Native plugin hosting is unavailable in browser mode" : null)
+              )?.error ?? (backend.kind === "mock" ? t("Native plugin hosting is unavailable in browser mode") : null)
             )
         })
         .catch((error: unknown) => {

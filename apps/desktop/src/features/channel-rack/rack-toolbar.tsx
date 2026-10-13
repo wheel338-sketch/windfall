@@ -35,6 +35,7 @@ import { nextSwing, SWING_PRESETS } from "./swing-presets"
 import { nextProjectSwingScale } from "./swing-scale"
 import { useGestureValue } from "./use-gesture-value"
 import { ChannelGroupFilter } from "./channel-groups-ui"
+import { translatedText as t, message, plainNumber, dynamicTitle } from "@/lib/i18n"
 
 function AddChannelMenuItems() {
   const actions = useActions()
@@ -57,8 +58,7 @@ function AddChannelMenuItems() {
       {fromFile && <ActionMenuItem action={fromFile} state={state} />}
       <DropdownMenuSeparator />
       <p className="px-2 py-1.5 text-muted-foreground">
-        A sound can also be dragged from the browser onto the rack. Drop it on a
-        sampler&apos;s name to replace that channel&apos;s sound.
+        {t("A sound can also be dragged from the browser onto the rack. Drop it on a sampler's name to replace that channel's sound.")}
       </p>
       {browser && !state.ui.panels.browser && (
         <ActionMenuItem action={browser} state={state} />
@@ -69,7 +69,7 @@ function AddChannelMenuItems() {
 
 function AddChannelMenu() {
   const hint = useHint(
-    "Add a channel: an empty sampler or a synth, or drag a sample in from the browser"
+    t("Add a channel: an empty sampler or a synth, or drag a sample in from the browser")
   )
   return (
     <DropdownMenu>
@@ -78,13 +78,13 @@ function AddChannelMenu() {
           <Button
             variant="outline"
             size="sm"
-            aria-label="Add channel menu"
+            aria-label={t("Add channel menu")}
             {...hint}
           />
         }
       >
         <HugeiconsIcon icon={Add01Icon} strokeWidth={2} />
-        Add channel
+        {t("Add channel")}
         <HugeiconsIcon
           icon={ArrowDown01Icon}
           strokeWidth={2}
@@ -118,16 +118,16 @@ function PatternLength() {
     })
   })
   const hint = useHint(
-    `Pattern length: ${length.value} steps, ${describeLength(length.value, signature, timeline)}. Drag up or down, or double-click to type`
+    message("Pattern length: {lengthValue} steps, {length}. Drag up or down, or double-click to type", { lengthValue: plainNumber(length.value), length: describeLength(length.value, signature, timeline) })
   )
 
   return (
     <div
       role="group"
-      aria-label="Pattern length"
+      aria-label={t("Pattern length")}
       className="flex items-center gap-1"
     >
-      <span className="mr-0.5 text-muted-foreground">Length</span>
+      <span className="mr-0.5 text-muted-foreground">{t("Length")}</span>
       <div className="flex items-center rounded-md bg-(--wf-step-off)/60 p-px">
         {LENGTH_PRESETS.map((steps) => (
           <ActionButton
@@ -145,7 +145,7 @@ function PatternLength() {
       <Button
         variant="outline"
         size="xs"
-        aria-label="Choose the previous pattern length preset"
+        aria-label={t("Choose the previous pattern length preset")}
         disabled={
           nextPatternLengthPreset(
             lengthSteps ?? DEFAULT_PATTERN_STEPS,
@@ -166,12 +166,12 @@ function PatternLength() {
           void setPatternLength(next)
         }}
       >
-        Previous
+        {t("Previous")}
       </Button>
       <Button
         variant="outline"
         size="xs"
-        aria-label="Choose the next pattern length preset"
+        aria-label={t("Choose the next pattern length preset")}
         disabled={
           nextPatternLengthPreset(
             lengthSteps ?? DEFAULT_PATTERN_STEPS,
@@ -192,16 +192,16 @@ function PatternLength() {
           void setPatternLength(next)
         }}
       >
-        Next
+        {t("Next")}
       </Button>
       <NumberField
         size="sm"
-        aria-label="Pattern length in steps"
+        aria-label={t("Pattern length in steps")}
         min={1}
         max={MAX_PATTERN_STEPS}
         step={1}
         defaultValue={DEFAULT_PATTERN_STEPS}
-        unit={<span className="text-muted-foreground">steps</span>}
+        unit={<span className="text-muted-foreground">{t("steps")}</span>}
         className="font-readout"
         {...length}
         {...hint}
@@ -222,7 +222,7 @@ function PatternLength() {
           if (next !== null) void setPatternLength(next)
         }}
       >
-        Half
+        {t("Half")}
       </Button>
       <Button
         variant="outline"
@@ -240,7 +240,7 @@ function PatternLength() {
           if (next !== null) void setPatternLength(next)
         }}
       >
-        Double
+        {t("Double")}
       </Button>
     </div>
   )
@@ -255,15 +255,15 @@ function Swing() {
     })
   )
   const hint = useHint(
-    `Swing: ${percentUnit.format(swing.value)}. Delays every second step for a shuffle feel. Double-click to turn it off`
+    message("Swing: {format}. Delays every second step for a shuffle feel. Double-click to turn it off", { format: percentUnit.format(swing.value) })
   )
 
   return (
     <div className="flex items-center gap-1.5" {...hint}>
-      <span className="text-muted-foreground">Swing</span>
+      <span className="text-muted-foreground">{t("Swing")}</span>
       <Knob
         size="sm"
-        aria-label="Swing"
+        aria-label={t("Swing")}
         min={0}
         max={1}
         defaultValue={0}
@@ -289,7 +289,7 @@ function Swing() {
             },
           })),
           {
-            title: "Previous preset",
+            ...dynamicTitle("Previous preset", {}),
             disabled:
               nextProjectSwingPreset(
                 useProjectStore.getState().project.settings.swing,
@@ -305,7 +305,7 @@ function Swing() {
             },
           },
           {
-            title: "Next preset",
+            ...dynamicTitle("Next preset", {}),
             disabled:
               nextProjectSwingPreset(
                 useProjectStore.getState().project.settings.swing,
@@ -321,7 +321,7 @@ function Swing() {
             },
           },
           {
-            title: "Halve",
+            ...dynamicTitle("Halve", {}),
             disabled:
               nextProjectSwingScale(
                 useProjectStore.getState().project.settings.swing,
@@ -337,7 +337,7 @@ function Swing() {
             },
           },
           {
-            title: "Double",
+            ...dynamicTitle("Double", {}),
             disabled:
               nextProjectSwingScale(
                 useProjectStore.getState().project.settings.swing,
@@ -384,7 +384,7 @@ export function RackToolbar() {
     <ContextActions items={RACK_MENU}>
       <div
         role="toolbar"
-        aria-label="Channel rack"
+        aria-label={t("Channel rack")}
         className="flex h-9 shrink-0 items-center gap-4 overflow-x-auto overflow-y-hidden border-b bg-chassis/40 px-1.5 whitespace-nowrap"
       >
         <AddChannelMenu />
@@ -392,7 +392,7 @@ export function RackToolbar() {
         <PatternLength />
         <Swing />
         <div className="ml-auto flex items-center">
-          <ActionButton action="channelRack.graph" variant={graphOpen ? "secondary" : "ghost"} size="sm" aria-pressed={graphOpen}>Graph</ActionButton>
+          <ActionButton action="channelRack.graph" variant={graphOpen ? "secondary" : "ghost"} size="sm" aria-pressed={graphOpen}>{t("Graph")}</ActionButton>
           <SettingsToggle />
         </div>
       </div>

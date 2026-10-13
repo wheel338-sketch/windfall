@@ -5,6 +5,7 @@ import { registry, type Action } from "@/lib/actions"
 import { useProjectStore } from "@/lib/store/project"
 import { onProjectReplaced } from "@/lib/store/replaced"
 import { useTransportStore } from "@/lib/store/transport"
+import { dynamicTitle } from "@/lib/i18n"
 
 /*
  * The event editor: a window of its own for the automation a pattern
@@ -71,7 +72,7 @@ export function showEventTarget(target: AutomationTarget | null): void {
 const EVENT_EDITOR_ACTIONS: Action[] = [
   {
     id: "view.event-editor",
-    title: "Show event editor",
+    ...dynamicTitle("Show event editor", {}),
     section: "View",
     keywords:
       "event automation pattern events lane curve knob fader parameter edit",

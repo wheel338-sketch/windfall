@@ -16,6 +16,7 @@ import {
   setFilter,
   useBrowserStore,
 } from "./store"
+import { translatedText as t } from "@/lib/i18n"
 
 export function TreeFooter({
   filtering,
@@ -34,12 +35,12 @@ export function TreeFooter({
     return (
       <Empty role="alert">
         <EmptyHeader>
-          <EmptyTitle>The browser could not be read.</EmptyTitle>
+          <EmptyTitle>{t("The browser could not be read.")}</EmptyTitle>
           <EmptyDescription>{error}</EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
           <Button variant="outline" size="sm" onClick={() => void loadRoots()}>
-            Try again
+            {t("Try again")}
           </Button>
         </EmptyContent>
       </Empty>
@@ -48,7 +49,7 @@ export function TreeFooter({
     return rowCount === 0 ? (
       <p className="flex items-center gap-1.5 p-2.5 text-muted-foreground">
         <Spinner />
-        Reading the browser...
+        {t("Reading the browser...")}
       </p>
     ) : null
   if (filtering) {
@@ -60,16 +61,15 @@ export function TreeFooter({
           className="flex items-center gap-1.5 p-2.5 text-muted-foreground"
         >
           <Spinner />
-          Searching the library...
+          {t("Searching the library...")}
         </p>
       )
     return (
       <Empty role="status">
         <EmptyHeader>
-          <EmptyTitle>No library files match these filters.</EmptyTitle>
+          <EmptyTitle>{t("No library files match these filters.")}</EmptyTitle>
           <EmptyDescription>
-            Try fewer terms, clear Starred or the tag filter, or refresh after
-            changing files on disk.
+            {t("Try fewer terms, clear Starred or the tag filter, or refresh after changing files on disk.")}
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
@@ -82,7 +82,7 @@ export function TreeFooter({
               requestFilterFocus()
             }}
           >
-            Show everything
+            {t("Show everything")}
           </Button>
         </EmptyContent>
       </Empty>
@@ -92,8 +92,7 @@ export function TreeFooter({
     <Empty>
       <EmptyHeader>
         <EmptyDescription>
-          Your own samples go here too. Add a folder and it stays in the
-          browser.
+          {t("Your own samples go here too. Add a folder and it stays in the browser.")}
         </EmptyDescription>
       </EmptyHeader>
       <EmptyContent>
@@ -102,7 +101,7 @@ export function TreeFooter({
           size="sm"
           onClick={() => void runAction("browser.addFolder")}
         >
-          Add folder…
+          {t("Add folder…")}
         </Button>
       </EmptyContent>
     </Empty>

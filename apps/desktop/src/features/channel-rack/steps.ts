@@ -15,6 +15,7 @@ import {
 } from "@/lib/units"
 import { meterSegments, musicalPosition } from "@/lib/timeline"
 import { ticksPerBar, ticksPerBeat } from "@/lib/time"
+import { message, plainNumber, translatedText as t } from "@/lib/i18n"
 
 /*
  * The step sequencer and the piano roll edit the same notes. These helpers
@@ -120,7 +121,7 @@ export function fillCommand(
   })
   return {
     type: "batch",
-    label: `Fill every ${every} steps`,
+    label: message("Fill every {every} steps", { every: plainNumber(every) }),
     commands,
   }
 }
@@ -158,7 +159,7 @@ export function shiftCommand(
   if (inside.length === 0 || lengthSteps < 2) return null
   return {
     type: "batch",
-    label: by < 0 ? "Shift steps left" : "Shift steps right",
+    label: by < 0 ? t("Shift steps left") : t("Shift steps right"),
     commands: [
       {
         type: "updateNotes",
@@ -245,7 +246,7 @@ export function describeLength(
   if (timeline?.meters.length) {
     const position = musicalPosition(lengthSteps * TICKS_PER_STEP, signature, timeline.meters)
     if (position.beat === 1 && position.tick === 0) return `${position.bar - 1} ${position.bar === 2 ? "bar" : "bars"}`
-    return `ends at ${position.bar}.${position.beat}${position.tick ? ` + ${position.tick} ticks` : ""}`
+    return `ends at ${position.bar}.${position.beat}${position.tick ? message(" + {tick} ticks", { tick: plainNumber(position.tick) }) : ""}`
   }
   const bar = stepsPerBar(signature)
   const bars = Math.floor(lengthSteps / bar)
@@ -253,7 +254,7 @@ export function describeLength(
   const stepsText = `${rest} ${rest === 1 ? "step" : "steps"}`
   if (bars === 0) return stepsText
   const barsText = `${bars} ${bars === 1 ? "bar" : "bars"}`
-  return rest === 0 ? barsText : `${barsText} and ${stepsText}`
+  return rest === 0 ? barsText : message("{barsText} and {stepsText}", { barsText, stepsText })
 }
 
 export function clampPatternLength(steps: number): number {

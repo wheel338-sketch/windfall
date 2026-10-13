@@ -8,6 +8,7 @@ import { askConfirm, askText } from "@/lib/store/prompts"
 import { useUiStore } from "@/lib/store/ui"
 
 import { useRackStore } from "./rack-store"
+import { translatedText as t, message, dynamicTitle } from "@/lib/i18n"
 
 export function channelGroups(channels: readonly Channel[]): string[] {
   return [...new Set(channels.map((channel) => channel.group ?? "").filter(Boolean))]
@@ -70,7 +71,7 @@ export async function createChannelGroup(): Promise<void> {
     return
   }
   const generation = getProjectGeneration()
-  const name = await askText({ title: "Create channel group", label: "Group name", initial: "", submitLabel: "Create and assign" })
+  const name = await askText({ title: t("Create channel group"), label: t("Group name"), initial: "", submitLabel: t("Create and assign") })
   if (name === null || !name.trim() || !validGroupName(name) || generation !== getProjectGeneration()) return
   if (!useProjectStore.getState().project.channels.some((channel) => channel.id === id)) return
   const result = await dispatch({ type: "setChannelGroup", channels: [id], group: name.trim() })
@@ -87,7 +88,7 @@ export async function renameChannelGroup(): Promise<void> {
   const name = currentNamedGroup()
   if (!name) return
   const generation = getProjectGeneration()
-  const newName = await askText({ title: `Rename group: ${name}`, label: "Group name", initial: name, submitLabel: "Rename" })
+  const newName = await askText({ title: message("Rename group: {name}", { name }), label: t("Group name"), initial: name, submitLabel: t("Rename") })
   if (newName === null || !newName.trim() || !validGroupName(newName) || generation !== getProjectGeneration()) return
   const result = await dispatch({ type: "renameChannelGroup", name, newName: newName.trim() })
   if (result && generation === getProjectGeneration()) useRackStore.getState().setGroupFilter(newName.trim())
@@ -98,9 +99,9 @@ export async function removeChannelGroup(): Promise<void> {
   if (!name) return
   const generation = getProjectGeneration()
   const answer = await askConfirm({
-    title: `Remove group: ${name}?`,
-    description: "Its channels become ungrouped. All channels, notes and mixer routing stay. Undo restores the group.",
-    choices: [{ id: "remove", label: "Remove group" }],
+    title: message("Remove group: {name}?", { name }),
+    description: t("Its channels become ungrouped. All channels, notes and mixer routing stay. Undo restores the group."),
+    choices: [{ id: "remove", label: t("Remove group") }],
   })
   if (answer !== "remove" || generation !== getProjectGeneration()) return
   await dispatch({ type: "removeChannelGroup", name })
@@ -121,7 +122,7 @@ export function channelGroupItems(channel: ChannelId): ContextItem[] {
     }
   }
   return [
-    { title: "Ungrouped", checked: current === "", run: () => assign("") },
+    { ...dynamicTitle("Ungrouped", {}), checked: current === "", run: () => assign("") },
     ...channelGroups(project.channels).map((group) => ({ title: group, checked: group === current, run: () => assign(group) })),
     { separator: true }, "channelRack.createGroup", "channelRack.groups",
   ]

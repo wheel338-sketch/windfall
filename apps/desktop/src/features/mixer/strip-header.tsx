@@ -21,10 +21,11 @@ import { addEffectActionId } from "./effect-actions"
 import { useMixerUi } from "./mixer-ui"
 import { renameTrack, setTrackColor, startRename } from "./operations"
 import { RecordArm } from "./recording-input"
+import { translatedText as t } from "@/lib/i18n"
 
 /** The effects that can be added to the selected track. */
 const ADD_EFFECT: ContextItem = {
-  submenu: "Add effect",
+  get submenu() { return t("Add effect") },
   items: EFFECT_KINDS.map(addEffectActionId),
 }
 
@@ -111,7 +112,7 @@ function NameField({ id, name }: { id: TrackId; name: string }) {
     <input
       ref={field}
       defaultValue={name}
-      aria-label="Track name"
+      aria-label={t("Track name")}
       maxLength={64}
       spellCheck={false}
       className="h-4 min-w-0 flex-1 rounded-sm bg-background px-1 text-[11px] font-medium text-foreground ring-1 ring-ring outline-none"
@@ -142,7 +143,7 @@ function Swatches({ id, color }: { id: TrackId; color: number }) {
   return (
     <div
       role="group"
-      aria-label="Track color"
+      aria-label={t("Track color")}
       className="grid grid-cols-7 gap-1"
     >
       {TRACK_COLORS.map((swatch) => (
@@ -167,7 +168,7 @@ function Swatches({ id, color }: { id: TrackId; color: number }) {
 /** The bar in the track color along the top. Click it to pick another. */
 function ColorBar({ id, color }: { id: TrackId; color: number }) {
   const open = useMixerUi((state) => state.coloring === id)
-  const hint = useHint("Track color. Click to change it")
+  const hint = useHint(t("Track color. Click to change it"))
   return (
     <Popover
       open={open}
@@ -180,7 +181,7 @@ function ColorBar({ id, color }: { id: TrackId; color: number }) {
           <button
             type="button"
             tabIndex={-1}
-            aria-label="Change track color"
+            aria-label={t("Change track color")}
             data-slot="track-color"
             className="block h-1.5 w-full shrink-0 outline-none hover:brightness-125 focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-inset"
             style={{ backgroundColor: colorToCss(color) }}
@@ -220,7 +221,7 @@ export function StripHeader({
 }: StripHeaderProps) {
   const renaming = useMixerUi((state) => state.renaming === id)
   const hint = useHint(
-    "Double-click or press F2 to rename. Right-click for more"
+    t("Double-click or press F2 to rename. Right-click for more")
   )
 
   return (

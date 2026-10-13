@@ -5,6 +5,7 @@ import { useProjectStore } from "@/lib/store/project"
 import { onProjectReplaced } from "@/lib/store/replaced"
 
 import { currentSession } from "./session"
+import { translatedText as t } from "@/lib/i18n"
 
 export type NoteTool = NoteTransform["type"]
 export const NOTE_TOOLS: {
@@ -14,98 +15,84 @@ export const NOTE_TOOLS: {
 }[] = [
   {
     value: "quantize",
-    label: "Quantize",
-    description:
-      "Move starts or ends toward an original rhythmic grid. Lengths stay fixed when moving starts.",
+    get label() { return t("Quantize") },
+    get description() { return t("Move starts or ends toward an original rhythmic grid. Lengths stay fixed when moving starts.") },
   },
   {
     value: "legato",
-    label: "Legato",
-    description:
-      "Reach the next selected onset. Notes in the last chord keep their lengths.",
+    get label() { return t("Legato") },
+    get description() { return t("Reach the next selected onset. Notes in the last chord keep their lengths.") },
   },
   {
     value: "staccato",
-    label: "Staccato",
-    description:
-      "Shorten selected lengths by a percentage, keeping at least one tick.",
+    get label() { return t("Staccato") },
+    get description() { return t("Shorten selected lengths by a percentage, keeping at least one tick.") },
   },
   {
     value: "portamento",
-    label: "Portamento",
-    description:
-      "Tie each selected onset into the next and make every note after the first glide in from the one before. Slide notes stay slides.",
+    get label() { return t("Portamento") },
+    get description() { return t("Tie each selected onset into the next and make every note after the first glide in from the one before. Slide notes stay slides.") },
   },
   {
     value: "chop",
-    label: "Chop",
-    description:
-      "Split at grid lines from pattern tick zero. Keep any partial first and last pieces.",
+    get label() { return t("Chop") },
+    get description() { return t("Split at grid lines from pattern tick zero. Keep any partial first and last pieces.") },
   },
   {
     value: "chopPattern",
-    label: "Custom Chop",
-    description:
-      "Split on your repeating tick boundaries, keeping partial edges. Each step can change gate and velocity.",
+    get label() { return t("Custom Chop") },
+    get description() { return t("Split on your repeating tick boundaries, keeping partial edges. Each step can change gate and velocity.") },
   },
   {
     value: "arpeggiate",
-    label: "Arpeggiate",
-    description:
-      "Rewrite each exact-onset chord as repeated pitch-ordered hits. Every hit keeps its source voice's velocity and pan.",
+    get label() { return t("Arpeggiate") },
+    get description() { return t("Rewrite each exact-onset chord as repeated pitch-ordered hits. Every hit keeps its source voice's velocity and pan.") },
   },
   {
     value: "flam",
-    label: "Flam",
-    description:
-      "Add one short grace hit before or after every selected note. Original notes keep all their properties.",
+    get label() { return t("Flam") },
+    get description() { return t("Add one short grace hit before or after every selected note. Original notes keep all their properties.") },
   },
   {
     value: "rhythmReshape",
-    label: "Rhythm reshaper",
-    description:
-      "Remove, copy or shift notes in a chosen repeating onset cell. Other selected cells and unselected notes stay put.",
+    get label() { return t("Rhythm reshaper") },
+    get description() { return t("Remove, copy or shift notes in a chosen repeating onset cell. Other selected cells and unselected notes stay put.") },
   },
   {
     value: "glue",
-    label: "Glue",
-    description:
-      "Join touching or overlapping selected notes with the same pitch, velocity and pan.",
+    get label() { return t("Glue") },
+    get description() { return t("Join touching or overlapping selected notes with the same pitch, velocity and pan.") },
   },
   {
     value: "strum",
-    label: "Strum",
-    description:
-      "Spread each selected chord with exactly matching starts, ordered by pitch. Lengths stay fixed.",
+    get label() { return t("Strum") },
+    get description() { return t("Spread each selected chord with exactly matching starts, ordered by pitch. Lengths stay fixed.") },
   },
   {
     value: "flipTime",
-    label: "Flip time",
-    description: "Mirror starts and ends across the selection's time span.",
+    get label() { return t("Flip time") },
+    get description() { return t("Mirror starts and ends across the selection's time span.") },
   },
   {
     value: "flipPitch",
-    label: "Flip pitch",
-    description:
-      "Mirror pitches between the selection's lowest and highest keys.",
+    get label() { return t("Flip pitch") },
+    get description() { return t("Mirror pitches between the selection's lowest and highest keys.") },
   },
   {
     value: "keyRange",
-    label: "Limit / transpose",
-    description:
-      "Transpose then place pitches in the inclusive MIDI range. Octave folding keeps pitch class where possible; otherwise it clamps.",
+    get label() { return t("Limit / transpose") },
+    get description() { return t("Transpose then place pitches in the inclusive MIDI range. Octave folding keeps pitch class where possible; otherwise it clamps.") },
   },
   {
     value: "scaleVelocity",
-    label: "Scale velocities",
-    description:
-      "Multiply selected velocities. Results stay between zero and full velocity.",
+    get label() { return t("Scale velocities") },
+    get description() { return t("Multiply selected velocities. Results stay between zero and full velocity.") },
   },
 ]
 
 NOTE_TOOLS.push(
-  { value: "randomize", label: "Randomize / humanize", description: "Apply seeded pitch, velocity, pan, timing and length offsets to the selected notes. Expression and color groups stay with their source notes." },
-  { value: "generateRandom", label: "Generate random notes", description: "Replace the selection with seeded grid hits from a chord map within its time span. Generated notes inherit source pan, expression and color groups." },
+  { value: "randomize", get label() { return t("Randomize / humanize") }, get description() { return t("Apply seeded pitch, velocity, pan, timing and length offsets to the selected notes. Expression and color groups stay with their source notes.") } },
+  { value: "generateRandom", get label() { return t("Generate random notes") }, get description() { return t("Replace the selection with seeded grid hits from a chord map within its time span. Generated notes inherit source pan, expression and color groups.") } },
 )
 
 /** Semitone classes relative to the chosen root: 0,4,7 is a major triad. */

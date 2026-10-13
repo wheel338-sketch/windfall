@@ -27,24 +27,24 @@ import { confirmDiscardChanges } from "@/lib/flows/project"
 import { loadSnapshot } from "@/lib/store/project"
 import { useUiStore } from "@/lib/store/ui"
 import { fileName } from "@/lib/time"
+import { translatedText as t, message } from "@/lib/i18n"
 
 function Review({ preview }: { preview: FlpImportPreview }) {
   return (
-    <section aria-label="Import report" className="flex flex-col gap-3">
+    <section aria-label={t("Import report")} className="flex flex-col gap-3">
       <p>
         {preview.name} · FL Studio{" "}
-        {preview.report.flVersion ?? "unknown version"}
+        {preview.report.flVersion ?? t("unknown version")}
       </p>
       <p>
-        Unsupported sounds remain silent or bypassed. Retained plugin states are
-        saved with the converted project; mapped processors may sound different.
+        {t("Unsupported sounds remain silent or bypassed. Retained plugin states are saved with the converted project; mapped processors may sound different.")}
       </p>
       <div className="flex flex-wrap gap-2">
         <Badge variant="secondary">
-          {preview.missingSamples.length} missing samples
+          {preview.missingSamples.length}{" "}{t("missing samples")}
         </Badge>
         <Badge variant="secondary">
-          {preview.retainedPlugins} retained plugin states
+          {preview.retainedPlugins}{" "}{t("retained plugin states")}
         </Badge>
       </div>
       {preview.report.categories
@@ -63,8 +63,8 @@ function Review({ preview }: { preview: FlpImportPreview }) {
             >
               <span>{c.title}</span>
               <span>
-                {c.exact} exact · {c.approximated} approximate ·{" "}
-                {c.placeholders} placeholders · {c.dropped} omitted
+                {c.exact}{" "}{t("exact ·")}{" "}{c.approximated}{" "}{t("approximate ·")}{" "}
+                {c.placeholders}{" "}{t("placeholders ·")}{" "}{c.dropped}{" "}{t("omitted")}
               </span>
             </CollapsibleTrigger>
             <CollapsibleContent>
@@ -76,7 +76,7 @@ function Review({ preview }: { preview: FlpImportPreview }) {
                   </li>
                 ))}
                 {c.moreLines > 0 && (
-                  <li>{c.moreLines} additional details omitted.</li>
+                  <li>{c.moreLines}{" "}{t("additional details omitted.")}</li>
                 )}
               </ul>
             </CollapsibleContent>
@@ -84,7 +84,7 @@ function Review({ preview }: { preview: FlpImportPreview }) {
         ))}
       <Collapsible>
         <CollapsibleTrigger render={<Button variant="outline" />}>
-          Diagnostics and missing samples (
+          {t("Diagnostics and missing samples (")}
           {preview.warnings.length +
             preview.report.readProblems.length +
             preview.report.unknownEventIds.length}
@@ -102,7 +102,7 @@ function Review({ preview }: { preview: FlpImportPreview }) {
           </ul>
           {preview.report.unknownEventIds.length > 0 && (
             <p>
-              Unknown event ids: {preview.report.unknownEventIds.join(", ")}
+              {t("Unknown event ids:")}{" "}{preview.report.unknownEventIds.join(", ")}
             </p>
           )}
         </CollapsibleContent>
@@ -219,8 +219,8 @@ function ImportForm({
       const snapshot = await backend.flpOpen(preview.token)
       token.current = null
       loadSnapshot(snapshot)
-      toast.success("FL project imported", {
-        description: "Save as a Windfall project to keep the conversion.",
+      toast.success(t("FL project imported"), {
+        description: t("Save as a Windfall project to keep the conversion."),
       })
       onDone()
     } catch (e) {
@@ -233,38 +233,37 @@ function ImportForm({
     <>
       <FieldGroup>
         <Field>
-          <FieldLabel>FL project</FieldLabel>
+          <FieldLabel>{t("FL project")}</FieldLabel>
           <Button
             variant="outline"
             onClick={() => void choose()}
             disabled={busy}
           >
-            {path ? fileName(path) : "Choose FL project…"}
+            {path ? fileName(path) : t("Choose FL project…")}
           </Button>
           <FieldDescription>
-            The current project stays open while you review the import.
+            {t("The current project stays open while you review the import.")}
           </FieldDescription>
         </Field>
         <Collapsible>
           <CollapsibleTrigger
             render={<Button variant="ghost" disabled={busy} />}
           >
-            Sample folders (optional)
+            {t("Sample folders (optional)")}
           </CollapsibleTrigger>
           <CollapsibleContent>
             <FieldGroup className="pt-3">
               <Field>
-                <FieldLabel>Search folders</FieldLabel>
+                <FieldLabel>{t("Search folders")}</FieldLabel>
                 <FieldDescription>
-                  Only selected folders are searched. Ambiguous filenames stay
-                  unresolved.
+                  {t("Only selected folders are searched. Ambiguous filenames stay unresolved.")}
                 </FieldDescription>
                 <Button
                   variant="outline"
                   disabled={busy || options.sampleSearchFolders.length >= 32}
                   onClick={() => void folder("sampleSearchFolders")}
                 >
-                  Add sample search folder…
+                  {t("Add sample search folder…")}
                 </Button>
                 {options.sampleSearchFolders.map((folder) => (
                   <div key={folder} className="flex items-center gap-2">
@@ -274,44 +273,44 @@ function ImportForm({
                     <Button
                       variant="ghost"
                       disabled={busy}
-                      aria-label={`Remove ${fileName(folder)}`}
+                      aria-label={message("Remove {file}", { file: fileName(folder) })}
                       onClick={() => void removeFolder(folder)}
                     >
-                      Remove
+                      {t("Remove")}
                     </Button>
                   </div>
                 ))}
               </Field>
               <Field>
-                <FieldLabel>FL Studio folder</FieldLabel>
+                <FieldLabel>{t("FL Studio folder")}</FieldLabel>
                 <Button
                   variant="outline"
                   disabled={busy}
                   onClick={() => void folder("factoryDataDir")}
                 >
-                  {options.factoryDataDir ?? "Choose FL Studio folder…"}
+                  {options.factoryDataDir ?? t("Choose FL Studio folder…")}
                 </Button>
               </Field>
               <Field>
-                <FieldLabel>FL Studio user data folder</FieldLabel>
+                <FieldLabel>{t("FL Studio user data folder")}</FieldLabel>
                 <Button
                   variant="outline"
                   disabled={busy}
                   onClick={() => void folder("userDataDir")}
                 >
-                  {options.userDataDir ?? "Choose user data folder…"}
+                  {options.userDataDir ?? t("Choose user data folder…")}
                 </Button>
               </Field>
             </FieldGroup>
           </CollapsibleContent>
         </Collapsible>
       </FieldGroup>
-      {busy && <p role="status">Preparing import…</p>}
+      {busy && <p role="status">{t("Preparing import…")}</p>}
       {error && <p role="alert">{error}</p>}
       {preview && <Review preview={preview} />}
       <DialogFooter>
         <Button variant="outline" disabled={busy} onClick={onDone}>
-          Cancel
+          {t("Cancel")}
         </Button>
         {path && (
           <Button
@@ -319,11 +318,11 @@ function ImportForm({
             disabled={busy}
             onClick={() => void review(path)}
           >
-            Review again
+            {t("Review again")}
           </Button>
         )}
         <Button disabled={busy || !preview} onClick={() => void open()}>
-          Open converted project
+          {t("Open converted project")}
         </Button>
       </DialogFooter>
     </>
@@ -347,11 +346,9 @@ export function FlpImportDialog() {
     >
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Import FL Studio project</DialogTitle>
+          <DialogTitle>{t("Import FL Studio project")}</DialogTitle>
           <DialogDescription>
-            Bring notes and arrangement into Windfall. Missing samples and
-            unsupported sounds are reported; identical playback is not
-            guaranteed.
+            {t("Bring notes and arrangement into Windfall. Missing samples and unsupported sounds are reported; identical playback is not guaranteed.")}
           </DialogDescription>
         </DialogHeader>
         {open && <ImportForm onDone={close} onBusyChange={setBusy} />}

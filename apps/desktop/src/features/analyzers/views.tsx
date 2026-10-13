@@ -11,6 +11,7 @@ import {
   triggerOffset,
 } from "./math"
 import type { AnalyzerFrame, AnalyzerLevel } from "./types"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 /*
  * The views of the signal scope. Each draws one slot's analyzer frames and
@@ -99,7 +100,7 @@ export function Oscilloscope({
   return (
     <AnalyzerCanvas
       slot={slot}
-      label="Oscilloscope: the left channel above the right"
+      label={t("Oscilloscope: the left channel above the right")}
       paint={paint}
     />
   )
@@ -159,7 +160,7 @@ export function SpectrumCurve({ slot, floorDb }: ViewProps & { floorDb: number }
   return (
     <AnalyzerCanvas
       slot={slot}
-      label={`Spectrum, 20 Hz to 20 kHz, ${floorDb} to 0 decibels`}
+      label={message("Spectrum, 20 Hz to 20 kHz, {floorDb} to 0 decibels", { floorDb: plainNumber(floorDb) })}
       paint={paint}
     />
   )
@@ -216,7 +217,7 @@ export function Spectrogram({ slot, floorDb }: ViewProps & { floorDb: number }) 
   return (
     <AnalyzerCanvas
       slot={slot}
-      label="Spectrogram: low to high frequency left to right, newest at the bottom"
+      label={t("Spectrogram: low to high frequency left to right, newest at the bottom")}
       paint={paint}
       onFrame={onFrame}
       onClear={onClear}
@@ -258,7 +259,7 @@ export function Vectorscope({ slot }: ViewProps) {
   return (
     <AnalyzerCanvas
       slot={slot}
-      label="Vectorscope: mid upward, side across"
+      label={t("Vectorscope: mid upward, side across")}
       paint={paint}
     />
   )
@@ -270,9 +271,9 @@ const SIDES = ["Left", "Right"] as const
 type Held = { db: number; at: number }
 
 function describeLevel(level: AnalyzerLevel | undefined): string {
-  if (!level) return "No level"
-  if (!level.valid) return "Not a valid signal"
-  if (level.silent) return "Silent"
+  if (!level) return t("No level")
+  if (!level.valid) return t("Not a valid signal")
+  if (level.silent) return t("Silent")
   return formatDbfs(level.peakDb)
 }
 
@@ -362,7 +363,7 @@ export function PeakMeter({ slot, floorDb }: ViewProps & { floorDb: number }) {
     <div
       ref={root}
       role="group"
-      aria-label="Peak level"
+      aria-label={t("Peak level")}
       data-slot="scope-meter"
       className="group/meter flex h-full flex-col justify-center gap-3 rounded-md bg-display p-4"
     >
@@ -378,15 +379,15 @@ export function PeakMeter({ slot, floorDb }: ViewProps & { floorDb: number }) {
               data-part="readout"
               className="text-base text-display-foreground"
             >
-              No level
+              {t("No level")}
             </span>
           </div>
           <div
             role="meter"
-            aria-label={`${name} peak level`}
+            aria-label={message("{name} peak level", { name })}
             aria-valuemin={floorDb}
             aria-valuemax={0}
-            aria-valuetext="No level"
+            aria-valuetext={t("No level")}
             className="relative h-4 overflow-hidden rounded-sm bg-(--wf-meter-bg)"
           >
             <span
@@ -410,14 +411,14 @@ export function PeakMeter({ slot, floorDb }: ViewProps & { floorDb: number }) {
       <button
         type="button"
         data-slot="scope-clip"
-        aria-label="Clip light. Click to clear it"
+        aria-label={t("Clip light. Click to clear it")}
         onClick={() => {
           clipped.current = false
           root.current?.removeAttribute("data-clipped")
         }}
         className="self-end rounded-sm px-2 py-0.5 font-readout text-[10px] text-display-dim ring-1 ring-(--wf-grid-line-strong) outline-none group-data-clipped/meter:bg-(--wf-meter-high) group-data-clipped/meter:text-background focus-visible:ring-2 focus-visible:ring-ring"
       >
-        Clip
+        {t("Clip")}
       </button>
     </div>
   )

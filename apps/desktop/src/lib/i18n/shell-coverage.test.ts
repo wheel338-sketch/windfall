@@ -29,7 +29,7 @@ describe("migrated shell localization boundaries", () => {
     expect(nativeDialogs.match(/\b(?:title|name): "[A-Za-z][^"]*"/g)).toBeNull()
   })
   it("all static builtin command names are translated and recent project names remain authored text", () => {
-    const names = [...builtin.matchAll(/id: "([^"]+)",\s*title: "([^"]+)"/g)]
+    const names = [...builtin.matchAll(/id: "([^"]+)",\s*\.\.\.dynamicTitle\("([^"]+)", \{\}\)/g)]
     expect(names.length).toBeGreaterThan(30)
     for (const [, id, title] of names) {
       expect(actionMessages[id], `missing action key: ${id}`).toBeDefined()

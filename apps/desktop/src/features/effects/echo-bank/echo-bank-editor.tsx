@@ -24,6 +24,7 @@ import {
   type RoutingEdit,
   type UnitRouting,
 } from "./chain"
+import { message, plainNumber, translatedText as t } from "@/lib/i18n"
 
 type EchoBankParams = Extract<EffectParams, { type: "echoBank" }>
 
@@ -63,7 +64,7 @@ function UnitTile({ unit, selected, routing, bind, onSelect }: UnitTileProps) {
   const takesInput = routing.inputGain !== 0
   const plays = routing.outputGain !== 0
   const hint = useHint(
-    `Unit ${unit + 1}: ${routing.enabled ? time : "off"}. ${takesInput ? "Takes the bank's input" : "Fed only by the unit before it"}, ${plays ? "heard at the output" : "not heard itself"}. Click to edit it`
+    message("Unit {unit}: {enabled}. {takesInput}, {plays}. Click to edit it", { unit: plainNumber(unit + 1), enabled: routing.enabled ? time : t("off"), takesInput: takesInput ? t("Takes the bank's input") : t("Fed only by the unit before it"), plays: plays ? t("heard at the output") : t("not heard itself") })
   )
   return (
     <div
@@ -88,7 +89,7 @@ function UnitTile({ unit, selected, routing, bind, onSelect }: UnitTileProps) {
         type="button"
         role="radio"
         aria-checked={selected}
-        aria-label={`Edit unit ${unit + 1}`}
+        aria-label={message("Edit unit {unit}", { unit: plainNumber(unit + 1) })}
         tabIndex={selected ? 0 : -1}
         data-unit-select={unit}
         onClick={() => onSelect(unit)}
@@ -106,8 +107,8 @@ function UnitTile({ unit, selected, routing, bind, onSelect }: UnitTileProps) {
           {time}
         </span>
         <span aria-hidden className="flex gap-1 text-[8px] text-muted-foreground">
-          <span className={cn(!takesInput && "opacity-25")}>IN</span>
-          <span className={cn(!plays && "opacity-25")}>OUT</span>
+          <span className={cn(!takesInput && "opacity-25")}>{t("IN")}</span>
+          <span className={cn(!plays && "opacity-25")}>{t("OUT")}</span>
         </span>
       </button>
     </div>
@@ -150,7 +151,7 @@ function UnitChain({ selected, onSelect, bind }: UnitChainProps) {
   return (
     <div
       role="radiogroup"
-      aria-label="Unit to edit"
+      aria-label={t("Unit to edit")}
       data-slot="echo-chain"
       onKeyDown={onKeyDown}
       className="flex min-w-0 items-end gap-1 overflow-x-auto pb-1"
@@ -264,7 +265,7 @@ function UnitPanel({ unit, bind }: UnitPanelProps) {
   return (
     <div
       role="group"
-      aria-label={`Unit ${number}`}
+      aria-label={message("Unit {number}", { number: plainNumber(number) })}
       data-slot="echo-unit-panel"
       data-unit={unit}
       className="grid grid-cols-[repeat(auto-fit,minmax(11.5rem,1fr))] items-start gap-2"
@@ -354,7 +355,7 @@ function UnitPanel({ unit, bind }: UnitPanelProps) {
         </ParamRow>
       </ParamGroup>
       <FilterGroup
-        title="Filter"
+        title={t("Filter")}
         field="filter"
         unit={unit}
         bind={bind}
@@ -369,7 +370,7 @@ function UnitPanel({ unit, bind }: UnitPanelProps) {
         }
       />
       <FilterGroup
-        title="Repeat filter"
+        title={t("Repeat filter")}
         field="feedbackFilter"
         unit={unit}
         bind={bind}
@@ -403,7 +404,7 @@ export function EchoBankEditor({ bind }: EditorProps<EchoBankParams>) {
     <div
       data-slot="echo-bank-editor"
       role="group"
-      aria-label="Echo bank settings"
+      aria-label={t("Echo bank settings")}
       className="flex min-w-0 flex-col gap-2"
     >
       <ParamGroup
@@ -414,7 +415,7 @@ export function EchoBankEditor({ bind }: EditorProps<EchoBankParams>) {
               data-slot="echo-chain-summary"
               className="truncate font-readout text-[10px] text-muted-foreground"
             >
-              <span className="sr-only">Routing: </span>
+              <span className="sr-only">{t("Routing:")}{" "}</span>
               {chainSummary(units)}
             </span>
             <Button
@@ -424,7 +425,7 @@ export function EchoBankEditor({ bind }: EditorProps<EchoBankParams>) {
               disabled={bind.disabled}
               onClick={() => apply(serialEdits(units))}
             >
-              Series
+              {t("Series")}
             </Button>
             <Button
               type="button"
@@ -433,7 +434,7 @@ export function EchoBankEditor({ bind }: EditorProps<EchoBankParams>) {
               disabled={bind.disabled}
               onClick={() => apply(parallelEdits(units))}
             >
-              Parallel
+              {t("Parallel")}
             </Button>
           </div>
         }

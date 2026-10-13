@@ -49,6 +49,7 @@ import { nextTrackHeightPreset } from "./track-height-preset-step"
 import { nextTrackHeight, TRACK_HEIGHT_PRESETS } from "./track-height-presets"
 import { nextTrackHeightScale } from "./track-height-scale"
 import { trackRowsNow, useTrackRows } from "./track-rows"
+import { message, translatedText as t, dynamicTitle, plainNumber } from "@/lib/i18n"
 
 /** A header's menu acts on the target track; a press on the header sets it. */
 const TRACK_MENU: ContextItem[] = [
@@ -86,7 +87,7 @@ function NameField({
   return (
     <input
       autoFocus
-      aria-label={`Name of ${track.name}`}
+      aria-label={message("Name of {trackName}", { trackName: track.name })}
       value={text}
       maxLength={64}
       onChange={(event) => setText(event.target.value)}
@@ -146,19 +147,38 @@ const TrackHeader = memo(function TrackHeader({
     usePlaylistStore.getState().setTrackHeight(track.id, saved?.height ?? 0)
   }, [track.id])
   useEffect(() => cancelResize, [cancelResize])
-  const resizeHint = useHint(`Drag to resize ${track.name}`)
+  const resizeHint = useHint(message("Drag to resize {trackName}", { trackName: track.name }))
   const linkLabel = useProjectStore(({ project }) =>
     trackLinkLabel(project, track.id)
   )
   const setTargetTrack = usePlaylistStore((state) => state.setTargetTrack)
   const hint = useHint(
-    `${track.name}${track.muted ? ", muted" : ""}${track.solo ? ", solo" : ""}. Drag up or down to reorder, double-click the name to rename, right-click for more`
+    message(
+      track.muted && track.solo
+        ? "{trackName}, muted, solo. Drag up or down to reorder, double-click the name to rename, right-click for more"
+        : track.muted
+          ? "{trackName}, muted. Drag up or down to reorder, double-click the name to rename, right-click for more"
+          : track.solo
+            ? "{trackName}, solo. Drag up or down to reorder, double-click the name to rename, right-click for more"
+            : "{trackName}. Drag up or down to reorder, double-click the name to rename, right-click for more",
+      { trackName: track.name }
+    )
   )
   const lampHint = useHint(
-    `${track.name} is ${track.muted ? "muted" : "on"}. Click to ${track.muted ? "unmute" : "mute"} every clip on it`
+    message(
+      track.muted
+        ? "{trackName} is muted. Click to unmute every clip on it"
+        : "{trackName} is on. Click to mute every clip on it",
+      { trackName: track.name }
+    )
   )
   const soloHint = useHint(
-    `${track.name} is ${track.solo ? "solo" : "not solo"}. Click to ${track.solo ? "unsolo" : "solo"} this track. Mute still wins`
+    message(
+      track.solo
+        ? "{trackName} is solo. Click to unsolo this track. Mute still wins"
+        : "{trackName} is not solo. Click to solo this track. Mute still wins",
+      { trackName: track.name }
+    )
   )
   const compact = height < 22
 
@@ -169,10 +189,10 @@ const TrackHeader = memo(function TrackHeader({
         contextSeparator,
         linkMenu(track.id),
         {
-          submenu: "Color",
+          submenu: t("Color"),
           items: [
             {
-              title: "No color",
+              ...dynamicTitle("No color", {}),
               checked: !track.color,
               run: () => setTrackColor(track.id, 0),
             },
@@ -184,7 +204,7 @@ const TrackHeader = memo(function TrackHeader({
           ],
         },
         {
-          submenu: "Track height",
+          submenu: t("Track height"),
           items: [
             ...TRACK_HEIGHT_PRESETS.map(({ label, height: preset }) => {
               const height = nextTrackHeight(track.height ?? 0, preset)
@@ -205,7 +225,7 @@ const TrackHeader = memo(function TrackHeader({
               }
             }),
             {
-              title: "Previous preset",
+              ...dynamicTitle("Previous preset", {}),
               disabled:
                 nextTrackHeightPreset(track.height ?? 0, "previous") === null,
               run: () => {
@@ -222,7 +242,7 @@ const TrackHeader = memo(function TrackHeader({
               },
             },
             {
-              title: "Next preset",
+              ...dynamicTitle("Next preset", {}),
               disabled:
                 nextTrackHeightPreset(track.height ?? 0, "next") === null,
               run: () => {
@@ -239,7 +259,7 @@ const TrackHeader = memo(function TrackHeader({
               },
             },
             {
-              title: "Half",
+              ...dynamicTitle("Half", {}),
               disabled: nextTrackHeightScale(track.height ?? 0, "half") === null,
               run: () => {
                 const saved = useProjectStore
@@ -256,7 +276,7 @@ const TrackHeader = memo(function TrackHeader({
               },
             },
             {
-              title: "Double",
+              ...dynamicTitle("Double", {}),
               disabled: nextTrackHeightScale(track.height ?? 0, "double") === null,
               run: () => {
                 const saved = useProjectStore
@@ -315,7 +335,7 @@ const TrackHeader = memo(function TrackHeader({
           size={compact ? "sm" : "md"}
           pressed={!track.muted}
           color="var(--wf-meter-low)"
-          aria-label={`${track.name} on`}
+          aria-label={message("{trackName} on", { trackName: track.name })}
           onPressedChange={() => void toggleTrackMute(track.id)}
           {...lampHint}
         />
@@ -323,7 +343,7 @@ const TrackHeader = memo(function TrackHeader({
           size={compact ? "sm" : "md"}
           pressed={track.solo ?? false}
           color="var(--wf-solo, var(--wf-meter-low))"
-          aria-label={`Solo ${track.name}`}
+          aria-label={message("Solo {trackName}", { trackName: track.name })}
           onPressedChange={() => void toggleTrackSolo(track.id)}
           {...soloHint}
         >
@@ -341,7 +361,7 @@ const TrackHeader = memo(function TrackHeader({
           >
             {track.name}
             {track.solo && (
-              <span className="text-muted-foreground"> · Solo</span>
+              <span className="text-muted-foreground">{" "}{t("· Solo")}</span>
             )}
             {linkLabel !== null && (
               <span title={linkLabel} className="text-muted-foreground">
@@ -352,7 +372,7 @@ const TrackHeader = memo(function TrackHeader({
           </span>
         )}
         <div
-          aria-label={`Resize ${track.name}`}
+          aria-label={message("Resize {trackName}", { trackName: track.name })}
           data-slot="track-resize-handle"
           className="absolute inset-x-0 bottom-0 z-10 h-1 cursor-row-resize touch-none"
           onPointerDown={(event) => {
@@ -446,7 +466,7 @@ const GroupHeader = memo(function GroupHeader({
     >
       <button
         type="button"
-        aria-label={`${collapsed ? "Expand" : "Collapse"} ${group.name}`}
+        aria-label={message(collapsed ? "Expand {groupName}" : "Collapse {groupName}", { groupName: group.name })}
         aria-expanded={!collapsed}
         onClick={() => toggleCollapse(group.id)}
         className="w-5 shrink-0 rounded-sm text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
@@ -459,7 +479,7 @@ const GroupHeader = memo(function GroupHeader({
         pressed={on}
         disabled={members.length === 0}
         color="var(--wf-meter-low)"
-        aria-label={`${on ? "Mute" : "Unmute"} ${group.name} tracks`}
+        aria-label={message(on ? "Mute {groupName} tracks" : "Unmute {groupName} tracks", { groupName: group.name })}
         onPressedChange={() => void toggleGroupMute(group.id)}
       />
       <ToggleLed
@@ -467,7 +487,7 @@ const GroupHeader = memo(function GroupHeader({
         pressed={solo}
         disabled={members.length === 0}
         color="var(--wf-solo, var(--wf-meter-low))"
-        aria-label={`Solo ${group.name}`}
+        aria-label={message("Solo {groupName}", { groupName: group.name })}
         onPressedChange={() => void toggleGroupSolo(group.id)}
       >
         S
@@ -513,7 +533,7 @@ const SpareHeader = memo(function SpareHeader({
   height: number
 }) {
   const hint = useHint(
-    `No track here yet. Place a clip on this row and track ${row + 1} is added for it`
+    message("No track here yet. Place a clip on this row and track {row} is added for it", { row: plainNumber(row + 1) })
   )
   return (
     <ContextActions items={SPARE_MENU}>
@@ -538,7 +558,7 @@ const SpareHeader = memo(function SpareHeader({
 export function TrackCorner() {
   return (
     <div className="flex items-center border-r border-b bg-chassis/30 pr-0.5 pl-2 text-muted-foreground">
-      <span className="flex-1 text-[0.6875rem] font-medium">Tracks</span>
+      <span className="flex-1 text-[0.6875rem] font-medium">{t("Tracks")}</span>
       <ActionButton
         action="playlist.addTrack"
         variant="ghost"
@@ -716,7 +736,7 @@ export function TrackHeaders({ metrics }: { metrics: GridMetrics }) {
     <div
       ref={rootRef}
       role="group"
-      aria-label="Tracks"
+      aria-label={t("Tracks")}
       className="relative overflow-hidden border-r bg-chassis/20"
       style={{ width: HEADER_WIDTH }}
     >

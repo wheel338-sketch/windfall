@@ -13,11 +13,12 @@ import { songTick } from "../ops"
 import { useAudioClipCounts } from "../selectors"
 import { usePlaylistStore } from "../store"
 import { placeSampleClips } from "./ops"
+import { translatedText as t, message, plainNumber, dynamicTitle } from "@/lib/i18n"
 
 function used(clips: number): string {
   return clips === 0
-    ? "not on the timeline yet"
-    : `on the timeline ${clips === 1 ? "once" : `${clips} times`}`
+    ? t("not on the timeline yet")
+    : `on the timeline ${clips === 1 ? "once" : message("{clips} times", { clips: plainNumber(clips) })}`
 }
 
 /** Puts a clip of the sample at the song position, on a new track. */
@@ -62,14 +63,14 @@ const SampleRow = memo(function SampleRow({
   const setBrush = usePlaylistStore((state) => state.setBrush)
   const hint = useHint(
     selected
-      ? `${sample.name} is what Draw and Paint place, as an audio clip. It is ${used(clips)}`
-      : `Click to place ${sample.name} as an audio clip with Draw and Paint. It is ${used(clips)}`
+      ? message("{sampleName} is what Draw and Paint place, as an audio clip. It is {used}", { sampleName: sample.name, used: used(clips) })
+      : message("Click to place {sampleName} as an audio clip with Draw and Paint. It is {used}", { sampleName: sample.name, used: used(clips) })
   )
   const pick = () => setBrush({ type: "audio", sample: sample.id })
   const menu: ContextItem[] = [
-    { title: "Place with Draw and Paint", checked: selected, run: pick },
+    { ...dynamicTitle("Place with Draw and Paint", {}), checked: selected, run: pick },
     {
-      title: "Add to playlist at the song position",
+      ...dynamicTitle("Add to playlist at the song position", {}),
       run: () => addAtSongPosition(sample),
     },
   ]
@@ -115,15 +116,15 @@ export function AudioSection() {
   const visibleSamples = samples.filter((sample) => matchingIds.has(sample.id))
 
   return (
-    <PickerSection title="Audio">
+    <PickerSection title={t("Audio")}>
       {samples.length === 0 ? (
         <PickerEmpty>
-          Drag a sound from the browser onto the timeline to make an audio clip.
+          {t("Drag a sound from the browser onto the timeline to make an audio clip.")}
         </PickerEmpty>
       ) : (
-        <div role="group" aria-label="Sound to place" className="flex flex-col">
+        <div role="group" aria-label={t("Sound to place")} className="flex flex-col">
           <label className="flex flex-col gap-1 px-2 py-1 text-[0.6875rem] text-muted-foreground">
-            Filter sounds
+            {t("Filter sounds")}
             <input
               type="text"
               value={query}
@@ -135,7 +136,7 @@ export function AudioSection() {
             />
           </label>
           {visibleSamples.length === 0 && (
-            <PickerEmpty>No sounds match.</PickerEmpty>
+            <PickerEmpty>{t("No sounds match.")}</PickerEmpty>
           )}
           {visibleSamples.map((sample) => (
             <SampleRow

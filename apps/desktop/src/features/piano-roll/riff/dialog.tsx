@@ -67,21 +67,17 @@ import type { RiffResult } from "./pipeline"
 import { RiffPreview } from "./preview"
 import { MAX_RIFF_SEED } from "./rng"
 import { CUSTOM_PRESET, degreeNumeral, RIFF_PRESETS } from "./theory"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 const STAGE_HELP: Record<RiffStageId, string> = {
-  progression:
-    "Block chords from scale degrees. Every later stage works on these notes.",
-  chords:
-    "Voices each chord: which note is lowest, how far the notes spread, and an optional bass note.",
-  arpeggio:
-    "Plays each chord one note at a time. Switched off, chords stay as blocks.",
-  mirror: "Turns pitches upside down, or plays each chord backwards.",
-  levels:
-    "Sets velocity, pan and per-note expression. Switched off, notes keep the draw velocity.",
-  articulation: "Changes how long notes are held.",
-  groove:
-    "Moves note starts. Swing needs the arpeggio; no note leaves its chord.",
-  fit: "Keeps every note inside a key range and on the scale. MIDI 0–127 and the note limit always apply.",
+  get progression() { return t("Block chords from scale degrees. Every later stage works on these notes.") },
+  get chords() { return t("Voices each chord: which note is lowest, how far the notes spread, and an optional bass note.") },
+  get arpeggio() { return t("Plays each chord one note at a time. Switched off, chords stay as blocks.") },
+  get mirror() { return t("Turns pitches upside down, or plays each chord backwards.") },
+  get levels() { return t("Sets velocity, pan and per-note expression. Switched off, notes keep the draw velocity.") },
+  get articulation() { return t("Changes how long notes are held.") },
+  get groove() { return t("Moves note starts. Swing needs the arpeggio; no note leaves its chord.") },
+  get fit() { return t("Keeps every note inside a key range and on the scale. MIDI 0–127 and the note limit always apply.") },
 }
 
 const GRID = "grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3"
@@ -274,7 +270,7 @@ function RiffForm({ request }: { request: RiffRequest }) {
     error =
       cause instanceof RiffError
         ? { stage: cause.stage, message: cause.message }
-        : { stage: null, message: "Check the riff settings." }
+        : { stage: null, message: t("Check the riff settings.") }
   }
 
   /** Any change stops the audition: it would no longer match the preview. */
@@ -313,7 +309,7 @@ function RiffForm({ request }: { request: RiffRequest }) {
         )
         .join("–")}`,
     })),
-    { value: CUSTOM_PRESET, label: "Custom degrees…" },
+    { value: CUSTOM_PRESET, label: t("Custom degrees…") },
   ]
 
   function panel(stageId: RiffStageId, fields: (off: boolean) => ReactNode) {
@@ -325,7 +321,7 @@ function RiffForm({ request }: { request: RiffRequest }) {
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           {stageId !== "progression" ? (
             <Flag
-              label={`${info.label} stage`}
+              label={message("{infoLabel} stage", { infoLabel: info.label })}
               checked={on}
               set={(enabled) =>
                 change((previous) => ({
@@ -336,14 +332,14 @@ function RiffForm({ request }: { request: RiffRequest }) {
               disabled={pending}
             />
           ) : (
-            <span className="font-medium">Always runs</span>
+            <span className="font-medium">{t("Always runs")}</span>
           )}
           <span className="text-muted-foreground">
             {!on
-              ? "Skipped"
+              ? t("Skipped")
               : count === null
                 ? ""
-                : `${count} ${count === 1 ? "note" : "notes"} out`}
+                : message("{count} {count2} out", { count: plainNumber(count), count2: count === 1 ? t("note") : t("notes") })}
           </span>
           <Button
             type="button"
@@ -361,7 +357,7 @@ function RiffForm({ request }: { request: RiffRequest }) {
               )
             }
           >
-            Reset stage
+            {t("Reset stage")}
           </Button>
         </div>
         <p className="text-muted-foreground">{STAGE_HELP[stageId]}</p>
@@ -402,10 +398,9 @@ function RiffForm({ request }: { request: RiffRequest }) {
           }}
         >
           <DialogHeader>
-            <DialogTitle>Generate riff</DialogTitle>
+            <DialogTitle>{t("Generate riff")}</DialogTitle>
             <DialogDescription>
-              Build a phrase in eight stages. Each stage reshapes the notes of
-              the one before it. Nothing is written until you apply.
+              {t("Build a phrase in eight stages. Each stage reshapes the notes of the one before it. Nothing is written until you apply.")}
             </DialogDescription>
           </DialogHeader>
 
@@ -415,14 +410,14 @@ function RiffForm({ request }: { request: RiffRequest }) {
               <>
                 <p role="status">
                   {result.notes.length}{" "}
-                  {result.notes.length === 1 ? "note" : "notes"} ·{" "}
-                  {progression.bars} {progression.bars === 1 ? "bar" : "bars"}{" "}
-                  of {result.context.barTicks} ticks from tick {result.start} ·{" "}
-                  {noteName(Math.min(...keys))} to{" "}
-                  {noteName(Math.max(...keys))} · one undo step
+                  {result.notes.length === 1 ? t("note") : t("notes")} ·{" "}
+                  {progression.bars} {progression.bars === 1 ? t("bar") : t("bars")}{" "}
+                  {t("of")}{" "}{result.context.barTicks}{" "}{t("ticks from tick")}{" "}{result.start} ·{" "}
+                  {noteName(Math.min(...keys))}{" "}{t("to")}{" "}
+                  {noteName(Math.max(...keys))}{" "}{t("· one undo step")}
                 </p>
                 <p className="truncate text-muted-foreground">
-                  Chords: {result.chords.slice(0, 16).join(" – ")}
+                  {t("Chords:")}{" "}{result.chords.slice(0, 16).join(" – ")}
                   {result.chords.length > 16 ? " …" : ""}
                 </p>
               </>
@@ -434,7 +429,7 @@ function RiffForm({ request }: { request: RiffRequest }) {
             value={tab}
             onValueChange={(value) => setTab(value as RiffStageId)}
           >
-            <TabsList className="w-full" aria-label="Stages">
+            <TabsList className="w-full" aria-label={t("Stages")}>
               {RIFF_STAGES.map((item, index) => {
                 const on =
                   item.id === "progression" || settings[item.id].enabled
@@ -449,7 +444,7 @@ function RiffForm({ request }: { request: RiffRequest }) {
                       {index + 1}
                     </span>
                     {item.label}
-                    {!on && <span className="sr-only"> (off)</span>}
+                    {!on && <span className="sr-only">{" "}{t("(off)")}</span>}
                   </TabsTrigger>
                 )
               })}
@@ -458,21 +453,21 @@ function RiffForm({ request }: { request: RiffRequest }) {
             {panel("progression", (off) => (
               <>
                 <Dropdown
-                  label="Key"
+                  label={t("Key")}
                   value={progression.root}
                   set={(root) => stage("progression", { root })}
                   items={ROOT_NAMES.map((label, value) => ({ label, value }))}
                   disabled={off}
                 />
                 <Dropdown
-                  label="Scale"
+                  label={t("Scale")}
                   value={progression.scale}
                   set={(scale) => stage("progression", { scale })}
                   items={RIFF_SCALES}
                   disabled={off}
                 />
                 <Dropdown
-                  label="Chord progression"
+                  label={t("Chord progression")}
                   value={progression.preset}
                   set={(preset) => stage("progression", { preset })}
                   items={presets}
@@ -485,7 +480,7 @@ function RiffForm({ request }: { request: RiffRequest }) {
                     data-disabled={off}
                   >
                     <FieldLabel htmlFor={`${id}-custom`}>
-                      Custom degrees
+                      {t("Custom degrees")}
                     </FieldLabel>
                     <Input
                       id={`${id}-custom`}
@@ -498,28 +493,26 @@ function RiffForm({ request }: { request: RiffRequest }) {
                       }
                     />
                     <FieldDescription>
-                      Roman numerals or 1–7, separated by spaces, commas or
-                      dashes. Each chord's quality comes from the scale; add 7
-                      or 9 to a numeral for a larger chord.
+                      {t("Roman numerals or 1–7, separated by spaces, commas or dashes. Each chord's quality comes from the scale; add 7 or 9 to a numeral for a larger chord.")}
                     </FieldDescription>
                   </Field>
                 )}
                 <Choices
-                  label="Chord size"
+                  label={t("Chord size")}
                   value={progression.chordSize}
                   set={(chordSize) => stage("progression", { chordSize })}
                   items={RIFF_CHORD_SIZES}
                   disabled={off}
                 />
                 <Choices
-                  label="Each chord lasts"
+                  label={t("Each chord lasts")}
                   value={progression.barsPerChord}
                   set={(barsPerChord) => stage("progression", { barsPerChord })}
                   items={RIFF_BARS_PER_CHORD}
                   disabled={off}
                 />
                 <Num
-                  label="Length (bars)"
+                  label={t("Length (bars)")}
                   value={progression.bars}
                   set={(bars) => stage("progression", { bars })}
                   min={1}
@@ -527,7 +520,7 @@ function RiffForm({ request }: { request: RiffRequest }) {
                   disabled={off}
                 />
                 <Num
-                  label="Octave"
+                  label={t("Octave")}
                   value={progression.octave}
                   set={(octave) => stage("progression", { octave })}
                   min={1}
@@ -535,13 +528,13 @@ function RiffForm({ request }: { request: RiffRequest }) {
                   disabled={off}
                 />
                 <Num
-                  label="Variation (%)"
+                  label={t("Variation (%)")}
                   value={progression.variation}
                   set={(variation) => stage("progression", { variation })}
                   min={0}
                   max={100}
                   disabled={off}
-                  help="Chance that a chord after the first is swapped for one a third away."
+                  help={t("Chance that a chord after the first is swapped for one a third away.")}
                 />
               </>
             ))}
@@ -549,35 +542,35 @@ function RiffForm({ request }: { request: RiffRequest }) {
             {panel("chords", (off) => (
               <>
                 <Choices
-                  label="Inversion"
+                  label={t("Inversion")}
                   value={chords.inversion}
                   set={(inversion) => stage("chords", { inversion })}
                   items={RIFF_INVERSIONS}
                   disabled={off}
-                  help="Smooth picks, for each chord, the inversion nearest the chord before it."
+                  help={t("Smooth picks, for each chord, the inversion nearest the chord before it.")}
                 />
                 <Choices
-                  label="Spread"
+                  label={t("Spread")}
                   value={chords.spread}
                   set={(spread) => stage("chords", { spread })}
                   items={RIFF_SPREADS}
                   disabled={off}
                 />
                 <Choices
-                  label="Bass note"
+                  label={t("Bass note")}
                   value={chords.bass}
                   set={(bass) => stage("chords", { bass })}
                   items={RIFF_BASS}
                   disabled={off}
                 />
                 <Num
-                  label="Strum (ticks)"
+                  label={t("Strum (ticks)")}
                   value={chords.strum}
                   set={(strum) => stage("chords", { strum })}
                   min={-480}
                   max={480}
                   disabled={off}
-                  help="Delay between chord notes. Negative strums downward."
+                  help={t("Delay between chord notes. Negative strums downward.")}
                 />
               </>
             ))}
@@ -585,21 +578,21 @@ function RiffForm({ request }: { request: RiffRequest }) {
             {panel("arpeggio", (off) => (
               <>
                 <Choices
-                  label="Pattern"
+                  label={t("Pattern")}
                   value={arpeggio.pattern}
                   set={(pattern) => stage("arpeggio", { pattern })}
                   items={RIFF_ARP_PATTERNS}
                   disabled={off}
                 />
                 <Choices
-                  label="Rate"
+                  label={t("Rate")}
                   value={arpeggio.rate}
                   set={(rate) => stage("arpeggio", { rate })}
                   items={RIFF_ARP_RATES}
                   disabled={off}
                 />
                 <Num
-                  label="Octave range"
+                  label={t("Octave range")}
                   value={arpeggio.octaves}
                   set={(octaves) => stage("arpeggio", { octaves })}
                   min={1}
@@ -607,7 +600,7 @@ function RiffForm({ request }: { request: RiffRequest }) {
                   disabled={off}
                 />
                 <Num
-                  label="Gate (%)"
+                  label={t("Gate (%)")}
                   value={arpeggio.gate}
                   set={(gate) => stage("arpeggio", { gate })}
                   min={1}
@@ -615,7 +608,7 @@ function RiffForm({ request }: { request: RiffRequest }) {
                   disabled={off}
                 />
                 <Flag
-                  label="Restart at each chord"
+                  label={t("Restart at each chord")}
                   checked={arpeggio.restart}
                   set={(restart) => stage("arpeggio", { restart })}
                   disabled={off}
@@ -626,14 +619,14 @@ function RiffForm({ request }: { request: RiffRequest }) {
             {panel("mirror", (off) => (
               <>
                 <Choices
-                  label="Flip pitch"
+                  label={t("Flip pitch")}
                   value={mirror.invert}
                   set={(invert) => stage("mirror", { invert })}
                   items={RIFF_INVERTS}
                   disabled={off}
                 />
                 <Num
-                  label="Mirror key (MIDI)"
+                  label={t("Mirror key (MIDI)")}
                   value={mirror.axis}
                   set={(axis) => stage("mirror", { axis })}
                   min={0}
@@ -641,13 +634,13 @@ function RiffForm({ request }: { request: RiffRequest }) {
                   disabled={off || mirror.invert !== "key"}
                 />
                 <Flag
-                  label="Keep flipped notes in the scale"
+                  label={t("Keep flipped notes in the scale")}
                   checked={mirror.keepInScale}
                   set={(keepInScale) => stage("mirror", { keepInScale })}
                   disabled={off || mirror.invert === "off"}
                 />
                 <Flag
-                  label="Reverse each chord in time"
+                  label={t("Reverse each chord in time")}
                   checked={mirror.reverse}
                   set={(reverse) => stage("mirror", { reverse })}
                   disabled={off}
@@ -658,7 +651,7 @@ function RiffForm({ request }: { request: RiffRequest }) {
             {panel("levels", (off) => (
               <>
                 <Num
-                  label="Velocity (%)"
+                  label={t("Velocity (%)")}
                   value={levels.base}
                   set={(base) => stage("levels", { base })}
                   min={0}
@@ -666,16 +659,16 @@ function RiffForm({ request }: { request: RiffRequest }) {
                   disabled={off}
                 />
                 <Num
-                  label="Accent every (steps)"
+                  label={t("Accent every (steps)")}
                   value={levels.accentEvery}
                   set={(accentEvery) => stage("levels", { accentEvery })}
                   min={0}
                   max={16}
                   disabled={off}
-                  help="0 turns the accent off."
+                  help={t("0 turns the accent off.")}
                 />
                 <Num
-                  label="Accent amount (± points)"
+                  label={t("Accent amount (± points)")}
                   value={levels.accentAmount}
                   set={(accentAmount) => stage("levels", { accentAmount })}
                   min={-100}
@@ -683,7 +676,7 @@ function RiffForm({ request }: { request: RiffRequest }) {
                   disabled={off}
                 />
                 <Num
-                  label="Random velocity (± points)"
+                  label={t("Random velocity (± points)")}
                   value={levels.random}
                   set={(random) => stage("levels", { random })}
                   min={0}
@@ -691,23 +684,23 @@ function RiffForm({ request }: { request: RiffRequest }) {
                   disabled={off}
                 />
                 <Num
-                  label="Ramp (points)"
+                  label={t("Ramp (points)")}
                   value={levels.ramp}
                   set={(ramp) => stage("levels", { ramp })}
                   min={-100}
                   max={100}
                   disabled={off}
-                  help="Positive grows louder across the phrase, negative quieter."
+                  help={t("Positive grows louder across the phrase, negative quieter.")}
                 />
                 <Choices
-                  label="Pan"
+                  label={t("Pan")}
                   value={levels.panMode}
                   set={(panMode) => stage("levels", { panMode })}
                   items={RIFF_PAN_MODES}
                   disabled={off}
                 />
                 <Num
-                  label="Pan amount (%)"
+                  label={t("Pan amount (%)")}
                   value={levels.panAmount}
                   set={(panAmount) => stage("levels", { panAmount })}
                   min={0}
@@ -715,16 +708,16 @@ function RiffForm({ request }: { request: RiffRequest }) {
                   disabled={off || levels.panMode === "centre"}
                 />
                 <Num
-                  label="Release (%)"
+                  label={t("Release (%)")}
                   value={levels.release}
                   set={(release) => stage("levels", { release })}
                   min={0}
                   max={100}
                   disabled={off}
-                  help="50 is neutral."
+                  help={t("50 is neutral.")}
                 />
                 <Num
-                  label="Modulation X (%)"
+                  label={t("Modulation X (%)")}
                   value={levels.modX}
                   set={(modX) => stage("levels", { modX })}
                   min={0}
@@ -732,7 +725,7 @@ function RiffForm({ request }: { request: RiffRequest }) {
                   disabled={off}
                 />
                 <Num
-                  label="Modulation Y (%)"
+                  label={t("Modulation Y (%)")}
                   value={levels.modY}
                   set={(modY) => stage("levels", { modY })}
                   min={0}
@@ -745,15 +738,15 @@ function RiffForm({ request }: { request: RiffRequest }) {
             {panel("articulation", (off) => (
               <>
                 <Choices
-                  label="Length"
+                  label={t("Length")}
                   value={articulation.mode}
                   set={(mode) => stage("articulation", { mode })}
                   items={RIFF_LENGTH_MODES}
                   disabled={off}
-                  help="Legato holds each note until the next one starts. Staccato halves every note."
+                  help={t("Legato holds each note until the next one starts. Staccato halves every note.")}
                 />
                 <Num
-                  label="Multiplier (%)"
+                  label={t("Multiplier (%)")}
                   value={articulation.multiplier}
                   set={(multiplier) => stage("articulation", { multiplier })}
                   min={10}
@@ -761,7 +754,7 @@ function RiffForm({ request }: { request: RiffRequest }) {
                   disabled={off || articulation.mode !== "scale"}
                 />
                 <Num
-                  label="Minimum length (ticks)"
+                  label={t("Minimum length (ticks)")}
                   value={articulation.minLength}
                   set={(minLength) => stage("articulation", { minLength })}
                   min={1}
@@ -769,7 +762,7 @@ function RiffForm({ request }: { request: RiffRequest }) {
                   disabled={off}
                 />
                 <Flag
-                  label="Tie repeated pitches"
+                  label={t("Tie repeated pitches")}
                   checked={articulation.tie}
                   set={(tie) => stage("articulation", { tie })}
                   disabled={off}
@@ -780,16 +773,16 @@ function RiffForm({ request }: { request: RiffRequest }) {
             {panel("groove", (off) => (
               <>
                 <Num
-                  label="Swing (%)"
+                  label={t("Swing (%)")}
                   value={groove.swing}
                   set={(swing) => stage("groove", { swing })}
                   min={0}
                   max={100}
                   disabled={off}
-                  help="Delays every second arpeggio step. 100 is a triplet feel."
+                  help={t("Delays every second arpeggio step. 100 is a triplet feel.")}
                 />
                 <Num
-                  label="Timing variation (± ticks)"
+                  label={t("Timing variation (± ticks)")}
                   value={groove.humanize}
                   set={(humanize) => stage("groove", { humanize })}
                   min={0}
@@ -802,7 +795,7 @@ function RiffForm({ request }: { request: RiffRequest }) {
             {panel("fit", (off) => (
               <>
                 <Num
-                  label="Lowest key (MIDI)"
+                  label={t("Lowest key (MIDI)")}
                   value={fit.low}
                   set={(low) => stage("fit", { low })}
                   min={0}
@@ -810,7 +803,7 @@ function RiffForm({ request }: { request: RiffRequest }) {
                   disabled={off}
                 />
                 <Num
-                  label="Highest key (MIDI)"
+                  label={t("Highest key (MIDI)")}
                   value={fit.high}
                   set={(high) => stage("fit", { high })}
                   min={0}
@@ -818,13 +811,13 @@ function RiffForm({ request }: { request: RiffRequest }) {
                   disabled={off}
                 />
                 <Flag
-                  label="Keep notes in the scale"
+                  label={t("Keep notes in the scale")}
                   checked={fit.keepInScale}
                   set={(keepInScale) => stage("fit", { keepInScale })}
                   disabled={off}
                 />
                 <Flag
-                  label="Drop duplicate notes"
+                  label={t("Drop duplicate notes")}
                   checked={fit.dropDuplicates}
                   set={(dropDuplicates) => stage("fit", { dropDuplicates })}
                   disabled={off}
@@ -835,13 +828,13 @@ function RiffForm({ request }: { request: RiffRequest }) {
 
           <div key={`shared-${epoch}`} className={GRID}>
             <Num
-              label="Seed"
+              label={t("Seed")}
               value={settings.seed}
               set={(seed) => change((previous) => ({ ...previous, seed }))}
               min={0}
               max={MAX_RIFF_SEED}
               disabled={pending}
-              help="The same settings and seed always give the same riff."
+              help={t("The same settings and seed always give the same riff.")}
             />
             <div className="flex items-start pt-5">
               <Button
@@ -858,11 +851,11 @@ function RiffForm({ request }: { request: RiffRequest }) {
                   )
                 }
               >
-                Randomise seed
+                {t("Randomise seed")}
               </Button>
             </div>
             <Flag
-              label="Extend the pattern to fit"
+              label={t("Extend the pattern to fit")}
               checked={settings.extendPattern}
               set={(extendPattern) =>
                 change((previous) => ({ ...previous, extendPattern }))
@@ -870,7 +863,7 @@ function RiffForm({ request }: { request: RiffRequest }) {
               disabled={pending}
             />
             <Choices
-              label="Place the riff"
+              label={t("Place the riff")}
               value={settings.placement}
               set={(placement) =>
                 change((previous) => ({ ...previous, placement }))
@@ -883,8 +876,8 @@ function RiffForm({ request }: { request: RiffRequest }) {
               disabled={pending}
               help={
                 request.selection.length === 0
-                  ? "Select notes before opening the generator to replace them."
-                  : `Replacing removes the ${request.selection.length} selected ${request.selection.length === 1 ? "note" : "notes"} and starts at the first of them.`
+                  ? t("Select notes before opening the generator to replace them.")
+                  : message("Replacing removes the {count} selected {count2} and starts at the first of them.", { count: plainNumber(request.selection.length), count2: request.selection.length === 1 ? t("note") : t("notes") })
               }
             />
           </div>
@@ -893,7 +886,7 @@ function RiffForm({ request }: { request: RiffRequest }) {
             <Alert variant="destructive">
               <AlertDescription>
                 {!current
-                  ? "The project or piano-roll channel changed. Close and reopen the generator."
+                  ? t("The project or piano-roll channel changed. Close and reopen the generator.")
                   : error
                     ? `${errorLabel ? `${errorLabel}: ` : ""}${error.message}`
                     : failure}
@@ -920,7 +913,7 @@ function RiffForm({ request }: { request: RiffRequest }) {
                 }
               }}
             >
-              {auditioning ? "Stop" : "Audition"}
+              {auditioning ? t("Stop") : t("Audition")}
             </Button>
             <Button
               type="button"
@@ -928,10 +921,10 @@ function RiffForm({ request }: { request: RiffRequest }) {
               disabled={pending}
               onClick={closeRiffGenerator}
             >
-              Cancel
+              {t("Cancel")}
             </Button>
             <Button type="submit" disabled={!!error || !current || pending}>
-              {pending ? "Applying…" : "Apply"}
+              {pending ? t("Applying…") : t("Apply")}
             </Button>
           </DialogFooter>
         </form>

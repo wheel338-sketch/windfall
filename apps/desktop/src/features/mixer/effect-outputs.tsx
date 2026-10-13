@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils"
 import { effectName } from "./effect-ops"
 import { LoopNote, TrackLabel } from "./output-select"
 import { outputChoices, type RoutingChoices } from "./routing"
+import { translatedText as t, message } from "@/lib/i18n"
 
 /*
  * Routing of the outputs some effects have beside the next place in their
@@ -176,7 +177,7 @@ function Choices({
         ))}
         <DropdownMenuSeparator />
         <DropdownMenuRadioItem value={NONE} closeOnClick>
-          {info.splits ? "Not routed (stays in the chain)" : "Not routed"}
+          {info.splits ? t("Not routed (stays in the chain)") : t("Not routed")}
         </DropdownMenuRadioItem>
       </DropdownMenuRadioGroup>
       <LoopNote count={looping} />
@@ -210,8 +211,8 @@ function OutputRow({
   )
   const hint = useHint(
     info.splits
-      ? `Where the ${info.label.toLowerCase()} part goes. Routed, it leaves this track's chain and plays on the chosen track, where it can have effects of its own`
-      : "Where the copy goes: the signal as it is at this point in the chain, before this track's fader"
+      ? message("Where the {infoLabel} part goes. Routed, it leaves this track's chain and plays on the chosen track, where it can have effects of its own", { infoLabel: info.label.toLowerCase() })
+      : t("Where the copy goes: the signal as it is at this point in the chain, before this track's fader")
   )
   return (
     <li className="flex min-w-0 items-center gap-1.5">
@@ -224,7 +225,7 @@ function OutputRow({
             <button
               type="button"
               data-slot="effect-output"
-              aria-label={`${info.label} output of ${name}: ${targetName ?? "not routed"}`}
+              aria-label={message("{infoLabel} output of {name}: {targetName}", { infoLabel: info.label, name, targetName: targetName ?? t("not routed") })}
               className={cn(
                 "flex h-[18px] min-w-0 flex-1 items-center gap-0.5 rounded-[3px] bg-muted/60 pr-1 pl-0.5 text-[10px] leading-none text-foreground/85 outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring aria-expanded:bg-muted aria-expanded:text-foreground",
                 target === null && "text-muted-foreground italic"
@@ -238,7 +239,7 @@ function OutputRow({
             strokeWidth={2}
             className="size-3 shrink-0 text-muted-foreground"
           />
-          <span className="truncate">{targetName ?? "Not routed"}</span>
+          <span className="truncate">{targetName ?? t("Not routed")}</span>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="max-h-80 w-auto min-w-44">
           <Choices
@@ -282,15 +283,15 @@ export function EffectOutputs({
         className="mt-1.5 border-t pt-1.5 text-[10px] leading-snug text-muted-foreground"
       >
         {track === MASTER_TRACK
-          ? `On the master, ${name} has nowhere to send: every track already plays into it. Put it on an insert track to route its ${outputs.length === 1 ? "output" : "outputs"}.`
-          : `${name} cannot send from the Current track.`}
+          ? message("On the master, {name} has nowhere to send: every track already plays into it. Put it on an insert track to route its {count}.", { name, count: outputs.length === 1 ? t("output") : t("outputs") })
+          : message("{name} cannot send from the Current track.", { name })}
       </p>
     )
   }
   return (
     <ul
       data-slot="effect-outputs"
-      aria-label={`${name} output routing`}
+      aria-label={message("{name} output routing", { name })}
       className="mt-1.5 space-y-1 border-t pt-1.5"
     >
       {outputs.map((info, output) => (

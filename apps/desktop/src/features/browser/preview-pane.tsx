@@ -15,6 +15,7 @@ import { previewEnded, requestPreview, stopPreview } from "./preview"
 import { PREVIEW_WAVE } from "./preview-colors"
 import { useBrowserStore, type Selection } from "./store"
 import { extensionStart } from "./tree-model"
+import { translatedText as t, message as i18nMessage } from "@/lib/i18n"
 
 function PaneName({ selection }: { selection: Selection }) {
   const cut = extensionStart(selection.name, selection.kind)
@@ -37,10 +38,10 @@ function ReplaceButton({ path }: { path: string }) {
   const channel = useChannel(useUiStore((state) => state.selectedChannel))
   const instrument = channel?.source.type === "instrument"
   const explanation = !channel
-    ? "Select a channel in the rack to replace its sample"
+    ? t("Select a channel in the rack to replace its sample")
     : instrument
-      ? `${channel.name} plays an instrument, so it has no sample to replace. Add this sound as a new channel instead`
-      : `Make the channel ${channel.name} play this sound instead`
+      ? i18nMessage("{channelName} plays an instrument, so it has no sample to replace. Add this sound as a new channel instead", { channelName: channel.name })
+      : i18nMessage("Make the channel {channelName} play this sound instead", { channelName: channel.name })
   const hint = useHint(explanation)
 
   return (
@@ -56,8 +57,8 @@ function ReplaceButton({ path }: { path: string }) {
         disabled={!channel || instrument}
         aria-label={
           channel
-            ? `Replace the sample of ${channel.name}`
-            : "Replace selected channel's sample"
+            ? i18nMessage("Replace the sample of {channelName}", { channelName: channel.name })
+            : t("Replace selected channel's sample")
         }
         className="min-w-0 flex-1 justify-start gap-1.5"
         onClick={() => void replaceChannelSample(path)}
@@ -69,10 +70,10 @@ function ReplaceButton({ path }: { path: string }) {
               className="size-2 shrink-0 rounded-[2px]"
               style={{ backgroundColor: channelColor(channel.color) }}
             />
-            <span className="truncate">Replace {channel.name}</span>
+            <span className="truncate">{t("Replace")}{" "}{channel.name}</span>
           </>
         ) : (
-          <span className="truncate">Replace sample</span>
+          <span className="truncate">{t("Replace sample")}</span>
         )}
       </Button>
     </span>
@@ -82,7 +83,7 @@ function ReplaceButton({ path }: { path: string }) {
 /** Puts the sound on the song's timeline as an audio clip. */
 function PlaylistButton({ path }: { path: string }) {
   const hint = useHint(
-    "Put this sound on the playlist as an audio clip, at the song position on a new track. Or drag it onto the timeline"
+    t("Put this sound on the playlist as an audio clip, at the song position on a new track. Or drag it onto the timeline")
   )
   return (
     <Button
@@ -92,7 +93,7 @@ function PlaylistButton({ path }: { path: string }) {
       onClick={() => void addToPlaylist(path)}
       {...hint}
     >
-      <span className="truncate">Add to playlist</span>
+      <span className="truncate">{t("Add to playlist")}</span>
     </Button>
   )
 }
@@ -176,7 +177,7 @@ function SoundPane({ selection }: { selection: Selection }) {
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label={playing ? "Stop preview" : "Play preview"}
+          aria-label={playing ? t("Stop preview") : t("Play preview")}
           className={playing ? "text-brand" : "text-muted-foreground"}
           onClick={() => (playing ? stopPreview() : requestPreview(path))}
         >
@@ -192,7 +193,7 @@ function SoundPane({ selection }: { selection: Selection }) {
         <Waveform
           ref={waveform}
           role="img"
-          aria-label={`Waveform of ${selection.name}`}
+          aria-label={i18nMessage("Waveform of {selectionName}", { selectionName: selection.name })}
           peaks={info.info.peaks}
           color={PREVIEW_WAVE}
           className="h-12 shrink-0 cursor-pointer bg-display"
@@ -205,13 +206,13 @@ function SoundPane({ selection }: { selection: Selection }) {
           className="flex h-12 shrink-0 items-center overflow-hidden rounded-sm border border-dashed border-destructive/50 px-2 text-destructive"
         >
           <span className="line-clamp-2">
-            Could not read this sound. {readError}
+            {t("Could not read this sound.")}{" "}{readError}
           </span>
         </p>
       ) : (
         <div
           role="status"
-          aria-label="Reading the sound"
+          aria-label={t("Reading the sound")}
           className="h-12 shrink-0 animate-pulse rounded-sm bg-display/70"
         />
       )}
@@ -222,7 +223,7 @@ function SoundPane({ selection }: { selection: Selection }) {
           title={playError}
           className="h-4 truncate text-destructive"
         >
-          Could not play it. {playError}
+          {t("Could not play it.")}{" "}{playError}
         </p>
       ) : info?.status === "ready" ? (
         <Facts>
@@ -240,7 +241,7 @@ function SoundPane({ selection }: { selection: Selection }) {
           className="min-w-0"
           onClick={() => void addToRack(path)}
         >
-          <span className="truncate">Add to rack</span>
+          <span className="truncate">{t("Add to rack")}</span>
         </Button>
         <PlaylistButton path={path} />
         <ReplaceButton path={path} />
@@ -256,7 +257,7 @@ function ProjectPane({ selection }: { selection: Selection }) {
         <PaneName selection={selection} />
       </div>
       <p className="flex-1 text-muted-foreground">
-        A Windfall project. Opening it replaces the project you have open.
+        {t("A Windfall project. Opening it replaces the project you have open.")}
       </p>
       <Button
         size="sm"
@@ -264,7 +265,7 @@ function ProjectPane({ selection }: { selection: Selection }) {
         className="self-start"
         onClick={() => void openProjectPath(selection.path)}
       >
-        Open project
+        {t("Open project")}
       </Button>
     </>
   )
@@ -273,8 +274,7 @@ function ProjectPane({ selection }: { selection: Selection }) {
 function PaneHint() {
   return (
     <p className="m-auto max-w-56 text-center text-balance text-muted-foreground">
-      Select a sound to hear it. Double-click it to add it to the channel rack,
-      or drag it there or onto the playlist.
+      {t("Select a sound to hear it. Double-click it to add it to the channel rack, or drag it there or onto the playlist.")}
     </p>
   )
 }
@@ -289,7 +289,7 @@ export function PreviewPane() {
 
   return (
     <section
-      aria-label="Preview"
+      aria-label={t("Preview")}
       className="flex h-[192px] shrink-0 flex-col gap-1 border-t bg-chassis/60 p-1.5 @[232px]/browser:h-[164px]"
     >
       {selection?.kind === "audio" ? (

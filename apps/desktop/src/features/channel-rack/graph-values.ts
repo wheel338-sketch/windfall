@@ -1,20 +1,21 @@
 import type { Note, NotePatch } from "@/bindings"
 import { DEFAULT_NOTE_EXPRESSION } from "@/lib/note-expression"
 import { clamp, DEFAULT_KEY, DEFAULT_VELOCITY, TICKS_PER_STEP } from "@/lib/units"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 export const GRAPH_PROPERTIES = ["velocity", "pan", "key", "release", "finePitchCents", "modulationX", "modulationY", "length", "shift"] as const
 export type GraphProperty = (typeof GRAPH_PROPERTIES)[number]
 
 export const GRAPH_LABELS: Record<GraphProperty, string> = {
-  velocity: "Velocity",
-  pan: "Pan",
-  key: "Note",
-  length: "Length",
-  shift: "Shift within step",
-  release: "Release",
-  finePitchCents: "Fine pitch",
-  modulationX: "Modulation X",
-  modulationY: "Modulation Y",
+  get velocity() { return t("Velocity") },
+  get pan() { return t("Pan") },
+  get key() { return t("Note") },
+  get length() { return t("Length") },
+  get shift() { return t("Shift within step") },
+  get release() { return t("Release") },
+  get finePitchCents() { return t("Fine pitch") },
+  get modulationX() { return t("Modulation X") },
+  get modulationY() { return t("Modulation Y") },
 }
 
 export function graphRange(property: GraphProperty, lengthRange: number) {
@@ -63,8 +64,8 @@ export function graphFraction(note: Note, property: GraphProperty, lengthRange: 
 
 export function graphReadout(property: GraphProperty, value: number): string {
   if (property === "velocity" || property === "release" || property === "modulationX" || property === "modulationY") return `${Math.round(value * 100)}%`
-  if (property === "pan") return value === 0 ? "Center" : `${Math.round(Math.abs(value) * 100)}% ${value < 0 ? "left" : "right"}`
+  if (property === "pan") return value === 0 ? t("Center") : `${Math.round(Math.abs(value) * 100)}% ${value < 0 ? "left" : "right"}`
   if (property === "key") return `MIDI ${Math.round(value)}`
-  if (property === "finePitchCents") return `${value > 0 ? "+" : ""}${Math.round(value)} cents`
-  return `${Math.round(value)} ticks`
+  if (property === "finePitchCents") return message("{value}{value2} cents", { value: value > 0 ? t("+") : "", value2: plainNumber(Math.round(value)) })
+  return message("{value} ticks", { value: plainNumber(Math.round(value)) })
 }

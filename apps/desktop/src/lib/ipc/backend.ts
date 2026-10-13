@@ -41,6 +41,7 @@ import type { PanelId } from "@/lib/store/ui"
 import type { ProjectFilesBackend } from "./files"
 import type { MixerPresetLibraryBackend } from "./mixer-presets"
 import type { RemoteContentBackend } from "./remote-content"
+import { translatedText as t } from "@/lib/i18n"
 
 export type PluginNoteCapabilities = { projectPanLaw: boolean; instances: boolean; nativePan: boolean[]; nativeVolume: boolean[]; observedChannels?: number[]; refusal?: string | null }
 export type Unsubscribe = () => void
@@ -514,7 +515,7 @@ function rejectionText(error: unknown): string {
   ) {
     return error.message
   }
-  return "Something went wrong."
+  return t("Something went wrong.")
 }
 
 /**

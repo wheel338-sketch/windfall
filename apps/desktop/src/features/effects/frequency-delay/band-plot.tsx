@@ -24,6 +24,7 @@ import {
   type Lane,
   type PlotPoint,
 } from "./bands"
+import { message } from "@/lib/i18n"
 
 const BANDS = Array.from({ length: BAND_COUNT }, (_, band) => band)
 
@@ -170,7 +171,7 @@ export function BandPlot({ lane, bind }: BandPlotProps) {
   const first = bind.info(bandParam(0, lane))
   const bipolar = first.min < 0
   const hint = useHint(
-    `${described.name} of each band. ${described.hint}. Drag across to draw, double-click a bar to reset it`
+    message("{describedName} of each band. {hint}. Drag across to draw, double-click a bar to reset it", { describedName: described.name, hint: described.hint })
   )
 
   function draw(event: PointerEvent<HTMLDivElement>) {
@@ -206,7 +207,7 @@ export function BandPlot({ lane, bind }: BandPlotProps) {
         <div
           ref={plot}
           role="group"
-          aria-label={`${described.name} of the sixteen bands`}
+          aria-label={message("{describedName} of the sixteen bands", { describedName: described.name })}
           data-slot="band-bars"
           data-lane={lane}
           className={cn(

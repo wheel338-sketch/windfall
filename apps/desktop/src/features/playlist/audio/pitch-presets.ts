@@ -1,11 +1,12 @@
 import type { AudioClipUpdate, ClipId } from "@/bindings"
+import { translatedText as t } from "@/lib/i18n"
 
 export const PITCH_PRESETS = [
-  { label: "Octave down", pitch: -12 },
-  { label: "Fifth down", pitch: -7 },
-  { label: "Unison", pitch: 0 },
-  { label: "Fifth up", pitch: 7 },
-  { label: "Octave up", pitch: 12 },
+  { get label() { return t("Octave down") }, pitch: -12 },
+  { get label() { return t("Fifth down") }, pitch: -7 },
+  { get label() { return t("Unison") }, pitch: 0 },
+  { get label() { return t("Fifth up") }, pitch: 7 },
+  { get label() { return t("Octave up") }, pitch: 12 },
 ] as const
 
 type PitchClip = {

@@ -8,6 +8,7 @@ import { reportError } from "@/lib/errors"
 import { useProjectStore, refetchSnapshot } from "@/lib/store/project"
 import { fileName } from "@/lib/time"
 import { projectName, refreshRecentProjects } from "./project"
+import { translatedText as t } from "@/lib/i18n"
 
 export const useArchiveStore = create<{
   busy: boolean
@@ -34,10 +35,10 @@ export function canArchive(): boolean {
   )
 }
 export function portableUnavailable(): string {
-  if (backend.kind !== "tauri") return "Desktop app required"
+  if (backend.kind !== "tauri") return t("Desktop app required")
   if (useRecordingStore.getState().state.active)
-    return "Stop or cancel recording first"
-  return "Project archive operation in progress"
+    return t("Stop or cancel recording first")
+  return t("Project archive operation in progress")
 }
 export async function saveNewVersion(): Promise<boolean> {
   if (!canArchive()) {
@@ -54,12 +55,12 @@ export async function saveNewVersion(): Promise<boolean> {
     const saved = await backend.projectSaveNewVersion(base)
     // Rust publishes the dirty flag. A concurrent edit remains dirty.
     await refetchSnapshot()
-    toast.success("Saved new version", { description: fileName(saved) })
+    toast.success(t("Saved new version"), { description: fileName(saved) })
     void refreshRecentProjects()
     void backupAfterSave(backup, saved, true)
     return true
   } catch (error) {
-    reportError(error, "Could not save a new version")
+    reportError(error, t("Could not save a new version"))
     return false
   }
 }
@@ -75,11 +76,11 @@ export async function saveArchive(): Promise<void> {
     if (path === null) return
     archiveBusy(true)
     const saved = await backend.projectArchiveSave(path)
-    toast.success("Portable project archive created", {
+    toast.success(t("Portable project archive created"), {
       description: fileName(saved),
     })
   } catch (error) {
-    reportError(error, "Could not create a portable project archive")
+    reportError(error, t("Could not create a portable project archive"))
     archiveReport(errorMessage(error))
   } finally {
     archiveBusy(false)
@@ -89,6 +90,6 @@ export async function cancelArchive(): Promise<void> {
   try {
     await backend.projectArchiveCancel()
   } catch (error) {
-    reportError(error, "Could not cancel the project archive")
+    reportError(error, t("Could not cancel the project archive"))
   }
 }

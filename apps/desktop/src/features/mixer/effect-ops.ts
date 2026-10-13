@@ -19,6 +19,7 @@ import { clamp } from "@/lib/units"
 import { effectEnableUpdates } from "./effect-enable"
 import { useEffectsUi } from "./effects-ui"
 import { selectedMixerTracks } from "./mixer-ui"
+import { message, translatedText as t } from "@/lib/i18n"
 
 /*
  * Everything the mixer does to effects, in one place. The slots on a
@@ -137,12 +138,12 @@ async function confirmLosingAutomation(
   const automation = automationGoingWith({ type: "effect", effect: id })
   if (automation === null) return true
   const choice = await askConfirm({
-    title: `${what} the ${effectName(kind)}?`,
-    description: `${automation} Undo brings them back.`,
+    title: message("{what} the {effect}?", { what, effect: effectName(kind) }),
+    description: message("{automation} Undo brings them back.", { automation }),
     choices: [
       {
         id: "go",
-        label: `${what} effect`,
+        label: message("{what} effect", { what }),
         variant: "destructive",
       },
     ],
@@ -196,7 +197,7 @@ async function setSelectedEffectsEnabled(enabled: boolean): Promise<void> {
   if (updates.length === 0) return
   await dispatch({
     type: "batch",
-    label: enabled ? "Enable mixer effects" : "Bypass mixer effects",
+    label: enabled ? t("Enable mixer effects") : t("Bypass mixer effects"),
     commands: updates.map(({ track, effect }) => ({
       type: "updateEffect",
       track,

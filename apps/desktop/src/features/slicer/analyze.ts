@@ -1,4 +1,5 @@
 import type { SliceAnalysis, SliceAnalysisRequest } from "./types"
+import { translatedText as t } from "@/lib/i18n"
 
 /** A separate WASM instance keeps heavy analysis away from the UI/document. */
 export function analyzeInWorker(
@@ -15,7 +16,7 @@ export function analyzeInWorker(
     const timeout = setTimeout(() => {
       finish()
       reject(
-        new Error("Slice analysis timed out. Trim the clip and try again.")
+        new Error(t("Slice analysis timed out. Trim the clip and try again."))
       )
     }, 60_000)
     worker.onmessage = (
@@ -31,11 +32,11 @@ export function analyzeInWorker(
       }
       finish()
       if (event.data.analysis) resolve(event.data.analysis)
-      else reject(new Error(event.data.error ?? "Slice analysis failed."))
+      else reject(new Error(event.data.error ?? t("Slice analysis failed.")))
     }
     worker.onerror = (event) => {
       finish()
-      reject(new Error(event.message || "Slice analysis worker failed."))
+      reject(new Error(event.message || t("Slice analysis worker failed.")))
     }
   })
 }

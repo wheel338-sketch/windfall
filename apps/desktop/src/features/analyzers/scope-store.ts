@@ -4,6 +4,7 @@ import { persist } from "zustand/middleware"
 import { onProjectReplaced } from "@/lib/store/replaced"
 
 import type { AnalyzerSource, AnalyzerWant } from "./types"
+import { translatedText as t } from "@/lib/i18n"
 
 export const SCOPE_VIEWS = [
   "meter",
@@ -15,11 +16,11 @@ export const SCOPE_VIEWS = [
 export type ScopeView = (typeof SCOPE_VIEWS)[number]
 
 export const SCOPE_VIEW_NAMES: Record<ScopeView, string> = {
-  meter: "Peak meter",
-  oscilloscope: "Oscilloscope",
-  spectrum: "Spectrum",
-  spectrogram: "Spectrogram",
-  vectorscope: "Vectorscope",
+  get meter() { return t("Peak meter") },
+  get oscilloscope() { return t("Oscilloscope") },
+  get spectrum() { return t("Spectrum") },
+  get spectrogram() { return t("Spectrogram") },
+  get vectorscope() { return t("Vectorscope") },
 }
 
 /** Samples the oscilloscope draws across its width. */

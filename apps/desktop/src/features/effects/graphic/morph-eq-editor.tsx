@@ -28,13 +28,14 @@ import {
   morphEqSections,
 } from "./morph-eq"
 import { describeBands } from "./seven-band"
+import { translatedText as t, message } from "@/lib/i18n"
 
 const descriptor = effectDescriptor("morphEq")
 
 const BELLS = [0, 1, 2, 3] as const
 const SNAPSHOTS = [
-  { key: "snapshotA", title: "Bells at the start" },
-  { key: "snapshotB", title: "Bells at the end" },
+  { key: "snapshotA", get title() { return t("Bells at the start") } },
+  { key: "snapshotB", get title() { return t("Bells at the end") } },
 ] as const
 
 /**
@@ -75,13 +76,13 @@ export function MorphEqEditor({ params, bind }: EditorProps<MorphEqParams>) {
     <div
       data-slot="morph-eq-editor"
       role="group"
-      aria-label="Morph EQ settings"
+      aria-label={t("Morph EQ settings")}
       className="flex min-w-0 flex-col gap-2"
     >
       <ResponseDisplay
         response={response}
         ghosts={ghosts}
-        label={`Morph EQ response at ${where}: ${describeBands(MORPH_CURVE_HZ, heard)}`}
+        label={message("Morph EQ response at {where}: {bands}", { where, bands: describeBands(MORPH_CURVE_HZ, heard) })}
         className="h-24"
       />
       <div className="flex min-w-0 items-end gap-3">
@@ -90,7 +91,7 @@ export function MorphEqEditor({ params, bind }: EditorProps<MorphEqParams>) {
             binding={bind("morph")}
             orientation="horizontal"
             label={
-              <span data-slot="morph-position">Morph: {where.toLowerCase()}</span>
+              <span data-slot="morph-position">{t("Morph:")}{" "}{where.toLowerCase()}</span>
             }
             description="Moves the sound from one stored curve to the next. This is the control to automate"
           />
@@ -104,7 +105,7 @@ export function MorphEqEditor({ params, bind }: EditorProps<MorphEqParams>) {
       <div className="flex min-w-0 flex-wrap items-center gap-1">
         <div
           role="group"
-          aria-label="Stored curve"
+          aria-label={t("Stored curve")}
           className="flex items-center gap-1"
         >
           {MORPH_CURVE_NAMES.map((letter, index) => (
@@ -113,7 +114,7 @@ export function MorphEqEditor({ params, bind }: EditorProps<MorphEqParams>) {
               size="xs"
               variant={index === curve ? "secondary" : "ghost"}
               aria-pressed={index === curve}
-              aria-label={`Curve ${letter}`}
+              aria-label={message("Curve {letter}", { letter })}
               disabled={index >= count}
               onClick={() => setSelected(index)}
             >
@@ -128,7 +129,7 @@ export function MorphEqEditor({ params, bind }: EditorProps<MorphEqParams>) {
           disabled={bind.disabled}
           onClick={() => write("capture", heard)}
         >
-          Store what is heard in {name}
+          {t("Store what is heard in")}{" "}{name}
         </Button>
         <Button
           size="xs"
@@ -141,12 +142,12 @@ export function MorphEqEditor({ params, bind }: EditorProps<MorphEqParams>) {
             )
           }
         >
-          Flat
+          {t("Flat")}
         </Button>
       </div>
       <div
         role="group"
-        aria-label={`Curve ${name}`}
+        aria-label={message("Curve {name}", { name })}
         className="grid min-w-0 grid-cols-[repeat(15,minmax(0,1fr))] justify-items-center gap-0.5"
       >
         {MORPH_CURVE_HZ.map((_, band) => (
@@ -165,7 +166,7 @@ export function MorphEqEditor({ params, bind }: EditorProps<MorphEqParams>) {
           aria-expanded={bells}
           onClick={() => setBells(!bells)}
         >
-          Movable bells
+          {t("Movable bells")}
         </Button>
       </div>
       {bells ? (

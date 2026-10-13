@@ -6,6 +6,7 @@ import { changeStageMedia, DEFAULT_STAGE_MEDIA, mediaDocumentGuard } from "@/fea
 import { backend } from "@/lib/ipc"
 import { reportError } from "@/lib/errors"
 import { useProjectStore } from "@/lib/store/project"
+import { translatedText as t, message } from "@/lib/i18n"
 
 export function PerformanceRecordingControls({ onHeldChange }: { onHeldChange?(held: boolean): void }) {
   const media = useProjectStore((state) => state.project.settings.stageMedia)
@@ -21,7 +22,7 @@ export function PerformanceRecordingControls({ onHeldChange }: { onHeldChange?(h
       pending = true
       void backend.performanceRecordState().then((next) => {
         if (cancelled) return
-        if (elapsed.current) elapsed.current.textContent = `${next.sampleRate ? (next.frames / next.sampleRate).toFixed(1) : "0.0"} / 60 seconds`
+        if (elapsed.current) elapsed.current.textContent = message("{sampleRate} / 60 seconds", { sampleRate: next.sampleRate ? (next.frames / next.sampleRate).toFixed(1) : t("0.0") })
         setState((previous) => previous?.active === next.active && previous.finished === next.finished && previous.error === next.error && previous.sampleRate === next.sampleRate ? previous : next)
       }).catch(reportError).finally(() => { pending = false })
     }
@@ -42,22 +43,22 @@ export function PerformanceRecordingControls({ onHeldChange }: { onHeldChange?(h
   }
   const held = state?.active || state?.finished || !!state?.error
   useEffect(() => { onHeldChange?.(!!held) }, [held, onHeldChange])
-  return <section aria-label="Performance recording" className="flex flex-col gap-2 rounded-md border p-3">
+  return <section aria-label={t("Performance recording")} className="flex flex-col gap-2 rounded-md border p-3">
     <div className="flex flex-wrap items-center gap-2">
-      <Button disabled={busy || backend.kind !== "tauri" || !!held || takes.length >= 16} onClick={() => { void run(start) }}>Record performance</Button>
-      <Button variant="outline" disabled={busy || !state?.active} onClick={() => { void run(() => backend.performanceRecordStop()) }}>Stop capture</Button>
-      <Button variant="outline" disabled={busy || !state?.finished} onClick={() => { void run(() => backend.performanceRecordSave()) }}>Save performance</Button>
-      <Button variant="ghost" disabled={busy || !held} onClick={() => { void run(() => backend.performanceRecordCancel()) }}>Cancel capture</Button>
-      <span ref={elapsed} className="text-xs text-muted-foreground">0.0 / 60 seconds</span>
+      <Button disabled={busy || backend.kind !== "tauri" || !!held || takes.length >= 16} onClick={() => { void run(start) }}>{t("Record performance")}</Button>
+      <Button variant="outline" disabled={busy || !state?.active} onClick={() => { void run(() => backend.performanceRecordStop()) }}>{t("Stop capture")}</Button>
+      <Button variant="outline" disabled={busy || !state?.finished} onClick={() => { void run(() => backend.performanceRecordSave()) }}>{t("Save performance")}</Button>
+      <Button variant="ghost" disabled={busy || !held} onClick={() => { void run(() => backend.performanceRecordCancel()) }}>{t("Cancel capture")}</Button>
+      <span ref={elapsed} className="text-xs text-muted-foreground">{t("0.0 / 60 seconds")}</span>
     </div>
-    <p className="text-xs text-muted-foreground">Records the callback launch log and final stereo mix, including native plugins. Stop the song first. Saved takes replay and export that exact mix; editing pads and project settings is locked during capture.</p>
+    <p className="text-xs text-muted-foreground">{t("Records the callback launch log and final stereo mix, including native plugins. Stop the song first. Saved takes replay and export that exact mix; editing pads and project settings is locked during capture.")}</p>
     {state?.error && <Alert variant="destructive"><AlertDescription>{state.error}</AlertDescription></Alert>}
     {takes.map((take, index) => <div key={take.sample} className="flex flex-wrap items-center gap-2 text-sm">
-      <span>Performance {index + 1} · {(take.frames / take.sampleRate).toFixed(2)} s · {take.events.length} launches</span>
-      <Button variant="outline" size="sm" disabled={busy || !!held || backend.kind !== "tauri"} onClick={() => { void run(() => replay(index)) }}>Replay performance {index + 1}</Button>
-      <Button variant="outline" size="sm" disabled={busy || !!held || backend.kind !== "tauri"} onClick={() => { void run(() => exportTake(index)) }}>Export performance {index + 1} WAV</Button>
-      <Button variant="ghost" size="sm" disabled={busy || !!held} onClick={() => { void changeStageMedia((media) => ({ ...media, takes: media.takes.filter((_, at) => at !== index) })) }}>Remove performance {index + 1}</Button>
+      <span>{t("Performance")}{" "}{index + 1} · {(take.frames / take.sampleRate).toFixed(2)} s · {take.events.length}{" "}{t("launches")}</span>
+      <Button variant="outline" size="sm" disabled={busy || !!held || backend.kind !== "tauri"} onClick={() => { void run(() => replay(index)) }}>{t("Replay performance")}{" "}{index + 1}</Button>
+      <Button variant="outline" size="sm" disabled={busy || !!held || backend.kind !== "tauri"} onClick={() => { void run(() => exportTake(index)) }}>{t("Export performance")}{" "}{index + 1} WAV</Button>
+      <Button variant="ghost" size="sm" disabled={busy || !!held} onClick={() => { void changeStageMedia((media) => ({ ...media, takes: media.takes.filter((_, at) => at !== index) })) }}>{t("Remove performance")}{" "}{index + 1}</Button>
     </div>)}
-    {takes.length > 0 && <Button variant="outline" disabled={busy || !!held || backend.kind !== "tauri"} onClick={() => { void run(() => replay(null)) }}>Stop performance replay</Button>}
+    {takes.length > 0 && <Button variant="outline" disabled={busy || !!held || backend.kind !== "tauri"} onClick={() => { void run(() => replay(null)) }}>{t("Stop performance replay")}</Button>}
   </section>
 }

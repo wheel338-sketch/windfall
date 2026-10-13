@@ -4,17 +4,18 @@ import type { ChannelId } from "@/bindings"
 import { reportError } from "@/lib/errors"
 import { backend } from "@/lib/ipc"
 import { DEFAULT_KEY, DEFAULT_VELOCITY } from "@/lib/units"
+import { translatedText as t } from "@/lib/i18n"
 
 export function auditionOn(channel: ChannelId, key: number, velocity: number) {
   backend
     .auditionNoteOn(channel, key, velocity)
-    .catch((error: unknown) => reportError(error, "Could not play the sound"))
+    .catch((error: unknown) => reportError(error, t("Could not play the sound")))
 }
 
 export function auditionOff(channel: ChannelId, key: number) {
   backend
     .auditionNoteOff(channel, key)
-    .catch((error: unknown) => reportError(error, "Could not stop the sound"))
+    .catch((error: unknown) => reportError(error, t("Could not stop the sound")))
 }
 
 /**

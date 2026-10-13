@@ -4,6 +4,7 @@ import { dispatch, useProjectStore } from "@/lib/store/project"
 import { useUiStore } from "@/lib/store/ui"
 
 import { usePlaylistStore } from "./store"
+import { translatedText as t, dynamicTitle } from "@/lib/i18n"
 
 /*
  * Linked tracks: a playlist track that behaves like a track of its own
@@ -86,21 +87,21 @@ export function linkMenu(track: PlaylistTrackId): ContextItem {
   const project = useProjectStore.getState().project
   const link = trackLink(project, track)
   return {
-    submenu: "Link track",
+    submenu: t("Link track"),
     items: [
       {
-        title: "Not linked",
+        ...dynamicTitle("Not linked", {}),
         checked: link === null,
         disabled: link === null,
         run: () => linkTrack(track, null),
       },
-      { label: "Instrument track for" },
+      { label: t("Instrument track for") },
       ...project.channels.map((channel) => ({
         title: channel.name,
         checked: link?.type === "instrument" && link.channel === channel.id,
         run: () => linkTrack(track, { type: "instrument", channel: channel.id }),
       })),
-      { label: "Audio track into" },
+      { label: t("Audio track into") },
       ...project.mixer.tracks
         .filter((item) => !item.current)
         .map((item) => ({

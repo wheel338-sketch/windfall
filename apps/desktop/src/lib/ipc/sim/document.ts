@@ -11,6 +11,7 @@ import type {
 } from "@/bindings"
 
 import { sim } from "./wasm"
+import { translatedText as t } from "@/lib/i18n"
 
 // Frees the document of a `SimDocument` that was dropped without `dispose`,
 // so a forgotten mock costs no WebAssembly memory once it is collected.
@@ -173,7 +174,7 @@ export class SimDocument {
   }
 
   private call<T>(operation: string, input?: unknown): T {
-    if (this.handle === null) throw new Error("This document was closed.")
+    if (this.handle === null) throw new Error(t("This document was closed."))
     return sim.call<T>(operation, this.handle, input)
   }
 

@@ -1,5 +1,5 @@
 import { ActionButton } from "@/components/action-button"
-import { useTranslation } from "@/lib/i18n"
+import { useTranslation, translatedText as t } from "@/lib/i18n"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ContextHelp } from "./context-help"
@@ -21,27 +21,27 @@ import {
 
 const STEPS = [
   {
-    title: "Add a channel",
+    get title() { return t("Add a channel") },
     sentence: "Add an instrument channel.",
     action: "channel.add",
   },
   {
-    title: "Open the piano roll",
+    get title() { return t("Open the piano roll") },
     sentence: "Draw notes on that channel.",
     action: "view.pianoRoll",
   },
   {
-    title: "Open the playlist",
+    get title() { return t("Open the playlist") },
     sentence: "Place the pattern on the timeline.",
     action: "view.playlist",
   },
   {
-    title: "Play",
+    get title() { return t("Play") },
     sentence: "Start playback from the transport.",
     action: "transport.play",
   },
   {
-    title: "Export",
+    get title() { return t("Export") },
     sentence: "Write the mix to an audio file.",
     action: "file.export",
   },

@@ -27,6 +27,7 @@ import { trackValueItems } from "./menus"
 import { CLIP_GAIN, resetPeak, subscribePeak } from "./peaks"
 import { useTrackGroupGesture } from "./group-gesture"
 import { StripWaveform } from "./waveform-meter"
+import { translatedText as t, message } from "@/lib/i18n"
 
 /** A held peak as the readout prints it: "−3.2", "+1.5" or "−∞". */
 export function formatPeak(peak: number): string {
@@ -40,7 +41,7 @@ export function formatPeak(peak: number): string {
 function PeakReadout({ id, className }: { id: TrackId; className?: string }) {
   const button = useRef<HTMLButtonElement>(null)
   const text = useRef<HTMLSpanElement>(null)
-  const hint = useHint("Highest level since the last reset. Click to reset")
+  const hint = useHint(t("Highest level since the last reset. Click to reset"))
 
   useEffect(
     () =>
@@ -63,7 +64,7 @@ function PeakReadout({ id, className }: { id: TrackId; className?: string }) {
       onClick={() => resetPeak(id)}
       {...hint}
     >
-      <span className="sr-only">Peak </span>
+      <span className="sr-only">{t("Peak")}{" "}</span>
       <span ref={text} />
     </button>
   )
@@ -99,7 +100,7 @@ function StripMeter({ id, feed, orientation, wide }: StripMeterProps) {
       orientation={orientation}
       taper={gainToFaderPosition}
       clipGain={CLIP_GAIN}
-      clipLabel="Clip light. Click to clear"
+      clipLabel={t("Clip light. Click to clear")}
       onClipChange={(clipped) => {
         if (!clipped) resetPeak(id)
       }}
@@ -144,7 +145,7 @@ export function LevelSection({
   const level = useTrackGroupGesture(id, "volume")
   const feed = useMemo(() => meterFeed(index), [index])
   const hint = useHint(
-    "Volume. Drag, or double-click for 0 dB. Hold Shift for fine steps"
+    t("Volume. Drag, or double-click for 0 dB. Hold Shift for fine steps")
   )
   // What the fader is bound to adds its own entries to the fader's menu,
   // and automation of it moves the fader while the song plays.
@@ -152,7 +153,7 @@ export function LevelSection({
     () => [
       ...trackValueItems(id, "volume"),
       {
-        submenu: "Volume",
+        submenu: t("Volume"),
         items: [
           ...FADER_PRESETS.map((preset) => ({
             title: preset.label,
@@ -168,7 +169,7 @@ export function LevelSection({
             },
           })),
           ...(["previous", "next"] as const).map((direction) => ({
-            title: direction === "previous" ? "Previous preset" : "Next preset",
+            title: direction === "previous" ? t("Previous preset") : t("Next preset"),
             disabled: nextFaderPreset(volume, direction) === null,
             run: () => {
               const track = useProjectStore
@@ -185,7 +186,7 @@ export function LevelSection({
             },
           })),
           ...(["half", "double"] as const).map((factor) => ({
-            title: factor === "half" ? "Half" : "Double",
+            title: factor === "half" ? t("Half") : t("Double"),
             disabled: nextFaderVolumeScale(volume, factor) === null,
             run: () => {
               const track = useProjectStore
@@ -231,7 +232,7 @@ export function LevelSection({
             // The lowest panel has no room for a full-height cap.
             size={layout === "bare" ? "sm" : "md"}
             ticks={false}
-            aria-label={`${name} volume`}
+            aria-label={message("{name} volume", { name })}
             title={formatGain(level.value)}
             className="w-full"
             live={live}
@@ -262,7 +263,7 @@ export function LevelSection({
         <Fader
           {...level}
           showValue
-          aria-label={`${name} volume`}
+          aria-label={message("{name} volume", { name })}
           className="h-auto min-h-0 flex-1 [&_[data-slot=fader-value]]:font-readout [&_[data-slot=fader-value]]:text-[9px]"
           live={live}
           marker={marker}

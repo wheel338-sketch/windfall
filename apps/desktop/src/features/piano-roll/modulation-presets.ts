@@ -1,10 +1,11 @@
 import type { NoteExpression, NoteId } from "@/bindings"
 import { DEFAULT_NOTE_EXPRESSION } from "@/lib/note-expression"
+import { translatedText as t } from "@/lib/i18n"
 
 export const MODULATION_PRESETS = [
-  { label: "Low", modulation: 0 },
-  { label: "Center", modulation: 0.5 },
-  { label: "High", modulation: 1 },
+  { get label() { return t("Low") }, modulation: 0 },
+  { get label() { return t("Center") }, modulation: 0.5 },
+  { get label() { return t("High") }, modulation: 1 },
 ] as const
 
 type ModulationNote = {

@@ -9,6 +9,7 @@ import {
 import { getProjectGeneration } from "@/lib/store/replaced"
 import { selectedPatternId } from "@/lib/store/selectors"
 import { useUiStore } from "@/lib/store/ui"
+import { translatedText as t } from "@/lib/i18n"
 
 export type NotePreviewLane = { pattern: PatternId; channel: ChannelId }
 export type NotePreviewTarget = NotePreviewLane & { generation: number }
@@ -33,14 +34,14 @@ export function notePreviewTargetReason(
   target: NotePreviewTarget,
   state = getAppState()
 ): string | undefined {
-  if (target.generation !== getProjectGeneration()) return "Project changed"
+  if (target.generation !== getProjectGeneration()) return t("Project changed")
   const { project } = state.document
   if (!project.channels.some((item) => item.id === target.channel))
-    return "Channel no longer exists"
+    return t("Channel no longer exists")
   if (!project.patterns.some((item) => item.id === target.pattern))
-    return "Pattern no longer exists"
+    return t("Pattern no longer exists")
   if (selectedPatternId(project, state.transport.pattern) !== target.pattern)
-    return "Pattern changed"
+    return t("Pattern changed")
 }
 
 function targetState(state: AppState, target: NotePreviewTarget): AppState {

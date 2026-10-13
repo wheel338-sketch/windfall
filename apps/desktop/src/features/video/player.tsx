@@ -9,6 +9,7 @@ import { useProjectGeneration } from "@/lib/store/replaced"
 import { useRealtime } from "@/lib/store/realtime"
 import { VideoFollower, videoTarget } from "./follower"
 import { readRawAvi, type RawAvi } from "./avi"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 /** A local file is read through a checked, bounded native operation then
  * decoded by the raw AVI reader or HTML video. Blob URLs are revoked on replacement/unmount. */
@@ -72,7 +73,7 @@ export function VideoPlayer({ placement }: { placement: VideoPlacement }) {
       canvas.current.dataset.epoch = frame.mediaClock?.epoch ?? ""
       canvas.current.dataset.outputFrame = frame.mediaClock?.outputFrame ?? ""
       canvas.current.dataset.playing = String(frame.mediaClock?.playing ?? false)
-      if (readout.current) readout.current.textContent = index < 0 ? "Outside the video picture range" : `Frame ${index + 1} | source ${target?.toFixed(3)} s | audio presentation clock`
+      if (readout.current) readout.current.textContent = index < 0 ? t("Outside the video picture range") : message("Frame {index} | source {target} s | audio presentation clock", { index: plainNumber(index + 1), target: String(target?.toFixed(3)) })
       return
     }
     const element = video.current
@@ -84,7 +85,7 @@ export function VideoPlayer({ placement }: { placement: VideoPlacement }) {
     element.style.visibility = clock?.playing && target !== null ? "visible" : "hidden"
     const result = follower.current.follow(element, clock, target)
     if (readout.current) {
-      readout.current.textContent = `Drift ${(result.drift * 1000).toFixed(1)} ms · ${result.correction} · driver latency ${clock ? clock.deviceLatencyFrames === null ? "unknown" : `${clock.deviceLatencyFrames} frames` : "unavailable"}`
+      readout.current.textContent = `Drift ${(result.drift * 1000).toFixed(1)} ms · ${result.correction} · driver latency ${clock ? clock.deviceLatencyFrames === null ? "unknown" : message("{deviceLatencyFrames} frames", { deviceLatencyFrames: plainNumber(clock.deviceLatencyFrames) }) : "unavailable"}`
       readout.current.dataset.correction = result.correction
     }
     if (clock?.playing && ["seek", "rate", "locked"].includes(result.correction) && element.paused && !playPending.current && !playingError) {
@@ -95,10 +96,10 @@ export function VideoPlayer({ placement }: { placement: VideoPlacement }) {
 
   return (
     <div className="flex flex-col gap-2">
-      {current?.avi ? <canvas ref={canvas} width={current.avi.width} height={current.avi.height} role="img" aria-label="Timeline video" className="w-full rounded-md bg-background" /> : <video ref={video} src={url ?? undefined} muted playsInline preload="auto" aria-label="Timeline video" className="w-full rounded-md bg-background" onError={() => setLoaded({ path: placement.path, generation, url, error: "The webview cannot decode this video. Choose a supported local file.", avi: null })}>
+      {current?.avi ? <canvas ref={canvas} width={current.avi.width} height={current.avi.height} role="img" aria-label={t("Timeline video")} className="w-full rounded-md bg-background" /> : <video ref={video} src={url ?? undefined} muted playsInline preload="auto" aria-label={t("Timeline video")} className="w-full rounded-md bg-background" onError={() => setLoaded({ path: placement.path, generation, url, error: "The webview cannot decode this video. Choose a supported local file.", avi: null })}>
         <track kind="captions" />
       </video>}
-      <p ref={readout} className="text-xs text-muted-foreground" aria-live="off">Waiting for the audio presentation clock</p>
+      <p ref={readout} className="text-xs text-muted-foreground" aria-live="off">{t("Waiting for the audio presentation clock")}</p>
       {(error || playingError) && <Alert variant="destructive"><AlertDescription>{error ?? playingError}</AlertDescription></Alert>}
     </div>
   )

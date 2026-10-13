@@ -37,6 +37,7 @@ import { closeTouchControllers } from "./actions"
 import { TouchKeyboard } from "./keyboard"
 import { TouchPads } from "./pads"
 import { useTouchControllersStore } from "./store"
+import { translatedText as t, message } from "@/lib/i18n"
 
 /** The Select value that follows the channel selected in the rack. */
 const FOLLOW_SELECTION = "selected"
@@ -77,10 +78,9 @@ export function TouchControllersWindow() {
           className="fixed bottom-10 left-1/2 z-50 flex max-h-[calc(100%-4rem)] w-[min(44rem,calc(100%-2rem))] -translate-x-1/2 flex-col gap-3 overflow-y-auto rounded-xl bg-popover p-3 text-xs/relaxed text-popover-foreground shadow-lg ring-1 ring-foreground/10 duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0"
         >
           <DialogHeader className="pr-8">
-            <DialogTitle>Touch keyboard and pads</DialogTitle>
+            <DialogTitle>{t("Touch keyboard and pads")}</DialogTitle>
             <DialogDescription>
-              Plays a channel without changing the project. Lower on a key or
-              a pad is louder.
+              {t("Plays a channel without changing the project. Lower on a key or a pad is louder.")}
             </DialogDescription>
           </DialogHeader>
           {open && <TouchControllers />}
@@ -94,7 +94,7 @@ export function TouchControllersWindow() {
             }
           >
             <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
-            <span className="sr-only">Close</span>
+            <span className="sr-only">{t("Close")}</span>
           </DialogClose>
         </DialogPrimitive.Popup>
       </DialogPortal>
@@ -122,9 +122,9 @@ function TouchControllers() {
           <EmptyMedia variant="icon">
             <HugeiconsIcon icon={MusicNote03Icon} strokeWidth={2} />
           </EmptyMedia>
-          <EmptyTitle>No channel to play</EmptyTitle>
+          <EmptyTitle>{t("No channel to play")}</EmptyTitle>
           <EmptyDescription>
-            Add a channel to the channel rack, then play it from here.
+            {t("Add a channel to the channel rack, then play it from here.")}
           </EmptyDescription>
         </EmptyHeader>
       </Empty>
@@ -142,9 +142,9 @@ function TouchControllers() {
       }}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <TabsList aria-label="Controller">
-          <TabsTrigger value="keyboard">Keyboard</TabsTrigger>
-          <TabsTrigger value="pads">Pads</TabsTrigger>
+        <TabsList aria-label={t("Controller")}>
+          <TabsTrigger value="keyboard">{t("Keyboard")}</TabsTrigger>
+          <TabsTrigger value="pads">{t("Pads")}</TabsTrigger>
         </TabsList>
         <TargetSelect
           channels={channels}
@@ -187,14 +187,14 @@ function TargetSelect({
         if (picked) setOverride(picked.id)
       }}
     >
-      <SelectTrigger size="sm" aria-label="Target channel">
+      <SelectTrigger size="sm" aria-label={t("Target channel")}>
         <SelectValue>
-          {following ? `Selected channel: ${target.name}` : target.name}
+          {following ? message("Selected channel: {targetName}", { targetName: target.name }) : target.name}
         </SelectValue>
       </SelectTrigger>
       <SelectContent>
         <SelectGroup>
-          <SelectItem value={FOLLOW_SELECTION}>Selected channel</SelectItem>
+          <SelectItem value={FOLLOW_SELECTION}>{t("Selected channel")}</SelectItem>
           {channels.map((channel) => (
             <SelectItem key={channel.id} value={String(channel.id)}>
               {channel.name}

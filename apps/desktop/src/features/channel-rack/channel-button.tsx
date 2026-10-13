@@ -31,6 +31,7 @@ import { ColorSwatches } from "./color-swatches"
 import { useRackStore } from "./rack-store"
 import { channelGroupItems } from "./channel-groups"
 import { WaveGlyph, type WaveShape } from "./synth/wave-glyph"
+import { translatedText as t, message, dynamicTitle } from "@/lib/i18n"
 
 type ChannelButtonProps = {
   id: ChannelId
@@ -78,7 +79,7 @@ function ColorChip({
 }: Pick<ChannelButtonProps, "id" | "name" | "color">) {
   const open = useRackStore((state) => state.colorPickerFor === id)
   const openColorPicker = useRackStore((state) => state.openColorPicker)
-  const hint = useHint("Channel color: click to choose another")
+  const hint = useHint(t("Channel color: click to choose another"))
 
   return (
     <Popover
@@ -92,7 +93,7 @@ function ColorChip({
             // Kept out of the tab order, which is long enough with one stop
             // per control per row. "Change channel color" reaches it too.
             tabIndex={-1}
-            aria-label={`${name} color`}
+            aria-label={message("{name} color", { name })}
             className="h-full w-2 shrink-0 rounded-l-[3px] outline-none hover:brightness-125 focus-visible:ring-2 focus-visible:ring-ring"
             style={{ backgroundColor: colorToCss(color) }}
             {...hint}
@@ -101,7 +102,7 @@ function ColorChip({
       />
       <PopoverContent align="start" className="w-auto gap-2 p-2">
         <PopoverTitle className="text-xs font-medium">
-          Color of {name}
+          {t("Color of")}{" "}{name}
         </PopoverTitle>
         <ColorSwatches
           value={color}
@@ -139,12 +140,12 @@ export const ChannelButton = memo(function ChannelButton({
   const hasSample = instrument !== null || sampleSet
   const hint = useHint(
     instrument !== null
-      ? `${name}: press and hold to hear it, click to open its settings, right-click for more`
+      ? message("{name}: press and hold to hear it, click to open its settings, right-click for more", { name })
       : sampleMissing
-        ? `${name}: its sample file is missing, so it is silent. Drop another sample here, or put the file back and use File > Reload missing samples`
+        ? message("{name}: its sample file is missing, so it is silent. Drop another sample here, or put the file back and use File > Reload missing samples", { name })
         : hasSample
-          ? `${name}: press to hear it, click to open its settings, right-click for more. Drop a sample here to replace its sound`
-          : `${name} has no sample yet. Drop one here from the browser, or click to open its settings`
+          ? message("{name}: press to hear it, click to open its settings, right-click for more. Drop a sample here to replace its sound", { name })
+          : message("{name} has no sample yet. Drop one here from the browser, or click to open its settings", { name })
   )
 
   // Mute and solo are worded for this row. Everything else is a registry
@@ -153,14 +154,14 @@ export const ChannelButton = memo(function ChannelButton({
     "channel.rename",
     "channel.color",
     "channel.duplicate",
-    { submenu: "Channel group", items: [{ dynamic: () => channelGroupItems(id) }] },
+    { submenu: t("Channel group"), items: [{ dynamic: () => channelGroupItems(id) }] },
     contextSeparator,
     // Greyed out on an instrument, with the reason beside it.
     "channel.replaceSample",
     ...(instrument !== null && !plugin ? ["channel.initInstrument"] : []),
     contextSeparator,
-    { title: muted ? "Unmute" : "Mute", run: () => toggleMute(id) },
-    { title: solo ? "Unsolo" : "Solo", run: () => toggleSolo(id) },
+    { ...dynamicTitle(muted ? "Unmute" : "Mute", {}), run: () => toggleMute(id) },
+    { ...dynamicTitle(solo ? "Unsolo" : "Solo", {}), run: () => toggleSolo(id) },
     "channel.unmuteAll",
     "channel.unsoloAll",
     "channel.resetLevels",
@@ -229,10 +230,10 @@ export const ChannelButton = memo(function ChannelButton({
             instrument !== null
               ? name
               : sampleMissing
-                ? `${name}, sample file is missing`
+                ? message("{name}, sample file is missing", { name })
                 : hasSample
                   ? name
-                  : `${name}, no sample`
+                  : message("{name}, no sample", { name })
           }
           onClick={() => selectChannel(id, { openSettings: true })}
           onContextMenu={() => selectChannel(id)}
@@ -265,17 +266,17 @@ export const ChannelButton = memo(function ChannelButton({
         >
           <span className="min-w-0 flex-1 truncate font-medium">{name}</span>
           {drop === "replace" ? (
-            <span className="shrink-0 text-[0.625rem] text-brand">replace</span>
+            <span className="shrink-0 text-[0.625rem] text-brand">{t("replace")}</span>
           ) : drop === "refuse" ? (
             <span className="shrink-0 text-[0.625rem] text-warn">
-              takes no sample
+              {t("takes no sample")}
             </span>
           ) : instrument !== null ? (
             <WaveGlyph shape={instrument} className="text-muted-foreground" />
           ) : sampleMissing ? (
             <span
               data-sample-missing
-              title="Sample file is missing"
+              title={t("Sample file is missing")}
               className="flex shrink-0 items-center text-warn"
             >
               <HugeiconsIcon
@@ -287,7 +288,7 @@ export const ChannelButton = memo(function ChannelButton({
           ) : (
             !hasSample && (
               <span className="shrink-0 text-[0.625rem] text-warn">
-                no sample
+                {t("no sample")}
               </span>
             )
           )}

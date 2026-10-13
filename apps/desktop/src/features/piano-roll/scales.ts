@@ -1,39 +1,40 @@
 import { pianoRows, rowToKey, type RowStyle } from "@/lib/canvas"
+import { translatedText as t } from "@/lib/i18n"
 
 /** Public musical interval definitions, written here rather than imported presets. */
 export const SCALES = [
-  { id: "major", label: "Major", intervals: [0, 2, 4, 5, 7, 9, 11] },
-  { id: "minor", label: "Natural minor", intervals: [0, 2, 3, 5, 7, 8, 10] },
+  { id: "major", get label() { return t("Major") }, intervals: [0, 2, 4, 5, 7, 9, 11] },
+  { id: "minor", get label() { return t("Natural minor") }, intervals: [0, 2, 3, 5, 7, 8, 10] },
   {
     id: "harmonic-minor",
-    label: "Harmonic minor",
+    get label() { return t("Harmonic minor") },
     intervals: [0, 2, 3, 5, 7, 8, 11],
   },
   {
     id: "melodic-minor",
-    label: "Melodic minor (ascending)",
+    get label() { return t("Melodic minor (ascending)") },
     intervals: [0, 2, 3, 5, 7, 9, 11],
   },
-  { id: "dorian", label: "Dorian", intervals: [0, 2, 3, 5, 7, 9, 10] },
-  { id: "phrygian", label: "Phrygian", intervals: [0, 1, 3, 5, 7, 8, 10] },
-  { id: "lydian", label: "Lydian", intervals: [0, 2, 4, 6, 7, 9, 11] },
-  { id: "mixolydian", label: "Mixolydian", intervals: [0, 2, 4, 5, 7, 9, 10] },
-  { id: "locrian", label: "Locrian", intervals: [0, 1, 3, 5, 6, 8, 10] },
+  { id: "dorian", get label() { return t("Dorian") }, intervals: [0, 2, 3, 5, 7, 9, 10] },
+  { id: "phrygian", get label() { return t("Phrygian") }, intervals: [0, 1, 3, 5, 7, 8, 10] },
+  { id: "lydian", get label() { return t("Lydian") }, intervals: [0, 2, 4, 6, 7, 9, 11] },
+  { id: "mixolydian", get label() { return t("Mixolydian") }, intervals: [0, 2, 4, 5, 7, 9, 10] },
+  { id: "locrian", get label() { return t("Locrian") }, intervals: [0, 1, 3, 5, 6, 8, 10] },
   {
     id: "major-pentatonic",
-    label: "Major pentatonic",
+    get label() { return t("Major pentatonic") },
     intervals: [0, 2, 4, 7, 9],
   },
   {
     id: "minor-pentatonic",
-    label: "Minor pentatonic",
+    get label() { return t("Minor pentatonic") },
     intervals: [0, 3, 5, 7, 10],
   },
-  { id: "blues", label: "Blues", intervals: [0, 3, 5, 6, 7, 10] },
-  { id: "whole-tone", label: "Whole tone", intervals: [0, 2, 4, 6, 8, 10] },
+  { id: "blues", get label() { return t("Blues") }, intervals: [0, 3, 5, 6, 7, 10] },
+  { id: "whole-tone", get label() { return t("Whole tone") }, intervals: [0, 2, 4, 6, 8, 10] },
   {
     id: "chromatic",
-    label: "Chromatic",
+    get label() { return t("Chromatic") },
     intervals: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
   },
 ] as const

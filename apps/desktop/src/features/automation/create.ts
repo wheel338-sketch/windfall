@@ -5,6 +5,7 @@ import { attempt } from "@/lib/errors"
 import { backend } from "@/lib/ipc"
 import { receivePatch, useProjectStore } from "@/lib/store/project"
 import { useUiStore } from "@/lib/store/ui"
+import { translatedText as t } from "@/lib/i18n"
 
 /**
  * Makes an automation of a target and puts it on the playlist: what
@@ -18,7 +19,7 @@ export async function createAutomationClip(
 ): Promise<AutomationId | null> {
   const result = await attempt(
     backend.automate(target),
-    "Could not create the automation clip"
+    t("Could not create the automation clip")
   )
   if (!result) return null
   // The same patch also arrives as an event; the store ignores the repeat.

@@ -25,6 +25,7 @@ import {
   type ChordReadoutView,
 } from "./readout"
 import { useChordDisplayStore } from "./readout-panel"
+import { translatedText as t } from "@/lib/i18n"
 
 const names = (pitchClasses: readonly number[]) =>
   pitchClasses.map((pc) => PITCH_NAMES[pc]).join(" · ")
@@ -34,19 +35,18 @@ function ChordFacts({ view }: { view: ChordReadoutView }) {
   if (!chord || chord.kind === "empty") {
     return (
       <p className="text-muted-foreground">
-        Hold keys, select notes or move the playhead over notes to name their
-        chord.
+        {t("Hold keys, select notes or move the playhead over notes to name their chord.")}
       </p>
     )
   }
   const root = chord.root ?? chord.bass
   const facts: [string, string][] = [
-    ["Source", CHORD_SOURCE_LABELS[view.source]],
-    ["Root", chord.root === null ? NO_CHORD : PITCH_NAMES[chord.root]],
-    ["Bass", chord.bass === null ? NO_CHORD : PITCH_NAMES[chord.bass]],
-    ["Pitch classes", names(chord.pitchClasses)],
+    [t("Source"), CHORD_SOURCE_LABELS[view.source]],
+    [t("Root"), chord.root === null ? NO_CHORD : PITCH_NAMES[chord.root]],
+    [t("Bass"), chord.bass === null ? NO_CHORD : PITCH_NAMES[chord.bass]],
+    [t("Pitch classes"), names(chord.pitchClasses)],
     [
-      chord.root === null ? "Intervals above bass" : "Intervals",
+      chord.root === null ? t("Intervals above bass") : t("Intervals"),
       chord.degrees.join(" · "),
     ],
   ]
@@ -143,10 +143,10 @@ export function ChordReadout() {
     >
       <PopoverTrigger
         // The name says what the button is; its text, the chord, describes it.
-        aria-label="Chord"
+        aria-label={t("Chord")}
         aria-describedby={nameId}
         data-chord-display=""
-        title={chord ? `${chord.symbol} · ${chord.label}` : "Chord display"}
+        title={chord ? `${chord.symbol} · ${chord.label}` : t("Chord display")}
         className="max-w-56 shrink-0 truncate rounded-sm bg-display px-2 py-1 font-readout text-[0.6875rem] text-display-foreground outline-none hover:brightness-110 focus-visible:ring-2 focus-visible:ring-ring aria-expanded:ring-1 aria-expanded:ring-ring"
       >
         <span id={nameId}>{view.label}</span>
@@ -160,7 +160,7 @@ export function ChordReadout() {
         className="w-64 gap-3"
       >
         <PopoverHeader>
-          <PopoverTitle className="sr-only">Chord display</PopoverTitle>
+          <PopoverTitle className="sr-only">{t("Chord display")}</PopoverTitle>
           <p
             data-slot="chord-symbol"
             className="font-readout text-xl leading-tight text-foreground"
@@ -168,7 +168,7 @@ export function ChordReadout() {
             {chord?.symbol || NO_CHORD}
           </p>
           <PopoverDescription data-slot="chord-name">
-            {chord ? chord.label : "No chord"}
+            {chord ? chord.label : t("No chord")}
           </PopoverDescription>
         </PopoverHeader>
         <ChordFacts view={view} />

@@ -1,20 +1,21 @@
 /** Highlight choices are separate from the editor's pitch-snapping policy. */
+import { translatedText as t } from "@/lib/i18n"
 export const HIGHLIGHT_SCALES = [
-  { id: "off", label: "Off", intervals: [] },
-  { id: "major", label: "Major", intervals: [0, 2, 4, 5, 7, 9, 11] },
+  { id: "off", get label() { return t("Off") }, intervals: [] },
+  { id: "major", get label() { return t("Major") }, intervals: [0, 2, 4, 5, 7, 9, 11] },
   {
     id: "natural-minor",
-    label: "Natural minor",
+    get label() { return t("Natural minor") },
     intervals: [0, 2, 3, 5, 7, 8, 10],
   },
   {
     id: "harmonic-minor",
-    label: "Harmonic minor",
+    get label() { return t("Harmonic minor") },
     intervals: [0, 2, 3, 5, 7, 8, 11],
   },
   {
     id: "pentatonic-major",
-    label: "Pentatonic major",
+    get label() { return t("Pentatonic major") },
     intervals: [0, 2, 4, 7, 9],
   },
 ] as const

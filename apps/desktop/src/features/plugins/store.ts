@@ -2,6 +2,7 @@ import { create } from "zustand"
 import type { PluginBinding, PluginTarget, RackGraph, RackNode, TrackId } from "@/bindings"
 import { registry } from "@/lib/actions/registry"
 import { useProjectStore } from "@/lib/store"
+import { dynamicTitle } from "@/lib/i18n"
 
 export const usePluginUi = create<{ open: boolean; track?: TrackId }>(() => ({
   open: false,
@@ -36,7 +37,7 @@ export function registerPluginActions() {
   return registry.register([
     {
       id: "plugins.manage",
-      title: "Plugin manager",
+      ...dynamicTitle("Plugin manager", {}),
       section: "Options",
       keywords: "CLAP scan instruments effects native",
       run: () => openPluginManager(),

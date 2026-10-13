@@ -13,6 +13,7 @@ import { usePlaylistStore } from "../store"
 import { automationMenu } from "./menu"
 import { renameAutomation } from "./ops"
 import { matchingAutomationIds } from "./picker-filter"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 const AutomationRow = memo(function AutomationRow({
   automation,
@@ -28,8 +29,8 @@ const AutomationRow = memo(function AutomationRow({
   const setBrush = usePlaylistStore((state) => state.setBrush)
   const where =
     clips === 0
-      ? "It has no clip yet, so it does nothing"
-      : `${clips === 1 ? "One clip shows" : `${clips} clips show`} it, and an edit to one changes them all`
+      ? t("It has no clip yet, so it does nothing")
+      : `${clips === 1 ? "One clip shows" : message("{clips} clips show", { clips: plainNumber(clips) })} it, and an edit to one changes them all`
   const hint = useHint(
     `${automation.name} moves ${target}. ${where}. ${selected ? "Draw and Paint place more clips of it" : "Click to place clips of it"}. Double-click to rename, right-click for more`
   )
@@ -63,7 +64,7 @@ const AutomationRow = memo(function AutomationRow({
         {clips > 1 && (
           <span
             className="shrink-0 font-readout text-[0.625rem] text-muted-foreground"
-            title={`${clips} clips show this curve`}
+            title={message("{clips} clips show this curve", { clips: plainNumber(clips) })}
           >
             ×{clips}
           </span>
@@ -98,19 +99,19 @@ export function AutomationSection() {
   const visibleItems = items.filter((item) => matchingIds.has(item.id))
 
   return (
-    <PickerSection title="Automation">
+    <PickerSection title={t("Automation")}>
       {automations.length === 0 ? (
         <PickerEmpty>
-          Right-click a knob or fader and choose Create automation clip.
+          {t("Right-click a knob or fader and choose Create automation clip.")}
         </PickerEmpty>
       ) : (
         <div
           role="group"
-          aria-label="Automation to place"
+          aria-label={t("Automation to place")}
           className="flex flex-col"
         >
           <label className="flex flex-col gap-1 px-2 py-1 text-[0.6875rem] text-muted-foreground">
-            Filter automations
+            {t("Filter automations")}
             <input
               type="text"
               value={query}
@@ -122,7 +123,7 @@ export function AutomationSection() {
             />
           </label>
           {visibleItems.length === 0 && (
-            <PickerEmpty>No automations match.</PickerEmpty>
+            <PickerEmpty>{t("No automations match.")}</PickerEmpty>
           )}
           {visibleItems.map(({ automation, target }) => (
             <AutomationRow

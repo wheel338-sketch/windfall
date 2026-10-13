@@ -3,6 +3,7 @@ import { ParamControl, ParamGroup, ParamRow } from "@/features/params"
 
 import type { EditorProps } from "../editor-props"
 import { StereoField } from "./stereo-field"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 /**
  * The spreader: how wide, and how much of the width comes from a short
@@ -15,12 +16,12 @@ export function SpreaderEditor({ bind }: EditorProps<SpreaderParams>) {
     <div
       data-slot="spreader-editor"
       role="group"
-      aria-label="Spreader settings"
+      aria-label={t("Spreader settings")}
       className="flex min-w-0 flex-col gap-2"
     >
       <StereoField
         width={width}
-        label={`Stereo image at ${Math.round(width * 100)}% of its width. The mono sum is unchanged`}
+        label={message("Stereo image at {width}% of its width. The mono sum is unchanged", { width: plainNumber(Math.round(width * 100)) })}
       />
       <div className="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] items-start gap-2">
         <ParamGroup title="Image">
@@ -54,8 +55,7 @@ export function SpreaderEditor({ bind }: EditorProps<SpreaderParams>) {
         data-slot="mono-note"
         className="text-[10px] leading-snug text-muted-foreground"
       >
-        Mono playback hears the original: what is added to one side is taken
-        from the other.
+        {t("Mono playback hears the original: what is added to one side is taken from the other.")}
       </p>
     </div>
   )

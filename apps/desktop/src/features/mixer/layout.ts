@@ -1,15 +1,16 @@
 /** Width of an insert strip in pixels. Every strip is the same width. */
+import { translatedText as t } from "@/lib/i18n"
 export const STRIP_WIDTH = 80
 export const MIXER_LAYOUTS = [
-  { value: "adaptive", label: "Adaptive", width: 80 },
-  { value: "compact", label: "Compact", width: 36, mode: "mini" },
-  { value: "compact2", label: "Compact 2", width: 48, mode: "flat" },
-  { value: "narrow", label: "Narrow", width: 64, mode: "tight" },
-  { value: "standard", label: "Standard", width: 80, mode: "compact" },
-  { value: "wide", label: "Wide", width: 104, mode: "full" },
-  { value: "extraWide", label: "Extra wide", width: 128, mode: "full" },
-  { value: "large", label: "Large", width: 152, mode: "full" },
-  { value: "extraLarge", label: "Extra large", width: 176, mode: "full" },
+  { value: "adaptive", get label() { return t("Adaptive") }, width: 80 },
+  { value: "compact", get label() { return t("Compact") }, width: 36, mode: "mini" },
+  { value: "compact2", get label() { return t("Compact 2") }, width: 48, mode: "flat" },
+  { value: "narrow", get label() { return t("Narrow") }, width: 64, mode: "tight" },
+  { value: "standard", get label() { return t("Standard") }, width: 80, mode: "compact" },
+  { value: "wide", get label() { return t("Wide") }, width: 104, mode: "full" },
+  { value: "extraWide", get label() { return t("Extra wide") }, width: 128, mode: "full" },
+  { value: "large", get label() { return t("Large") }, width: 152, mode: "full" },
+  { value: "extraLarge", get label() { return t("Extra large") }, width: 176, mode: "full" },
 ] as const
 
 export function chosenStripLayout(choice: string, height: number, sends: number, effects: number): StripLayout & { width: number } {

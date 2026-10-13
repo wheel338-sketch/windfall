@@ -1,4 +1,5 @@
 import { RECENT_SECTION } from "./builtin"
+import { translatedText as t } from "@/lib/i18n"
 
 /**
  * Sections the mixer registers one action per kind of effect in, so a kind
@@ -26,14 +27,14 @@ const separator = { separator: true } as const
  */
 export const MENUS: MenuSpec[] = [
   {
-    title: "File",
+    get title() { return t("File") },
     entries: [
       "file.new",
       "files.newTemplate",
       "file.open",
       "file.importFlp",
       {
-        submenu: "Open recent",
+        get submenu() { return t("Open recent") },
         section: RECENT_SECTION,
         empty: "No recent projects",
       },
@@ -59,7 +60,7 @@ export const MENUS: MenuSpec[] = [
     ],
   },
   {
-    title: "Edit",
+    get title() { return t("Edit") },
     entries: [
       "edit.undo",
       "edit.redo",
@@ -75,7 +76,7 @@ export const MENUS: MenuSpec[] = [
     ],
   },
   {
-    title: "Add",
+    get title() { return t("Add") },
     entries: [
       "plugins.picker",
       "channel.add",
@@ -90,7 +91,7 @@ export const MENUS: MenuSpec[] = [
     ],
   },
   {
-    title: "Channels",
+    get title() { return t("Channels") },
     entries: [
       "channel.rename",
       "channel.color",
@@ -100,7 +101,7 @@ export const MENUS: MenuSpec[] = [
       "channel.replaceSample",
       "channel.initInstrument",
       {
-        submenu: "Synth sounds",
+        get submenu() { return t("Synth sounds") },
         section: "Sounds",
         empty: "No sounds",
       },
@@ -123,7 +124,7 @@ export const MENUS: MenuSpec[] = [
     ],
   },
   {
-    title: "Patterns",
+    get title() { return t("Patterns") },
     entries: [
       "pattern.add",
       "pattern.duplicate",
@@ -140,7 +141,7 @@ export const MENUS: MenuSpec[] = [
     ],
   },
   {
-    title: "Mixer",
+    get title() { return t("Mixer") },
     entries: [
       "mixer.addTrack",
       "mixer.renameTrack",
@@ -159,12 +160,12 @@ export const MENUS: MenuSpec[] = [
       "mixer.effects",
       "mixer.enlargeEffects",
       {
-        submenu: "Add effect",
+        get submenu() { return t("Add effect") },
         section: ADD_EFFECT_SECTION,
         empty: "No effects to add",
       },
       {
-        submenu: "Selected effect",
+        get submenu() { return t("Selected effect") },
         entries: [
           "mixer.openEffect",
           "mixer.bypassEffect",
@@ -173,7 +174,7 @@ export const MENUS: MenuSpec[] = [
           "mixer.moveEffectUp",
           "mixer.moveEffectDown",
           {
-            submenu: "Replace with",
+            get submenu() { return t("Replace with") },
             section: REPLACE_EFFECT_SECTION,
             empty: "No effects to replace it with",
           },
@@ -187,7 +188,7 @@ export const MENUS: MenuSpec[] = [
     ],
   },
   {
-    title: "View",
+    get title() { return t("View") },
     entries: [
       "view.commandPalette",
       separator,
@@ -200,7 +201,7 @@ export const MENUS: MenuSpec[] = [
       separator,
       "channelRack.settings",
       {
-        submenu: "Piano roll",
+        get submenu() { return t("Piano roll") },
         entries: [
           "pianoRoll.toolDraw",
           "pianoRoll.toolPaint",
@@ -215,7 +216,7 @@ export const MENUS: MenuSpec[] = [
         ],
       },
       {
-        submenu: "Playlist",
+        get submenu() { return t("Playlist") },
         entries: [
           "playlist.toolDraw",
           "playlist.toolPaint",
@@ -243,7 +244,7 @@ export const MENUS: MenuSpec[] = [
     ],
   },
   {
-    title: "Options",
+    get title() { return t("Options") },
     entries: [
       "options.settings",
       "plugins.manage",
@@ -253,7 +254,7 @@ export const MENUS: MenuSpec[] = [
     ],
   },
   {
-    title: "Help",
+    get title() { return t("Help") },
     entries: ["help.gettingStarted", "help.shortcuts", "help.about", "help.assistant", "tools.scripts"],
   },
 ]

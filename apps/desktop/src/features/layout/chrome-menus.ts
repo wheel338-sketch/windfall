@@ -3,6 +3,7 @@ import {
   type ContextItem,
 } from "@/components/context-actions"
 import { useUiStore } from "@/lib/store/ui"
+import { translatedText as t, dynamicTitle } from "@/lib/i18n"
 
 /*
  * The right-click menus of the window's own chrome: the parts that belong
@@ -12,7 +13,7 @@ import { useUiStore } from "@/lib/store/ui"
 
 /** The tempo entries, shared by the transport bar and the tempo itself. */
 export const TEMPO_MENU: ContextItem = {
-  submenu: "Tempo",
+  get submenu() { return t("Tempo") },
   items: ["tempo.tap", "tempo.half", "tempo.double", "tempo.reset"],
 }
 
@@ -83,7 +84,7 @@ export function panelMenu(hideAction: string | undefined): ContextItem[] {
 export function dividerMenu(group: string, hideAction: string): ContextItem[] {
   return [
     {
-      title: "Reset size",
+      ...dynamicTitle("Reset size", {}),
       run: () => useUiStore.getState().resetPanelSizes(group),
     },
     contextSeparator,

@@ -18,6 +18,7 @@ import { useHistory } from "@/lib/store/selectors"
 import { useUiStore } from "@/lib/store/ui"
 
 import { HistoryList } from "./history-list"
+import { translatedText as t } from "@/lib/i18n"
 
 /** Mounted only while open, so closing discards the unsaved filter. */
 function FilteredHistory() {
@@ -28,7 +29,7 @@ function FilteredHistory() {
     <>
       <FieldGroup>
         <Field>
-          <FieldLabel htmlFor={id}>Filter history</FieldLabel>
+          <FieldLabel htmlFor={id}>{t("Filter history")}</FieldLabel>
           <Input
             id={id}
             value={query}
@@ -48,7 +49,7 @@ export function HistoryPopover() {
   const setOpen = useUiStore((state) => state.setHistoryOpen)
   const content = useRef<HTMLDivElement>(null)
   const hint = useHint(
-    "History: every edit, in order. Click one to go back to it"
+    t("History: every edit, in order. Click one to go back to it")
   )
 
   return (
@@ -58,7 +59,7 @@ export function HistoryPopover() {
           <Button
             variant="ghost"
             size="icon"
-            aria-label="Undo history"
+            aria-label={t("Undo history")}
             {...hint}
           />
         }
@@ -78,11 +79,11 @@ export function HistoryPopover() {
         }
       >
         <PopoverHeader className="px-1">
-          <PopoverTitle className="text-xs">History</PopoverTitle>
+          <PopoverTitle className="text-xs">{t("History")}</PopoverTitle>
           <PopoverDescription>
             {entries.length === 0
-              ? "Nothing to undo yet. Edits will be listed here."
-              : "Click a step to go back or forward to it."}
+              ? t("Nothing to undo yet. Edits will be listed here.")
+              : t("Click a step to go back or forward to it.")}
           </PopoverDescription>
         </PopoverHeader>
         {open && <FilteredHistory />}

@@ -49,6 +49,7 @@ import { gridSpecFor } from "./snap"
 import { usePlaylistStore } from "./store"
 import { TrackGridSurface } from "./track-grid-surface"
 import { documentRowFor, trackRowsNow } from "./track-rows"
+import { message, translatedText as t } from "@/lib/i18n"
 
 const CLIP_MENU: ContextItem[] = [
   "playlist.editPattern",
@@ -91,24 +92,24 @@ const EMPTY_MENU: ContextItem[] = [
  */
 export function hintFor(tool: Tool, pattern: string): string {
   const { copy, add, free } = MODIFIER_HINTS
-  const edit = `Drag clips to move, edges to resize. ${copy}, ${add}, ${free}`
+  const edit = message("Drag clips to move, edges to resize. {copy}, {add}, {free}", { copy, add, free })
   switch (tool) {
     case "draw":
-      return `Click to place ${pattern}. ${edit}. Right-click deletes`
+      return message("Click to place {pattern}. {edit}. Right-click deletes", { pattern, edit })
     case "paint":
-      return `Drag to paint ${pattern}. ${edit}. Right-click deletes`
+      return message("Drag to paint {pattern}. {edit}. Right-click deletes", { pattern, edit })
     case "select":
-      return `Drag a box to select. ${edit}. Right-click for a menu`
+      return message("Drag a box to select. {edit}. Right-click for a menu", { edit })
     case "erase":
-      return "Click or drag across clips to delete them"
+      return t("Click or drag across clips to delete them")
     case "mute":
-      return "Click or drag across clips to mute or unmute. Right-click deletes"
+      return t("Click or drag across clips to mute or unmute. Right-click deletes")
     case "slip":
-      return `Drag content inside a fixed clip. ${free}. Right-click deletes`
+      return message("Drag content inside a fixed clip. {free}. Right-click deletes", { free })
     case "playback":
-      return `Click or drag to seek the transport. ${free}. Escape ends scrubbing`
+      return message("Click or drag to seek the transport. {free}. Escape ends scrubbing", { free })
     case "slice":
-      return `Drag a vertical cut, release to split clips. ${free}. Escape cancels`
+      return message("Drag a vertical cut, release to split clips. {free}. Escape cancels", { free })
     default: {
       const _exhaustive: never = tool
       return _exhaustive
@@ -118,13 +119,11 @@ export function hintFor(tool: Tool, pattern: string): string {
 
 /** What the status bar says about the part of a clip under the pointer. */
 export const INNER_HINTS: Record<InnerHit["kind"], string> = {
-  fade: "Drag to set the fade's length. Alt: no snap",
-  gain: "Drag up or down for the clip's gain. Shift: fine",
-  point:
-    "Drag to move the point. Shift: one axis, Alt: no snap. Double-click holds, right-click deletes",
-  bend: "Drag up or down to bend this stretch of the curve",
-  curve:
-    "Click to add a point and drag it. Alt: no snap. The title bar moves the clip",
+  get fade() { return t("Drag to set the fade's length. Alt: no snap") },
+  get gain() { return t("Drag up or down for the clip's gain. Shift: fine") },
+  get point() { return t("Drag to move the point. Shift: one axis, Alt: no snap. Double-click holds, right-click deletes") },
+  get bend() { return t("Drag up or down to bend this stretch of the curve") },
+  get curve() { return t("Click to add a point and drag it. Alt: no snap. The title bar moves the clip") },
 }
 
 /** How far from the left edge the playhead lands when the view follows it. */
@@ -174,7 +173,7 @@ export function PlaylistGrid({ metrics }: { metrics: GridMetrics }) {
   const hint = useHint(
     inner
       ? INNER_HINTS[inner]
-      : hintFor(tool, brushName ?? pattern?.name ?? "a pattern")
+      : hintFor(tool, brushName ?? pattern?.name ?? t("a pattern"))
   )
 
   // The view reads its options once. The session sets everything that can
@@ -350,7 +349,7 @@ export function PlaylistGrid({ metrics }: { metrics: GridMetrics }) {
         ref={containerRef}
         tabIndex={0}
         role="application"
-        aria-label="Song timeline"
+        aria-label={t("Song timeline")}
         aria-roledescription="clip grid"
         data-slot="playlist-grid"
         data-tool={tool}
@@ -371,17 +370,15 @@ export function PlaylistGrid({ metrics }: { metrics: GridMetrics }) {
             role="alert"
             className="absolute inset-x-0 top-1/3 mx-auto max-w-sm text-center text-muted-foreground"
           >
-            The timeline could not be drawn. {failure}
+            {t("The timeline could not be drawn.")}{" "}{failure}
           </p>
         )}
         {clipCount === 0 && failure === null && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
             <div className="max-w-xs rounded-lg border bg-popover/85 px-4 py-3 text-center shadow-xs">
-              <p className="font-medium text-foreground">The song is empty</p>
+              <p className="font-medium text-foreground">{t("The song is empty")}</p>
               <p className="mt-1 text-muted-foreground">
-                Pick a pattern on the left and click in the timeline to place
-                it, or drag a sound in from the browser. Every row can hold
-                clips; tracks are added as you go.
+                {t("Pick a pattern on the left and click in the timeline to place it, or drag a sound in from the browser. Every row can hold clips; tracks are added as you go.")}
               </p>
             </div>
           </div>

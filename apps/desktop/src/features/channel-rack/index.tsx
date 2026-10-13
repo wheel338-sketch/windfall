@@ -13,6 +13,7 @@ import { useRackStore } from "./rack-store"
 import { RackToolbar } from "./rack-toolbar"
 import { AdvancedFillDialog } from "./advanced-fill-dialog"
 import { ChannelGroupsDialog } from "./channel-groups-ui"
+import { translatedText as t } from "@/lib/i18n"
 
 const LAYOUT_KEY = "channelRack:rows+settings"
 
@@ -49,7 +50,7 @@ export default function ChannelRackPanel() {
         </ResizablePanel>
         {settingsOpen && (
           <>
-            <ResizableHandle aria-label="Resize the channel settings" />
+            <ResizableHandle aria-label={t("Resize the channel settings")} />
             <ResizablePanel
               id="settings"
               defaultSize={304}

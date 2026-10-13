@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils"
 
 import { useDisplayCanvas } from "../use-display-canvas"
 import { outputLevelDb } from "./curve"
+import { translatedText as t } from "@/lib/i18n"
 
 /** The quietest level the display shows, in dB. The loudest is 0. */
 export const DISPLAY_FLOOR_DB = -60
@@ -110,7 +111,7 @@ export const TransferDisplay = memo(function TransferDisplay({
     <div
       data-slot="transfer-display"
       role="img"
-      aria-label="Compressor curve: level in against level out"
+      aria-label={t("Compressor curve: level in against level out")}
       className={cn(
         "relative aspect-square overflow-hidden rounded-[5px] bg-(--wf-meter-bg) ring-1 ring-(--wf-grid-line-strong)",
         className

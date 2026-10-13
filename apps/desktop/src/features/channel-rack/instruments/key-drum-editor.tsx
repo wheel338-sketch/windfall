@@ -11,6 +11,7 @@ import { newGestureId, useProjectStore } from "@/lib/store"
 import { getProjectGeneration } from "@/lib/store/replaced"
 import { useAudition } from "../audition"
 import { InstrumentEditorOwner, useInstrumentAssetDispatch } from "./editor-owner"
+import { translatedText as t } from "@/lib/i18n"
 
 export function KeyDrumEditor({ channel }: { channel: InstrumentChannel }) {
   const owner = useContext(InstrumentEditorOwner)
@@ -38,12 +39,12 @@ export function KeyDrumEditor({ channel }: { channel: InstrumentChannel }) {
       const params: DrumVoiceParams = { mode: edited.mode, pitchHz: edited.pitchHz, decayMs: edited.decayMs, tone: edited.tone, snap: edited.snap, level: edited.level }
       const patches = [...bank.filter(patch => patch.key !== capturedKey), { key: capturedKey, params }].sort((a,b) => a.key - b.key)
       await dispatch({ type: "setInstrumentAsset", channel: channel.id, expected: current.source, asset: { type: "drumKeys", patches } }, capturedGesture)
-    }).catch((error: unknown) => reportError(error,"Could not edit the drum key"))
+    }).catch((error: unknown) => reportError(error,t("Could not edit the drum key")))
   }
-  return <div role="group" aria-label="Per-key drum programs" className="flex flex-col gap-3">
-    <FieldGroup><Field><FieldLabel htmlFor={`drum-key-${channel.id}`}>Program MIDI key</FieldLabel><Input id={`drum-key-${channel.id}`} type="number" min={0} max={127} value={key} onChange={event => { const value = Number(event.target.value); if (Number.isInteger(value) && value >= 0 && value <= 127) { audition.stop(); setKey(value) } }} /></Field></FieldGroup>
+  return <div role="group" aria-label={t("Per-key drum programs")} className="flex flex-col gap-3">
+    <FieldGroup><Field><FieldLabel htmlFor={`drum-key-${channel.id}`}>{t("Program MIDI key")}</FieldLabel><Input id={`drum-key-${channel.id}`} type="number" min={0} max={127} value={key} onChange={event => { const value = Number(event.target.value); if (Number.isInteger(value) && value >= 0 && value <= 127) { audition.stop(); setKey(value) } }} /></Field></FieldGroup>
     <ParamGroup title={`MIDI ${key} patch`}>
-      <Button onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); audition.start() }} onPointerUp={audition.stop} onPointerCancel={audition.stop} onLostPointerCapture={audition.stop} onBlur={audition.stop} onKeyDown={event => { if (event.key === " " || event.key === "Enter") audition.start() }} onKeyUp={audition.stop}>Hold to audition key {key}</Button>
+      <Button onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); audition.start() }} onPointerUp={audition.stop} onPointerCancel={audition.stop} onLostPointerCapture={audition.stop} onBlur={audition.stop} onKeyDown={event => { if (event.key === " " || event.key === "Enter") audition.start() }} onKeyUp={audition.stop}>{t("Hold to audition key")}{" "}{key}</Button>
       <ParamRow>{descriptor.params.map((info,index) => <ParamControl key={info.id} info={info} value={readParam(patch,info)} onGestureStart={() => { gesture.current = newGestureId() }} onGestureEnd={() => { gesture.current = undefined }} onValueChange={value => edit(index,value)} />)}</ParamRow>
     </ParamGroup>
     <ParamGroup title="Unprogrammed-key defaults and master"><GenericInstrumentEditor channel={channel.id} params={params} /></ParamGroup>

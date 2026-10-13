@@ -13,6 +13,7 @@ import { colorToCss } from "@/lib/units"
 
 import { selectChannel } from "./channel-ops"
 import { RoutingMenu, trackNumber } from "./routing-menu"
+import { translatedText as t, message } from "@/lib/i18n"
 
 type MixerBadgeProps = {
   channel: ChannelId
@@ -31,9 +32,9 @@ export const MixerBadge = memo(function MixerBadge({
 }: MixerBadgeProps) {
   const track = useMixerTrack(trackId)
   const index = useMixerTrackIndex(trackId)
-  const trackName = track?.name ?? "a missing track"
+  const trackName = track?.name ?? t("a missing track")
   const hint = useHint(
-    `${channelName} plays into mixer track ${trackNumber(index)}, ${trackName}. Click to select it or route somewhere else`
+    message("{channelName} plays into mixer track {trackNumber}, {trackName}. Click to select it or route somewhere else", { channelName, trackNumber: trackNumber(index), trackName })
   )
 
   return (
@@ -48,7 +49,7 @@ export const MixerBadge = memo(function MixerBadge({
         render={
           <button
             type="button"
-            aria-label={`${channelName} plays into ${trackName}. Change routing`}
+            aria-label={message("{channelName} plays into {trackName}. Change routing", { channelName, trackName })}
             className="flex h-5 w-full items-center gap-1 rounded-[3px] bg-(--wf-step-off) pr-1 font-readout text-[0.625rem] text-foreground/85 outline-none hover:bg-(--wf-step-off-alt) hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring aria-expanded:bg-(--wf-step-off-alt)"
             {...hint}
           />

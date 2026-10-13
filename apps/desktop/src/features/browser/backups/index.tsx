@@ -13,16 +13,17 @@ import { Spinner } from "@/components/ui/spinner"
 import { openProjectPath } from "@/lib/flows/project"
 import { backend, errorMessage } from "@/lib/ipc"
 import { useProjectStore } from "@/lib/store/project"
+import { translatedText as t, message as i18nMessage } from "@/lib/i18n"
 
 function NoBackups({ unsaved = false }: { unsaved?: boolean }) {
   return (
     <Empty>
       <EmptyHeader>
-        <EmptyTitle>No backups</EmptyTitle>
+        <EmptyTitle>{t("No backups")}</EmptyTitle>
         <EmptyDescription>
           {unsaved
-            ? "This project has no backups because it has not been saved."
-            : "There are no backups for this project."}
+            ? t("This project has no backups because it has not been saved.")
+            : t("There are no backups for this project.")}
         </EmptyDescription>
       </EmptyHeader>
     </Empty>
@@ -82,32 +83,32 @@ function SavedBackups({ projectPath }: { projectPath: string }) {
   if (listing.error !== null) {
     return (
       <Alert variant="destructive">
-        <AlertTitle>Could not list backups</AlertTitle>
+        <AlertTitle>{t("Could not list backups")}</AlertTitle>
         <AlertDescription>{listing.error}</AlertDescription>
       </Alert>
     )
   }
   if (listing.entries === null) {
-    return <Spinner aria-label="Loading backups" />
+    return <Spinner aria-label={t("Loading backups")} />
   }
   if (listing.entries.length === 0) return <NoBackups />
 
   return (
     <>
       <p className="text-xs text-muted-foreground">
-        Opening a backup opens a copy and does not replace the original file.
+        {t("Opening a backup opens a copy and does not replace the original file.")}
       </p>
-      <ul aria-label="Project backups" className="flex flex-col gap-2">
+      <ul aria-label={t("Project backups")} className="flex flex-col gap-2">
         {listing.entries.map((entry) => (
           <li key={entry.path} className="flex items-center gap-2">
             <span className="min-w-0 flex-1 break-words">{entry.name}</span>
             <Button
               variant="outline"
               size="sm"
-              aria-label={`Open ${entry.name}`}
+              aria-label={i18nMessage("Open {entryName}", { entryName: entry.name })}
               onClick={() => void openProjectPath(entry.path)}
             >
-              Open
+              {t("Open")}
             </Button>
           </li>
         ))}

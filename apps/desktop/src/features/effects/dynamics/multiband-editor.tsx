@@ -16,6 +16,7 @@ import { formatLatency } from "../limiter/latency"
 import { useSampleRate } from "../sample-rate"
 import { BandDisplay, type BandSetting } from "./band-display"
 import { BANDS, maximizerLatencyFrames, type BandKey } from "./curves"
+import { message, translatedText as t } from "@/lib/i18n"
 
 const BAND_HINTS: Record<BandKey, string> = {
   low: "the lows",
@@ -85,7 +86,7 @@ function splitLabel(bind: ParamBinder): string {
     bind.info("highCrossoverHz"),
     bind.value("highCrossoverHz")
   )
-  return `Three bands split at ${low} and ${high}`
+  return message("Three bands split at {low} and {high}", { low, high })
 }
 
 function Editor({
@@ -109,7 +110,7 @@ function Editor({
     <div
       data-slot="multiband-editor"
       role="group"
-      aria-label={`${name} settings`}
+      aria-label={message("{name} settings", { name })}
       className="flex max-w-[44rem] flex-col gap-2"
     >
       <div className="flex items-stretch gap-2.5">
@@ -179,12 +180,11 @@ function Editor({
             data-slot="maximizer-latency"
             className="text-[10px] leading-snug text-muted-foreground"
           >
-            The band limiters and the limiter on the sum look ahead, which
-            delays this track by{" "}
+            {t("The band limiters and the limiter on the sum look ahead, which delays this track by")}{" "}
             <span className="font-readout text-foreground/85">
               {formatLatency(maximizerLatencyFrames(sampleRate), sampleRate)}
             </span>
-            . The engine delays every other track to match.
+            {t(". The engine delays every other track to match.")}
           </p>
         </ParamGroup>
       )}

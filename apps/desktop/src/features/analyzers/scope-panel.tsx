@@ -32,6 +32,7 @@ import {
   SpectrumCurve,
   Vectorscope,
 } from "./views"
+import { translatedText as t } from "@/lib/i18n"
 
 type ChoiceProps<Value extends number> = {
   label: string
@@ -144,7 +145,7 @@ function ScopeBody() {
       </div>
       <div
         role="group"
-        aria-label="Views"
+        aria-label={t("Views")}
         className="flex flex-wrap items-center gap-1"
       >
         {SCOPE_VIEWS.map((view) => (
@@ -161,9 +162,9 @@ function ScopeBody() {
       </div>
       <div className="flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground">
         <span className="flex items-center gap-1.5">
-          Oscilloscope width
+          {t("Oscilloscope width")}
           <Choice
-            label="Samples the oscilloscope shows"
+            label={t("Samples the oscilloscope shows")}
             values={SCOPE_SPANS}
             value={span}
             format={(value) => String(value)}
@@ -178,12 +179,12 @@ function ScopeBody() {
             useScopeStore.setState({ triggered: pressed })
           }
         >
-          Hold steady
+          {t("Hold steady")}
         </Toggle>
         <span className="flex items-center gap-1.5">
-          Floor
+          {t("Floor")}
           <Choice
-            label="Quietest level shown"
+            label={t("Quietest level shown")}
             values={SCOPE_FLOORS}
             value={floorDb}
             format={(value) => `${value} dB`}
@@ -193,7 +194,7 @@ function ScopeBody() {
       </div>
       {views.length === 0 ? (
         <p className="py-6 text-center text-xs text-muted-foreground">
-          Every view is hidden. Pick one above.
+          {t("Every view is hidden. Pick one above.")}
         </p>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -248,10 +249,9 @@ export function ScopePanel() {
     >
       <DialogContent className="max-h-[calc(100%-2rem)] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Signal scope</DialogTitle>
+          <DialogTitle>{t("Signal scope")}</DialogTitle>
           <DialogDescription>
-            Live level, waveform, spectrum and stereo picture of the mix or of
-            one mixer track. Levels are relative to digital full scale.
+            {t("Live level, waveform, spectrum and stereo picture of the mix or of one mixer track. Levels are relative to digital full scale.")}
           </DialogDescription>
         </DialogHeader>
         {open && <ScopeBody />}

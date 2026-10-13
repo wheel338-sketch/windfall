@@ -15,6 +15,7 @@ import {
   type ValueControlProps,
 } from "./use-drag-value"
 import { ValueInput } from "./value-input"
+import { translatedText as t } from "@/lib/i18n"
 
 const knobVariants = cva(
   "group/knob relative inline-flex flex-col items-center select-none data-disabled:opacity-50",
@@ -380,7 +381,7 @@ function Knob({
         <ValueInput
           {...control.entryProps}
           aria-label={
-            ariaLabel ?? (typeof label === "string" ? label : "Value")
+            ariaLabel ?? (typeof label === "string" ? label : t("Value"))
           }
           className="absolute -bottom-[3px] left-1/2 z-10 h-4 w-14 -translate-x-1/2"
         />

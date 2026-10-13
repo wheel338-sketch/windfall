@@ -17,6 +17,7 @@ import type {
 
 import { useProjectStore } from "./project"
 import { useTransportStore } from "./transport"
+import { translatedText as t } from "@/lib/i18n"
 
 /*
  * Each hook selects the smallest slice a component needs. Patches keep the
@@ -138,7 +139,7 @@ export function projectDisplayName(state: {
   project: Project
 }): string {
   if (state.path !== null) return fileStem(state.path)
-  return state.project.settings.name || "Untitled"
+  return state.project.settings.name || t("Untitled")
 }
 
 export function useProjectName(): string {

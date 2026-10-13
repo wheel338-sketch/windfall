@@ -45,6 +45,7 @@ import {
   unsoloAll,
   patchTrack,
 } from "./operations"
+import { dynamicTitle, translatedText as t } from "@/lib/i18n"
 
 const SECTION = "Mixer"
 
@@ -74,21 +75,21 @@ function onSelected(work: (id: number) => void | Promise<void>) {
 export const MIXER_ACTIONS: Action[] = [
   {
     id: "mixer.bypassEffects",
-    title: "Bypass effects",
+    ...dynamicTitle("Bypass effects", {}),
     section: SECTION,
     enabled: () => effectEnableUpdates(selectedMixerTracks(), false).length > 0,
     run: bypassSelectedEffects,
   },
   {
     id: "mixer.enableEffects",
-    title: "Enable effects",
+    ...dynamicTitle("Enable effects", {}),
     section: SECTION,
     enabled: () => effectEnableUpdates(selectedMixerTracks(), true).length > 0,
     run: enableSelectedEffects,
   },
   {
     id: "mixer.extendNext",
-    title: "Extend mixer selection right",
+    ...dynamicTitle("Extend mixer selection right", {}),
     section: SECTION,
     scope: "mixer",
     defaultShortcut: "Shift+ArrowRight",
@@ -97,7 +98,7 @@ export const MIXER_ACTIONS: Action[] = [
   },
   {
     id: "mixer.extendPrevious",
-    title: "Extend mixer selection left",
+    ...dynamicTitle("Extend mixer selection left", {}),
     section: SECTION,
     scope: "mixer",
     defaultShortcut: "Shift+ArrowLeft",
@@ -106,14 +107,14 @@ export const MIXER_ACTIONS: Action[] = [
   },
   {
     id: "mixer.currentUtility",
-    title: "Show Current mixer utility",
+    ...dynamicTitle("Show Current mixer utility", {}),
     section: SECTION,
     keywords: "selected follow utility analysis meter effects",
     run: showCurrentUtility,
   },
   {
     id: "mixer.toggleRecordArm",
-    title: "Arm or disarm mixer track for recording",
+    ...dynamicTitle("Arm or disarm mixer track for recording", {}),
     section: SECTION,
     keywords: "record input microphone interface",
     enabled: (state) => {
@@ -139,7 +140,7 @@ export const MIXER_ACTIONS: Action[] = [
   },
   {
     id: "mixer.recordArmed",
-    title: "Record armed mixer tracks…",
+    ...dynamicTitle("Record armed mixer tracks…", {}),
     section: SECTION,
     keywords: "multitrack audio input drums band microphone take",
     enabled: (state) =>
@@ -153,23 +154,23 @@ export const MIXER_ACTIONS: Action[] = [
   },
   {
     id: "mixer.renderSelected",
-    title: "Render selected mixer tracks…",
+    ...dynamicTitle("Render selected mixer tracks…", {}),
     section: SECTION,
     keywords: "offline stems export wave audio files",
     enabled: () => renderableMixerTracks(selectedMixerTracks()).length > 0,
-    whyDisabled: () => "Select a mixer insert or Master",
+    whyDisabled: () => t("Select a mixer insert or Master"),
     run: () => openMixerRender(selectedMixerTracks()),
   },
   {
     id: "mixer.renderArmed",
-    title: "Render armed mixer tracks…",
+    ...dynamicTitle("Render armed mixer tracks…", {}),
     section: SECTION,
     keywords: "offline stems export wave disk audio files",
     enabled: (state) =>
       state.document.project.mixer.tracks.some(
         (track) => track.recording?.armed && !track.current
       ),
-    whyDisabled: () => "Arm a mixer insert or Master",
+    whyDisabled: () => t("Arm a mixer insert or Master"),
     run: () =>
       openMixerRender(
         useProjectStore
@@ -179,7 +180,7 @@ export const MIXER_ACTIONS: Action[] = [
   },
   {
     id: "mixer.addTrack",
-    title: "Add mixer track",
+    ...dynamicTitle("Add mixer track", {}),
     section: SECTION,
     defaultShortcut: "Alt+M",
     keywords: "new insert bus",
@@ -190,7 +191,7 @@ export const MIXER_ACTIONS: Action[] = [
   },
   {
     id: "mixer.renameTrack",
-    title: "Rename mixer track",
+    ...dynamicTitle("Rename mixer track", {}),
     section: SECTION,
     scope: "mixer",
     defaultShortcut: "F2",
@@ -200,7 +201,7 @@ export const MIXER_ACTIONS: Action[] = [
   },
   {
     id: "mixer.changeColor",
-    title: "Change track color…",
+    ...dynamicTitle("Change track color…", {}),
     section: SECTION,
     keywords: "colour swatch",
     enabled: (state) => selected(state) !== undefined,
@@ -208,7 +209,7 @@ export const MIXER_ACTIONS: Action[] = [
   },
   {
     id: "mixer.deleteTrack",
-    title: "Delete mixer track",
+    ...dynamicTitle("Delete mixer track", {}),
     section: SECTION,
     scope: "mixer",
     editCommand: "delete",
@@ -219,7 +220,7 @@ export const MIXER_ACTIONS: Action[] = [
   },
   {
     id: "mixer.toggleMute",
-    title: "Mute or unmute track",
+    ...dynamicTitle("Mute or unmute track", {}),
     section: SECTION,
     scope: "mixer",
     defaultShortcut: "M",
@@ -230,7 +231,7 @@ export const MIXER_ACTIONS: Action[] = [
   },
   {
     id: "mixer.toggleSolo",
-    title: "Solo or unsolo track",
+    ...dynamicTitle("Solo or unsolo track", {}),
     section: SECTION,
     scope: "mixer",
     defaultShortcut: "S",
@@ -242,7 +243,7 @@ export const MIXER_ACTIONS: Action[] = [
   },
   {
     id: "mixer.unmuteAll",
-    title: "Unmute all tracks",
+    ...dynamicTitle("Unmute all tracks", {}),
     section: SECTION,
     enabled: (state) =>
       state.document.project.mixer.tracks.some((track) => track.muted),
@@ -250,7 +251,7 @@ export const MIXER_ACTIONS: Action[] = [
   },
   {
     id: "mixer.resetLevels",
-    title: "Reset levels",
+    ...dynamicTitle("Reset levels", {}),
     section: SECTION,
     enabled: (state) =>
       state.document.project.mixer.tracks.some(
@@ -260,7 +261,7 @@ export const MIXER_ACTIONS: Action[] = [
   },
   {
     id: "mixer.selectRoutedHere",
-    title: "Select tracks routed here",
+    ...dynamicTitle("Select tracks routed here", {}),
     section: SECTION,
     enabled: (state) => {
       const track = selected(state)
@@ -282,7 +283,7 @@ export const MIXER_ACTIONS: Action[] = [
   },
   {
     id: "mixer.selectMutedTracks",
-    title: "Select muted tracks",
+    ...dynamicTitle("Select muted tracks", {}),
     section: SECTION,
     enabled: (state) =>
       mutedTrackIds(state.document.project.mixer.tracks).length > 0,
@@ -298,7 +299,7 @@ export const MIXER_ACTIONS: Action[] = [
   },
   {
     id: "mixer.selectSoloTracks",
-    title: "Select solo tracks",
+    ...dynamicTitle("Select solo tracks", {}),
     section: SECTION,
     enabled: (state) =>
       soloTrackIds(state.document.project.mixer.tracks).length > 0,
@@ -314,7 +315,7 @@ export const MIXER_ACTIONS: Action[] = [
   },
   {
     id: "mixer.unsoloAll",
-    title: "Unsolo all tracks",
+    ...dynamicTitle("Unsolo all tracks", {}),
     section: SECTION,
     enabled: (state) =>
       state.document.project.mixer.tracks.some((track) => track.solo),
@@ -322,7 +323,7 @@ export const MIXER_ACTIONS: Action[] = [
   },
   {
     id: "mixer.resetVolume",
-    title: "Reset fader to 0 dB",
+    ...dynamicTitle("Reset fader to 0 dB", {}),
     section: SECTION,
     keywords: "volume level gain unity",
     enabled: (state) => (selected(state)?.volume ?? 1) !== 1,
@@ -330,7 +331,7 @@ export const MIXER_ACTIONS: Action[] = [
   },
   {
     id: "mixer.centerPan",
-    title: "Center pan",
+    ...dynamicTitle("Center pan", {}),
     section: SECTION,
     keywords: "reset balance",
     enabled: (state) => (selected(state)?.pan ?? 0) !== 0,
@@ -338,7 +339,7 @@ export const MIXER_ACTIONS: Action[] = [
   },
   {
     id: "mixer.routeToMaster",
-    title: "Route to master",
+    ...dynamicTitle("Route to master", {}),
     section: SECTION,
     keywords: "output reset routing",
     enabled: (state) => {
@@ -351,14 +352,14 @@ export const MIXER_ACTIONS: Action[] = [
   },
   {
     id: "mixer.resetPeaks",
-    title: "Reset peak readouts",
+    ...dynamicTitle("Reset peak readouts", {}),
     section: SECTION,
     keywords: "clip clear meters",
     run: resetAllPeaks,
   },
   {
     id: "mixer.selectNext",
-    title: "Select next mixer track",
+    ...dynamicTitle("Select next mixer track", {}),
     section: SECTION,
     scope: "mixer",
     defaultShortcut: "ArrowRight",
@@ -367,7 +368,7 @@ export const MIXER_ACTIONS: Action[] = [
   },
   {
     id: "mixer.selectPrevious",
-    title: "Select previous mixer track",
+    ...dynamicTitle("Select previous mixer track", {}),
     section: SECTION,
     scope: "mixer",
     defaultShortcut: "ArrowLeft",
@@ -376,7 +377,7 @@ export const MIXER_ACTIONS: Action[] = [
   },
   {
     id: "mixer.selectFirst",
-    title: "Select the master track",
+    ...dynamicTitle("Select the master track", {}),
     section: SECTION,
     scope: "mixer",
     defaultShortcut: "Home",
@@ -384,7 +385,7 @@ export const MIXER_ACTIONS: Action[] = [
   },
   {
     id: "mixer.selectLast",
-    title: "Select the last mixer track",
+    ...dynamicTitle("Select the last mixer track", {}),
     section: SECTION,
     scope: "mixer",
     defaultShortcut: "End",

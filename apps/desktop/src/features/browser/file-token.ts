@@ -1,5 +1,6 @@
 import type { LibraryFileToken } from "@/bindings"
 import { backend } from "@/lib/ipc"
+import { translatedText as t } from "@/lib/i18n"
 
 import { useLibraryStore } from "./library-store"
 import { useBrowserStore, type Selection } from "./store"
@@ -41,7 +42,7 @@ export function fileRequestCurrent(request: FileRequest): boolean {
 export async function resolveFile(
   request: FileRequest
 ): Promise<LibraryFileToken> {
-  if (!fileRequestCurrent(request)) throw new Error(STALE)
+  if (!fileRequestCurrent(request)) throw new Error(t(STALE))
   const token = request.browser ?? (await backend.libraryFile(request.path))
   return acceptFile(request, token)
 }
@@ -66,7 +67,7 @@ export function acceptFile(
       token.rootPath !== request.rootPath &&
       !(contains(request.rootPath) && contains(token.rootPath)))
   )
-    throw new Error(STALE)
+    throw new Error(t(STALE))
   if (
     request.selection &&
     useBrowserStore.getState().selected === request.selection

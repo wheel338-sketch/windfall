@@ -6,6 +6,7 @@ import { effectDescriptor, instrumentDescriptor } from "@/features/params/descri
 import { automationBlocked, describeTarget, targetState } from "@/lib/automation/targets"
 import { scriptParameterTargets } from "@/lib/script-parameters"
 import { TRACK_PROCESSING_INFO } from "@/lib/track-processing"
+import { message, translatedText as t } from "@/lib/i18n"
 
 export function scriptTargetChoices(project: Project): { value: string; label: string; target: LinkTarget | null }[] {
   const targets: AutomationTarget[] = [...scriptParameterTargets(project)]
@@ -37,11 +38,10 @@ export function scriptTargetChoices(project: Project): { value: string; label: s
   for (const choice of choices) {
     if ((labelCounts.get(choice.label) ?? 0) > 1) {
       const target = choice.target.target
-      const scope = "channel" in target ? "Channel" : "Mixer"
-      choice.label = `${scope} · ${choice.label}`
+      choice.label = message("{scope} · {label}", { scope: "channel" in target ? t("Channel") : t("Mixer"), label: choice.label })
     }
   }
-  return [{ value: "none", label: "No mapped target (tempo / feedback only)", target: null },
+  return [{ value: "none", label: t("No mapped target (tempo / feedback only)"), target: null },
     ...globalChoices.map(choice => ({ ...choice, value: JSON.stringify(choice.target) })),
     ...choices.filter((choice, index) => choices.findIndex(other => other.value === choice.value) === index)]
 }
@@ -54,34 +54,34 @@ export function ControllerBindingFields({ project, source, target, map, feedback
   const control = source.control
   const choices = scriptTargetChoices(project)
   return <>
-    <Field><FieldLabel htmlFor="script-device">MIDI device name (blank means any enabled input)</FieldLabel>
+    <Field><FieldLabel htmlFor="script-device">{t("MIDI device name (blank means any enabled input)")}</FieldLabel>
       <Input id="script-device" maxLength={256} value={source.device ?? ""} disabled={disabled}
         onChange={e => change({ source: { ...source, device: e.target.value || undefined } })} /></Field>
-    <Field><FieldLabel htmlFor="script-input-channel">Input MIDI channel (0 means all)</FieldLabel>
+    <Field><FieldLabel htmlFor="script-input-channel">{t("Input MIDI channel (0 means all)")}</FieldLabel>
       <Input id="script-input-channel" type="number" min={0} max={16} value={source.channel ?? 0} disabled={disabled}
         onChange={e => change({ source: { ...source, channel: e.target.valueAsNumber || undefined } })} /></Field>
-    <ControllerChoice<MidiControl["type"]> label="Script input type" value={control.type} disabled={disabled} choices={[
-      { value: "cc", label: "Control change" }, { value: "note", label: "Note / pad" },
-      { value: "pitchBend", label: "Pitch wheel (14 bit)" }, { value: "channelPressure", label: "Channel pressure" },
+    <ControllerChoice<MidiControl["type"]> label={t("Script input type")} value={control.type} disabled={disabled} choices={[
+      { value: "cc", label: t("Control change") }, { value: "note", label: t("Note / pad") },
+      { value: "pitchBend", label: t("Pitch wheel (14 bit)") }, { value: "channelPressure", label: t("Channel pressure") },
     ]} change={type => change({ source: { ...source, control: type === "cc" ? { type, number: 7 } : type === "note" ? { type, key: 60 } : { type } } })} />
     {(control.type === "cc" || control.type === "note") && <Field>
-      <FieldLabel htmlFor="script-cc">{control.type === "cc" && source.channel === 1 ? "Input CC on MIDI channel 1" : "Controller number / note key"}</FieldLabel>
+      <FieldLabel htmlFor="script-cc">{control.type === "cc" && source.channel === 1 ? t("Input CC on MIDI channel 1") : t("Controller number / note key")}</FieldLabel>
       <Input id="script-cc" type="number" min={0} max={127} value={control.type === "cc" ? control.number : control.key} disabled={disabled}
         onChange={e => change({ source: { ...source, control: control.type === "cc" ? { type: "cc", number: e.target.valueAsNumber } : { type: "note", key: e.target.valueAsNumber } } })} /></Field>}
-    <ControllerChoice<string> label="Script mapped target" value={target ? JSON.stringify(target) : "none"} choices={choices} disabled={disabled}
+    <ControllerChoice<string> label={t("Script mapped target")} value={target ? JSON.stringify(target) : "none"} choices={choices} disabled={disabled}
       change={value => change({ target: choices.find(choice => choice.value === value)?.target ?? null })} />
-    <ControllerChoice<PickupMode> label="Script pickup" value={map.pickup} disabled={disabled} choices={[
-      { value: "off", label: "Immediate takeover" }, { value: "on", label: "Soft takeover" }, { value: "inherit", label: "Use global pickup" },
+    <ControllerChoice<PickupMode> label={t("Script pickup")} value={map.pickup} disabled={disabled} choices={[
+      { value: "off", label: t("Immediate takeover") }, { value: "on", label: t("Soft takeover") }, { value: "inherit", label: t("Use global pickup") },
     ]} change={pickup => change({ map: { ...map, pickup } })} />
-    <ControllerChoice<SourceMode> label="Script controller mode" value={map.mode} disabled={disabled} choices={[
-      { value: "absolute", label: "Absolute" }, { value: "toggle", label: "Toggle" },
-      { value: "relativeTwosComplement", label: "Relative two's complement" }, { value: "relativeSignedBit", label: "Relative sign bit" },
-      { value: "relativeBinaryOffset", label: "Relative offset" },
+    <ControllerChoice<SourceMode> label={t("Script controller mode")} value={map.mode} disabled={disabled} choices={[
+      { value: "absolute", label: t("Absolute") }, { value: "toggle", label: t("Toggle") },
+      { value: "relativeTwosComplement", label: t("Relative two's complement") }, { value: "relativeSignedBit", label: t("Relative sign bit") },
+      { value: "relativeBinaryOffset", label: t("Relative offset") },
     ]} change={mode => change({ map: { ...map, mode } })} />
-    <Field><FieldLabel htmlFor="script-smoothing">Script smoothing (ms)</FieldLabel>
+    <Field><FieldLabel htmlFor="script-smoothing">{t("Script smoothing (ms)")}</FieldLabel>
       <Input id="script-smoothing" type="number" min={0} max={5000} value={map.smoothingMs} disabled={disabled}
         onChange={e => change({ map: { ...map, smoothingMs: e.target.valueAsNumber } })} /></Field>
-    <Field><FieldLabel htmlFor="script-feedback-channel">Feedback MIDI channel</FieldLabel>
+    <Field><FieldLabel htmlFor="script-feedback-channel">{t("Feedback MIDI channel")}</FieldLabel>
       <Input id="script-feedback-channel" type="number" min={1} max={16} value={feedbackChannel} disabled={disabled}
         onChange={e => change({ feedbackChannel: e.target.valueAsNumber })} /></Field>
   </>

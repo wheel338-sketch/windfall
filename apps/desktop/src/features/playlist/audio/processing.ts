@@ -1,6 +1,7 @@
 import type { Clip, ClipContent, ClipStretch, Command } from "@/bindings"
 import { MAX_SONG_TICKS } from "@/lib/units"
 import { playbackSpeed } from "./geometry"
+import { translatedText as t } from "@/lib/i18n"
 export type AudioClip = Clip & {
   content: Extract<ClipContent, { type: "audio" }>
 }
@@ -14,14 +15,14 @@ export function processingCommand(
     !Number.isFinite(pitch) ||
     Math.abs(pitch) > (stretch.mode === "spectral" ? 24 : 48)
   )
-    throw new Error("Pitch is outside the supported range.")
+    throw new Error(t("Pitch is outside the supported range."))
   if (
     stretch.mode === "spectral" &&
     (!Number.isFinite(stretch.ratio) ||
       stretch.ratio < 0.25 ||
       stretch.ratio > 4)
   )
-    throw new Error("Duration must be between 0.25 and 4 times the source.")
+    throw new Error(t("Duration must be between 0.25 and 4 times the source."))
   const factors = clips.map(
     (clip) => playbackSpeed(clip.content) / playbackSpeed({ pitch, stretch })
   )
@@ -31,13 +32,13 @@ export function processingCommand(
       offset = scale(clip.offset, i)
     if (clip.start + length > MAX_SONG_TICKS || offset > MAX_SONG_TICKS)
       throw new Error(
-        "The stretched clip would exceed the song's maximum length."
+        t("The stretched clip would exceed the song's maximum length.")
       )
     return { id: clip.id, patch: { length, offset } }
   })
   return {
     type: "batch",
-    label: "Process audio clips",
+    label: t("Process audio clips"),
     commands: [
       { type: "updateClips", updates: timing },
       {
@@ -66,7 +67,7 @@ export function fitRatio(sourceBpm: number, targetBpm: number): number {
     ratio > 4
   )
     throw new Error(
-      "Enter a positive source tempo that fits within the 0.25 to 4 duration range."
+      t("Enter a positive source tempo that fits within the 0.25 to 4 duration range.")
     )
   return ratio
 }
@@ -81,6 +82,6 @@ export function beatFitRatio(
     !Number.isFinite(seconds) ||
     seconds <= 0
   )
-    throw new Error("Enter a positive beat count for the whole source file.")
+    throw new Error(t("Enter a positive beat count for the whole source file."))
   return fitRatio((beats * 60) / seconds, targetBpm)
 }

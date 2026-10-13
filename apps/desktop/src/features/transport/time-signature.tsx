@@ -23,6 +23,7 @@ import { nextDenominatorScale } from "./denominator-scale"
 import { nextNumeratorScale } from "./numerator-scale"
 import { nextSignaturePreset } from "./signature-preset-step"
 import { nextSignature, SIGNATURE_PRESETS } from "./signature-presets"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 const NUMERATORS = Array.from({ length: 16 }, (_, index) => index + 1)
 const DENOMINATORS = [2, 4, 8, 16]
@@ -65,7 +66,7 @@ function NumberSelect({
 export function TimeSignatureField() {
   const { timeSignature } = useSettings()
   const hint = useHint(
-    "Time signature: beats per bar and the note that is one beat"
+    t("Time signature: beats per bar and the note that is one beat")
   )
 
   function change(next: TimeSignature) {
@@ -75,7 +76,7 @@ export function TimeSignatureField() {
   return (
     <Popover>
       <PopoverTrigger
-        aria-label={`Time signature: ${timeSignature.numerator} over ${timeSignature.denominator}`}
+        aria-label={message("Time signature: {numerator} over {denominator}", { numerator: plainNumber(timeSignature.numerator), denominator: plainNumber(timeSignature.denominator) })}
         className="flex h-6 items-center rounded-sm px-1 font-readout text-[0.8125rem] font-medium text-display-foreground outline-none hover:bg-display-foreground/10 focus-visible:ring-1 focus-visible:ring-brand aria-expanded:bg-display-foreground/10"
         {...hint}
       >
@@ -83,11 +84,11 @@ export function TimeSignatureField() {
       </PopoverTrigger>
       <PopoverContent className="w-auto gap-3" align="center">
         <PopoverHeader>
-          <PopoverTitle className="text-xs">Time signature</PopoverTitle>
+          <PopoverTitle className="text-xs">{t("Time signature")}</PopoverTitle>
         </PopoverHeader>
         <div className="flex items-center gap-2">
           <NumberSelect
-            label="Beats per bar"
+            label={t("Beats per bar")}
             value={timeSignature.numerator}
             options={NUMERATORS}
             onChange={(numerator) => change({ ...timeSignature, numerator })}
@@ -96,7 +97,7 @@ export function TimeSignatureField() {
             /
           </span>
           <NumberSelect
-            label="Beat unit"
+            label={t("Beat unit")}
             value={timeSignature.denominator}
             options={DENOMINATORS}
             onChange={(denominator) =>
@@ -109,7 +110,7 @@ export function TimeSignatureField() {
             type="button"
             variant="outline"
             size="sm"
-            aria-label="Halve beats per bar"
+            aria-label={t("Halve beats per bar")}
             disabled={
               nextNumeratorScale(timeSignature.numerator, "half") === null
             }
@@ -130,13 +131,13 @@ export function TimeSignatureField() {
               }
             }}
           >
-            Halve beats
+            {t("Halve beats")}
           </Button>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            aria-label="Double beats per bar"
+            aria-label={t("Double beats per bar")}
             disabled={
               nextNumeratorScale(timeSignature.numerator, "double") === null
             }
@@ -157,7 +158,7 @@ export function TimeSignatureField() {
               }
             }}
           >
-            Double beats
+            {t("Double beats")}
           </Button>
         </div>
         <div className="flex items-center gap-2">
@@ -165,7 +166,7 @@ export function TimeSignatureField() {
             type="button"
             variant="outline"
             size="sm"
-            aria-label="Halve beat unit"
+            aria-label={t("Halve beat unit")}
             disabled={
               nextDenominatorScale(timeSignature.denominator, "half") === null
             }
@@ -186,13 +187,13 @@ export function TimeSignatureField() {
               }
             }}
           >
-            Halve unit
+            {t("Halve unit")}
           </Button>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            aria-label="Double beat unit"
+            aria-label={t("Double beat unit")}
             disabled={
               nextDenominatorScale(timeSignature.denominator, "double") === null
             }
@@ -213,7 +214,7 @@ export function TimeSignatureField() {
               }
             }}
           >
-            Double unit
+            {t("Double unit")}
           </Button>
         </div>
         <div className="grid grid-cols-4 gap-1">
@@ -241,7 +242,7 @@ export function TimeSignatureField() {
             type="button"
             variant="outline"
             size="sm"
-            aria-label="Choose the previous time signature preset"
+            aria-label={t("Choose the previous time signature preset")}
             disabled={nextSignaturePreset(timeSignature, "previous") === null}
             onClick={() => {
               const latest =
@@ -255,13 +256,13 @@ export function TimeSignatureField() {
               }
             }}
           >
-            Previous
+            {t("Previous")}
           </Button>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            aria-label="Choose the next time signature preset"
+            aria-label={t("Choose the next time signature preset")}
             disabled={nextSignaturePreset(timeSignature, "next") === null}
             onClick={() => {
               const latest =
@@ -275,7 +276,7 @@ export function TimeSignatureField() {
               }
             }}
           >
-            Next
+            {t("Next")}
           </Button>
         </div>
       </PopoverContent>

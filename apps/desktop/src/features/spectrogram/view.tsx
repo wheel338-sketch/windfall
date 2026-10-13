@@ -2,6 +2,7 @@ import { useRef } from "react"
 
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { useRealtime } from "@/lib/store/realtime"
+import { translatedText as t } from "@/lib/i18n"
 
 const MAX_COLUMNS = 64
 const MAX_ROWS = 16
@@ -49,12 +50,12 @@ export function SpectrogramView() {
   })
 
   return (
-    <section aria-label="Spectrogram" className="flex flex-col gap-2">
+    <section aria-label={t("Spectrogram")} className="flex flex-col gap-2">
       <div className="relative rounded-md bg-display p-4">
         <svg
           ref={plot}
           role="img"
-          aria-label="Spectrogram, DC to Nyquist from left to right, oldest to newest from top to bottom"
+          aria-label={t("Spectrogram, DC to Nyquist from left to right, oldest to newest from top to bottom")}
           viewBox={`0 0 ${MAX_COLUMNS} ${MAX_ROWS}`}
           preserveAspectRatio="none"
           className="h-40 w-full text-brand"
@@ -72,17 +73,17 @@ export function SpectrogramView() {
         </svg>
         <Empty ref={empty} className="pointer-events-none absolute inset-0">
           <EmptyHeader>
-            <EmptyTitle>No spectrogram available</EmptyTitle>
+            <EmptyTitle>{t("No spectrogram available")}</EmptyTitle>
           </EmptyHeader>
         </Empty>
       </div>
       <div className="flex justify-between text-xs text-muted-foreground">
         <span>DC</span>
-        <span>Power · −90 to 0 dB</span>
+        <span>{t("Power · −90 to 0 dB")}</span>
         <span>Nyquist</span>
       </div>
       <p className="text-xs text-muted-foreground">
-        Oldest at top · Newest at bottom
+        {t("Oldest at top · Newest at bottom")}
       </p>
     </section>
   )

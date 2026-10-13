@@ -6,6 +6,7 @@ import MixerPanel from "@/features/mixer"
 import PianoRollPanel from "@/features/piano-roll"
 import PlaylistPanel from "@/features/playlist"
 import type { CenterTab, PanelId } from "@/lib/store/ui"
+import { translatedText as t } from "@/lib/i18n"
 
 export type { PanelId }
 export { isPanelId } from "@/lib/store/ui"
@@ -21,23 +22,23 @@ type PanelInfo = {
 /** Every panel the workspace can show. */
 export const PANELS: Record<PanelId, PanelInfo> = {
   browser: {
-    title: "Browser",
+    get title() { return t("Browser") },
     action: "view.browser",
     component: BrowserPanel,
   },
-  mixer: { title: "Mixer", action: "view.mixer", component: MixerPanel },
+  mixer: { get title() { return t("Mixer") }, action: "view.mixer", component: MixerPanel },
   channelRack: {
-    title: "Channel rack",
+    get title() { return t("Channel rack") },
     action: "view.channelRack",
     component: ChannelRackPanel,
   },
   playlist: {
-    title: "Playlist",
+    get title() { return t("Playlist") },
     action: "view.playlist",
     component: PlaylistPanel,
   },
   pianoRoll: {
-    title: "Piano roll",
+    get title() { return t("Piano roll") },
     action: "view.pianoRoll",
     component: PianoRollPanel,
   },

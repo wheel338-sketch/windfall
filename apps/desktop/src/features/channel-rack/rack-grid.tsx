@@ -46,6 +46,7 @@ import { StepRuler } from "./step-ruler"
 import { useRackStore } from "./rack-store"
 import { StepGraph } from "./step-graph"
 import { beatShades, moveIndex, rulerMarks, stepsPerBeat } from "./steps"
+import { translatedText as t } from "@/lib/i18n"
 
 /** MIME type of a rack row being dragged to a new position. */
 export const CHANNEL_DRAG_TYPE = "application/x-windfall-channel"
@@ -272,7 +273,7 @@ export function RackGrid() {
             className="sticky left-0 flex shrink-0 flex-col gap-1 px-2 py-1 text-[0.6875rem] text-muted-foreground"
             style={{ width: LEFT_WIDTH }}
           >
-            Filter channels
+            {t("Filter channels")}
             <input
               type="text"
               value={query}
@@ -292,10 +293,10 @@ export function RackGrid() {
               style={{ width: LEFT_WIDTH }}
             >
               <span className="col-span-2" />
-              <span className="text-center">Pan</span>
-              <span className="text-center">Vol</span>
-              <span className="pl-3.5">Channel</span>
-              <span className="text-right">Mixer</span>
+              <span className="text-center">{t("Pan")}</span>
+              <span className="text-center">{t("Vol")}</span>
+              <span className="pl-3.5">{t("Channel")}</span>
+              <span className="text-right">{t("Mixer")}</span>
             </div>
             <div style={{ paddingLeft: STEPS_INSET }}>
               <StepRuler
@@ -310,7 +311,7 @@ export function RackGrid() {
           <StepGridGroup
             ref={group}
             role="group"
-            aria-label="Channels"
+            aria-label={t("Channels")}
             className="relative gap-0"
           >
             <div ref={rows}>
@@ -367,12 +368,12 @@ export function RackGrid() {
               <ActionButton action="channel.add" variant="ghost" size="sm" />
               <span className="text-muted-foreground">
                 {ids.length === 0 && query.trim() !== ""
-                  ? "No channels match."
+                  ? t("No channels match.")
                   : ids.length === 0 && groupFilter !== null
-                    ? "No channels in this group"
-                    : "or drag a sample here from the browser"}
+                    ? t("No channels in this group")
+                    : t("or drag a sample here from the browser")}
               </span>
-              {groupFilter !== null && <ActionButton action="channelRack.showAllGroups" variant="ghost" size="sm">Show all</ActionButton>}
+              {groupFilter !== null && <ActionButton action="channelRack.showAllGroups" variant="ghost" size="sm">{t("Show all")}</ActionButton>}
             </div>
           </div>
         </div>

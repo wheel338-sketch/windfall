@@ -1,4 +1,4 @@
-import { dynamicTitle } from "@/lib/i18n"
+import { dynamicTitle, translatedText as t } from "@/lib/i18n"
 import type { Channel } from "@/bindings"
 import { INSTRUMENT_KINDS, instrumentDescriptor } from "@/features/params"
 import {
@@ -77,7 +77,7 @@ const NOTE_VIEW_ACTIONS: Action[] = (
   scope: "channelRack",
   keywords: "row view note preview thumbnail piano roll step buttons",
   enabled: (state) => selectedNotePreviewLane(state) !== null,
-  whyDisabled: () => "Select a channel in a pattern",
+  whyDisabled: () => t("Select a channel in a pattern"),
   checked: (state) => {
     const lane = selectedNotePreviewLane(state)
     return lane !== null && rackNoteView(useRackStore.getState(), lane) === view
@@ -150,10 +150,10 @@ function selectedSynth(state: AppState) {
 
 /** Says which kind of channel an action is for, when the other is selected. */
 const onlyFor =
-  (wanted: "sampler" | "instrument", reason: string) =>
+  (wanted: "sampler" | "instrument", reason: () => string) =>
   (state: AppState): string | undefined => {
     const channel = selected(state)
-    return channel && channel.source.type !== wanted ? reason : undefined
+    return channel && channel.source.type !== wanted ? reason() : undefined
   }
 
 const ADD_INSTRUMENT_ACTIONS = INSTRUMENT_KINDS.map((kind): Action => ({
@@ -177,7 +177,7 @@ const SYNTH_SOUND_ACTIONS = SYNTH_PRESETS.filter(
   section: SOUNDS_SECTION,
   keywords: `preset patch ${preset.description}`,
   enabled: (state) => selectedSynth(state) !== null,
-  whyDisabled: () => "Synth channels only",
+  whyDisabled: () => t("Synth channels only"),
   checked: (state) => {
     const params = selectedSynth(state)
     return params !== null && matchingPreset(params)?.id === preset.id
@@ -196,30 +196,30 @@ export const CHANNEL_RACK_ACTIONS: Action[] = [
   ...NOTE_VIEW_ACTIONS,
   {
     id: OPEN_NOTE_PREVIEW_ACTION,
-    title: "Open in piano roll",
+    ...dynamicTitle("Open in piano roll", {}),
     section: "Channels",
     scope: "channelRack",
     keywords: "row note preview thumbnail edit notes",
     standsFor: () => "view.pianoRoll",
     enabled: (state) => selectedNotePreviewLane(state) !== null,
-    whyDisabled: () => "Select a channel in a pattern",
+    whyDisabled: () => t("Select a channel in a pattern"),
     run: () => runAction("view.pianoRoll"),
   },
   {
     id: "channelRack.graph",
-    title: "Step graph editor",
+    ...dynamicTitle("Step graph editor", {}),
     section: "View",
     scope: "channelRack",
     defaultShortcut: "Alt+G",
     keywords: "velocity pan note pitch length timing shift bars paint properties",
     enabled: (state) => selectedNotePreviewLane(state) !== null,
-    whyDisabled: () => "Select a channel in a pattern",
+    whyDisabled: () => t("Select a channel in a pattern"),
     checked: () => useRackStore.getState().graphOpen,
     run: () => useRackStore.getState().setGraphOpen(!useRackStore.getState().graphOpen),
   },
   {
     id: "channel.resetTiming",
-    title: "Reset channel note timing",
+    ...dynamicTitle("Reset channel note timing", {}),
     section: "Channels",
     keywords: "gate shift swing mix reset defaults",
     enabled: hasSelection,
@@ -227,14 +227,14 @@ export const CHANNEL_RACK_ACTIONS: Action[] = [
   },
   {
     id: "channelRack.groups",
-    title: "Channel groups…",
+    ...dynamicTitle("Channel groups…", {}),
     section: "Channels",
     keywords: "organize filter category assign multiple channels",
     run: openChannelGroups,
   },
   {
     id: "channelRack.createGroup",
-    title: "Create channel group…",
+    ...dynamicTitle("Create channel group…", {}),
     section: "Channels",
     keywords: "organize filter category new group",
     enabled: hasSelection,
@@ -242,25 +242,25 @@ export const CHANNEL_RACK_ACTIONS: Action[] = [
   },
   {
     id: "channelRack.renameGroup",
-    title: "Rename channel group…",
+    ...dynamicTitle("Rename channel group…", {}),
     section: "Channels",
     keywords: "organize filter category merge groups",
     enabled: () => currentNamedGroup() !== null,
-    whyDisabled: () => "Select a named group or a grouped channel",
+    whyDisabled: () => t("Select a named group or a grouped channel"),
     run: renameChannelGroup,
   },
   {
     id: "channelRack.removeGroup",
-    title: "Remove channel group…",
+    ...dynamicTitle("Remove channel group…", {}),
     section: "Channels",
     keywords: "organize filter category ungroup channels",
     enabled: () => currentNamedGroup() !== null,
-    whyDisabled: () => "Select a named group or a grouped channel",
+    whyDisabled: () => t("Select a named group or a grouped channel"),
     run: removeChannelGroup,
   },
   {
     id: "channelRack.showAllGroups",
-    title: "Show all channel groups",
+    ...dynamicTitle("Show all channel groups", {}),
     section: "Channels",
     keywords: "organize filter reveal all channels",
     checked: () => useRackStore.getState().groupFilter === null,
@@ -269,24 +269,24 @@ export const CHANNEL_RACK_ACTIONS: Action[] = [
   ...NOTE_VIEW_ACTIONS,
   {
     id: OPEN_NOTE_PREVIEW_ACTION,
-    title: "Open in piano roll",
+    ...dynamicTitle("Open in piano roll", {}),
     section: "Channels",
     scope: "channelRack",
     keywords: "row note preview thumbnail edit notes",
     standsFor: () => "view.pianoRoll",
     enabled: (state) => selectedNotePreviewLane(state) !== null,
-    whyDisabled: () => "Select a channel in a pattern",
+    whyDisabled: () => t("Select a channel in a pattern"),
     run: () => runAction("view.pianoRoll"),
   },
   {
     id: "channel.sendStepsToPianoRoll",
-    title: "Send steps to piano roll",
+    ...dynamicTitle("Send steps to piano roll", {}),
     section: "Channels",
     scope: "channelRack",
     keywords: "convert step sequencer edit notes piano",
     standsFor: () => "view.pianoRoll",
     enabled: (state) => selectedNotePreviewLane(state) !== null,
-    whyDisabled: () => "Select a channel in a pattern",
+    whyDisabled: () => t("Select a channel in a pattern"),
     run: async () => {
       const lane = selectedNotePreviewLane(getAppState())
       if (!lane) return
@@ -298,7 +298,7 @@ export const CHANNEL_RACK_ACTIONS: Action[] = [
   },
   {
     id: "channel.addFromFile",
-    title: "Add channel from an audio file…",
+    ...dynamicTitle("Add channel from an audio file…", {}),
     section: "Channels",
     keywords: "new sampler sample load open wav",
     run: addChannelFromPickedFile,
@@ -306,33 +306,33 @@ export const CHANNEL_RACK_ACTIONS: Action[] = [
   ...ADD_INSTRUMENT_ACTIONS,
   {
     id: "channel.addLayer",
-    title: "Add layer channel",
+    ...dynamicTitle("Add layer channel", {}),
     section: "Channels",
     keywords: "new layer stack children notes together silent fan out",
     run: () => addLayerChannel(),
   },
   {
     id: "channel.replaceSample",
-    title: "Replace sample from an audio file…",
+    ...dynamicTitle("Replace sample from an audio file…", {}),
     section: "Channels",
     keywords: "swap sound load sampler",
     enabled: isSampler,
-    whyDisabled: onlyFor("sampler", "Samplers only"),
+    whyDisabled: onlyFor("sampler", () => t("Samplers only")),
     run: withSelected((channel) => replaceSampleFromPickedFile(channel.id)),
   },
   {
     id: "channel.initInstrument",
-    title: "Init instrument",
+    ...dynamicTitle("Init instrument", {}),
     section: "Channels",
     keywords: "reset default sound preset patch clear synth",
     enabled: isInstrument,
-    whyDisabled: onlyFor("instrument", "Instruments only"),
+    whyDisabled: onlyFor("instrument", () => t(t("Instruments only"))),
     run: withSelected((channel) => initInstrument(channel.id)),
   },
   ...SYNTH_SOUND_ACTIONS,
   {
     id: "channel.rename",
-    title: "Rename channel…",
+    ...dynamicTitle("Rename channel…", {}),
     section: "Channels",
     scope: "channelRack",
     defaultShortcut: "F2",
@@ -341,7 +341,7 @@ export const CHANNEL_RACK_ACTIONS: Action[] = [
   },
   {
     id: "channel.color",
-    title: "Change channel color…",
+    ...dynamicTitle("Change channel color…", {}),
     section: "Channels",
     keywords: "colour swatch",
     enabled: hasSelection,
@@ -352,7 +352,7 @@ export const CHANNEL_RACK_ACTIONS: Action[] = [
   },
   {
     id: "channel.duplicate",
-    title: "Duplicate channel",
+    ...dynamicTitle("Duplicate channel", {}),
     section: "Channels",
     scope: "channelRack",
     editCommand: "duplicate",
@@ -363,7 +363,7 @@ export const CHANNEL_RACK_ACTIONS: Action[] = [
   },
   {
     id: "channel.delete",
-    title: "Delete channel…",
+    ...dynamicTitle("Delete channel…", {}),
     section: "Channels",
     scope: "channelRack",
     editCommand: "delete",
@@ -374,7 +374,7 @@ export const CHANNEL_RACK_ACTIONS: Action[] = [
   },
   {
     id: "channel.moveUp",
-    title: "Move channel up",
+    ...dynamicTitle("Move channel up", {}),
     section: "Channels",
     scope: "channelRack",
     defaultShortcut: "Alt+ArrowUp",
@@ -385,7 +385,7 @@ export const CHANNEL_RACK_ACTIONS: Action[] = [
   },
   {
     id: "channel.moveDown",
-    title: "Move channel down",
+    ...dynamicTitle("Move channel down", {}),
     section: "Channels",
     scope: "channelRack",
     defaultShortcut: "Alt+ArrowDown",
@@ -399,7 +399,7 @@ export const CHANNEL_RACK_ACTIONS: Action[] = [
   },
   {
     id: "channel.mute",
-    title: "Mute channel",
+    ...dynamicTitle("Mute channel", {}),
     section: "Channels",
     keywords: "silence lamp",
     enabled: hasSelection,
@@ -408,7 +408,7 @@ export const CHANNEL_RACK_ACTIONS: Action[] = [
   },
   {
     id: "channel.solo",
-    title: "Solo channel",
+    ...dynamicTitle("Solo channel", {}),
     section: "Channels",
     keywords: "only hear",
     enabled: hasSelection,
@@ -417,7 +417,7 @@ export const CHANNEL_RACK_ACTIONS: Action[] = [
   },
   {
     id: "channel.unmuteAll",
-    title: "Unmute all",
+    ...dynamicTitle("Unmute all", {}),
     section: "Channels",
     enabled: (state) =>
       state.document.project.channels.some((channel) => channel.muted),
@@ -425,7 +425,7 @@ export const CHANNEL_RACK_ACTIONS: Action[] = [
   },
   {
     id: "channel.unsoloAll",
-    title: "Unsolo all",
+    ...dynamicTitle("Unsolo all", {}),
     section: "Channels",
     enabled: (state) =>
       state.document.project.channels.some((channel) => channel.solo),
@@ -433,7 +433,7 @@ export const CHANNEL_RACK_ACTIONS: Action[] = [
   },
   {
     id: "channel.resetLevels",
-    title: "Reset levels",
+    ...dynamicTitle("Reset levels", {}),
     section: "Channels",
     enabled: (state) =>
       state.document.project.channels.some(
@@ -443,7 +443,7 @@ export const CHANNEL_RACK_ACTIONS: Action[] = [
   },
   {
     id: "channel.selectNextMuted",
-    title: "Select next muted channel",
+    ...dynamicTitle("Select next muted channel", {}),
     section: "Channels",
     enabled: (state) =>
       nextFlaggedChannelId(
@@ -463,7 +463,7 @@ export const CHANNEL_RACK_ACTIONS: Action[] = [
   },
   {
     id: "channel.selectNextSolo",
-    title: "Select next solo channel",
+    ...dynamicTitle("Select next solo channel", {}),
     section: "Channels",
     enabled: (state) =>
       nextFlaggedChannelId(
@@ -483,7 +483,7 @@ export const CHANNEL_RACK_ACTIONS: Action[] = [
   },
   {
     id: "channel.clearSteps",
-    title: "Clear steps",
+    ...dynamicTitle("Clear steps", {}),
     section: "Channels",
     keywords: "erase notes empty row",
     enabled: (state) => selectedNoteCount(state) > 0,
@@ -499,17 +499,17 @@ export const CHANNEL_RACK_ACTIONS: Action[] = [
   })),
   {
     id: "channel.advancedFill",
-    title: "Advanced step fill…",
+    ...dynamicTitle("Advanced step fill…", {}),
     section: "Channels",
     keywords: "rhythm euclidean random seeded pulses preview drum pattern",
     enabled: (state) =>
       hasSelection(state) && patternLength(state) !== undefined,
-    whyDisabled: () => "Select a channel in a pattern",
+    whyDisabled: () => t("Select a channel in a pattern"),
     run: openAdvancedFill,
   },
   {
     id: "channel.shiftLeft",
-    title: "Shift steps left",
+    ...dynamicTitle("Shift steps left", {}),
     section: "Channels",
     scope: "channelRack",
     defaultShortcut: "Mod+Shift+ArrowLeft",
@@ -520,7 +520,7 @@ export const CHANNEL_RACK_ACTIONS: Action[] = [
   },
   {
     id: "channel.shiftRight",
-    title: "Shift steps right",
+    ...dynamicTitle("Shift steps right", {}),
     section: "Channels",
     scope: "channelRack",
     defaultShortcut: "Mod+Shift+ArrowRight",
@@ -531,7 +531,7 @@ export const CHANNEL_RACK_ACTIONS: Action[] = [
   },
   {
     id: "channel.routeToNewTrack",
-    title: "Route to a new mixer track",
+    ...dynamicTitle("Route to a new mixer track", {}),
     section: "Channels",
     keywords: "insert output send",
     enabled: hasSelection,
@@ -539,7 +539,7 @@ export const CHANNEL_RACK_ACTIONS: Action[] = [
   },
   {
     id: "channel.showInMixer",
-    title: "Show the channel's mixer track",
+    ...dynamicTitle("Show the channel's mixer track", {}),
     section: "Channels",
     keywords: "routing jump go to",
     enabled: hasSelection,
@@ -547,7 +547,7 @@ export const CHANNEL_RACK_ACTIONS: Action[] = [
   },
   {
     id: "channelRack.settings",
-    title: "Channel settings",
+    ...dynamicTitle("Channel settings", {}),
     section: "View",
     keywords: "show hide toggle inspector sampler panel",
     checked: () => useRackStore.getState().inspectorOpen,

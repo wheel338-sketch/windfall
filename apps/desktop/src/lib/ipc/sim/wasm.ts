@@ -4,6 +4,7 @@
 // so that the dev server, the production build and the tests all load it the
 // same way, with nothing to fetch.
 import moduleUrl from "./windfall_sim.wasm?url&inline"
+import { message } from "@/lib/i18n"
 
 /**
  * The Rust `Document` (crate `windfall-sim`), compiled to WebAssembly. Every
@@ -79,7 +80,7 @@ export async function instantiateSim(): Promise<Sim> {
     const run = exports[operation]
     if (typeof run !== "function") {
       throw new Error(
-        `The WebAssembly document has no operation "${operation}". Run scripts/build-sim.sh.`
+        message("The WebAssembly document has no operation \"{operation}\". Run scripts/build-sim.sh.", { operation })
       )
     }
     const bytes =

@@ -1,11 +1,12 @@
 import { registry, type Action } from "@/lib/actions"
 
 import { closeScope, openScope, setScopeSource } from "./scope-store"
+import { dynamicTitle } from "@/lib/i18n"
 
 const ANALYZER_ACTIONS: Action[] = [
   {
     id: "view.signalScope",
-    title: "Show signal scope",
+    ...dynamicTitle("Show signal scope", {}),
     section: "View",
     keywords:
       "oscilloscope vectorscope spectrum spectrogram peak meter analyzer level waveform phase",
@@ -13,7 +14,7 @@ const ANALYZER_ACTIONS: Action[] = [
   },
   {
     id: "analyzers.sourceMix",
-    title: "Signal scope: listen to the mix output",
+    ...dynamicTitle("Signal scope: listen to the mix output", {}),
     section: "View",
     keywords: "analyzer source master output",
     run: () => {

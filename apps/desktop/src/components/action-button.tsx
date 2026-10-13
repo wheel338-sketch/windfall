@@ -8,7 +8,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { useHint } from "@/lib/store/hint"
-import { useActionTitle, useTranslation } from "@/lib/i18n"
+import { message, useActionTitle, useTranslation } from "@/lib/i18n"
 import {
   runAction,
   useAction,
@@ -47,7 +47,7 @@ export function ActionButton({
   const shortcut = useShortcutLabel(id)
   const title = useActionTitle(id, action?.title ?? id).replace(/…$/, "")
   const t = useTranslation()
-  const hint = useHint(shortcut ? `${title} (${shortcut})` : title)
+  const hint = useHint(shortcut ? message("{help} ({shortcut})", { help: title, shortcut }) : title)
   const showsText =
     children === undefined ||
     typeof children === "string" ||

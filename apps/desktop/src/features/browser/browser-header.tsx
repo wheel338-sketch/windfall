@@ -31,13 +31,14 @@ import {
   setFilter,
   useBrowserStore,
 } from "./store"
+import { translatedText as t } from "@/lib/i18n"
 
 function FilterBox() {
   const filter = useBrowserStore((state) => state.filter)
   const focusRequest = useBrowserStore((state) => state.focusFilter)
   const inputRef = useRef<HTMLInputElement>(null)
   const hint = useHint(
-    "Search filenames and paths in every configured folder. Use * and ?, AND, OR, NOT, quotes and parentheses."
+    t("Search filenames and paths in every configured folder. Use * and ?, AND, OR, NOT, quotes and parentheses.")
   )
 
   // A request made while the panel was hidden is answered when it shows.
@@ -69,8 +70,8 @@ function FilterBox() {
         ref={inputRef}
         type="text"
         role="searchbox"
-        aria-label="Filter the browser"
-        placeholder="Search library"
+        aria-label={t("Filter the browser")}
+        placeholder={t("Search library")}
         maxLength={512}
         spellCheck={false}
         autoComplete="off"
@@ -84,7 +85,7 @@ function FilterBox() {
         <InputGroupAddon align="inline-end" className="pr-1">
           <InputGroupButton
             size="icon-xs"
-            aria-label="Clear the filter"
+            aria-label={t("Clear the filter")}
             className="size-4"
             onClick={() => {
               setFilter("")
@@ -101,11 +102,11 @@ function FilterBox() {
 
 function AutoPreviewToggle() {
   const autoPreview = useBrowserStore((state) => state.autoPreview)
-  const label = "Preview sounds when selected"
+  const label = t("Preview sounds when selected")
   const hint = useHint(
     autoPreview
-      ? "Selecting a sound plays it. Click to turn that off."
-      : "Selecting a sound is silent. Click to play sounds as you select them."
+      ? t("Selecting a sound plays it. Click to turn that off.")
+      : t("Selecting a sound is silent. Click to play sounds as you select them.")
   )
 
   return (

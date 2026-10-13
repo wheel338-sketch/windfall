@@ -37,6 +37,7 @@ import { MAX_LANE_HEIGHT, MIN_LANE_HEIGHT, usePianoRollStore } from "./store"
 import { nextNoteVelocityPreset } from "./velocity-preset-step"
 import { VELOCITY_PRESETS, velocityPresetUpdates } from "./velocity-presets"
 import { velocityScaleUpdates } from "./velocity-scale"
+import { translatedText as t, message } from "@/lib/i18n"
 
 const KEY_STEP_PX = 12
 
@@ -45,7 +46,7 @@ export function LaneHeader() {
   const session = useSession()
   const kind = usePianoRollStore((state) => state.laneKind)
   const setKind = usePianoRollStore((state) => state.setLaneKind)
-  const hint = useHint("What the bars under the notes show and edit")
+  const hint = useHint(t("What the bars under the notes show and edit"))
   const label = LANE_KINDS.find((item) => item.id === kind)?.label ?? kind
   const notesForPreset = () => {
     const selected = session.editor.selectedNotes()
@@ -76,7 +77,7 @@ export function LaneHeader() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        aria-label={`Lane shows ${label.toLowerCase()}`}
+        aria-label={message("Lane shows {label}", { label: label.toLowerCase() })}
         className="flex h-6 w-full items-center justify-between gap-0.5 px-1 text-[0.625rem] text-muted-foreground outline-none hover:bg-foreground/5 hover:text-foreground focus-visible:bg-foreground/10 focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
         {...hint}
       >
@@ -162,7 +163,7 @@ export function LaneHeader() {
                   })
                 }}
               >
-                {direction === "previous" ? "Previous preset" : "Next preset"}
+                {direction === "previous" ? t("Previous preset") : t("Next preset")}
               </DropdownMenuItem>
             ))}
             {(["half", "double"] as const).map((factor) => (
@@ -188,7 +189,7 @@ export function LaneHeader() {
                   })
                 }}
               >
-                {factor === "half" ? "Half" : "Double"}
+                {factor === "half" ? t("Half") : t("Double")}
               </DropdownMenuItem>
             ))}
           </DropdownMenuGroup>
@@ -251,7 +252,7 @@ export function LaneHeader() {
                   })
                 }}
               >
-                {direction === "previous" ? "Previous preset" : "Next preset"}
+                {direction === "previous" ? t("Previous preset") : t("Next preset")}
               </DropdownMenuItem>
             ))}
             {(["half", "double"] as const).map((factor) => (
@@ -277,7 +278,7 @@ export function LaneHeader() {
                   })
                 }}
               >
-                {factor === "half" ? "Half" : "Double"}
+                {factor === "half" ? t("Half") : t("Double")}
               </DropdownMenuItem>
             ))}
           </DropdownMenuGroup>
@@ -356,7 +357,7 @@ export function LaneHeader() {
                   })
                 }}
               >
-                {direction === "previous" ? "Previous preset" : "Next preset"}
+                {direction === "previous" ? t("Previous preset") : t("Next preset")}
               </DropdownMenuItem>
             ))}
             {(["half", "double"] as const).map((factor) => (
@@ -382,7 +383,7 @@ export function LaneHeader() {
                   })
                 }}
               >
-                {factor === "half" ? "Half" : "Double"}
+                {factor === "half" ? t("Half") : t("Double")}
               </DropdownMenuItem>
             ))}
           </DropdownMenuGroup>
@@ -461,7 +462,7 @@ export function LaneHeader() {
                   })
                 }}
               >
-                {direction === "previous" ? "Previous preset" : "Next preset"}
+                {direction === "previous" ? t("Previous preset") : t("Next preset")}
               </DropdownMenuItem>
             ))}
             {(["half", "double"] as const).map((factor) => (
@@ -487,7 +488,7 @@ export function LaneHeader() {
                   })
                 }}
               >
-                {factor === "half" ? "Half" : "Double"}
+                {factor === "half" ? t("Half") : t("Double")}
               </DropdownMenuItem>
             ))}
           </DropdownMenuGroup>
@@ -556,7 +557,7 @@ export function LaneHeader() {
                   })
                 }}
               >
-                {direction === "previous" ? "Previous preset" : "Next preset"}
+                {direction === "previous" ? t("Previous preset") : t("Next preset")}
               </DropdownMenuItem>
             ))}
             {(["half", "double"] as const).map((factor) => (
@@ -587,12 +588,12 @@ export function LaneHeader() {
                   })
                 }}
               >
-                {factor === "half" ? "Half" : "Double"}
+                {factor === "half" ? t("Half") : t("Double")}
               </DropdownMenuItem>
             ))}
           </DropdownMenuGroup>
         )}
-        <DropdownMenuItem disabled={session.editor.notes.length === 0} onClick={openNoteLfo}>Write LFO…</DropdownMenuItem>
+        <DropdownMenuItem disabled={session.editor.notes.length === 0} onClick={openNoteLfo}>{t("Write LFO…")}</DropdownMenuItem>
         <DropdownMenuItem
           disabled={
             nextLaneHeightScale(usePianoRollStore.getState().laneHeight, "half") === null
@@ -602,7 +603,7 @@ export function LaneHeader() {
             if (next !== null) usePianoRollStore.getState().setLaneHeight(next)
           }}
         >
-          Halve lane height
+          {t("Halve lane height")}
         </DropdownMenuItem>
         <DropdownMenuItem
           disabled={
@@ -613,7 +614,7 @@ export function LaneHeader() {
             if (next !== null) usePianoRollStore.getState().setLaneHeight(next)
           }}
         >
-          Double lane height
+          {t("Double lane height")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -625,13 +626,13 @@ export function LaneResizer() {
   const height = usePianoRollStore((state) => state.laneHeight)
   const setHeight = usePianoRollStore((state) => state.setLaneHeight)
   const drag = useRef<{ y: number; height: number } | null>(null)
-  const hint = useHint("Drag to resize the lane under the notes")
+  const hint = useHint(t("Drag to resize the lane under the notes"))
 
   return (
     <div
       role="separator"
       aria-orientation="horizontal"
-      aria-label="Resize the lane under the notes"
+      aria-label={t("Resize the lane under the notes")}
       aria-valuemin={MIN_LANE_HEIGHT}
       aria-valuemax={MAX_LANE_HEIGHT}
       aria-valuenow={height}

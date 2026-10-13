@@ -1,4 +1,5 @@
 /** A sample's length: "0.42 s", "12.3 s", "1:07". */
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 export function formatDuration(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "0.00 s"
   if (seconds < 10) return `${seconds.toFixed(2)} s`
@@ -14,7 +15,7 @@ export function formatSampleRate(hz: number): string {
 }
 
 export function formatChannels(channels: number): string {
-  if (channels === 1) return "Mono"
-  if (channels === 2) return "Stereo"
-  return `${channels} channels`
+  if (channels === 1) return t("Mono")
+  if (channels === 2) return t("Stereo")
+  return message("{channels} channels", { channels: plainNumber(channels) })
 }

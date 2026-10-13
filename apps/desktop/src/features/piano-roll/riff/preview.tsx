@@ -1,5 +1,6 @@
 import { bySpan } from "./stages"
 import type { RiffResult } from "./pipeline"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 const WIDTH = 640
 const HEIGHT = 144
@@ -10,10 +11,10 @@ export function RiffPreview({ result }: { result: RiffResult | null }) {
     return (
       <div
         role="img"
-        aria-label="Riff preview: nothing to show"
+        aria-label={t("Riff preview: nothing to show")}
         className="flex h-36 w-full items-center justify-center rounded-md border border-border bg-muted/40 text-muted-foreground"
       >
-        Fix the settings below to see the riff.
+        {t("Fix the settings below to see the riff.")}
       </div>
     )
   const { notes, start } = result
@@ -32,7 +33,7 @@ export function RiffPreview({ result }: { result: RiffResult | null }) {
   return (
     <svg
       role="img"
-      aria-label={`Riff preview: ${notes.length} notes`}
+      aria-label={message("Riff preview: {count} notes", { count: plainNumber(notes.length) })}
       viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
       preserveAspectRatio="none"
       className="h-36 w-full rounded-md border border-border bg-muted/40"

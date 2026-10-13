@@ -24,6 +24,7 @@ import {
   type PresetShortcuts,
 } from "./registry"
 import { installScopeTracking, scopeLinks } from "./scope"
+import { message } from "@/lib/i18n"
 
 export { registry, disabledReason, isEnabled, isChecked } from "./registry"
 export type {
@@ -123,7 +124,7 @@ export function invalidateActionsOn<S>(
 export async function runAction(id: string): Promise<void> {
   const action = registry.get(id)
   if (!action) {
-    reportError(new Error(`There is no action called "${id}".`))
+    reportError(new Error(message("There is no action called \"{id}\".", { id })))
     return
   }
   if (!isEnabled(action, getAppState())) return

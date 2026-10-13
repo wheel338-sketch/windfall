@@ -2,6 +2,7 @@ import type { Note, NoteUpdate } from "@/bindings"
 import { DEFAULT_NOTE_EXPRESSION } from "@/lib/note-expression"
 
 import { clampPan, clampVelocity } from "./edit-math"
+import { translatedText as t } from "@/lib/i18n"
 
 /*
  * The value lane under the grid shows one bar per note: its velocity, or
@@ -11,12 +12,12 @@ import { clampPan, clampVelocity } from "./edit-math"
 export type LaneKind = "velocity" | "pan" | "release" | "finePitchCents" | "modulationX" | "modulationY"
 
 export const LANE_KINDS: { id: LaneKind; label: string }[] = [
-  { id: "velocity", label: "Velocity" },
-  { id: "pan", label: "Pan" },
-  { id: "release", label: "Release" },
-  { id: "finePitchCents", label: "Fine pitch" },
-  { id: "modulationX", label: "Modulation X" },
-  { id: "modulationY", label: "Modulation Y" },
+  { id: "velocity", get label() { return t("Velocity") } },
+  { id: "pan", get label() { return t("Pan") } },
+  { id: "release", get label() { return t("Release") } },
+  { id: "finePitchCents", get label() { return t("Fine pitch") } },
+  { id: "modulationX", get label() { return t("Modulation X") } },
+  { id: "modulationY", get label() { return t("Modulation Y") } },
 ]
 
 type Range = { min: number; max: number }

@@ -1,4 +1,5 @@
 import { formatMs } from "@/components/audio"
+import { translatedText as t, message } from "@/lib/i18n"
 
 /** Where the image sits between the sides, as percentages from the left. */
 export function fieldExtent(width: number, balance = 0) {
@@ -12,7 +13,7 @@ export function fieldExtent(width: number, balance = 0) {
 
 /** Which side a phase offset holds back, and by how much, in words. */
 export function describeOffset(offsetMs: number): string {
-  if (offsetMs === 0) return "Both sides in time"
-  const side = offsetMs > 0 ? "Right" : "Left"
-  return `${side} side ${formatMs(Math.abs(offsetMs))} late`
+  if (offsetMs === 0) return t("Both sides in time")
+  const side = offsetMs > 0 ? t("Right") : t("Left")
+  return message("{side} side {ms} late", { side, ms: formatMs(Math.abs(offsetMs)) })
 }

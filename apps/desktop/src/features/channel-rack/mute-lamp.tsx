@@ -6,6 +6,7 @@ import { useHint } from "@/lib/store/hint"
 import { cn } from "@/lib/utils"
 
 import { toggleMute, toggleSolo } from "./channel-ops"
+import { message, translatedText as t } from "@/lib/i18n"
 
 type MuteLampProps = {
   id: ChannelId
@@ -30,8 +31,8 @@ export const MuteLamp = memo(function MuteLamp({
 }: MuteLampProps) {
   const hint = useHint(
     solo
-      ? `${name} is soloed. Right-click or Ctrl-click to hear every channel again`
-      : `${name} is ${muted ? "muted" : "on"}. Click to ${muted ? "unmute" : "mute"}, right-click or Ctrl-click to solo`
+      ? message("{name} is soloed. Right-click or Ctrl-click to hear every channel again", { name })
+      : message("{name} is {muted}. Click to {muted2}, right-click or Ctrl-click to solo", { name, muted: muted ? t("muted") : t("on"), muted2: muted ? t("unmute") : t("mute") })
   )
 
   return (
@@ -40,7 +41,7 @@ export const MuteLamp = memo(function MuteLamp({
       size="lg"
       pressed={!muted}
       color={solo ? "var(--wf-meter-mid)" : "var(--wf-meter-low)"}
-      aria-label={`${name} on`}
+      aria-label={message("{name} on", { name })}
       data-solo={solo ? "" : undefined}
       className={cn(
         "text-[9px] leading-none text-[oklch(0.2_0_0)]",

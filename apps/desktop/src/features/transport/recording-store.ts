@@ -66,7 +66,7 @@ export function startRecording() {
   return work(async () => {
     const s = useRecordingStore.getState()
     const device = s.inputs[s.device]
-    if (!device && !s.armedTracks) throw new Error("Select a native audio input.")
+    if (!device && !s.armedTracks) throw new Error(translatedText("Select a native audio input."))
     const state = await backend.recordingStart(
       {
         host: device?.host ?? "",
@@ -97,7 +97,7 @@ export function stopRecording() {
       ? s.keepLatest ? { type: "latest" } : { type: "except", indices: s.excludedTakes }
       : undefined)
     if (generation !== getProjectGeneration())
-      throw new Error("The project changed while the take was being attached. Reopen recording.")
+      throw new Error(translatedText("The project changed while the take was being attached. Reopen recording."))
     receivePatch(result.patch)
     toast.success(translatedText("Recording added to playlist"))
   })

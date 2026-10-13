@@ -1,6 +1,7 @@
 import type { ZoneModulation, SampleZone } from "@/bindings"
 import { FieldDescription, FieldGroup } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { message, plainNumber, translatedText as t } from "@/lib/i18n"
 
 export const DEFAULT_ZONE_MODULATION: ZoneModulation = {
   cutoffHz: 20000, delayMs: 0, attackMs: 0, holdMs: 0, decayMs: 200, sustain: 0,
@@ -25,7 +26,7 @@ export function ZoneModulationEditor({ zone, index, commit }: {
   zone: SampleZone; index: number; commit: (modulation: ZoneModulation) => void
 }) {
   const mod=zone.modulation ?? DEFAULT_ZONE_MODULATION
-  const prefix=`Zone ${index+1}`
+  const prefix=message("Zone {index}", { index: plainNumber(index+1) })
   const fields = [
     ["cutoffHz", "Filter cutoff Hz", 20, 20000],
     ["delayMs", "Mod envelope delay ms", 0, 100000],
@@ -39,7 +40,7 @@ export function ZoneModulationEditor({ zone, index, commit }: {
     ["envelopeAmplitude", "Envelope to amplitude", -1, 1],
   ] as const
   return <FieldGroup>
-    <FieldDescription>Modulation group {zone.modulationGroup ?? 0}. Group 0 is independent; other groups share routes. Envelope and two sine LFOs can each drive pitch, filter and amplitude.</FieldDescription>
+    <FieldDescription>{t("Modulation group")}{" "}{zone.modulationGroup ?? 0}{t(". Group 0 is independent; other groups share routes. Envelope and two sine LFOs can each drive pitch, filter and amplitude.")}</FieldDescription>
     {fields.map(([key,label,min,max])=><Control key={key} label={`${prefix} ${label}`} value={mod[key]}
       min={min} max={max} commit={value=>commit({...mod,[key]:value})} />)}
     {mod.lfos.map((lfo, lfoIndex)=>{

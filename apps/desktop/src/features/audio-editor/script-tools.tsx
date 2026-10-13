@@ -12,6 +12,7 @@ import { usePlaylistStore } from "@/features/playlist/store"
 import type { AudioEditPreview, AudioScriptPreview } from "./types"
 import type { Selection } from "./selection"
 import { Waveform } from "./waveform"
+import { translatedText as t } from "@/lib/i18n"
 
 // Original examples, using only Windfall's bounded language.
 export const AUDIO_SCRIPT_EXAMPLES = {
@@ -77,9 +78,9 @@ export function ScriptTools({ preview, selection, disabled, onBusy, onCommit }: 
     } finally { working.current = false; if (alive.current) { setBusy(false); onBusy(false) } }
   }
   const matches = result !== null && result.range.startFrame === selection.start && result.range.endFrame === selection.end
-  return <section aria-label="Audio selection scripts" className="flex flex-col gap-2">
+  return <section aria-label={t("Audio selection scripts")} className="flex flex-col gap-2">
     <FieldGroup>
-      <Field><FieldLabel htmlFor="audio-script-source">Audio Windfall Script source</FieldLabel>
+      <Field><FieldLabel htmlFor="audio-script-source">{t("Audio Windfall Script source")}</FieldLabel>
         <Textarea id="audio-script-source" maxLength={16384} value={source} disabled={disabled || busy}
           onChange={event => edit(event.target.value)} /></Field>
       {parameters.map((parameter, i) => <Field key={parameter.name}>
@@ -91,11 +92,11 @@ export function ScriptTools({ preview, selection, disabled, onBusy, onCommit }: 
     </FieldGroup>
     <div className="flex flex-wrap gap-2">
       {Object.entries(AUDIO_SCRIPT_EXAMPLES).map(([name, text]) => <Button key={name} size="sm" variant="outline"
-        disabled={disabled || busy} onClick={() => edit(text)}>Load {name}</Button>)}
+        disabled={disabled || busy} onClick={() => edit(text)}>{t("Load")}{" "}{name}</Button>)}
       <Button variant="outline" disabled={disabled || busy} onClick={() => void work(async op => {
         const params = await backend.scriptParameters(source)
         if (current.current() && op === operation.current) { setParameters(params); setValues(params.map(p => p.default)) }
-      })}>Read audio script parameters</Button>
+      })}>{t("Read audio script parameters")}</Button>
       <Button disabled={disabled || busy || backend.kind !== "tauri"} onClick={() => void work(async op => {
         setResult(null)
         const ticket = await backend.scriptBegin()
@@ -104,24 +105,22 @@ export function ScriptTools({ preview, selection, disabled, onBusy, onCommit }: 
         const value = await backend.audioScriptPreview({ request: ticket, token: preview.token,
           range: { startFrame: selection.start, endFrame: selection.end }, source, parameters: values })
         if (current.current() && op === operation.current) setResult(value)
-      })}>Run script</Button>
+      })}>{t("Run script")}</Button>
       <Button variant="outline" disabled={!result || !matches || disabled || busy} onClick={() => void work(async () => {
         if (result) await backend.audioScriptAudition(preview.token, result.request)
-      })}>Audition script result</Button>
+      })}>{t("Audition script result")}</Button>
       <Button disabled={!result || !matches || disabled || busy} onClick={() => void work(async op => {
         if (!result) return
         const applied = await backend.audioScriptApply(preview.token, result.request)
         if (current.current() && op === operation.current) onCommit(applied)
-      })}>Apply script result</Button>
-      <Button variant="outline" disabled={!busy && !result} onClick={cancel}>Cancel audio script</Button>
+      })}>{t("Apply script result")}</Button>
+      <Button variant="outline" disabled={!busy && !result} onClick={cancel}>{t("Cancel audio script")}</Button>
     </div>
-    {backend.kind !== "tauri" && <p role="status">Audio script processing requires the desktop app.</p>}
+    {backend.kind !== "tauri" && <p role="status">{t("Audio script processing requires the desktop app.")}</p>}
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-    {result && matches && <><p role="status">Reviewed result: {result.frames} frames. Apply creates one undoable selection edit.</p>
+    {result && matches && <><p role="status">{t("Reviewed result:")}{" "}{result.frames}{" "}{t("frames. Apply creates one undoable selection edit.")}</p>
       <Waveform preview={{ ...preview, frames: result.frames, sampleRate: result.sampleRate, peaks: result.peaks }}
         selection={{ start: 0, end: result.frames }} disabled onSelection={() => {}} /></>}
-    <p className="text-xs text-muted-foreground">gain EXPRESSION, reverse, normalize AMPLITUDE. value is frame position 0–1;
-      index is the frame number. Five-second deadline, 100 million instructions, one output buffer up to 64 MiB.
-      Preview has no document edits. Cancel invalidates the reviewed result.</p>
+    <p className="text-xs text-muted-foreground">{t("gain EXPRESSION, reverse, normalize AMPLITUDE. value is frame position 0–1; index is the frame number. Five-second deadline, 100 million instructions, one output buffer up to 64 MiB. Preview has no document edits. Cancel invalidates the reviewed result.")}</p>
   </section>
 }

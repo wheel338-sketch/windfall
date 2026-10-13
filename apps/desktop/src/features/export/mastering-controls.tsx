@@ -26,10 +26,11 @@ import {
   type MasteringDraft,
   type MasteringRequest,
 } from "./mastering"
+import { translatedText as t } from "@/lib/i18n"
 
 const PRESET_OPTIONS = [
   ...MASTERING_PRESETS.map(({ id, label }) => ({ value: id, label })),
-  { value: CUSTOM_PRESET, label: "Custom" },
+  { value: CUSTOM_PRESET, get label() { return t("Custom") } },
 ]
 
 /**
@@ -51,7 +52,7 @@ export function MasteringControls({
     onChange({ ...value, [key]: next })
   return (
     <FieldSet disabled={disabled} data-slot="mastering-controls">
-      <FieldLegend variant="label">Mastering</FieldLegend>
+      <FieldLegend variant="label">{t("Mastering")}</FieldLegend>
       <FieldGroup className="gap-3">
         <Field orientation="horizontal" data-disabled={disabled || undefined}>
           <Checkbox
@@ -61,26 +62,23 @@ export function MasteringControls({
             onCheckedChange={(enabled) => set("enabled", enabled)}
           />
           <FieldLabel htmlFor="export-mastering">
-            Master the mix to a loudness target
+            {t("Master the mix to a loudness target")}
           </FieldLabel>
         </Field>
         {value.enabled && (
           <FieldDescription>
-            Targets and review measure the stereo master before encoding.
-            WAV float preserves those samples; lossy encoding or mono conversion
-            can change the final levels.
+            {t("Targets and review measure the stereo master before encoding. WAV float preserves those samples; lossy encoding or mono conversion can change the final levels.")}
           </FieldDescription>
         )}
         {value.enabled && (
           <>
             <FieldDescription>
-              The mix is measured, evened out and limited on this computer,
-              then measured again. Nothing is uploaded.
+              {t("The mix is measured, evened out and limited on this computer, then measured again. Nothing is uploaded.")}
             </FieldDescription>
             <FieldGroup className="grid grid-cols-2 gap-3">
               <Field className="col-span-2" data-disabled={disabled || undefined}>
                 <FieldLabel htmlFor="export-mastering-preset">
-                  Master for
+                  {t("Master for")}
                 </FieldLabel>
                 <Choice
                   id="export-mastering-preset"
@@ -103,7 +101,7 @@ export function MasteringControls({
               </Field>
               <Field data-invalid={request.targetError !== null || undefined}>
                 <FieldLabel htmlFor="export-mastering-target">
-                  Loudness target (LUFS)
+                  {t("Loudness target (LUFS)")}
                 </FieldLabel>
                 <Input
                   id="export-mastering-target"
@@ -127,7 +125,7 @@ export function MasteringControls({
               </Field>
               <Field data-invalid={request.ceilingError !== null || undefined}>
                 <FieldLabel htmlFor="export-mastering-ceiling">
-                  True-peak ceiling (dBTP)
+                  {t("True-peak ceiling (dBTP)")}
                 </FieldLabel>
                 <Input
                   id="export-mastering-ceiling"
@@ -153,7 +151,7 @@ export function MasteringControls({
               </Field>
               <Field className="col-span-2" data-disabled={disabled || undefined}>
                 <FieldLabel htmlFor="export-mastering-dynamics">
-                  Dynamics
+                  {t("Dynamics")}
                 </FieldLabel>
                 <Choice
                   id="export-mastering-dynamics"
@@ -163,8 +161,7 @@ export function MasteringControls({
                   onChange={(dynamics) => set("dynamics", dynamics)}
                 />
                 <FieldDescription>
-                  How firmly three band compressors hold the lows, the middle
-                  and the highs together before the limiter.
+                  {t("How firmly three band compressors hold the lows, the middle and the highs together before the limiter.")}
                 </FieldDescription>
               </Field>
             </FieldGroup>
@@ -188,26 +185,26 @@ export function MasteringReviewPanel({ review }: { review: MasteringReview }) {
       data-mastering-review=""
       variant={review.targetReached ? "default" : "destructive"}
     >
-      <AlertTitle>Mastering review</AlertTitle>
+      <AlertTitle>{t("Mastering review")}</AlertTitle>
       <AlertDescription>
         <p data-slot="mastering-verdict">{reviewVerdict(review)}</p>
         <table className="mt-2 w-full text-left font-readout text-xs">
           <caption className="sr-only">
-            The mix before mastering and the master that was written
+            {t("The mix before mastering and the master that was written")}
           </caption>
           <thead>
             <tr className="text-muted-foreground">
               <th scope="col" className="py-0.5 pr-2 font-normal">
-                Measure
+                {t("Measure")}
               </th>
               <th scope="col" className="py-0.5 pr-2 font-normal">
-                Before
+                {t("Before")}
               </th>
               <th scope="col" className="py-0.5 pr-2 font-normal">
-                After
+                {t("After")}
               </th>
               <th scope="col" className="py-0.5 font-normal">
-                Change
+                {t("Change")}
               </th>
             </tr>
           </thead>

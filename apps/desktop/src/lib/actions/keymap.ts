@@ -6,6 +6,7 @@ import type {
   PresetShortcuts,
   ShortcutScope,
 } from "./registry"
+import { message, translatedText as t } from "@/lib/i18n"
 
 /*
  * A shortcut is written as modifiers and one key joined by "+", such as
@@ -83,7 +84,7 @@ export function normalizeShortcut(shortcut: string, isMac: boolean): string {
     else if (name === "alt" || name === "option") modifiers.add("Alt")
     else if (name === "shift") modifiers.add("Shift")
     else if (name === "meta" || name === "cmd") modifiers.add("Meta")
-    else throw new Error(`Unknown modifier "${part}" in shortcut "${shortcut}"`)
+    else throw new Error(message("Unknown modifier \"{part}\" in shortcut \"{shortcut}\"", { part, shortcut }))
   }
   return chord(modifiers, key.length === 1 ? key.toUpperCase() : key)
 }
@@ -122,21 +123,21 @@ export function eventChord(event: KeyEventLike): string | null {
 
 const KEY_LABELS: Record<string, string> = {
   Comma: ",",
-  NumpadAdd: "Num +",
-  NumpadSubtract: "Num -",
-  ArrowUp: "↑",
-  ArrowDown: "↓",
+  get NumpadAdd() { return t("Num +") },
+  get NumpadSubtract() { return t("Num -") },
+  get ArrowUp() { return t("↑") },
+  get ArrowDown() { return t("↓") },
   ArrowLeft: "←",
   ArrowRight: "→",
-  Escape: "Esc",
-  Delete: "Del",
+  get Escape() { return t("Esc") },
+  get Delete() { return t("Del") },
 }
 
 const MAC_MODIFIERS: Record<Modifier, string> = {
-  Ctrl: "⌃",
-  Alt: "⌥",
-  Shift: "⇧",
-  Meta: "⌘",
+  get Ctrl() { return t("⌃") },
+  get Alt() { return t("⌥") },
+  get Shift() { return t("⇧") },
+  get Meta() { return t("⌘") },
 }
 
 /** A shortcut the way the platform writes it: `Ctrl+Shift+Z` or `⇧⌘Z`. */

@@ -38,6 +38,7 @@ import { playlist, project, selectedClips } from "./selectors"
 import { nudgeTicks, snapTicks } from "./snap"
 import { usePlaylistStore } from "./store"
 import { documentRowFor, trackRowsNow } from "./track-rows"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 /*
  * Everything the playlist does to the project and the transport. Each
@@ -96,8 +97,8 @@ async function ensureTracks(
  */
 function refusePastEnd() {
   refuse(
-    "Clips cannot go past the end of the timeline",
-    "The song is as long as it can get."
+    t("Clips cannot go past the end of the timeline"),
+    t("The song is as long as it can get.")
   )
 }
 
@@ -404,10 +405,10 @@ export async function renameTrack(id: PlaylistTrackId): Promise<void> {
   const track = playlist().tracks.find((item) => item.id === id)
   if (!track) return
   const name = await askText({
-    title: "Rename track",
-    label: "Name",
+    title: t("Rename track"),
+    label: t("Name"),
     initial: track.name,
-    submitLabel: "Rename",
+    submitLabel: t("Rename"),
   })
   if (name !== null) await setTrackName(id, name)
 }
@@ -448,10 +449,10 @@ export async function deleteTrack(id: PlaylistTrackId): Promise<void> {
   const count = playlist().clips.filter((clip) => clip.track === id).length
   if (count > 0) {
     const choice = await askConfirm({
-      title: `Delete ${track.name}?`,
-      description: `Its ${count} ${plural(count, "clip")} will be deleted with it. Undo brings them back.`,
+      title: message("Delete {trackName}?", { trackName: track.name }),
+      description: message("Its {count} {plural} will be deleted with it. Undo brings them back.", { count: plainNumber(count), plural: plural(count, "clip") }),
       choices: [
-        { id: "delete", label: "Delete track", variant: "destructive" },
+        { id: "delete", label: t("Delete track"), variant: "destructive" },
       ],
     })
     if (choice !== "delete") return

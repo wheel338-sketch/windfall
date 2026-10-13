@@ -4,6 +4,7 @@ import { receivePatch, useProjectStore } from "@/lib/store/project"
 import { getProjectGeneration } from "@/lib/store/replaced"
 import { revealClip } from "@/features/playlist/reveal"
 import type { LoopDrag } from "./drag"
+import { translatedText as t } from "@/lib/i18n"
 
 export async function insertFactoryLoop(loop: LoopDrag, start: number, track: number | null = null, row?: number): Promise<boolean> {
   const localGeneration = getProjectGeneration()
@@ -16,5 +17,5 @@ export async function insertFactoryLoop(loop: LoopDrag, start: number, track: nu
     const created = result.created.find((id) => useProjectStore.getState().project.playlist.clips.some((clip) => clip.id === id))
     if (created !== undefined) revealClip(created)
     return true
-  } catch (error) { reportError(error, "Could not insert the factory loop"); return false }
+  } catch (error) { reportError(error, t("Could not insert the factory loop")); return false }
 }

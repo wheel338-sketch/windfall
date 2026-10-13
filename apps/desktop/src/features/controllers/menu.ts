@@ -7,6 +7,7 @@ import { reportError } from "@/lib/errors"
 import { backend } from "@/lib/ipc"
 import { useUiStore } from "@/lib/store/ui"
 import { dispatch, useProjectStore } from "@/lib/store/project"
+import { translatedText as t, dynamicTitle } from "@/lib/i18n"
 
 /** Whether two plain values hold the same fields, in whatever order. */
 export function sameShape(a: unknown, b: unknown): boolean {
@@ -51,16 +52,16 @@ export async function learnTargets(
     await backend.controllerLearn(targets, false, multi, state.generation)
     toast(
       multi
-        ? "Multi-link is on"
-        : "Move a hardware control to link it",
+        ? t("Multi-link is on")
+        : t("Move a hardware control to link it"),
       {
         description: multi
-          ? "Move controls on screen, then move the hardware controls in the same order."
-          : "The next knob, fader or key that sends is linked.",
+          ? t("Move controls on screen, then move the hardware controls in the same order.")
+          : t("The next knob, fader or key that sends is linked."),
       }
     )
   } catch (error) {
-    reportError(error, "Could not start linking")
+    reportError(error, t("Could not start linking"))
   }
 }
 
@@ -73,7 +74,7 @@ export function controllerEntries(target: AutomationTarget): ContextItem[] {
       const linked = linksOf(links, target)
       const sources = internalSources(project)
       const items: ContextItem[] = [{
-        submenu: "Link to internal controller",
+        submenu: t("Link to internal controller"),
         items: sources.length ? sources.map((source) => ({
           submenu: source.name,
           items: source.ports.map((port, output) => ({
@@ -82,18 +83,18 @@ export function controllerEntries(target: AutomationTarget): ContextItem[] {
             run: () => addInternalLink(source.id, output, target),
           })),
         })) : [{
-          title: "Add a controller in a mixer effect slot or add a Dashboard channel",
+          ...dynamicTitle("Add a controller in a mixer effect slot or add a Dashboard channel", {}),
           disabled: true,
           run: () => {},
         }],
       }]
       if (backend.kind === "tauri") items.push({
-        title: linked.length > 0 ? "Link to another controller…" : "Link to controller…",
+        ...dynamicTitle(linked.length > 0 ? "Link to another controller…" : "Link to controller…", {}),
         run: () => learnTargets([{ type: "param", target }], false),
       })
-      if (linked.length > 0) items.push({ title: "Edit controller links…", run: () => useUiStore.getState().openDialog("settings") })
+      if (linked.length > 0) items.push({ ...dynamicTitle("Edit controller links…", {}), run: () => useUiStore.getState().openDialog("settings") })
       if (linked.length > 0) items.push({
-        title: "Remove controller link",
+        ...dynamicTitle("Remove controller link", {}),
         destructive: true,
         run: () => {
           const current = useProjectStore.getState().project.settings.controllerLinks ?? []

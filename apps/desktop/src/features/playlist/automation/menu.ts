@@ -20,6 +20,7 @@ import {
   togglePointHold,
   typePointValue,
 } from "./ops"
+import { message, dynamicTitle, translatedText as t } from "@/lib/i18n"
 
 /** What a right-click on a point of a curve offers. */
 export function pointMenu(ref: PointRef): ContextItem[] {
@@ -29,26 +30,26 @@ export function pointMenu(ref: PointRef): ContextItem[] {
   const last = automation.points.length <= 1
   const leaves = ref.index < automation.points.length - 1
   return [
-    { label: `Point of ${automation.name}` },
-    { title: "Type value…", run: () => typePointValue(ref) },
+    { label: message("Point of {automationName}", { automationName: automation.name }) },
+    { ...dynamicTitle("Type value…", {}), run: () => typePointValue(ref) },
     {
-      title: "Hold",
+      ...dynamicTitle("Hold", {}),
       checked: point.hold,
       // The last point has no stretch after it to make a step of.
       disabled: !leaves,
       run: () => togglePointHold(ref),
     },
     {
-      title: "Straighten",
+      ...dynamicTitle("Straighten", {}),
       disabled: !leaves || (point.curve === 0 && !point.hold),
       run: () => straightenPoint(ref),
     },
     contextSeparator,
     {
-      title: "Delete",
+      ...dynamicTitle("Delete", {}),
       destructive: true,
       disabled: last,
-      reason: "The only point",
+      reason: t("The only point"),
       run: () => deletePointAt(ref),
     },
   ]
@@ -58,21 +59,21 @@ export function pointMenu(ref: PointRef): ContextItem[] {
 export function automationMenu(automation: Automation): ContextItem[] {
   const id = automation.id
   return [
-    { title: "Rename…", run: () => renameAutomation(id) },
+    { ...dynamicTitle("Rename…", {}), run: () => renameAutomation(id) },
     {
-      submenu: "Color",
+      submenu: t("Color"),
       items: CHANNEL_COLORS.map(({ color, name }) => ({
         title: name,
         checked: automation.color === color,
         run: () => setAutomationColor(id, color),
       })),
     },
-    { title: "Duplicate", run: () => duplicateAutomation(id) },
-    { title: "Write LFO…", run: () => openAutomationLfo(id) },
+    { ...dynamicTitle("Duplicate", {}), run: () => duplicateAutomation(id) },
+    { ...dynamicTitle("Write LFO…", {}), run: () => openAutomationLfo(id) },
     ...viewRangeItems([id]),
     contextSeparator,
     {
-      title: "Delete…",
+      ...dynamicTitle("Delete…", {}),
       destructive: true,
       run: () => deleteAutomation(id),
     },
@@ -91,7 +92,7 @@ export function selectedClipLfoItems(): ContextItem[] {
   const automation = clip.content.automation
   return [
     {
-      title: "Write LFO…",
+      ...dynamicTitle("Write LFO…", {}),
       run: () =>
         openAutomationLfo(automation, {
           start: clip.offset,

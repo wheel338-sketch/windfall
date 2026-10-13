@@ -12,6 +12,7 @@ import {
   type ValueControlProps,
 } from "./use-drag-value"
 import { ValueInput } from "./value-input"
+import { translatedText as t } from "@/lib/i18n"
 
 const numberFieldVariants = cva(
   "group/number relative inline-flex shrink-0 items-center rounded-md border border-input bg-input/20 text-foreground tabular-nums outline-none select-none has-focus-visible:border-ring has-focus-visible:ring-2 has-focus-visible:ring-ring/30 dark:bg-input/30 data-disabled:opacity-50",
@@ -191,7 +192,7 @@ function NumberField({
       {control.editing ? (
         <ValueInput
           {...control.entryProps}
-          aria-label={ariaLabel ?? "Value"}
+          aria-label={ariaLabel ?? t("Value")}
           className="absolute inset-0 size-full rounded-[inherit] border-0 px-1 text-[length:inherit] ring-0"
         />
       ) : null}

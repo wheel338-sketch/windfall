@@ -95,17 +95,17 @@ const channelOptions = (): Option[] => Array.from({ length: 16 }, (_, index) => 
 }))
 
 const SWITCH: Option[] = [
-  { value: "off", label: "Off" },
-  { value: "on", label: "On" },
+  { value: "off", get label() { return t("Off") } },
+  { value: "on", get label() { return t("On") } },
 ]
 const NO_PROFILE = "none"
 /** Grids recorded notes can be snapped to, in ticks of 960 a quarter note. */
 const QUANTIZE: Option[] = [
-  { value: "0", label: "Off" },
-  { value: "120", label: "1/32 note" },
-  { value: "240", label: "1/16 note" },
-  { value: "480", label: "1/8 note" },
-  { value: "960", label: "1/4 note" },
+  { value: "0", get label() { return t("Off") } },
+  { value: "120", get label() { return t("1/32 note") } },
+  { value: "240", get label() { return t("1/16 note") } },
+  { value: "480", get label() { return t("1/8 note") } },
+  { value: "960", get label() { return t("1/4 note") } },
 ]
 
 export function MidiHardwareSettingsSection() {

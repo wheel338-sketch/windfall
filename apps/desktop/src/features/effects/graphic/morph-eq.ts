@@ -1,6 +1,7 @@
 import type { MorphBandParams, MorphEqParams } from "@/bindings"
 
 import { IDENTITY, peak, type Section } from "../response/curve"
+import { message, plainNumber } from "@/lib/i18n"
 
 /*
  * The morphing graphic equalizer, as the engine builds it
@@ -51,9 +52,9 @@ export function describeMorph(morph: number, count: number): string {
   const position = Math.min(1, Math.max(0, morph)) * (used - 1)
   const from = Math.min(used - 2, Math.floor(position))
   const share = position - from
-  if (share <= 0) return `Curve ${MORPH_CURVE_NAMES[from]}`
-  if (share >= 1) return `Curve ${MORPH_CURVE_NAMES[from + 1]}`
-  return `${Math.round(share * 100)}% from ${MORPH_CURVE_NAMES[from]} to ${MORPH_CURVE_NAMES[from + 1]}`
+  if (share <= 0) return message("Curve {morphCurveNames}", { morphCurveNames: MORPH_CURVE_NAMES[from] })
+  if (share >= 1) return message("Curve {morphCurveNames}", { morphCurveNames: MORPH_CURVE_NAMES[from + 1] })
+  return message("{share}% from {morphCurveNames} to {morphCurveNames2}", { share: plainNumber(Math.round(share * 100)), morphCurveNames: MORPH_CURVE_NAMES[from], morphCurveNames2: MORPH_CURVE_NAMES[from + 1] })
 }
 
 /** Where curve `index` sits on the morph's travel when `count` are in use. */

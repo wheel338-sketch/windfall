@@ -34,24 +34,25 @@ import { KEY_SIGNATURES } from "./keys"
 import { PAPERS, layoutScore, type PaperSize } from "./layout"
 import { buildScore, type SmallestValue, type StaffLayout } from "./model"
 import { pageSvg } from "./svg"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 const PAPER_OPTIONS = (Object.keys(PAPERS) as PaperSize[]).map((value) => ({
   value,
   label: PAPERS[value].label,
 }))
 const STAFF_OPTIONS: { value: StaffLayout; label: string }[] = [
-  { value: "grand", label: "Grand staff" },
-  { value: "treble", label: "Treble staff" },
-  { value: "bass", label: "Bass staff" },
+  { value: "grand", get label() { return t("Grand staff") } },
+  { value: "treble", get label() { return t("Treble staff") } },
+  { value: "bass", get label() { return t("Bass staff") } },
 ]
 const SMALLEST_OPTIONS: { value: `${SmallestValue}`; label: string }[] = [
-  { value: "8", label: "Eighth notes" },
-  { value: "16", label: "Sixteenth notes" },
-  { value: "32", label: "Thirty-second notes" },
+  { value: "8", get label() { return t("Eighth notes") } },
+  { value: "16", get label() { return t("Sixteenth notes") } },
+  { value: "32", get label() { return t("Thirty-second notes") } },
 ]
 const AUTO_KEY = "auto"
 const KEY_OPTIONS = [
-  { value: AUTO_KEY, label: "Detect from the notes" },
+  { value: AUTO_KEY, get label() { return t("Detect from the notes") } },
   ...KEY_SIGNATURES.map((key) => ({ value: key.id, label: key.label })),
 ]
 
@@ -180,56 +181,55 @@ function SheetExportForm({ request }: { request: SheetRequest }) {
         showCloseButton={!pending}
       >
         <DialogHeader>
-          <DialogTitle>Export sheet music</DialogTitle>
+          <DialogTitle>{t("Export sheet music")}</DialogTitle>
           <DialogDescription>
-            {request.pattern.name} · {request.channelName}. Engraved staff
-            notation of this channel, ready to print or save.
+            {request.pattern.name} · {request.channelName}{t(". Engraved staff notation of this channel, ready to print or save.")}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 md:grid-cols-[14rem_1fr]">
           <FieldGroup className="flex flex-col gap-3">
             <Choice<PaperSize>
-              label="Paper"
+              label={t("Paper")}
               value={paper}
               options={PAPER_OPTIONS}
               onChange={setPaper}
               disabled={pending}
             />
             <Choice<StaffLayout>
-              label="Staves"
+              label={t("Staves")}
               value={staff}
               options={STAFF_OPTIONS}
               onChange={setStaff}
               disabled={pending}
             />
             <Choice
-              label="Key signature"
+              label={t("Key signature")}
               value={keyId}
               options={KEY_OPTIONS}
               onChange={setKeyId}
               disabled={pending}
             />
             <Choice<`${SmallestValue}`>
-              label="Smallest note value"
+              label={t("Smallest note value")}
               value={smallest}
               options={SMALLEST_OPTIONS}
               onChange={setSmallest}
               disabled={pending}
             />
-            <Toggle label="Title and names" checked={title} onChange={setTitle} />
-            <Toggle label="Tempo marking" checked={tempo} onChange={setTempo} />
-            <p className="text-xs text-muted-foreground" aria-label="Score summary">
-              {notes === 1 ? "1 note" : `${notes} notes`} on{" "}
-              {pages.length === 1 ? "1 page" : `${pages.length} pages`}
-              {score.keyDetected ? ", key detected from the notes" : ""}.
+            <Toggle label={t("Title and names")} checked={title} onChange={setTitle} />
+            <Toggle label={t("Tempo marking")} checked={tempo} onChange={setTempo} />
+            <p className="text-xs text-muted-foreground" aria-label={t("Score summary")}>
+              {notes === 1 ? t("1 note") : message("{notes} notes", { notes: plainNumber(notes) })}{" "}{t("on")}{" "}
+              {pages.length === 1 ? t("1 page") : message("{count} pages", { count: plainNumber(pages.length) })}
+              {score.keyDetected ? t(", key detected from the notes") : ""}.
             </p>
             {(quantised > 0 || simplified > 0) && (
               <Alert>
                 <AlertDescription>
                   {quantised > 0 &&
-                    `${quantised === 1 ? "1 note was" : `${quantised} notes were`} moved to the nearest writable position. `}
+                    `${quantised === 1 ? "1 note was" : message("{quantised} notes were", { quantised: plainNumber(quantised) })} moved to the nearest writable position. `}
                   {simplified > 0 &&
-                    `${simplified === 1 ? "1 note was" : `${simplified} notes were`} merged or shortened to fit two voices per staff.`}
+                    `${simplified === 1 ? "1 note was" : message("{simplified} notes were", { simplified: plainNumber(simplified) })} merged or shortened to fit two voices per staff.`}
                 </AlertDescription>
               </Alert>
             )}
@@ -237,7 +237,7 @@ function SheetExportForm({ request }: { request: SheetRequest }) {
           <div className="flex min-w-0 flex-col gap-2">
             <div
               role="img"
-              aria-label={`Page ${page + 1} of ${pages.length}`}
+              aria-label={message("Page {page} of {count}", { page: plainNumber(page + 1), count: plainNumber(pages.length) })}
               className="max-h-[60dvh] overflow-auto rounded border bg-muted p-2 [&>svg]:mx-auto [&>svg]:h-auto [&>svg]:w-full [&>svg]:max-w-[40rem] [&>svg]:shadow"
               dangerouslySetInnerHTML={{ __html: preview }}
             />
@@ -249,10 +249,10 @@ function SheetExportForm({ request }: { request: SheetRequest }) {
                 disabled={page === 0}
                 onClick={() => setShown(page - 1)}
               >
-                Previous page
+                {t("Previous page")}
               </Button>
               <span>
-                Page {page + 1} of {pages.length}
+                {t("Page")}{" "}{page + 1}{" "}{t("of")}{" "}{pages.length}
               </span>
               <Button
                 type="button"
@@ -261,7 +261,7 @@ function SheetExportForm({ request }: { request: SheetRequest }) {
                 disabled={page >= pages.length - 1}
                 onClick={() => setShown(page + 1)}
               >
-                Next page
+                {t("Next page")}
               </Button>
             </div>
           </div>
@@ -273,7 +273,7 @@ function SheetExportForm({ request }: { request: SheetRequest }) {
             disabled={pending}
             onClick={closeSheetExport}
           >
-            Close
+            {t("Close")}
           </Button>
           <Button
             type="button"
@@ -286,7 +286,7 @@ function SheetExportForm({ request }: { request: SheetRequest }) {
               )
             }
           >
-            Save MusicXML…
+            {t("Save MusicXML…")}
           </Button>
           <Button
             type="button"
@@ -299,7 +299,7 @@ function SheetExportForm({ request }: { request: SheetRequest }) {
               )
             }
           >
-            Print…
+            {t("Print…")}
           </Button>
           <Button
             type="button"
@@ -311,7 +311,7 @@ function SheetExportForm({ request }: { request: SheetRequest }) {
               )
             }
           >
-            Save PDF…
+            {t("Save PDF…")}
           </Button>
         </DialogFooter>
       </DialogContent>

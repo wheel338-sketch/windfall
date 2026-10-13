@@ -60,10 +60,11 @@ import {
   parseTailSecs,
   replaceExportExtension,
 } from "./names"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 const MODES: Option<PlayMode>[] = [
-  { value: "pattern", label: "The selected pattern" },
-  { value: "song", label: "The whole song" },
+  { value: "pattern", get label() { return t("The selected pattern") } },
+  { value: "song", get label() { return t("The whole song") } },
 ]
 
 type Run = { fraction: number; error: string | null }
@@ -143,24 +144,24 @@ function ExportForm({ onDone }: { onDone(): void }) {
   const tailError = tailSecs === null ? BAD_TAIL : null
   const stemsError =
     draft.stems?.tracks?.length === 0 && !draft.stems.includeMix
-      ? "Choose at least one track or include the full mix."
+      ? t("Choose at least one track or include the full mix.")
       : null
   const mixerSourceError = mixerRequest && mixerRequest.generation !== getProjectGeneration()
-    ? "The project was replaced. Close this export and choose its mixer tracks again."
+    ? t("The project was replaced. Close this export and choose its mixer tracks again.")
     : draft.stems?.tracks?.some((id) => !exportTracks.some((track) => track.id === id && !track.current))
-      ? "An export track was removed. Choose the remaining mixer tracks again."
+      ? t("An export track was removed. Choose the remaining mixer tracks again.")
       : null
   const mastering = masteringRequest(master, draft.stems !== undefined || playlistStems !== undefined)
   const playlistError = !playlistStems
     ? null
     : draft.mode !== "song"
-      ? "Playlist tracks belong to the song. Render the whole song to export them."
+      ? t("Playlist tracks belong to the song. Render the whole song to export them.")
       : playlistStems.tracks?.length === 0 && !playlistStems.includeMix
-        ? "Choose at least one playlist track or include the full mix."
+        ? t("Choose at least one playlist track or include the full mix.")
         : null
   const regionError =
     draft.mode === "song" && selectedOnly && !selectedRegion
-      ? "The time selection was cleared. Select a region again or turn off region export."
+      ? t("The time selection was cleared. Select a region again or turn off region export.")
       : null
 
   useEffect(
@@ -176,18 +177,18 @@ function ExportForm({ onDone }: { onDone(): void }) {
           setCancelling(false)
           if (progress.cancelled) {
             setRun(null)
-            toast("Export cancelled")
+            toast(t("Export cancelled"))
             return
           }
-          toast.success("Exported", {
+          toast.success(t("Exported"), {
             description: sentPlaylist.current
               ? progress.files
-                ? `${progress.files.length} files`
-                : "Playlist tracks"
+                ? message("{count} files", { count: plainNumber(progress.files.length) })
+                : t("Playlist tracks")
               : options.stems
                 ? progress.files
-                  ? `${progress.files.length} files`
-                  : "Mixer stems"
+                  ? message("{count} files", { count: plainNumber(progress.files.length) })
+                  : t("Mixer stems")
                 : exportedName(progress.path, options.format),
           })
           if (progress.mastering) {
@@ -209,7 +210,7 @@ function ExportForm({ onDone }: { onDone(): void }) {
       const picked = await backend.pickExportPath(projectName(), draft.format)
       if (picked !== null) set("path", picked)
     } catch (error) {
-      reportError(error, "Could not choose a file")
+      reportError(error, t("Could not choose a file"))
     }
   }
 
@@ -275,7 +276,7 @@ function ExportForm({ onDone }: { onDone(): void }) {
           revision !== source.revision
         )
           throw new Error(
-            "The project changed before the selected region could be exported. Select the region again."
+            t("The project changed before the selected region could be exported. Select the region again.")
           )
         options.regionGeneration = source.generation
         options.regionRevision = source.revision
@@ -295,7 +296,7 @@ function ExportForm({ onDone }: { onDone(): void }) {
       await backend.exportCancel()
     } catch (error) {
       setCancelling(false)
-      reportError(error, "Could not cancel the export")
+      reportError(error, t("Could not cancel the export"))
     }
   }
 
@@ -314,12 +315,12 @@ function ExportForm({ onDone }: { onDone(): void }) {
           }
         />
         <Field data-invalid={pathError !== null || undefined}>
-          <FieldLabel htmlFor="export-path">Save to</FieldLabel>
+          <FieldLabel htmlFor="export-path">{t("Save to")}</FieldLabel>
           <div className="flex gap-2">
             <Input
               id="export-path"
               value={draft.path}
-              placeholder={`Choose where to save the ${draft.format.toUpperCase()} file`}
+              placeholder={message("Choose where to save the {format} file", { format: draft.format.toUpperCase() })}
               disabled={exporting}
               autoComplete="off"
               spellCheck={false}
@@ -333,7 +334,7 @@ function ExportForm({ onDone }: { onDone(): void }) {
               disabled={exporting}
               onClick={() => void choosePath()}
             >
-              Choose…
+              {t("Choose…")}
             </Button>
           </div>
           {pathError && (
@@ -354,17 +355,17 @@ function ExportForm({ onDone }: { onDone(): void }) {
               onCheckedChange={setSelectedOnly}
             />
             <FieldLabel htmlFor="export-selected-region">
-              Export selected song region
+              {t("Export selected song region")}
               {selectedRegion
-                ? ` (ticks ${selectedRegion.start}–${selectedRegion.end})`
-                : " (select time in the playlist first)"}
+                ? message(" (ticks {start}–{end})", { start: plainNumber(selectedRegion.start), end: plainNumber(selectedRegion.end) })
+                : t(" (select time in the playlist first)")}
             </FieldLabel>
           </Field>
           {regionError && (
             <FieldError className="col-span-2">{regionError}</FieldError>
           )}
           <Field>
-            <FieldLabel htmlFor="export-mode">Render</FieldLabel>
+            <FieldLabel htmlFor="export-mode">{t("Render")}</FieldLabel>
             <Choice
               id="export-mode"
               value={draft.mode}
@@ -375,7 +376,7 @@ function ExportForm({ onDone }: { onDone(): void }) {
           </Field>
           <Field data-invalid={loopsError !== null || undefined}>
             <FieldLabel htmlFor="export-loops">
-              Times through the pattern
+              {t("Times through the pattern")}
             </FieldLabel>
             <Input
               id="export-loops"
@@ -400,7 +401,7 @@ function ExportForm({ onDone }: { onDone(): void }) {
               onCheckedChange={(autoTail) => set("autoTail", autoTail)}
             />
             <FieldLabel htmlFor="export-auto-tail">
-              Stop when the tail has faded
+              {t("Stop when the tail has faded")}
             </FieldLabel>
           </Field>
           <Field
@@ -409,8 +410,8 @@ function ExportForm({ onDone }: { onDone(): void }) {
           >
             <FieldLabel htmlFor="export-tail">
               {draft.autoTail
-                ? "Keep at most this many seconds after the end"
-                : "Seconds to keep after the end, for tails to ring out"}
+                ? t("Keep at most this many seconds after the end")
+                : t("Seconds to keep after the end, for tails to ring out")}
             </FieldLabel>
             <Input
               id="export-tail"
@@ -467,12 +468,12 @@ function ExportForm({ onDone }: { onDone(): void }) {
         {exporting && (
           <Progress value={run.fraction * 100}>
             <ProgressLabel>
-              {master.enabled ? "Exporting and mastering" : "Exporting"}
+              {master.enabled ? t("Exporting and mastering") : t("Exporting")}
             </ProgressLabel>
             <ProgressValue />
           </Progress>
         )}
-        {run?.error && <FieldError>The export failed. {run.error}</FieldError>}
+        {run?.error && <FieldError>{t("The export failed.")}{" "}{run.error}</FieldError>}
         {review && !exporting && <MasteringReviewPanel review={review} />}
 
         <DialogFooter>
@@ -483,14 +484,14 @@ function ExportForm({ onDone }: { onDone(): void }) {
               disabled={cancelling}
               onClick={() => void cancelExport()}
             >
-              {cancelling ? "Cancelling…" : "Cancel export"}
+              {cancelling ? t("Cancelling…") : t("Cancel export")}
             </Button>
           )}
           <Button type="button" variant="outline" onClick={onDone}>
-            {exporting ? "Close" : review ? "Done" : "Cancel"}
+            {exporting ? t("Close") : review ? t("Done") : t("Cancel")}
           </Button>
           <Button type="submit" disabled={exporting}>
-            Export
+            {t("Export")}
           </Button>
         </DialogFooter>
       </FieldGroup>
@@ -513,10 +514,9 @@ export function ExportDialog() {
     >
       <DialogContent className="max-h-[calc(100dvh-4rem)] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Export audio</DialogTitle>
+          <DialogTitle>{t("Export audio")}</DialogTitle>
           <DialogDescription>
-            Save the selected pattern or song as a mix, as separate mixer
-            tracks, or as one file for each playlist track.
+            {t("Save the selected pattern or song as a mix, as separate mixer tracks, or as one file for each playlist track.")}
           </DialogDescription>
         </DialogHeader>
         <ExportForm onDone={close} />

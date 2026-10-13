@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 
 import { pitches, STEP_GAP } from "./layout"
 import { rulerMarks } from "./steps"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 type StepRulerProps = {
   lengthSteps: number
@@ -30,7 +31,7 @@ export const StepRuler = memo(function StepRuler({
 }: StepRulerProps) {
   const marks = rulerMarks(lengthSteps, signature, timeline)
   const hint = useHint(
-    "Bars and beats of the pattern. Click to move the playhead there"
+    t("Bars and beats of the pattern. Click to move the playhead there")
   )
 
   function onPointerDown(event: PointerEvent<HTMLDivElement>) {
@@ -47,7 +48,7 @@ export const StepRuler = memo(function StepRuler({
   return (
     <div
       role="img"
-      aria-label={`Ruler: ${lengthSteps} steps`}
+      aria-label={message("Ruler: {lengthSteps} steps", { lengthSteps: plainNumber(lengthSteps) })}
       className="relative h-full shrink-0 cursor-pointer overflow-hidden"
       style={{ width: pitches(lengthSteps) }}
       onPointerDown={onPointerDown}

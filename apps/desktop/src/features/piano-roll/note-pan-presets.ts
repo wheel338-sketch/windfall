@@ -1,11 +1,12 @@
 import type { NoteId } from "@/bindings"
+import { translatedText as t } from "@/lib/i18n"
 
 export const NOTE_PAN_PRESETS = [
-  { label: "Hard left", pan: -1 },
-  { label: "Left", pan: -0.5 },
-  { label: "Center", pan: 0 },
-  { label: "Right", pan: 0.5 },
-  { label: "Hard right", pan: 1 },
+  { get label() { return t("Hard left") }, pan: -1 },
+  { get label() { return t("Left") }, pan: -0.5 },
+  { get label() { return t("Center") }, pan: 0 },
+  { get label() { return t("Right") }, pan: 0.5 },
+  { get label() { return t("Hard right") }, pan: 1 },
 ] as const
 
 type PanNote = {

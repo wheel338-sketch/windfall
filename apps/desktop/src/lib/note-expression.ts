@@ -1,4 +1,5 @@
 import type { NoteArticulation, NoteExpression } from "@/bindings"
+import { translatedText as t } from "@/lib/i18n"
 
 export const DEFAULT_NOTE_EXPRESSION: Readonly<NoteExpression> = {
   release: 0.5,
@@ -10,9 +11,9 @@ export const DEFAULT_NOTE_EXPRESSION: Readonly<NoteExpression> = {
 }
 
 export const NOTE_ARTICULATIONS: { value: NoteArticulation; label: string }[] = [
-  { value: "normal", label: "Normal note" },
-  { value: "slide", label: "Slide held notes" },
-  { value: "portamento", label: "Portamento note" },
+  { value: "normal", get label() { return t("Normal note") } },
+  { value: "slide", get label() { return t("Slide held notes") } },
+  { value: "portamento", get label() { return t("Portamento note") } },
 ]
 
 export function isNoteArticulation(value: unknown): value is NoteArticulation {

@@ -8,6 +8,7 @@ import {
 
 import { closePhaseMeter, usePhaseMeterPanel } from "./actions"
 import { PhaseMeterView } from "./view"
+import { translatedText as t } from "@/lib/i18n"
 
 /** Closing the panel unmounts its realtime subscriber immediately. */
 export function PhaseMeterPanel() {
@@ -22,8 +23,8 @@ export function PhaseMeterPanel() {
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Phase meter</DialogTitle>
-          <DialogDescription>Current stereo correlation.</DialogDescription>
+          <DialogTitle>{t("Phase meter")}</DialogTitle>
+          <DialogDescription>{t("Current stereo correlation.")}</DialogDescription>
         </DialogHeader>
         {open && <PhaseMeterView />}
       </DialogContent>

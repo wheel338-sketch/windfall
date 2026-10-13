@@ -1,9 +1,10 @@
 import type { CurveLfo, CurveLfoWave } from "@/bindings"
+import { translatedText as t } from "@/lib/i18n"
 
 export const LFO_WAVES: { value: CurveLfoWave; label: string }[] = [
-  { value: "sine", label: "Sine" }, { value: "triangle", label: "Triangle" },
-  { value: "sawUp", label: "Rising saw" }, { value: "sawDown", label: "Falling saw" },
-  { value: "square", label: "Pulse" }, { value: "sampleHold", label: "Sample and hold" },
+  { value: "sine", get label() { return t("Sine") } }, { value: "triangle", get label() { return t("Triangle") } },
+  { value: "sawUp", get label() { return t("Rising saw") } }, { value: "sawDown", get label() { return t("Falling saw") } },
+  { value: "square", get label() { return t("Pulse") } }, { value: "sampleHold", get label() { return t("Sample and hold") } },
 ]
 
 /** UI shape preview only. Native Rust owns emitted points and note edits. */

@@ -11,6 +11,7 @@ import { projectDisplayName } from "@/lib/store/selectors"
 import { clearWarnings, samplesReloaded } from "@/lib/store/warnings"
 import { fileName } from "@/lib/time"
 import { archiveBusy, archiveReport, useArchiveStore } from "./portable"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 /** Recently saved or opened project files, newest first. */
 export const useRecentStore = create<{ paths: string[] }>(() => ({ paths: [] }))
@@ -19,7 +20,7 @@ export async function refreshRecentProjects(): Promise<void> {
   try {
     useRecentStore.setState({ paths: await backend.recentProjects() })
   } catch (error) {
-    reportError(error, "Could not list recent projects")
+    reportError(error, t("Could not list recent projects"))
   }
 }
 
@@ -33,12 +34,12 @@ async function saveTo(path?: string): Promise<boolean> {
     const backup = await prepareBackupAfterSave()
     const saved = await backend.projectSave(path)
     setProjectPath(saved)
-    toast.success("Saved", { description: fileName(saved) })
+    toast.success(t("Saved"), { description: fileName(saved) })
     void refreshRecentProjects()
     void backupAfterSave(backup, saved)
     return true
   } catch (error) {
-    reportError(error, "Could not save the project")
+    reportError(error, t("Could not save the project"))
     return false
   }
 }
@@ -49,7 +50,7 @@ export async function saveProjectAs(): Promise<boolean> {
     const path = await backend.pickProjectSavePath(projectName())
     return path === null ? false : await saveTo(path)
   } catch (error) {
-    reportError(error, "Could not save the project")
+    reportError(error, t("Could not save the project"))
     return false
   }
 }
@@ -68,16 +69,16 @@ export function saveProject(): Promise<boolean> {
  */
 export async function confirmDiscardChanges(): Promise<boolean> {
   if (useRecordingStore.getState().state.active) {
-    toast.error("Stop or cancel recording first")
+    toast.error(t("Stop or cancel recording first"))
     return false
   }
   if (!useProjectStore.getState().dirty) return true
   const choice = await askConfirm({
-    title: `Save changes to "${projectName()}"?`,
-    description: "Changes you have not saved will be lost.",
+    title: message("Save changes to \"{project}\"?", { project: projectName() }),
+    description: t("Changes you have not saved will be lost."),
     choices: [
-      { id: "discard", label: "Don't save", variant: "destructive" },
-      { id: "save", label: "Save" },
+      { id: "discard", label: t("Don't save"), variant: "destructive" },
+      { id: "save", label: t("Save") },
     ],
   })
   if (choice === "discard") return true
@@ -92,7 +93,7 @@ export async function newProject(): Promise<void> {
     // loading the returned snapshot again could erase intervening edits.
     await backend.projectNew()
   } catch (error) {
-    reportError(error, "Could not start a new project")
+    reportError(error, t("Could not start a new project"))
   }
 }
 
@@ -102,7 +103,7 @@ export async function openProjectPath(path: string): Promise<void> {
     await openDocument(path)
     void refreshRecentProjects()
   } catch (error) {
-    reportError(error, "Could not open the project")
+    reportError(error, t("Could not open the project"))
   }
 }
 
@@ -114,14 +115,14 @@ export async function openProject(): Promise<void> {
     await openDocument(path)
     void refreshRecentProjects()
   } catch (error) {
-    reportError(error, "Could not open the project")
+    reportError(error, t("Could not open the project"))
   }
 }
 
 async function openDocument(path: string): Promise<void> {
   const archive = /\.zip$/i.test(path)
   if (archive && useArchiveStore.getState().busy)
-    throw new Error("Another project archive operation is running.")
+    throw new Error(t("Another project archive operation is running."))
   if (archive) {
     archiveReport(null)
     archiveBusy(true)
@@ -148,11 +149,11 @@ export async function reloadMissingSamples(): Promise<void> {
   try {
     missing = await backend.samplesReload()
   } catch (error) {
-    reportError(error, "Could not reload the samples")
+    reportError(error, t("Could not reload the samples"))
     return
   }
   samplesReloaded()
-  if (missing === 0) toast.success("All samples loaded")
-  else if (missing === 1) toast.error("1 sample is still missing")
-  else toast.error(`${missing} samples are still missing`)
+  if (missing === 0) toast.success(t("All samples loaded"))
+  else if (missing === 1) toast.error(t("1 sample is still missing"))
+  else toast.error(message("{missing} samples are still missing", { missing: plainNumber(missing) }))
 }

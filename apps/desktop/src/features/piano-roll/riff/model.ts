@@ -1,16 +1,17 @@
 import type { ScaleId } from "../scales"
 import { MAX_RIFF_SEED } from "./rng"
+import { translatedText as t } from "@/lib/i18n"
 
 /** Stages in the order they run. Each one reads the previous one's notes. */
 export const RIFF_STAGES = [
-  { id: "progression", label: "Progression", optional: false },
-  { id: "chords", label: "Chords", optional: true },
-  { id: "arpeggio", label: "Arpeggio", optional: true },
-  { id: "mirror", label: "Mirror", optional: true },
-  { id: "levels", label: "Levels", optional: true },
-  { id: "articulation", label: "Length", optional: true },
-  { id: "groove", label: "Groove", optional: true },
-  { id: "fit", label: "Fit", optional: true },
+  { id: "progression", get label() { return t("Progression") }, optional: false },
+  { id: "chords", get label() { return t("Chords") }, optional: true },
+  { id: "arpeggio", get label() { return t("Arpeggio") }, optional: true },
+  { id: "mirror", get label() { return t("Mirror") }, optional: true },
+  { id: "levels", get label() { return t("Levels") }, optional: true },
+  { id: "articulation", get label() { return t("Length") }, optional: true },
+  { id: "groove", get label() { return t("Groove") }, optional: true },
+  { id: "fit", get label() { return t("Fit") }, optional: true },
 ] as const
 export type RiffStageId = (typeof RIFF_STAGES)[number]["id"]
 
@@ -24,20 +25,20 @@ export const MAX_RIFF_CHORDS = 32
  * tone onto the nearest of its own five notes.
  */
 export const RIFF_SCALES = [
-  { value: "major", label: "Major", harmony: "major" },
-  { value: "minor", label: "Natural minor", harmony: "minor" },
+  { value: "major", get label() { return t("Major") }, harmony: "major" },
+  { value: "minor", get label() { return t("Natural minor") }, harmony: "minor" },
   {
     value: "harmonic-minor",
-    label: "Harmonic minor",
+    get label() { return t("Harmonic minor") },
     harmony: "harmonic-minor",
   },
-  { value: "melodic-minor", label: "Melodic minor", harmony: "melodic-minor" },
-  { value: "dorian", label: "Dorian", harmony: "dorian" },
-  { value: "phrygian", label: "Phrygian", harmony: "phrygian" },
-  { value: "lydian", label: "Lydian", harmony: "lydian" },
-  { value: "mixolydian", label: "Mixolydian", harmony: "mixolydian" },
-  { value: "major-pentatonic", label: "Pentatonic major", harmony: "major" },
-  { value: "minor-pentatonic", label: "Pentatonic minor", harmony: "minor" },
+  { value: "melodic-minor", get label() { return t("Melodic minor") }, harmony: "melodic-minor" },
+  { value: "dorian", get label() { return t("Dorian") }, harmony: "dorian" },
+  { value: "phrygian", get label() { return t("Phrygian") }, harmony: "phrygian" },
+  { value: "lydian", get label() { return t("Lydian") }, harmony: "lydian" },
+  { value: "mixolydian", get label() { return t("Mixolydian") }, harmony: "mixolydian" },
+  { value: "major-pentatonic", get label() { return t("Pentatonic major") }, harmony: "major" },
+  { value: "minor-pentatonic", get label() { return t("Pentatonic minor") }, harmony: "minor" },
 ] as const satisfies readonly {
   value: ScaleId
   label: string
@@ -46,49 +47,49 @@ export const RIFF_SCALES = [
 export type RiffScaleId = (typeof RIFF_SCALES)[number]["value"]
 
 export const RIFF_CHORD_SIZES = [
-  { value: "triad", label: "Triad", steps: [0, 2, 4] },
-  { value: "seventh", label: "Seventh", steps: [0, 2, 4, 6] },
-  { value: "ninth", label: "Ninth", steps: [0, 2, 4, 6, 8] },
+  { value: "triad", get label() { return t("Triad") }, steps: [0, 2, 4] },
+  { value: "seventh", get label() { return t("Seventh") }, steps: [0, 2, 4, 6] },
+  { value: "ninth", get label() { return t("Ninth") }, steps: [0, 2, 4, 6, 8] },
 ] as const
 export type RiffChordSize = (typeof RIFF_CHORD_SIZES)[number]["value"]
 
 export const RIFF_BARS_PER_CHORD = [
-  { value: "1/4", label: "¼ bar", bars: 0.25 },
-  { value: "1/2", label: "½ bar", bars: 0.5 },
-  { value: "1", label: "1 bar", bars: 1 },
-  { value: "2", label: "2 bars", bars: 2 },
+  { value: "1/4", get label() { return t("¼ bar") }, bars: 0.25 },
+  { value: "1/2", get label() { return t("½ bar") }, bars: 0.5 },
+  { value: "1", get label() { return t("1 bar") }, bars: 1 },
+  { value: "2", get label() { return t("2 bars") }, bars: 2 },
 ] as const
 export type RiffBarsPerChord = (typeof RIFF_BARS_PER_CHORD)[number]["value"]
 
 export const RIFF_INVERSIONS = [
-  { value: "root", label: "Root" },
+  { value: "root", get label() { return t("Root") } },
   { value: "first", label: "1st" },
-  { value: "second", label: "2nd" },
-  { value: "auto", label: "Smooth" },
+  { value: "second", get label() { return t("2nd") } },
+  { value: "auto", get label() { return t("Smooth") } },
 ] as const
 export type RiffInversion = (typeof RIFF_INVERSIONS)[number]["value"]
 
 export const RIFF_SPREADS = [
-  { value: "close", label: "Close" },
-  { value: "open", label: "Open" },
-  { value: "drop2", label: "Drop 2" },
+  { value: "close", get label() { return t("Close") } },
+  { value: "open", get label() { return t("Open") } },
+  { value: "drop2", get label() { return t("Drop 2") } },
 ] as const
 export type RiffSpread = (typeof RIFF_SPREADS)[number]["value"]
 
 export const RIFF_BASS = [
-  { value: "none", label: "None", semitones: 0 },
-  { value: "octave", label: "1 octave below", semitones: 12 },
-  { value: "two-octaves", label: "2 octaves below", semitones: 24 },
+  { value: "none", get label() { return t("None") }, semitones: 0 },
+  { value: "octave", get label() { return t("1 octave below") }, semitones: 12 },
+  { value: "two-octaves", get label() { return t("2 octaves below") }, semitones: 24 },
 ] as const
 export type RiffBass = (typeof RIFF_BASS)[number]["value"]
 
 export const RIFF_ARP_PATTERNS = [
-  { value: "up", label: "Up" },
-  { value: "down", label: "Down" },
-  { value: "up-down", label: "Up-down" },
-  { value: "down-up", label: "Down-up" },
-  { value: "random", label: "Random" },
-  { value: "played", label: "As played" },
+  { value: "up", get label() { return t("Up") } },
+  { value: "down", get label() { return t("Down") } },
+  { value: "up-down", get label() { return t("Up-down") } },
+  { value: "down-up", get label() { return t("Down-up") } },
+  { value: "random", get label() { return t("Random") } },
+  { value: "played", get label() { return t("As played") } },
 ] as const
 export type RiffArpPattern = (typeof RIFF_ARP_PATTERNS)[number]["value"]
 
@@ -104,30 +105,30 @@ export const RIFF_ARP_RATES = [
 export type RiffArpRate = (typeof RIFF_ARP_RATES)[number]["value"]
 
 export const RIFF_INVERTS = [
-  { value: "off", label: "Off" },
-  { value: "chord", label: "Around each chord" },
-  { value: "key", label: "Around a key" },
+  { value: "off", get label() { return t("Off") } },
+  { value: "chord", get label() { return t("Around each chord") } },
+  { value: "key", get label() { return t("Around a key") } },
 ] as const
 export type RiffInvert = (typeof RIFF_INVERTS)[number]["value"]
 
 export const RIFF_PAN_MODES = [
-  { value: "centre", label: "Centre" },
-  { value: "alternate", label: "Alternate" },
-  { value: "random", label: "Random" },
+  { value: "centre", get label() { return t("Centre") } },
+  { value: "alternate", get label() { return t("Alternate") } },
+  { value: "random", get label() { return t("Random") } },
 ] as const
 export type RiffPanMode = (typeof RIFF_PAN_MODES)[number]["value"]
 
 export const RIFF_LENGTH_MODES = [
-  { value: "scale", label: "Multiply" },
-  { value: "legato", label: "Legato" },
-  { value: "staccato", label: "Staccato" },
+  { value: "scale", get label() { return t("Multiply") } },
+  { value: "legato", get label() { return t("Legato") } },
+  { value: "staccato", get label() { return t("Staccato") } },
 ] as const
 export type RiffLengthMode = (typeof RIFF_LENGTH_MODES)[number]["value"]
 
 export const RIFF_PLACEMENTS = [
-  { value: "after", label: "After the last note" },
-  { value: "start", label: "At the pattern start" },
-  { value: "selection", label: "Replace the selection" },
+  { value: "after", get label() { return t("After the last note") } },
+  { value: "start", get label() { return t("At the pattern start") } },
+  { value: "selection", get label() { return t("Replace the selection") } },
 ] as const
 export type RiffPlacement = (typeof RIFF_PLACEMENTS)[number]["value"]
 

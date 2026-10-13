@@ -7,6 +7,7 @@ import { useProjectStore } from "@/lib/store/project"
 import { onProjectReplaced } from "@/lib/store/replaced"
 import { useUiStore } from "@/lib/store/ui"
 import { resetPeak, subscribePeak, CLIP_GAIN } from "./peaks"
+import { translatedText as t } from "@/lib/i18n"
 
 const interested = new Map<TrackId, number>()
 let notifyInterest: (() => void) | null = null
@@ -133,8 +134,8 @@ export function StripWaveform({ id, vertical, wide, active }: { id: TrackId; ver
     draw()
     return () => { unregister(); stop(); offReplace(); observer.disconnect() }
   }, [id, vertical, active, theme])
-  return <button ref={button} type="button" aria-label="Stereo waveform history. Click to clear the held clip indication"
-    title={backend.kind === "mock" ? "Audio waveforms are available in the desktop app" : "Stereo waveform · about 320 ms · click to clear clip indication"}
+  return <button ref={button} type="button" aria-label={t("Stereo waveform history. Click to clear the held clip indication")}
+    title={backend.kind === "mock" ? t("Audio waveforms are available in the desktop app") : t("Stereo waveform · about 320 ms · click to clear clip indication")}
     onClick={() => resetPeak(id)} className={`${vertical ? `h-full ${wide ? "w-4" : "w-3"}` : "h-1.5 w-full"} overflow-hidden rounded-[2px] bg-display outline-none data-clipped:ring-1 data-clipped:ring-destructive focus-visible:ring-2 focus-visible:ring-ring`}>
     <canvas ref={canvas} data-slot="mixer-waveform" data-track={id} aria-hidden="true" className="block h-full w-full" />
   </button>

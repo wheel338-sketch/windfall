@@ -23,6 +23,7 @@ import {
 } from "@/lib/store/selectors"
 import { setTransportPattern } from "@/lib/store/transport"
 import { colorToCss } from "@/lib/units"
+import { translatedText as t, message } from "@/lib/i18n"
 
 const PATTERN_ACTIONS = [
   "pattern.add",
@@ -61,7 +62,7 @@ function PatternMenu() {
   return (
     <>
       <DropdownMenuGroup>
-        <DropdownMenuLabel>Patterns</DropdownMenuLabel>
+        <DropdownMenuLabel>{t("Patterns")}</DropdownMenuLabel>
         <DropdownMenuRadioGroup
           value={selected}
           onValueChange={(id: PatternId) => void setTransportPattern(id)}
@@ -85,7 +86,7 @@ function PatternMenu() {
 /** Chooses the pattern being edited, and adds, renames, copies or deletes one. */
 export function PatternSelector() {
   const pattern = usePattern(useSelectedPatternId())
-  const hint = useHint("Pattern: choose which pattern to edit and play")
+  const hint = useHint(t("Pattern: choose which pattern to edit and play"))
 
   return (
     <DropdownMenu>
@@ -93,7 +94,7 @@ export function PatternSelector() {
         render={
           <Button
             variant="outline"
-            aria-label={`Pattern: ${pattern?.name ?? "none"}`}
+            aria-label={message("Pattern: {patternName}", { patternName: pattern?.name ?? t("none") })}
             className="w-40 justify-start gap-2 px-2"
             {...hint}
           />
@@ -101,7 +102,7 @@ export function PatternSelector() {
       >
         {pattern && <PatternSwatch color={pattern.color} />}
         <span className="min-w-0 flex-1 truncate text-left">
-          {pattern?.name ?? "No pattern"}
+          {pattern?.name ?? t("No pattern")}
         </span>
         <HugeiconsIcon
           icon={ArrowDown01Icon}

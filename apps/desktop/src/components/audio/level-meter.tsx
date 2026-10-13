@@ -10,6 +10,7 @@ import {
   type CanvasSize,
 } from "./canvas"
 import { dbToGain, gainToDb } from "./units"
+import { translatedText as t } from "@/lib/i18n"
 
 /** Levels rest here when nothing is playing. */
 export const METER_FLOOR_DB = -100
@@ -477,7 +478,7 @@ function LevelMeter({
   showClip = true,
   clipped,
   onClipChange,
-  clipLabel = "Clear clip indicator",
+  clipLabel = t("Clear clip indicator"),
   ...props
 }: LevelMeterProps) {
   const vertical = orientation === "vertical"

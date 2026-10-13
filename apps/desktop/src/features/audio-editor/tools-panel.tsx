@@ -33,20 +33,21 @@ import type {
   AudioStretchQuality,
 } from "./types"
 import { AdvancedTools } from "./advanced-tools"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 const FADE_SHAPES: { value: AudioFadeShape; label: string }[] = [
-  { value: "equalPower", label: "Equal power" },
-  { value: "linear", label: "Linear" },
-  { value: "sCurve", label: "S-curve" },
+  { value: "equalPower", get label() { return t("Equal power") } },
+  { value: "linear", get label() { return t("Linear") } },
+  { value: "sCurve", get label() { return t("S-curve") } },
 ]
 const NORMALIZE_MODES: { value: AudioNormalizeMode; label: string }[] = [
-  { value: "peak", label: "Peak" },
+  { value: "peak", get label() { return t("Peak") } },
   { value: "rms", label: "RMS" },
 ]
 const PHASE_CHANNELS: { value: AudioEditChannels; label: string }[] = [
-  { value: "both", label: "Both channels" },
-  { value: "left", label: "Left only" },
-  { value: "right", label: "Right only" },
+  { value: "both", get label() { return t("Both channels") } },
+  { value: "left", get label() { return t("Left only") } },
+  { value: "right", get label() { return t("Right only") } },
 ]
 
 /** A choice among a few named values, stored by its place in the list. */
@@ -77,7 +78,7 @@ export function Choice<T extends string>({
       }}
     >
       <SelectTrigger aria-label={label}>
-        <SelectValue placeholder="Not available" />
+        <SelectValue placeholder={t("Not available")} />
       </SelectTrigger>
       <SelectContent>
         <SelectGroup>
@@ -194,21 +195,21 @@ export function EditTools({
     <>
       <div
         role="group"
-        aria-label="Clean up"
+        aria-label={t("Clean up")}
         className="flex flex-col gap-2 rounded-md border p-2"
       >
-        <p className="text-sm font-medium">Clean up</p>
+        <p className="text-sm font-medium">{t("Clean up")}</p>
         <Tool>
           {tool(
-            "Remove DC offset",
-            "Subtract each channel's average level over the selection",
+            t("Remove DC offset"),
+            t("Subtract each channel's average level over the selection"),
             "removeDc"
           )}
         </Tool>
         <Tool>
           <Amount
             id="audio-edit-declick"
-            label="De-click strength (%)"
+            label={t("De-click strength (%)")}
             value={declickPercent}
             range={LIMITS.declickPercent}
             step={5}
@@ -216,15 +217,15 @@ export function EditTools({
             onChange={setDeclickPercent}
           />
           {tool(
-            "De-click",
-            "Find short clicks and crackle in the selection and repair them from the audio around them",
+            t("De-click"),
+            t("Find short clicks and crackle in the selection and repair them from the audio around them"),
             declick(declickPercent)
           )}
         </Tool>
         <Tool>
           <Amount
             id="audio-edit-noise"
-            label="Noise reduction (dB)"
+            label={t("Noise reduction (dB)")}
             value={reductionDb}
             range={LIMITS.reductionDb}
             step={1}
@@ -232,20 +233,20 @@ export function EditTools({
             onChange={setReductionDb}
           />
           {tool(
-            "Reduce noise",
+            t("Reduce noise"),
             profileValid
-              ? "Turn down what matches the captured noise profile"
-              : "Estimate the steady noise in the selection and turn it down",
+              ? t("Turn down what matches the captured noise profile")
+              : t("Estimate the steady noise in the selection and turn it down"),
             reduceNoise(reductionDb, profileValid ? profile : null)
           )}
           <Button
             variant="outline"
             size="sm"
-            title="Remember the selected range as noise only, to learn the noise from"
+            title={t("Remember the selected range as noise only, to learn the noise from")}
             disabled={disabled}
             onClick={() => setProfile({ ...selection })}
           >
-            Use selection as noise profile
+            {t("Use selection as noise profile")}
           </Button>
           {profile !== null && (
             <Button
@@ -253,21 +254,21 @@ export function EditTools({
               size="sm"
               onClick={() => setProfile(null)}
             >
-              Clear noise profile
+              {t("Clear noise profile")}
             </Button>
           )}
         </Tool>
         <p role="status" className="text-xs text-muted-foreground">
           {profile === null
-            ? "No noise profile: the noise is estimated from the selection."
+            ? t("No noise profile: the noise is estimated from the selection.")
             : profileValid
-              ? `Noise profile: frames ${profile.start}–${profile.end} (${seconds(profile.end - profile.start)} s).`
-              : "The noise profile no longer fits this clip. Capture it again."}
+              ? message("Noise profile: frames {start}–{end} ({seconds} s).", { start: plainNumber(profile.start), end: plainNumber(profile.end), seconds: seconds(profile.end - profile.start) })
+              : t("The noise profile no longer fits this clip. Capture it again.")}
         </p>
         <Tool>
           <Amount
             id="audio-edit-threshold"
-            label="Silence below (dBFS)"
+            label={t("Silence below (dBFS)")}
             value={thresholdDb}
             range={LIMITS.thresholdDb}
             step={1}
@@ -275,22 +276,22 @@ export function EditTools({
             onChange={setThresholdDb}
           />
           {tool(
-            "Trim silence",
-            "Remove the quiet start and end of the selection",
+            t("Trim silence"),
+            t("Remove the quiet start and end of the selection"),
             trimSilence(thresholdDb)
           )}
         </Tool>
       </div>
       <div
         role="group"
-        aria-label="Process"
+        aria-label={t("Process")}
         className="flex flex-col gap-2 rounded-md border p-2"
       >
-        <p className="text-sm font-medium">Process</p>
+        <p className="text-sm font-medium">{t("Process")}</p>
         <Tool>
           <Amount
             id="audio-edit-gain"
-            label="Gain (dB)"
+            label={t("Gain (dB)")}
             value={gainDb}
             range={LIMITS.gainDb}
             step={0.5}
@@ -298,13 +299,13 @@ export function EditTools({
             onChange={setGainDb}
           />
           {tool(
-            "Apply gain",
-            "Change the level of the selection. A boost that would clip is refused",
+            t("Apply gain"),
+            t("Change the level of the selection. A boost that would clip is refused"),
             gain(gainDb)
           )}
           <Amount
             id="audio-edit-target"
-            label="Target (dBFS)"
+            label={t("Target (dBFS)")}
             value={targetDb}
             range={LIMITS.targetDb}
             step={0.5}
@@ -312,65 +313,65 @@ export function EditTools({
             onChange={setTargetDb}
           />
           <Choice
-            label="Normalize by"
+            label={t("Normalize by")}
             value={mode}
             options={NORMALIZE_MODES}
             disabled={disabled}
             onChange={setMode}
           />
           {tool(
-            "Normalize to target",
-            "Bring the selection's peak or RMS level to the target with one linked gain",
+            t("Normalize to target"),
+            t("Bring the selection's peak or RMS level to the target with one linked gain"),
             normalizeTo(targetDb, mode)
           )}
         </Tool>
         <Tool>
           <Choice
-            label="Fade shape"
+            label={t("Fade shape")}
             value={shape}
             options={FADE_SHAPES}
             disabled={disabled}
             onChange={setShape}
           />
           {tool(
-            "Fade in with shape",
-            "Fade the selection in from silence along the chosen curve",
+            t("Fade in with shape"),
+            t("Fade the selection in from silence along the chosen curve"),
             fade("in", shape)
           )}
           {tool(
-            "Fade out with shape",
-            "Fade the selection out to silence along the chosen curve",
+            t("Fade out with shape"),
+            t("Fade the selection out to silence along the chosen curve"),
             fade("out", shape)
           )}
         </Tool>
         <Tool>
           {tool(
-            "Swap channels",
-            "Exchange left and right in the selection",
+            t("Swap channels"),
+            t("Exchange left and right in the selection"),
             "swapChannels"
           )}
           {tool(
-            "Mono sum",
-            "Write the average of left and right to both channels",
+            t("Mono sum"),
+            t("Write the average of left and right to both channels"),
             "monoSum"
           )}
           <Choice
-            label="Invert phase of"
+            label={t("Invert phase of")}
             value={channels}
             options={PHASE_CHANNELS}
             disabled={disabled}
             onChange={setChannels}
           />
           {tool(
-            "Invert phase",
-            "Flip the polarity of the chosen channels in the selection",
+            t("Invert phase"),
+            t("Flip the polarity of the chosen channels in the selection"),
             invertPhase(channels)
           )}
         </Tool>
         <Tool>
           <Amount
             id="audio-edit-stretch"
-            label="Length (%)"
+            label={t("Length (%)")}
             value={stretchPercent}
             range={LIMITS.stretchPercent}
             step={1}
@@ -379,7 +380,7 @@ export function EditTools({
           />
           <Amount
             id="audio-edit-semitones"
-            label="Pitch (semitones)"
+            label={t("Pitch (semitones)")}
             value={semitones}
             range={LIMITS.semitones}
             step={1}
@@ -387,17 +388,17 @@ export function EditTools({
             onChange={setSemitones}
           />
           {tool(
-            "Stretch and pitch",
-            "Change the selection's length and pitch independently. The audio after it moves; nothing else changes",
+            t("Stretch and pitch"),
+            t("Change the selection's length and pitch independently. The audio after it moves; nothing else changes"),
             stretch(stretchPercent, semitones, quality, formants)
           )}
-          <Choice<AudioStretchQuality> label="Stretch quality" value={quality} options={[{value:"fast",label:"Fast"},{value:"standard",label:"Standard"},{value:"high",label:"High"}]} onChange={setQuality} disabled={disabled} />
-          <Field orientation="horizontal"><Checkbox id="editor-formants" checked={formants} disabled={disabled} onCheckedChange={(value) => setFormants(value === true)} /><FieldLabel htmlFor="editor-formants">Preserve formants</FieldLabel></Field>
+          <Choice<AudioStretchQuality> label={t("Stretch quality")} value={quality} options={[{value:"fast",label:t("Fast")},{value:"standard",label:t("Standard")},{value:"high",label:t("High")}]} onChange={setQuality} disabled={disabled} />
+          <Field orientation="horizontal"><Checkbox id="editor-formants" checked={formants} disabled={disabled} onCheckedChange={(value) => setFormants(value === true)} /><FieldLabel htmlFor="editor-formants">{t("Preserve formants")}</FieldLabel></Field>
         </Tool>
         <Tool>
           <Amount
             id="audio-edit-insert"
-            label="Silence (ms)"
+            label={t("Silence (ms)")}
             value={silenceMs}
             range={{ min: 1, max: 120_000 }}
             step={10}
@@ -405,8 +406,8 @@ export function EditTools({
             onChange={setSilenceMs}
           />
           {tool(
-            "Insert silence",
-            "Insert silence before the selection's first frame",
+            t("Insert silence"),
+            t("Insert silence before the selection's first frame"),
             insertSilence(silenceMs, preview.sampleRate)
           )}
         </Tool>

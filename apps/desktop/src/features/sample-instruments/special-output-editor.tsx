@@ -11,6 +11,7 @@ import { instrumentDescriptor, ParamControl, ParamGroup, ParamRow } from "@/feat
 import { useInstrumentBinding } from "@/features/channel-rack/instruments/use-instrument-binding"
 import { getProjectGeneration } from "@/lib/store/replaced"
 import { GeneralMidiEditor } from "./general-midi-editor"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 const SYSTEM_GM = "windfall:system-general-midi"
 const FEEDBACK = "windfall:xinput-feedback"
@@ -27,14 +28,14 @@ function ProjectFeedbackEditor({ channel, hardware, refresh }: { channel: Instru
   }
   return <FieldGroup>
     <Button variant="outline" disabled={!available} onClick={()=>route({feedbackEnabled:!params.feedbackEnabled,pluginDestination:0})}>
-      {params.feedbackEnabled ? "Disconnect project controller feedback" : "Use project controller feedback"}
+      {params.feedbackEnabled ? t("Disconnect project controller feedback") : t("Use project controller feedback")}
     </Button>
-    <FieldDescription>Saved with this instrument, including undo and reopen. Original notes drive the selected controller and motor. Strength is maximum times velocity raised to the curve exponent.</FieldDescription>
-    {!available && <FieldDescription role="status">Project feedback requires a Windows build with the xinput feature. Real controller presence is checked when a note is sent.</FieldDescription>}
-    <ControllerChoice<string> label="Project feedback controller" value={String(params.feedbackController??0)} choices={Array.from({length:4},(_,index)=>({value:String(index),label:`Controller ${index+1}`}))} change={value=>route({feedbackController:Number(value)})} />
-    <ControllerChoice<string> label="Project feedback motor" value={String(params.feedbackMotor??0)} choices={[{value:"0",label:"Low-frequency motor"},{value:"1",label:"High-frequency motor"},{value:"2",label:"Both motors"}]} change={value=>route({feedbackMotor:Number(value)})} />
+    <FieldDescription>{t("Saved with this instrument, including undo and reopen. Original notes drive the selected controller and motor. Strength is maximum times velocity raised to the curve exponent.")}</FieldDescription>
+    {!available && <FieldDescription role="status">{t("Project feedback requires a Windows build with the xinput feature. Real controller presence is checked when a note is sent.")}</FieldDescription>}
+    <ControllerChoice<string> label={t("Project feedback controller")} value={String(params.feedbackController??0)} choices={Array.from({length:4},(_,index)=>({value:String(index),label:message("Controller {index}", { index: plainNumber(index+1) })}))} change={value=>route({feedbackController:Number(value)})} />
+    <ControllerChoice<string> label={t("Project feedback motor")} value={String(params.feedbackMotor??0)} choices={[{value:"0",label:t("Low-frequency motor")},{value:"1",label:t("High-frequency motor")},{value:"2",label:t("Both motors")}]} change={value=>route({feedbackMotor:Number(value)})} />
     <ParamGroup title="Motor strength mapping"><ParamRow>{instrumentDescriptor("midiOut").params.slice(24,26).map(info=><ParamControl key={info.id} {...bind(info.id)} label={info.name} />)}</ParamRow></ParamGroup>
-    <Button variant="outline" onClick={()=>void refresh()}>Refresh controller capability</Button>
+    <Button variant="outline" onClick={()=>void refresh()}>{t("Refresh controller capability")}</Button>
   </FieldGroup>
 }
 /** Own special-output workflows on the registered MidiOut instrument. */
@@ -54,7 +55,7 @@ export function SpecialOutputEditor({ channel }: { channel?: InstrumentChannel }
     try {
       const fresh=await backend.midiHardwareState()
       if(generation!==getProjectGeneration())return
-      if(!fresh.outputs.some(port=>port.id===output))throw new Error("Requested system output is unavailable")
+      if(!fresh.outputs.some(port=>port.id===output))throw new Error(t("Requested system output is unavailable"))
       const next=await backend.midiHardwareConfigure({...fresh.settings,output})
       if(generation===getProjectGeneration()){setState(next);setError(next.error)}
     } catch(error){if(generation===getProjectGeneration())setError(errorMessage(error))}
@@ -67,13 +68,13 @@ export function SpecialOutputEditor({ channel }: { channel?: InstrumentChannel }
   return <FieldGroup>
     {channel && <><GeneralMidiEditor channel={channel} /><ProjectFeedbackEditor channel={channel} hardware={state} refresh={refresh} /></>}
     {!channel && <><Button variant="outline" disabled={busy || !state?.outputs.some(port=>port.id===SYSTEM_GM)}
-      onClick={()=>void select(SYSTEM_GM)}>Use system General MIDI synth</Button>
-    <FieldDescription>Uses the Windows software synth on the output worker. Program and bank controls below select its sounds. The OS plays this audio outside Windfall’s mixer and exports.</FieldDescription></>}
+      onClick={()=>void select(SYSTEM_GM)}>{t("Use system General MIDI synth")}</Button>
+    <FieldDescription>{t("Uses the Windows software synth on the output worker. Program and bank controls below select its sounds. The OS plays this audio outside Windfall’s mixer and exports.")}</FieldDescription></>}
     {!channel && <><Button variant="outline" disabled={busy || !state?.outputs.some(port=>port.id===FEEDBACK)}
-      onClick={()=>void select(FEEDBACK)}>Use game controller feedback</Button>
-    <FieldDescription>Requires a Windows build with XInput enabled. MIDI channels 1–4 select controllers 0–3; notes below 64 drive the low motor, notes 64–127 the high motor, and velocity sets strength.</FieldDescription></>}
-    {!channel && <><FieldDescription>The selected output is an app MIDI setting shared by MIDI output channels.</FieldDescription>
-    {state && <FieldDescription>Selected output: {state.outputs.find(port=>port.id===state.settings.output)?.name ?? "None"}</FieldDescription>}</>}
+      onClick={()=>void select(FEEDBACK)}>{t("Use game controller feedback")}</Button>
+    <FieldDescription>{t("Requires a Windows build with XInput enabled. MIDI channels 1–4 select controllers 0–3; notes below 64 drive the low motor, notes 64–127 the high motor, and velocity sets strength.")}</FieldDescription></>}
+    {!channel && <><FieldDescription>{t("The selected output is an app MIDI setting shared by MIDI output channels.")}</FieldDescription>
+    {state && <FieldDescription>{t("Selected output:")}{" "}{state.outputs.find(port=>port.id===state.settings.output)?.name ?? t("None")}</FieldDescription>}</>}
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
   </FieldGroup>
 }

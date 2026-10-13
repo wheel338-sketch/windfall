@@ -17,11 +17,12 @@
  */
 
 /** The same words in both editors' status-bar hints. */
+import { translatedText as t } from "@/lib/i18n"
 export const MODIFIER_HINTS = {
   copy: "Ctrl+drag copies",
   select: "Ctrl+drag on empty space selects",
   add: "Shift+click adds",
-  free: "Alt: no snap",
+  get free() { return t("Alt: no snap") },
 } as const
 
 /** Whether a drag ignores the snap: only while Alt is held. */

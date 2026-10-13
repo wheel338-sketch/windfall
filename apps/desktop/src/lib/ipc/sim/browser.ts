@@ -5,6 +5,7 @@ import type {
   SampleInfo,
   SamplePath,
 } from "@/bindings"
+import { message } from "@/lib/i18n"
 
 export const FACTORY_ROOT = "/factory"
 
@@ -97,7 +98,7 @@ export function defaultRoots(): BrowserRoot[] {
 export function listFolder(roots: BrowserRoot[], path: string): BrowserEntry[] {
   const folder = resolve(roots, path)
   if (typeof folder !== "object") {
-    throw new Error(`"${path}" is not a folder`)
+    throw new Error(message("\"{path}\" is not a folder", { path }))
   }
   return Object.entries(folder)
     .map(([name, node]): BrowserEntry => ({
@@ -143,7 +144,7 @@ const PEAK_BUCKETS = 256
 export function sampleInfoFor(roots: BrowserRoot[], path: string): SampleInfo {
   const node = resolve(roots, path)
   if (typeof node !== "number" || !isAudioPath(path)) {
-    throw new Error(`"${path}" is not an audio file Windfall can read`)
+    throw new Error(message("\"{path}\" is not an audio file Windfall can read", { path }))
   }
   const random = randomFrom(hash(path))
   const sampleRate = 44_100

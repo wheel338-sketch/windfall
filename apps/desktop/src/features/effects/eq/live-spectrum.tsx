@@ -8,6 +8,7 @@ import { dbPosition, spectrumCurve } from "@/features/analyzers/math"
 import type { AnalyzerFrame } from "@/features/analyzers/types"
 
 import { DISPLAY_MAX_HZ, DISPLAY_MIN_HZ, plotRect } from "./geometry"
+import { translatedText as t } from "@/lib/i18n"
 
 /** Points the spectrum is drawn at, along the display's frequency axis. */
 export const SPECTRUM_POINTS = 160
@@ -117,7 +118,7 @@ export function EqLiveSpectrum({ slot }: LiveSpectrumProps) {
     >
       <AnalyzerCanvas
         slot={slot}
-        label="Live spectrum of this track's output, 20 Hz to 20 kHz, minus 90 to 0 decibels"
+        label={t("Live spectrum of this track's output, 20 Hz to 20 kHz, minus 90 to 0 decibels")}
         paint={paint}
         onFrame={onFrame}
         onClear={onClear}

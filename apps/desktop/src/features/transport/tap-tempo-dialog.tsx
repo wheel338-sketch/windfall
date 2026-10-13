@@ -15,6 +15,7 @@ import {
 import { useUiStore } from "@/lib/store/ui"
 import { formatTempo } from "@/lib/time"
 import { TapTempoEstimator, type TapMeasurement } from "./tap-tempo"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 export function TapTempoDialog() {
   const open = useUiStore((state) => state.dialog === "tempoTap")
@@ -29,10 +30,9 @@ export function TapTempoDialog() {
     >
       <DialogContent showCloseButton={!busy}>
         <DialogHeader>
-          <DialogTitle>Tap tempo</DialogTitle>
+          <DialogTitle>{t("Tap tempo")}</DialogTitle>
           <DialogDescription>
-            Tap in time, review the estimate, then Apply. Use Space or Enter
-            while the Tap button is focused. Tapping changes no project data.
+            {t("Tap in time, review the estimate, then Apply. Use Space or Enter while the Tap button is focused. Tapping changes no project data.")}
           </DialogDescription>
         </DialogHeader>
         {open && <Tapper key={generation} onBusy={setBusy} />}
@@ -106,21 +106,18 @@ function Tapper({ onBusy }: { onBusy(value: boolean): void }) {
           if (event.key === " " || event.key === "Enter") event.preventDefault()
         }}
       >
-        Tap
+        {t("Tap")}
       </Button>
       <p role="status" className="text-center font-readout text-xl">
         {measurement.bpm === null
-          ? `${measurement.taps} ${measurement.taps === 1 ? "tap" : "taps"} · tap at least twice`
-          : `${measurement.taps} taps · ${formatTempo(measurement.bpm)} BPM`}
+          ? message("{taps} {taps2} · tap at least twice", { taps: plainNumber(measurement.taps), taps2: measurement.taps === 1 ? t("tap") : t("taps") })
+          : message("{taps} taps · {tempo} BPM", { taps: plainNumber(measurement.taps), tempo: formatTempo(measurement.bpm) })}
       </p>
       <p className="text-sm text-muted-foreground">
-        The last eight taps are averaged. Very close taps are ignored;
-        established rhythms tolerate uneven beats. A pause longer than six
-        seconds starts over. Reset before tapping a different rhythm.
+        {t("The last eight taps are averaged. Very close taps are ignored; established rhythms tolerate uneven beats. A pause longer than six seconds starts over. Reset before tapping a different rhythm.")}
       </p>
       <p className="text-sm text-muted-foreground">
-        Apply changes the stored project tempo in one undo step. Existing tempo
-        automation still controls playback where its clips are active.
+        {t("Apply changes the stored project tempo in one undo step. Existing tempo automation still controls playback where its clips are active.")}
       </p>
       <div className="flex justify-between gap-2">
         <Button
@@ -128,7 +125,7 @@ function Tapper({ onBusy }: { onBusy(value: boolean): void }) {
           disabled={busy}
           onClick={() => setMeasurement(estimator.reset())}
         >
-          Reset taps
+          {t("Reset taps")}
         </Button>
         <div className="flex gap-2">
           <Button
@@ -136,13 +133,13 @@ function Tapper({ onBusy }: { onBusy(value: boolean): void }) {
             disabled={busy}
             onClick={() => useUiStore.getState().closeDialog()}
           >
-            Cancel
+            {t("Cancel")}
           </Button>
           <Button
             disabled={busy || measurement.bpm === null}
             onClick={() => void apply()}
           >
-            {busy ? "Applying…" : "Apply tempo"}
+            {busy ? t("Applying…") : t("Apply tempo")}
           </Button>
         </div>
       </div>

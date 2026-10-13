@@ -64,6 +64,7 @@ import {
   type PlaylistMock,
   type PlaylistMockOptions,
 } from "./sim/playlist"
+import { translatedText as t, message as i18nMessage, plainNumber } from "@/lib/i18n"
 
 /** Stand-ins for the native file dialogs. Each resolves to null on cancel. */
 export type MockDialogs = {
@@ -162,7 +163,7 @@ function promptDialogs(): MockDialogs {
     openProject(saved) {
       if (saved.length === 0) {
         return Promise.reject(
-          new Error("No projects are saved in this browser yet.")
+          new Error(t("No projects are saved in this browser yet."))
         )
       }
       return ask(
@@ -331,7 +332,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       guard.region.end !== current.region.end
     )
       throw new Error(
-        "The project or timeline selection changed before playback could continue."
+        t("The project or timeline selection changed before playback could continue.")
       )
   }
   let audioSettings = storedSettings({})
@@ -421,7 +422,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       storage.setItem(RECENT_KEY, JSON.stringify(nextRecent))
     } catch {
       throw new Error(
-        "The browser's storage is full, so the project was not saved."
+        t("The browser's storage is full, so the project was not saved.")
       )
     }
   }
@@ -515,7 +516,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       const { clips, tracks } = doc.project().playlist
       if (clips.length === 0) {
         throw new Error(
-          "The playlist is empty. Add a clip to the playlist, or switch to pattern mode."
+          t("The playlist is empty. Add a clip to the playlist, or switch to pattern mode.")
         )
       }
       const muted = new Set(
@@ -523,7 +524,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       )
       if (clips.every((clip) => clip.muted || muted.has(clip.track))) {
         throw new Error(
-          "Every clip on the playlist is muted. Unmute a clip, or switch to pattern mode."
+          t("Every clip on the playlist is muted. Unmute a clip, or switch to pattern mode.")
         )
       }
     }
@@ -565,10 +566,10 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
 
   function sampleCommands(filePath: string) {
     if (isPresetPath(filePath)) {
-      throw new Error(isProprietaryPreset(filePath) ? UNSUPPORTED_PRESET : "Preset audio rendering is available in the desktop app. The browser cannot render instrument DSP.")
+      throw new Error(isProprietaryPreset(filePath) ? t(UNSUPPORTED_PRESET) : t("Preset audio rendering is available in the desktop app. The browser cannot render instrument DSP."))
     }
     if (!isAudioPath(filePath)) {
-      throw new Error(`"${filePath}" is not an audio file Windfall can read`)
+      throw new Error(i18nMessage("\"{filePath}\" is not an audio file Windfall can read", { filePath }))
     }
     const samplePath = samplePathFor(filePath)
     const project = doc.project()
@@ -653,12 +654,12 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
   const scoreFiles = new Map<string, number[]>()
   function checkFileGuard(generation: number, revision: number) {
     const current = timelineState()
-    if (generation !== current.generation || revision !== current.revision) throw new Error("The project changed while the file was chosen; try again")
+    if (generation !== current.generation || revision !== current.revision) throw new Error(t("The project changed while the file was chosen; try again"))
   }
 
   const made: MockBackend = {
     kind: "mock",
-    updateCall: async () => { throw new Error("Updates require the installed desktop application.") },
+    updateCall: async () => { throw new Error(t("Updates require the installed desktop application.")) },
     ...unavailableRemoteContent(),
     ...unavailableAnalysis(),
     ...mockMixerPresetLibrary(),
@@ -679,41 +680,41 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     }),
     scoreRead: (target) => ipc(() => {
       const bytes = scoreFiles.get(target)
-      if (!bytes) throw new Error("This score is not in the browser score library")
+      if (!bytes) throw new Error(t("This score is not in the browser score library"))
       return doc.readScore(bytes, target)
     }),
     pickScorePath: async (name) => name === undefined ? ([...scoreFiles.keys()][0] ?? null) : dialogs.exportPath(`/scores/${name}.wfscore`),
     ...unavailableAnalyzer(),
     pickVideoFile: () => Promise.resolve(null),
-    mediaVideoRead: () => Promise.reject(new Error("Local video decoding needs the desktop app")),
-    performanceScene: () => Promise.reject(new Error("Performance launching needs the desktop audio engine")),
-    mediaRenderAudio: () => Promise.reject(new Error("Audiovisual export needs the desktop audio engine")),
+    mediaVideoRead: () => Promise.reject(new Error(t("Local video decoding needs the desktop app"))),
+    performanceScene: () => Promise.reject(new Error(t("Performance launching needs the desktop audio engine"))),
+    mediaRenderAudio: () => Promise.reject(new Error(t("Audiovisual export needs the desktop audio engine"))),
     performanceState: () => Promise.resolve({ available: false, tick: 0, droppedNotes: "0", tracks: [] }),
-    performancePad: () => Promise.reject(new Error("Performance launching needs the desktop audio engine")),
+    performancePad: () => Promise.reject(new Error(t("Performance launching needs the desktop audio engine"))),
     performanceStopAll: () => Promise.resolve(),
     performanceRecordState: () => Promise.resolve({ active: false, finished: false, frames: 0, sampleRate: 0, error: null }),
-    performanceRecordStart: () => Promise.reject(new Error("Performance recording needs the desktop audio engine")),
-    performanceRecordStop: () => Promise.reject(new Error("Performance recording needs the desktop audio engine")),
+    performanceRecordStart: () => Promise.reject(new Error(t("Performance recording needs the desktop audio engine"))),
+    performanceRecordStop: () => Promise.reject(new Error(t("Performance recording needs the desktop audio engine"))),
     performanceRecordCancel: () => Promise.resolve(),
-    performanceRecordSave: () => Promise.reject(new Error("Performance recording needs the desktop audio engine")),
-    performanceTakeReplay: () => Promise.reject(new Error("Performance replay needs the desktop audio engine")),
-    performanceTakeExport: () => Promise.reject(new Error("Performance export needs the desktop audio engine")),
+    performanceRecordSave: () => Promise.reject(new Error(t("Performance recording needs the desktop audio engine"))),
+    performanceTakeReplay: () => Promise.reject(new Error(t("Performance replay needs the desktop audio engine"))),
+    performanceTakeExport: () => Promise.reject(new Error(t("Performance export needs the desktop audio engine"))),
     mixerWaveformTracks: (tracks, generation, revision) => ipc(() => {
       const state = timelineState()
-      if (state.generation !== generation || state.revision !== revision) throw new Error("The project changed before waveform selection could update")
-      if (tracks.length > 128 || new Set(tracks).size !== tracks.length || tracks.some((id) => !doc.project().mixer.tracks.some((track) => track.id === id))) throw new Error("Invalid waveform track selection")
+      if (state.generation !== generation || state.revision !== revision) throw new Error(t("The project changed before waveform selection could update"))
+      if (tracks.length > 128 || new Set(tracks).size !== tracks.length || tracks.some((id) => !doc.project().mixer.tracks.some((track) => track.id === id))) throw new Error(t("Invalid waveform track selection"))
       // The browser has no native audio callback. It publishes no waveform PCM.
     }),
     mixerPresetCapture: async (id, generation, revision) => {
       const ticket = timelineState()
-      if (generation !== ticket.generation || revision !== ticket.revision) throw new Error("The project changed before preset capture")
+      if (generation !== ticket.generation || revision !== ticket.revision) throw new Error(t("The project changed before preset capture"))
       const project = doc.project()
       const track = project.mixer.tracks.find((track) => track.id === id)
-      if (!track) throw new Error("Preset source track no longer exists")
+      if (!track) throw new Error(t("Preset source track no longer exists"))
       return structuredClone({ version: 1, name: track.name, color: track.color, volume: track.volume, pan: track.pan, muted: track.muted, processing: track.processing ?? DEFAULT_TRACK_PROCESSING, latencyOffsetMs: track.latencyOffsetMs ?? 0, effects: track.effects, plugins: (project.plugins ?? []).filter((plugin) => { const target = plugin.target; return target.type === "effect" && track.effects.some((slot) => slot.id === target.effect) }) })
     },
     mixerPresetSave: async (preset) => {
-      if (typeof document === "undefined") throw new Error("Preset downloads require a browser")
+      if (typeof document === "undefined") throw new Error(t("Preset downloads require a browser"))
       const name = `${preset.name.replace(/[<>:"/\\|?*]/g, "_") || "Mixer track"}.wfmixer`
       const url = URL.createObjectURL(new Blob([JSON.stringify(preset, null, 2)], { type: "application/json" }))
       const anchor = document.createElement("a"); anchor.href = url; anchor.download = name
@@ -725,7 +726,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       const name = `${suggestedName.replace(/[<>:"/\\|?*]/g, "_") || "Score"}.${format === "pdf" ? "pdf" : "musicxml"}`
       const path = await dialogs.exportPath(`/exports/${name}`)
       if (!path) return null
-      if (typeof document === "undefined") throw new Error("Score downloads require a browser")
+      if (typeof document === "undefined") throw new Error(t("Score downloads require a browser"))
       const url = URL.createObjectURL(new Blob([xml], { type: format === "pdf" ? "application/pdf" : "application/vnd.recordare.musicxml+xml" }))
       const anchor = document.createElement("a")
       anchor.href = url
@@ -737,7 +738,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       return path
     },
     mixerPresetLoad: async () => {
-      if (typeof document === "undefined") throw new Error("Preset import requires a browser")
+      if (typeof document === "undefined") throw new Error(t("Preset import requires a browser"))
       const file = await new Promise<File | null>((resolve) => {
         const input = document.createElement("input"); input.type = "file"; input.accept = ".wfmixer,application/json"; input.hidden = true
         const finish = (file: File | null) => { input.remove(); resolve(file) }
@@ -746,27 +747,27 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         document.body.append(input); input.click()
       })
       if (!file) return null
-      if (file.size > 256 * 1024 * 1024) throw new Error("Preset file exceeds 256 MiB")
+      if (file.size > 256 * 1024 * 1024) throw new Error(t("Preset file exceeds 256 MiB"))
       const preset = JSON.parse(await file.text()) as import("@/bindings").MixerTrackPreset
-      if (preset.version !== 1 || !Array.isArray(preset.effects) || !Array.isArray(preset.plugins)) throw new Error("Invalid mixer preset")
+      if (preset.version !== 1 || !Array.isArray(preset.effects) || !Array.isArray(preset.plugins)) throw new Error(t("Invalid mixer preset"))
       return preset
     },
     currentMixerTarget: (track, generation, revision) => ipc(() => {
       const state = timelineState()
-      if (generation !== state.generation || revision !== doc.snapshot(null).revision) throw new Error("Project changed before Current could follow selection.")
-      if (track !== null && !doc.project().mixer.tracks.some((item) => item.id === track && !item.current)) throw new Error("Current source no longer exists.")
+      if (generation !== state.generation || revision !== doc.snapshot(null).revision) throw new Error(t("Project changed before Current could follow selection."))
+      if (track !== null && !doc.project().mixer.tracks.some((item) => item.id === track && !item.current)) throw new Error(t("Current source no longer exists."))
     }),
     projectSaveNewVersion: async () => {
-      throw new Error("Numbered saves require the desktop app.")
+      throw new Error(t("Numbered saves require the desktop app."))
     },
     projectArchiveSave: async () => {
-      throw new Error("Portable project archives require the desktop app.")
+      throw new Error(t("Portable project archives require the desktop app."))
     },
     projectArchiveCancel: async () => {
-      throw new Error("Portable project archives require the desktop app.")
+      throw new Error(t("Portable project archives require the desktop app."))
     },
     pickProjectArchivePath: async () => {
-      throw new Error("Portable project archives require the desktop app.")
+      throw new Error(t("Portable project archives require the desktop app."))
     },
     ...createMidiHardwareMock({ project: () => doc.project(), generation: () => timelineState().generation, dispatch: dispatchNow, log: scoreLog }),
     ...createPlaylistMock(options, {
@@ -784,7 +785,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       dispatchNow,
       (id) => {
         const asset = doc.project().samples.find((s) => s.id === id)
-        if (!asset) throw new Error("The clip's source no longer exists.")
+        if (!asset) throw new Error(t("The clip's source no longer exists."))
         return sampleInfoFor(roots, sampleFile(asset))
       },
       timelineState
@@ -805,19 +806,19 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       })),
     }),
     pluginsScan: async () => {
-      throw new Error("Native plugins require the Windows desktop app")
+      throw new Error(t("Native plugins require the Windows desktop app"))
     },
     pluginsAddFolder: async () => {
-      throw new Error("Native plugins require the Windows desktop app")
+      throw new Error(t("Native plugins require the Windows desktop app"))
     },
     pluginsAdd: async () => {
-      throw new Error("Native plugins require the Windows desktop app")
+      throw new Error(t("Native plugins require the Windows desktop app"))
     },
     pluginEditor: async () => {
-      throw new Error("Native editors require the Windows desktop app")
+      throw new Error(t("Native editors require the Windows desktop app"))
     },
     pluginEditorScale: async () => {},
-    pluginNoteCapabilities: async () => { throw new Error("Native note capabilities require the installed desktop application.") },
+    pluginNoteCapabilities: async () => { throw new Error(t("Native note capabilities require the installed desktop application.")) },
 
     timelineState: () => ipc(timelineState),
     timelineRegion: (region, generation, revision, request, cancel) =>
@@ -825,18 +826,18 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         const current = timelineState()
         if (generation !== current.generation || revision !== current.revision)
           throw new Error(
-            "The project changed before the timeline region was applied."
+            t("The project changed before the timeline region was applied.")
           )
         sim.call("timeline_range", 0, region)
         request ??= timelineRequest + 1
         if (!Number.isSafeInteger(request) || request <= timelineRequest)
           throw new Error(
-            "The timeline request is stale or exceeds the exact request limit."
+            t("The timeline request is stale or exceeds the exact request limit.")
           )
         if (cancel) {
           if (!Number.isSafeInteger(cancel.request) || cancel.request <= 0)
             throw new Error(
-              "The cancelled timeline request exceeds the exact request limit."
+              t("The cancelled timeline request exceeds the exact request limit.")
             )
           if (
             cancel.generation === current.generation &&
@@ -859,17 +860,17 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       }),
     documentSnapshot: () => ipc(() => doc.snapshot(path)),
     analyzerSmokeEnabled: () => Promise.resolve(false),
-    analyzerSmokeControl: () => Promise.reject(new Error("Analyzer window smoke requires an explicitly enabled debug desktop app")),
+    analyzerSmokeControl: () => Promise.reject(new Error(t("Analyzer window smoke requires an explicitly enabled debug desktop app"))),
     proposalStamp: () => ipc(() => {
       const { generation, revision } = timelineState()
       return { generation, revision }
     }),
     assistantRespond: (prompt) => ipc(() => doc.assistant(prompt, timelineState().generation)),
     assistantConnection: () => Promise.resolve({ baseUrl: "", model: "", enabled: false, hasKey: false }),
-    assistantConfigure: () => Promise.reject(new Error("BYOK credentials require the native per-user settings store.")),
-    assistantRequestBegin: () => Promise.reject(new Error("BYOK HTTP requests require the native assistant worker.")),
+    assistantConfigure: () => Promise.reject(new Error(t("BYOK credentials require the native per-user settings store."))),
+    assistantRequestBegin: () => Promise.reject(new Error(t("BYOK HTTP requests require the native assistant worker."))),
     assistantRequestCancel: () => Promise.resolve(),
-    assistantRemote: () => Promise.reject(new Error("BYOK HTTP requests require the native assistant worker.")),
+    assistantRemote: () => Promise.reject(new Error(t("BYOK HTTP requests require the native assistant worker."))),
     proposalApply: (proposal) => ipc(() => {
       const result = doc.applyProposal(proposal, timelineState().generation, false)
       // Ordinary mock dispatch uses the same patch stream and transport sync.
@@ -878,15 +879,15 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     }),
     proposalUndo: (stamp) => ipc(() => {
       const current = timelineState()
-      if (stamp.generation !== current.generation || stamp.revision !== current.revision) throw new Error("Batch undo is stale.")
+      if (stamp.generation !== current.generation || stamp.revision !== current.revision) throw new Error(t("Batch undo is stale."))
       const patch = doc.undo()
-      if (!patch) throw new Error("No batch to undo.")
+      if (!patch) throw new Error(t("No batch to undo."))
       return publish(patch)
     }),
-    scriptBegin: () => Promise.reject(new Error("Script execution requires the native bounded worker.")),
+    scriptBegin: () => Promise.reject(new Error(t("Script execution requires the native bounded worker."))),
     scriptCancel: async () => {},
     scriptParameters: (source) => ipc(() => sim.call<import("@/bindings").ScriptParameter[]>("script_parameters", 0, source)),
-    scriptPreview: () => Promise.reject(new Error("Script execution requires the native bounded worker.")),
+    scriptPreview: () => Promise.reject(new Error(t("Script execution requires the native bounded worker."))),
     dispatch: (command, gesture) => ipc(() => dispatchNow(command, gesture)),
     undo: () =>
       ipc(() => {
@@ -935,7 +936,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         const bytes = flpFiles.get(sourcePath)
         if (!bytes)
           throw new Error(
-            "Choose an FL project from this browser's file picker first."
+            t("Choose an FL project from this browser's file picker first.")
           )
         const { project, report } = sim.call<{
           project: Project
@@ -988,14 +989,14 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         const pending = flpPending
         if (!pending || pending.preview.token !== token)
           throw new Error(
-            "The import review expired. Choose the FL project again."
+            t("The import review expired. Choose the FL project again.")
           )
         if (
           pending.original !== doc ||
           pending.originalRevision !== doc.snapshot(null).revision
         )
           throw new Error(
-            "The current project changed. Review the FL project again before opening it."
+            t("The current project changed. Review the FL project again before opening it.")
           )
         flpPending = null
         return load(pending.next, null)
@@ -1013,11 +1014,11 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     projectOpen: (openPath) =>
       ipc(() => {
         if (/\.zip$/i.test(openPath))
-          throw new Error("Portable project archives require the desktop app.")
+          throw new Error(t("Portable project archives require the desktop app."))
         const fileText = files()[openPath]
         if (typeof fileText !== "string") {
           throw new Error(
-            `Could not read ${openPath}: no such file is saved in this browser.`
+            i18nMessage("Could not read {openPath}: no such file is saved in this browser.", { openPath })
           )
         }
         let opened: SimDocument
@@ -1034,7 +1035,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       ipc(() => {
         const target = savePath ? withProjectExtension(savePath) : path
         if (!target) {
-          throw new Error("This project has no file yet. Use Save as.")
+          throw new Error(t("This project has no file yet. Use Save as."))
         }
         let fileText: string
         try {
@@ -1086,7 +1087,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
             .project()
             .patterns.some((pattern) => pattern.id === patch.pattern)
         ) {
-          throw new Error(`pattern ${patch.pattern} does not exist`)
+          throw new Error(i18nMessage("pattern {pattern} does not exist", { pattern: plainNumber(patch.pattern) }))
         }
         if (!guard) timelinePlayRequest = 0
         transport.set(patch, doc.project())
@@ -1099,12 +1100,12 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     // The browser preview keeps no audio history. It says so; it never
     // pretends to log or to add a clip.
     audioLoggerState: async () => unavailableLogger(),
-    audioLoggerConfigure: () => Promise.reject(new Error(NATIVE_ONLY)),
-    audioLoggerDump: () => Promise.reject(new Error(NATIVE_ONLY)),
+    audioLoggerConfigure: () => Promise.reject(new Error(t(NATIVE_ONLY))),
+    audioLoggerDump: () => Promise.reject(new Error(t(NATIVE_ONLY))),
     recordingInputs: async () => [],
     inputMonitorState: async () => ({ active: false, sampleRate: 0, tracks: [], error: null }),
     inputMonitorStop: async () => ({ active: false, sampleRate: 0, tracks: [], error: null }),
-    inputMonitorStart: async () => { throw new Error("Input monitoring requires the native desktop app.") },
+    inputMonitorStart: async () => { throw new Error(t("Input monitoring requires the native desktop app.")) },
     recordingState: async () => ({
       active: false,
       frames: 0,
@@ -1113,10 +1114,10 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       error: null,
     }),
     recordingStart: async () => {
-      throw new Error("Audio recording requires the native desktop app.")
+      throw new Error(t("Audio recording requires the native desktop app."))
     },
     recordingStop: async () => {
-      throw new Error("No recording is active.")
+      throw new Error(t("No recording is active."))
     },
     recordingCancel: async () => {},
     engineDevices: () => ipc(() => HOSTS),
@@ -1136,7 +1137,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
           .channels.find((item) => item.id === channel)?.source
         if (source?.type === "sampler" && source.stretch?.mode === "spectral")
           throw new Error(
-            "Spectral sampler audition requires the desktop audio engine."
+            t("Spectral sampler audition requires the desktop audio engine.")
           )
         transport.noteOn(channel, key, velocity)
         scoreLog.note(doc.project(), channel, key, velocity)
@@ -1161,13 +1162,13 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     browserAddRoot: (rootPath) =>
       ipc(() => {
         const clean = rootPath.replace(/[\\/]+$/, "")
-        if (!clean) throw new Error("Choose a folder to add.")
+        if (!clean) throw new Error(t("Choose a folder to add."))
         if (roots.length >= 128 || clean.length > 4096)
           throw new Error(
-            "The browser supports at most 128 folders and paths up to 4096 bytes."
+            t("The browser supports at most 128 folders and paths up to 4096 bytes.")
           )
         if (roots.some((root) => root.path === clean)) {
-          throw new Error(`"${clean}" is already in the browser.`)
+          throw new Error(i18nMessage("\"{clean}\" is already in the browser.", { clean }))
         }
         const name = clean.split(/[\\/]/).pop() ?? clean
         const next: BrowserRoot[] = [
@@ -1181,9 +1182,9 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     browserRemoveRoot: (rootPath) =>
       ipc(() => {
         const root = roots.find((item) => item.path === rootPath)
-        if (!root) throw new Error(`"${rootPath}" is not in the browser.`)
+        if (!root) throw new Error(i18nMessage("\"{rootPath}\" is not in the browser.", { rootPath }))
         if (root.kind === "factory") {
-          throw new Error("The factory library cannot be removed.")
+          throw new Error(t("The factory library cannot be removed."))
         }
         const next = roots.filter((item) => item.path !== rootPath)
         library.changedRoots(next)
@@ -1200,7 +1201,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     samplerPreparationBegin: () =>
       Promise.reject(
         new Error(
-          "Spectral sampler preparation needs the desktop audio engine. Browser mode cannot prepare or audition key variants."
+          t("Spectral sampler preparation needs the desktop audio engine. Browser mode cannot prepare or audition key variants.")
         )
       ),
     samplerPreparationCancel: () => Promise.resolve(),
@@ -1209,68 +1210,68 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     prepareSamplerCommand: () =>
       Promise.reject(
         new Error(
-          "Spectral sampler preparation needs the desktop audio engine. Settings and history were kept."
+          t("Spectral sampler preparation needs the desktop audio engine. Settings and history were kept.")
         )
       ),
     samplerPreprocess: () =>
       Promise.reject(
         new Error(
-          "Sample pre-processing needs the desktop audio engine. Browser mode cannot render a new sample; settings and history were kept."
+          t("Sample pre-processing needs the desktop audio engine. Browser mode cannot render a new sample; settings and history were kept.")
         )
       ),
     audioEditorOpen: () =>
       Promise.reject(
         new Error(
-          "Audio editing requires the desktop app. This browser preview cannot decode clips or create derived WAV files."
+          t("Audio editing requires the desktop app. This browser preview cannot decode clips or create derived WAV files.")
         )
       ),
     audioEditorApply: () =>
       Promise.reject(
         new Error(
-          "Audio editing requires the desktop app. No audio or project changes were made."
+          t("Audio editing requires the desktop app. No audio or project changes were made.")
         )
       ),
     audioEditorDiscard: () => Promise.resolve(),
-    exportPluginBundle: async () => { throw new Error("Plugin bundle export requires the desktop app.") },
-    audioEditorSaveWavpack: async () => { throw new Error("WavPack saving requires the desktop app.") },
+    exportPluginBundle: async () => { throw new Error(t("Plugin bundle export requires the desktop app.")) },
+    audioEditorSaveWavpack: async () => { throw new Error(t("WavPack saving requires the desktop app.")) },
     m4aCapability: async () => "M4A export requires the Windows desktop app and its Media Foundation AAC encoder.",
-    audioScriptPreview: () => Promise.reject(new Error("Audio script processing requires the desktop app.")),
-    audioScriptApply: () => Promise.reject(new Error("Audio script processing requires the desktop app.")),
-    audioScriptAudition: () => Promise.reject(new Error("Audio script processing requires the desktop app.")),
-    audioAnalysisDetect: () => Promise.reject(new Error("Audio analysis requires the desktop app. No audio or project changes were made.")),
-    audioAnalysisAudition: () => Promise.reject(new Error("Audio analysis audition requires the desktop app.")),
-    audioAnalysisApply: () => Promise.reject(new Error("Audio analysis requires the desktop app. No audio or project changes were made.")),
-    audioAnalysisSendMidi: () => Promise.reject(new Error("Audio to MIDI requires the desktop app. No notes were inserted.")),
+    audioScriptPreview: () => Promise.reject(new Error(t("Audio script processing requires the desktop app."))),
+    audioScriptApply: () => Promise.reject(new Error(t("Audio script processing requires the desktop app."))),
+    audioScriptAudition: () => Promise.reject(new Error(t("Audio script processing requires the desktop app."))),
+    audioAnalysisDetect: () => Promise.reject(new Error(t("Audio analysis requires the desktop app. No audio or project changes were made."))),
+    audioAnalysisAudition: () => Promise.reject(new Error(t("Audio analysis audition requires the desktop app."))),
+    audioAnalysisApply: () => Promise.reject(new Error(t("Audio analysis requires the desktop app. No audio or project changes were made."))),
+    audioAnalysisSendMidi: () => Promise.reject(new Error(t("Audio to MIDI requires the desktop app. No notes were inserted."))),
     audioAnalysisCancel: () => Promise.resolve(),
-    audioEditorRegions: () => Promise.reject(new Error("Audio region editing requires the desktop app.")),
-    audioEditorSaveWav: () => Promise.reject(new Error("WAV saving requires the desktop app.")),
-    audioEditorImportTimeline: () => Promise.reject(new Error("WAV timeline import requires the desktop app.")),
-    audioEditorTransfer: () => Promise.reject(new Error("Selection audio transfer requires the desktop app.")),
-    samplerPreprocessPreview: () => Promise.reject(new Error("Prepared sample preview requires the desktop audio engine.")),
-    collectDerivedAssets: () => Promise.reject(new Error("Derived file cleanup requires the desktop app.")),
+    audioEditorRegions: () => Promise.reject(new Error(t("Audio region editing requires the desktop app."))),
+    audioEditorSaveWav: () => Promise.reject(new Error(t("WAV saving requires the desktop app."))),
+    audioEditorImportTimeline: () => Promise.reject(new Error(t("WAV timeline import requires the desktop app."))),
+    audioEditorTransfer: () => Promise.reject(new Error(t("Selection audio transfer requires the desktop app."))),
+    samplerPreprocessPreview: () => Promise.reject(new Error(t("Prepared sample preview requires the desktop audio engine."))),
+    collectDerivedAssets: () => Promise.reject(new Error(t("Derived file cleanup requires the desktop app."))),
     detectClipTempo: () =>
       Promise.reject(
         new Error(
-          "Tempo detection requires the desktop app. Enter a source BPM or beat count."
+          t("Tempo detection requires the desktop app. Enter a source BPM or beat count.")
         )
       ),
     sampleInfoById: (sample) =>
       ipc(() => {
         const asset = doc.project().samples.find((item) => item.id === sample)
-        if (!asset) throw new Error(`sample ${sample} does not exist`)
+        if (!asset) throw new Error(i18nMessage("sample {sample} does not exist", { sample: plainNumber(sample) }))
         return sampleInfoFor(roots, sampleFile(asset))
       }),
 
-    presetRenderBegin: async () => { throw new Error("Preset audio rendering is available in the desktop app. The browser cannot render instrument DSP.") },
+    presetRenderBegin: async () => { throw new Error(t("Preset audio rendering is available in the desktop app. The browser cannot render instrument DSP.")) },
     presetRenderCancel: async () => {},
-    presetRenderFile: async (_request, input) => { throw new Error(isProprietaryPreset(input.path) ? UNSUPPORTED_PRESET : "Preset audio rendering is available in the desktop app. The browser cannot render instrument DSP.") },
+    presetRenderFile: async (_request, input) => { throw new Error(isProprietaryPreset(input.path) ? t(UNSUPPORTED_PRESET) : t("Preset audio rendering is available in the desktop app. The browser cannot render instrument DSP.")) },
     addChannelFromFile: (filePath, index, browser) =>
       ipc(() => {
         library.check(filePath, browser)
         const { name, sampleId, addSample } = sampleCommands(filePath)
         return dispatchNow({
           type: "batch",
-          label: "Add channel",
+          label: t("Add channel"),
           commands: [
             addSample,
             { type: "addChannel", name, sample: sampleId, index },
@@ -1283,7 +1284,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         const { sampleId, addSample } = sampleCommands(filePath)
         return dispatchNow({
           type: "batch",
-          label: "Change channel sample",
+          label: t("Change channel sample"),
           commands: [
             addSample,
             { type: "setChannelSample", id: channel, sample: sampleId },
@@ -1302,7 +1303,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
           sampleId === project.nextId ? project.nextId + 1 : project.nextId
         return dispatchNow({
           type: "batch",
-          label: "Add audio clip",
+          label: t("Add audio clip"),
           commands: [
             addSample,
             ...audioClipCommands(
@@ -1319,18 +1320,18 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       ipc(() => {
         const project = doc.project()
         const asset = project.samples.find((item) => item.id === sample)
-        if (!asset) throw new Error(`sample ${sample} does not exist`)
+        if (!asset) throw new Error(i18nMessage("sample {sample} does not exist", { sample: plainNumber(sample) }))
         let durationSecs: number
         try {
           durationSecs = sampleInfoFor(roots, sampleFile(asset)).durationSecs
         } catch {
           throw new Error(
-            `The audio of "${asset.name}" is not loaded, so a clip of it cannot be made. Check that its file is there, then reload the samples.`
+            i18nMessage("The audio of \"{assetName}\" is not loaded, so a clip of it cannot be made. Check that its file is there, then reload the samples.", { assetName: asset.name })
           )
         }
         return dispatchNow({
           type: "batch",
-          label: "Add audio clip",
+          label: t("Add audio clip"),
           commands: audioClipCommands(
             sample,
             durationSecs,
@@ -1350,22 +1351,22 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         ids.has(clip.id)
       )
       if (ids.size === 0)
-        throw new Error("Select at least one playlist clip to bounce.")
+        throw new Error(t("Select at least one playlist clip to bounce."))
       if (clips.length !== ids.size)
-        throw new Error("A selected clip no longer exists.")
+        throw new Error(t("A selected clip no longer exists."))
       const tracks = new Set(clips.map((clip) => clip.track))
       const destination = snapshot.project.playlist.tracks.find((track) =>
         tracks.has(track.id)
       )
       if (!destination)
-        throw new Error("A selected playlist track no longer exists.")
+        throw new Error(t("A selected playlist track no longer exists."))
       const region = {
         start: Math.min(...clips.map((clip) => clip.start)),
         end: Math.max(...clips.map((clip) => clip.start + clip.length)),
       }
       if (!options.renderPlaylistBounce)
         throw new Error(
-          "Bouncing requires the desktop app's offline renderer. No project changes were made."
+          t("Bouncing requires the desktop app's offline renderer. No project changes were made.")
         )
       const source = structuredClone(snapshot.project)
       for (const track of source.playlist.tracks) {
@@ -1379,7 +1380,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
           doc.snapshot(path).revision !== snapshot.revision
         )
           throw new Error(
-            "The project changed while bouncing. Select the clips and try again."
+            t("The project changed while bouncing. Select the clips and try again.")
           )
         const info = sampleInfoFor(roots, renderedPath)
         const { sampleId, addSample } = sampleCommands(renderedPath)
@@ -1404,7 +1405,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         }
         return dispatchNow({
           type: "batch",
-          label: "Bounce selected clips",
+          label: t("Bounce selected clips"),
           commands: [
             addSample,
             ...commands,
@@ -1430,7 +1431,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         const track = project.nextId + 1
         return dispatchNow({
           type: "batch",
-          label: "Create automation clip",
+          label: t("Create automation clip"),
           commands: [
             { type: "addAutomation", target },
             { type: "addPlaylistTrack" },
@@ -1456,14 +1457,14 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         return missing.length
       }),
 
-    samplePlaybackExport: async () => { throw new Error("WAV source export requires the desktop app.") },
+    samplePlaybackExport: async () => { throw new Error(t("WAV source export requires the desktop app.")) },
     exportAudio: (exportOptions, request) =>
       ipc(() => {
         if (exportOptions.format === "m4a" || exportOptions.format === "wv")
-          throw new Error("WavPack and M4A audio export require the desktop app.")
+          throw new Error(t("WavPack and M4A audio export require the desktop app."))
         if (exportOptions.region) {
           if (exportOptions.mode !== "song")
-            throw new Error("A timeline export region requires song mode.")
+            throw new Error(t("A timeline export region requires song mode."))
           sim.call("timeline_range", 0, exportOptions.region)
         }
         if (
@@ -1476,7 +1477,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
             exportOptions.regionRevision !== current.revision
           )
             throw new Error(
-              "The project changed before the selected region could be exported."
+              t("The project changed before the selected region could be exported.")
             )
         }
         if (
@@ -1489,17 +1490,17 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
             )
         )
           throw new Error(
-            "Spectral sampler export requires the desktop audio engine. Browser mode cannot render key variants."
+            t("Spectral sampler export requires the desktop audio engine. Browser mode cannot render key variants.")
           )
         if (exportOptions.mastering)
           throw new Error(
-            "Mastering requires the desktop audio engine. Browser mode cannot measure or master a mix."
+            t("Mastering requires the desktop audio engine. Browser mode cannot measure or master a mix.")
           )
-        if (exporting) throw new Error("An export is already running.")
+        if (exporting) throw new Error(t("An export is already running."))
         if (!exportOptions.path)
-          throw new Error("Choose where to save the file.")
+          throw new Error(t("Choose where to save the file."))
         if (exportOptions.patternLoops < 1) {
-          throw new Error("Render the pattern at least once.")
+          throw new Error(t("Render the pattern at least once."))
         }
         const timer = setInterval(() => {
           if (!exporting) return
@@ -1542,11 +1543,11 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     onProjectPatch: (handler) => patches.on(handler),
     detachCalls,
     async detachPanel(id) {
-      if (!isPanelId(id)) throw new Error(`Unknown panel: ${id}`)
+      if (!isPanelId(id)) throw new Error(i18nMessage("Unknown panel: {id}", { id: String(id) }))
       detachCalls.push(id)
     },
     async dockPanel(id) {
-      if (!isPanelId(id)) throw new Error(`Unknown panel: ${id}`)
+      if (!isPanelId(id)) throw new Error(i18nMessage("Unknown panel: {id}", { id: String(id) }))
       panelDocked.emit(id)
     },
     onPanelDocked: (listener) => panelDocked.on(listener),

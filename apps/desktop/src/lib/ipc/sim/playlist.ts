@@ -12,6 +12,7 @@ import type {
 import { MASTER_TRACK } from "@/lib/units"
 
 import type { Backend, Unsubscribe } from "../backend"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 export type PlaylistMockOptions = {
   /**
@@ -98,11 +99,11 @@ export function consolidatePlan(
   tracks: readonly PlaylistTrackId[]
 ): ConsolidateRecipe[] {
   if (tracks.length === 0)
-    throw new Error("Choose at least one playlist track to consolidate.")
+    throw new Error(t("Choose at least one playlist track to consolidate."))
   const lanes = project.playlist.tracks
   for (const id of tracks) {
     if (!lanes.some((track) => track.id === id))
-      throw new Error("A chosen playlist track no longer exists.")
+      throw new Error(t("A chosen playlist track no longer exists."))
   }
   const wanted = new Set(tracks)
   return lanes
@@ -118,7 +119,7 @@ export function consolidatePlan(
       )
       if (sources.length === 0)
         throw new Error(
-          `"${track.name}" has no unmuted pattern or audio clip to consolidate.`
+          message("\"{trackName}\" has no unmuted pattern or audio clip to consolidate.", { trackName: track.name })
         )
       return {
         track: track.id,
@@ -178,23 +179,23 @@ export function playlistStemTracks(
   if (stems.tracks === undefined) {
     if (giving.length === 0)
       throw new Error(
-        "No playlist track plays a pattern or audio clip, so there are no tracks to export."
+        t("No playlist track plays a pattern or audio clip, so there are no tracks to export.")
       )
     return giving
   }
   for (const id of stems.tracks) {
     if (!lanes.some((track) => track.id === id))
       throw new Error(
-        `The playlist has no track with the id ${id} in this arrangement.`
+        message("The playlist has no track with the id {id} in this arrangement.", { id: plainNumber(id) })
       )
     if (!giving.includes(id))
       throw new Error(
-        `Playlist track ${id} plays nothing: it is muted, silenced by solo, or holds no pattern or audio clip.`
+        message("Playlist track {id} plays nothing: it is muted, silenced by solo, or holds no pattern or audio clip.", { id: plainNumber(id) })
       )
   }
   const chosen = giving.filter((id) => stems.tracks!.includes(id))
   if (chosen.length === 0 && !stems.includeMix)
-    throw new Error("Choose at least one playlist track to export.")
+    throw new Error(t("Choose at least one playlist track to export."))
   return chosen
 }
 
@@ -210,7 +211,7 @@ export function createPlaylistMock(
       const render = options.renderPlaylistTrack
       if (!render)
         throw new Error(
-          "Consolidating requires the desktop app's offline renderer. No project changes were made."
+          t("Consolidating requires the desktop app's offline renderer. No project changes were made.")
         )
       const files: string[] = []
       for (const recipe of recipes) {
@@ -226,7 +227,7 @@ export function createPlaylistMock(
         const current = host.snapshot()
         if (current.revision !== captured.revision)
           throw new Error(
-            "The project or its audio changed while consolidating. Choose the tracks and try again."
+            t("The project or its audio changed while consolidating. Choose the tracks and try again.")
           )
         // A batch cannot pass an id on, so the ids are worked out here in
         // the order the commands allocate them: a sample, then its clip.
@@ -276,7 +277,7 @@ export function createPlaylistMock(
         })
         return host.dispatch({
           type: "batch",
-          label: recipes.length === 1 ? "Consolidate track" : "Consolidate tracks",
+          label: recipes.length === 1 ? t("Consolidate track") : t("Consolidate tracks"),
           commands,
         })
       })
@@ -286,11 +287,11 @@ export function createPlaylistMock(
       await host.ipc(() => {
         if (exportOptions.stems)
           throw new Error(
-            "Export the mixer tracks or the playlist tracks apart, not both at once."
+            t("Export the mixer tracks or the playlist tracks apart, not both at once.")
           )
         if (exportOptions.mode !== "song")
           throw new Error(
-            "Playlist tracks belong to the song. Export the song to get a file for each of them."
+            t("Playlist tracks belong to the song. Export the song to get a file for each of them.")
           )
         playlistStemTracks(host.snapshot().project, stems)
       })

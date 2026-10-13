@@ -81,6 +81,7 @@ import { placeStamp, type Stamp, type StampPlacement } from "./stamps"
 import type { Tool } from "./store"
 import { sliceNoteCommand, toggledVelocity } from "./pointer-tools"
 import { createDrumStroke, visitDrumCell, type DrumStroke } from "./drum-paint"
+import { translatedText as t } from "@/lib/i18n"
 
 /** A pointer position in CSS pixels inside the grid, with the modifiers held. */
 export type PointerInput = {
@@ -523,7 +524,7 @@ export class Editor {
       const placement = this.previewStamp(input)
       if (!placement) return null
       if (placement.error) {
-        this.host.refuse("Stamp was not placed", placement.error)
+        this.host.refuse(t("Stamp was not placed"), placement.error)
         return null
       }
       this.gesture = { kind: "stamp" }
@@ -879,7 +880,7 @@ export class Editor {
           notes: adds,
         })
         if (commands.length) this.commitDrag(withExtension(
-          { type: "batch", label: "Paint drum steps", commands },
+          { type: "batch", label: t("Paint drum steps"), commands },
           "Paint drum steps",
           ctx.pattern,
           endOfInits(adds)
@@ -1028,8 +1029,8 @@ export class Editor {
       const snapped = nearestScaleKey(anchor, scale, 0, 127 - high + anchor)
       if (snapped === null) {
         this.host.refuse(
-          "Notes were not pasted",
-          "No scale root fits without changing the group's intervals."
+          t("Notes were not pasted"),
+          t("No scale root fits without changing the group's intervals.")
         )
         return
       }

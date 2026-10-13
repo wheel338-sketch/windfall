@@ -1,6 +1,7 @@
 import type { Note } from "@/bindings"
 
 import { detectChord, type ChordDetection } from "./detection"
+import { translatedText as t } from "@/lib/i18n"
 
 type ReadoutNote = Pick<Note, "id" | "key" | "start" | "length">
 
@@ -8,10 +9,10 @@ type ReadoutNote = Pick<Note, "id" | "key" | "start" | "length">
 export type ChordSource = "played" | "selected" | "playhead" | "none"
 
 export const CHORD_SOURCE_LABELS: Record<ChordSource, string> = {
-  played: "Played",
-  selected: "Selected",
-  playhead: "Playhead",
-  none: "Nothing sounding",
+  get played() { return t("Played") },
+  get selected() { return t("Selected") },
+  get playhead() { return t("Playhead") },
+  get none() { return t("Nothing sounding") },
 }
 
 export const NO_CHORD = "—"

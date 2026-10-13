@@ -7,6 +7,7 @@ import type {
 } from "@/bindings"
 import { registry, type Action } from "@/lib/actions"
 import { dispatch, useProjectStore } from "@/lib/store/project"
+import { translatedText as t, dynamicTitle } from "@/lib/i18n"
 
 async function setAudioClipStretch(stretch: ClipStretch): Promise<void> {
   const updates: AudioClipUpdate[] = []
@@ -38,7 +39,7 @@ async function muteEmptyPlaylistTracks(): Promise<void> {
   if (commands.length > 0) {
     await dispatch({
       type: "batch",
-      label: "Mute empty playlist tracks",
+      label: t("Mute empty playlist tracks"),
       commands,
     })
   }
@@ -56,7 +57,7 @@ async function unsoloPlaylistTracks(): Promise<void> {
   if (commands.length > 0) {
     await dispatch({
       type: "batch",
-      label: "Unsolo playlist tracks",
+      label: t("Unsolo playlist tracks"),
       commands,
     })
   }
@@ -85,13 +86,13 @@ async function unmutePlaylistClips(): Promise<void> {
 const TOOL_ACTIONS: Action[] = [
   {
     id: "tools.setAllAudioClipsToTape",
-    title: "Set all audio clips to tape",
+    ...dynamicTitle("Set all audio clips to tape", {}),
     section: "Tools",
     run: () => setAudioClipStretch({ mode: "tape" }),
   },
   {
     id: "tools.setAllAudioClipsToSpectral",
-    title: "Set all audio clips to spectral",
+    ...dynamicTitle("Set all audio clips to spectral", {}),
     section: "Tools",
     run: () =>
       setAudioClipStretch({
@@ -103,25 +104,25 @@ const TOOL_ACTIONS: Action[] = [
   },
   {
     id: "tools.muteEmptyPlaylistTracks",
-    title: "Mute empty playlist tracks",
+    ...dynamicTitle("Mute empty playlist tracks", {}),
     section: "Tools",
     run: muteEmptyPlaylistTracks,
   },
   {
     id: "tools.unsoloPlaylistTracks",
-    title: "Unsolo playlist tracks",
+    ...dynamicTitle("Unsolo playlist tracks", {}),
     section: "Tools",
     run: unsoloPlaylistTracks,
   },
   {
     id: "tools.resetAudioClipLevels",
-    title: "Reset audio clip levels",
+    ...dynamicTitle("Reset audio clip levels", {}),
     section: "Tools",
     run: resetAudioClipLevels,
   },
   {
     id: "tools.unmutePlaylistClips",
-    title: "Unmute playlist clips",
+    ...dynamicTitle("Unmute playlist clips", {}),
     section: "Tools",
     run: unmutePlaylistClips,
   },

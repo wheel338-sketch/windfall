@@ -8,8 +8,8 @@ const COLOR_SCHEME_QUERY = "(prefers-color-scheme: dark)"
 // theme flips, and the window looks like it is fading.
 function withoutTransitions(change: () => void) {
   const style = document.createElement("style")
-  style.textContent =
-    "*,*::before,*::after{transition:none!important;animation:none!important}"
+  // A style rule, not a caption.
+  style.append("*,*::before,*::after{transition:none!important;animation:none!important}")
   document.head.appendChild(style)
   change()
   window.getComputedStyle(document.body).getPropertyValue("color")

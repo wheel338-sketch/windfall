@@ -1,6 +1,7 @@
 import type { MidiImportOptions, ProjectPatch } from "@/bindings"
 import type { Backend } from "../backend"
 import type { SimDocument } from "./document"
+import { translatedText as t } from "@/lib/i18n"
 
 export type MockMidiOptions = {
   /** Authored MIDI bytes for headless file and dialog tests. */
@@ -22,7 +23,7 @@ function pickFile(): Promise<{ name: string; bytes: Uint8Array } | null> {
         const file = input.files?.[0]
         if (!file) return resolve(null)
         if (file.size > 16 * 1024 * 1024)
-          return reject(new Error("MIDI files must be at most 16 MiB."))
+          return reject(new Error(t("MIDI files must be at most 16 MiB.")))
         file
           .arrayBuffer()
           .then(
@@ -71,9 +72,9 @@ export function createMidiMock(
     async midiPreview(path, importOptions) {
       pending = null
       const file = files.get(path)
-      if (!file) throw new Error("Choose a MIDI file from your computer first.")
+      if (!file) throw new Error(t("Choose a MIDI file from your computer first."))
       if (file.length > 16 * 1024 * 1024)
-        throw new Error("MIDI files must be at most 16 MiB.")
+        throw new Error(t("MIDI files must be at most 16 MiB."))
       const bytes = Array.from(file)
       const preview = document().previewMidi(bytes, importOptions)
       const token = ++next
@@ -91,7 +92,7 @@ export function createMidiMock(
         pending.token !== token ||
         pending.document !== document()
       ) {
-        throw new Error("This MIDI preview has expired. Review the file again.")
+        throw new Error(t("This MIDI preview has expired. Review the file again."))
       }
       const result = document().importMidi(pending.bytes, pending.options)
       pending = null
@@ -103,10 +104,10 @@ export function createMidiMock(
     },
     async exportMidi(path, exportOptions) {
       const clean = path.trim()
-      if (!clean) throw new Error("Choose where to save the MIDI file.")
+      if (!clean) throw new Error(t("Choose where to save the MIDI file."))
       const name = /\.[^/\\]+$/.test(clean) ? clean : `${clean}.mid`
       if (!/\.midi?$/i.test(name))
-        throw new Error("Choose a .mid or .midi file for MIDI export.")
+        throw new Error(t("Choose a .mid or .midi file for MIDI export."))
       const bytes = new Uint8Array(document().exportMidi(exportOptions))
       if (options.midiExport) await options.midiExport(name, bytes)
       else {

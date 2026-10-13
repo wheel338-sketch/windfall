@@ -29,6 +29,7 @@ import { nextSendPreset } from "./send-preset-step"
 import { nextSendGain, SEND_PRESETS } from "./send-presets"
 import { nextSendGainScale } from "./send-scale"
 import { useGestureValue } from "./use-gesture-value"
+import { message, translatedText as t, dynamicTitle } from "@/lib/i18n"
 
 function SendRow({ from, send }: { from: TrackId; send: Send }) {
   const target = useProjectStore(
@@ -42,14 +43,14 @@ function SendRow({ from, send }: { from: TrackId; send: Send }) {
     clampGain
   )
   const hint = useHint(
-    `How much of this track goes to "${target}", after its fader. Double-click for 0 dB`
+    message("How much of this track goes to \"{target}\", after its fader. Double-click for 0 dB", { target })
   )
 
   const items = useMemo(
     (): ContextItem[] => [
       ...trackValueItems(from, { send: send.target }),
       {
-        submenu: "Send level",
+        submenu: t("Send level"),
         items: [
           ...SEND_PRESETS.map((preset) => ({
             title: preset.label,
@@ -61,7 +62,7 @@ function SendRow({ from, send }: { from: TrackId; send: Send }) {
             },
           })),
           ...(["previous", "next"] as const).map((direction) => ({
-            title: direction === "previous" ? "Previous preset" : "Next preset",
+            title: direction === "previous" ? t("Previous preset") : t("Next preset"),
             disabled: nextSendPreset(send.gain, direction) === null,
             run: () => {
               const latest = useProjectStore
@@ -80,7 +81,7 @@ function SendRow({ from, send }: { from: TrackId; send: Send }) {
             },
           })),
           ...(["half", "double"] as const).map((factor) => ({
-            title: factor === "half" ? "Half" : "Double",
+            title: factor === "half" ? t("Half") : t("Double"),
             disabled: nextSendGainScale(send.gain, factor) === null,
             run: () => {
               const latest = useProjectStore
@@ -102,7 +103,7 @@ function SendRow({ from, send }: { from: TrackId; send: Send }) {
       },
       contextSeparator,
       {
-        title: "Remove send",
+        ...dynamicTitle("Remove send", {}),
         destructive: true,
         run: () => removeSend(from, send.target),
       },
@@ -132,7 +133,7 @@ function SendRow({ from, send }: { from: TrackId; send: Send }) {
           max={MAX_GAIN}
           scale={faderTaper}
           defaultValue={1}
-          aria-label={`Send to ${target}`}
+          aria-label={message("Send to {target}", { target })}
           live={live}
           marker={marker}
           {...gainUnit}
@@ -151,7 +152,7 @@ function SendRow({ from, send }: { from: TrackId; send: Send }) {
           pointed at or focused. */}
       <button
         type="button"
-        aria-label={`Remove the send to ${target}`}
+        aria-label={message("Remove the send to {target}", { target })}
         className="absolute top-1/2 right-0 flex size-4 -translate-y-1/2 items-center justify-center rounded-sm bg-muted text-muted-foreground opacity-0 outline-none group-hover/send:opacity-100 hover:text-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:opacity-100"
         onClick={() => void removeSend(from, send.target)}
       >
@@ -178,7 +179,7 @@ export function SendList({
   if (sends.length === 0) return null
   return (
     <ul
-      aria-label="Sends"
+      aria-label={t("Sends")}
       className={cn(
         "flex flex-col overflow-x-hidden overflow-y-auto",
         className
@@ -198,7 +199,7 @@ function SendChoices({ id }: { id: TrackId }) {
   return (
     <>
       {open.length === 0 && (
-        <DropdownMenuItem disabled>No track left to send to</DropdownMenuItem>
+        <DropdownMenuItem disabled>{t("No track left to send to")}</DropdownMenuItem>
       )}
       {open.map((track) => (
         <DropdownMenuItem
@@ -222,7 +223,7 @@ export function AddSendMenu({
   className?: string
 }) {
   const hint = useHint(
-    "Send a copy of this track to another one, such as a shared reverb"
+    t("Send a copy of this track to another one, such as a shared reverb")
   )
   return (
     <DropdownMenu>
@@ -231,7 +232,7 @@ export function AddSendMenu({
           <button
             type="button"
             data-slot="track-add-send"
-            aria-label="Add send"
+            aria-label={t("Add send")}
             className={cn(
               "flex h-[18px] min-w-0 items-center gap-0.5 rounded-[3px] pr-1 pl-0.5 text-[10px] leading-none text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring aria-expanded:bg-muted aria-expanded:text-foreground",
               className
@@ -245,7 +246,7 @@ export function AddSendMenu({
           strokeWidth={2}
           className="size-3 shrink-0"
         />
-        <span className="truncate">Send</span>
+        <span className="truncate">{t("Send")}</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="max-h-80 w-auto min-w-44">
         <SendChoices id={id} />
