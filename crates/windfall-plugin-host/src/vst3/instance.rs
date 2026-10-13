@@ -362,6 +362,14 @@ impl InstanceBackend for VstInstance {
         for (id, _, after) in &mut deactivation_values {
             *after = previous_edits.iter().find(|(previous, _, _)| previous == id).and_then(|(_, _, after)| *after);
         }
+        for value in values.iter() {
+            if let Some(previous) = self.value(value.id)
+                && previous.pending.load(Ordering::Relaxed)
+                && !deactivation_values.iter().any(|(id, _, after)| *id == value.id && after.is_some()) {
+                value.set(previous.normalized());
+                value.pending.store(true, Ordering::Relaxed);
+            }
+        }
         self.layout = layout;
         self.params = params;
         self.values = values;

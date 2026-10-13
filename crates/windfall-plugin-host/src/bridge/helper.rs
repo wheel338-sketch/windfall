@@ -719,6 +719,8 @@ fn run(address: SocketAddr) -> io::Result<()> {
         }
         specs.push(spec);
     }
+    instance.idle(&mut |_| {});
+    instance.refresh_capabilities().map_err(error)?;
     let mut processor = instance
         .activate_with_options(
             f64::from(config.sample_rate),
