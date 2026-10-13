@@ -60,7 +60,10 @@ impl DrumSynthPreset {
         if bytes.len() > MAX_DRUMSYNTH_PRESET_BYTES {
             return Err(invalid("64 KiB input budget exceeded"));
         }
-        let text = std::str::from_utf8(bytes).map_err(|_| invalid("expected ASCII/UTF-8 text"))?;
+        // Kellett's INI reader accepts byte-valued comments. Numeric keys and
+        // values remain ASCII; lossily decoded metadata cannot change audio.
+        // The import owner preserves the exact original bytes separately.
+        let text = String::from_utf8_lossy(bytes);
         if text.contains('\0') {
             return Err(invalid("NUL in text"));
         }

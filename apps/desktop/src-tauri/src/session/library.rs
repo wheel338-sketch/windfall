@@ -564,7 +564,7 @@ impl Session {
                 return Err("The preset source changed during preparation. Try again.".into());
             }
         }
-        let result = {
+        let mut result = {
             let _recording = self.import_recording_guard(installed.is_some())?;
             let _library = import
                 .browser
@@ -591,6 +591,12 @@ impl Session {
             owned.installed = true;
             self.own_derived(&owned.path);
             self.own_derived(&owned.rendered);
+            // The extra source asset is internal to the import batch. Keep
+            // the public result's sample/channel/track/clip ID order intact;
+            // playlist callers rely on the final created ID being the clip.
+            if let Ok(applied) = &mut result {
+                applied.created.pop();
+            }
         }
         result
     }

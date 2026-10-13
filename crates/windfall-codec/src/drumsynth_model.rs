@@ -100,7 +100,7 @@ impl Band {
     fn read(p: &DrumSynthPreset, section: &str, tune: f64, rate: u32) -> Result<Self, CodecError> {
         let on = integer(p, section, "on", 0, 1)? == 1;
         let frequency = p.number(section, "f", 1000.0, 0.0, 20000.0)? * tune * TAU / rate as f64;
-        let df = p.number(section, "df", 50.0, 0.0, 100.0)?;
+        let df = integer(p, section, "df", 50, 100)? as f64;
         let denominator = 10000.0 - 6600.0 * (frequency.sqrt() - 0.19);
         if on && denominator <= 0.0 {
             return Err(invalid(
@@ -111,7 +111,7 @@ impl Band {
         let step = 1 + ((40.0 - df / 2.5) / (width + 1.0 + frequency)) as usize;
         Ok(Self {
             on,
-            level: p.number(section, "level", 128.0, 0.0, 256.0)?.powi(2),
+            level: (integer(p, section, "level", 128, 256)? as f64).powi(2),
             frequency,
             width,
             step,
@@ -175,15 +175,8 @@ pub(super) fn render(
     {
         active[i] = integer(p, section, "on", 0, 1)? == 1;
         if i < 5 {
-            levels[i] = p
-                .number(
-                    section,
-                    "level",
-                    if i == 1 { 0.0 } else { 128.0 },
-                    0.0,
-                    256.0,
-                )?
-                .powi(2);
+            levels[i] =
+                (integer(p, section, "level", if i == 1 { 0 } else { 128 }, 256)? as f64).powi(2);
         }
     }
     if !active[..5].iter().any(|x| *x) {
@@ -204,14 +197,19 @@ pub(super) fn render(
     let f1 = (p.number("tone", "f1", 200.0, 0.0, 20000.0)? * tune * TAU / rate as f64).max(0.001);
     let mut f2 = p.number("tone", "f2", 120.0, 0.0, 20000.0)? * tune * TAU / rate as f64;
     let droop = p.number("tone", "droop", 0.0, 0.0, 100.0)?;
-    let droop_rate = -4.0 * 10.0_f64.powf((droop - 20.0) / 30.0) / envelopes[0].end().max(1.0);
+    // Kellett computes droop before LongestEnv scales the envelope times.
+    // Preserve that authored-sample trajectory, including non-unity Stretch;
+    // the later linear sweep and amplitude envelope use stretched duration.
+    let authored_end = envelopes[0].end() / stretch;
+    let droop_rate = -4.0 * 10.0_f64.powf((droop - 20.0) / 30.0) / authored_end.max(1.0);
     let delta = if droop > 0.0 {
-        f2 = f1 + (f2 - f1) / (1.0 - (droop_rate * envelopes[0].end()).exp());
+        f2 = f1 + (f2 - f1) / (1.0 - (droop_rate * authored_end).exp());
         f1 - f2
     } else {
         f2 - f1
     };
     let mut tone_phase = p.number("tone", "phase", 90.0, -360.0, 360.0)?.to_radians();
+    let mut tracking_phase = tone_phase;
     let mut overtone_phase = [tone_phase; 2];
     let mut overtone_freq = [
         p.number("overtones", "f1", 200.0, 0.0, 20000.0)? * tune * TAU / rate as f64,
@@ -234,7 +232,7 @@ pub(super) fn render(
     if active[2] && method == 3 && overtone_freq.iter().any(|f| *f <= 0.0) {
         return Err(invalid("cymbal oscillators require positive frequencies"));
     }
-    let balance = p.number("overtones", "param", 50.0, 0.0, 100.0)? * 0.01;
+    let balance = integer(p, "overtones", "param", 50, 100)? as f64 * 0.01;
     let drive = 8.0 * balance.powi(3);
     let cymbal_q = (0.28 + (1.0 - balance).powi(2)).powi(2);
     let cymbal_f = (1.8 - 0.7 * cymbal_q) * 0.92;
@@ -258,6 +256,9 @@ pub(super) fn render(
     let mut filter_in = 0.0;
     let mut filter_out = 0.0;
     let slope = p.number("noise", "slope", 0.0, -100.0, 100.0)?;
+    if slope.fract() != 0.0 {
+        return Err(invalid("noise slope must be an integer"));
+    }
     let (a, b, c, d, g) = if slope < 0.0 {
         (
             1.0 + slope / 105.0,
@@ -281,7 +282,7 @@ pub(super) fn render(
         Band::read(p, "noiseband2", tune, rate)?,
     ];
     let bits = integer(p, "distortion", "bits", 0, 8)?;
-    let clipping = p.number("distortion", "clipping", 0.0, 0.0, 96.0)?;
+    let clipping = integer(p, "distortion", "clipping", 0, 96)? as f64;
     let step = [1, 2, 3, 4, 8, 10, 20][integer(p, "distortion", "rate", 0, 6)?];
     let attenuation = if active[5] {
         2.0_f64.powi(2 * bits as i32)
@@ -318,8 +319,8 @@ pub(super) fn render(
                 active[1] = false;
             }
         }
-        let mut tracking_phase = tone_phase;
         if active[0] {
+            tracking_phase = tone_phase;
             for i in 0..BLOCK {
                 let t = (start + i) as f64;
                 increments[i] = if droop > 0.0 {

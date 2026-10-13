@@ -182,7 +182,8 @@ fn drumsynth_native_sampler_import_reports_limits_and_reopens_original_preset_wi
     let result = rig.session.add_channel_from_file(&source, None).unwrap();
     let sample = SampleId(result.created[0]);
     let channel = ChannelId(result.created[1]);
-    let source_sample = SampleId(*result.created.last().unwrap());
+    let source_sample = rig.project().samples.last().unwrap().id;
+    assert_eq!(result.created.len(), 3);
     let imported = rig.project();
     assert!(rig.has_audio(sample));
     assert_eq!(
@@ -235,7 +236,8 @@ fn owned_preset_survives_original_deletion_first_save_move_history_and_fresh_reo
     fs::write(&source, DRUMSYNTH).unwrap();
     let added = rig.session.add_channel_from_file(&source, None).unwrap();
     let sample = SampleId(added.created[0]);
-    let source_sample = SampleId(*added.created.last().unwrap());
+    let source_sample = rig.project().samples.last().unwrap().id;
+    assert_eq!(added.created.len(), 3);
     let imported = rig.project();
     let windfall_project::SamplePath::External(owned) =
         &imported.sample(source_sample).unwrap().path
@@ -362,6 +364,40 @@ fn drumsynth_browser_add_and_drop_on_sampler_own_both_assets_in_one_undo_step() 
     rig.session.project_new().unwrap();
     rig.session.project_open(&saved).unwrap();
     assert!(rig.has_audio(sample));
+}
+
+#[test]
+fn drumsynth_playlist_import_preserves_the_public_clip_id_result_and_portable_render() {
+    let rig = Rig::new();
+    let source = rig.file("playlist-drum.ds");
+    fs::write(&source, DRUMSYNTH).unwrap();
+    let before = rig.project();
+    let added = rig
+        .session
+        .add_audio_clip_from_file(&source, place())
+        .unwrap();
+    let clip = ClipId(*added.created.last().unwrap());
+    let imported = rig.project();
+    let actual = imported
+        .playlist
+        .clips
+        .iter()
+        .find(|c| c.id == clip)
+        .expect("the last public created ID must be the clip, not the auxiliary source");
+    assert_eq!(actual.start, 960);
+    assert_eq!(imported.samples.len(), before.samples.len() + 2);
+    rig.session.undo().unwrap();
+    assert!(!rig.project().playlist.clips.iter().any(|c| c.id == clip));
+    rig.session.redo().unwrap();
+    fs::remove_file(source).unwrap();
+    let saved = rig
+        .session
+        .project_save(Some(&rig.file("playlist-owned.windfall")))
+        .unwrap();
+    rig.session.project_new().unwrap();
+    rig.session.project_open(&saved).unwrap();
+    assert!(rig.project().playlist.clips.iter().any(|c| c.id == clip));
+    assert!(rig.has_audio(SampleId(added.created[0])));
 }
 
 #[test]

@@ -45,6 +45,31 @@ fn linear_and_drooping_pitch_follow_independent_integrated_phase() {
 }
 
 #[test]
+fn droop_uses_reference_authored_time_before_global_length_scaling() {
+    for (rate, stretch) in [(22050, 50), (48000, 200), (96000, 100)] {
+        let audio = render(
+            &format!(
+                "Stretch={stretch}\n[Tone]\nOn=1\nPhase=0\nF1=400\nF2=100\nDroop=20\nEnvelope=0,100 4410,0\n"
+            ),
+            rate,
+            7,
+        );
+        let end = 4410.0 * stretch as f64 / 100.0 * rate as f64 / 44100.0;
+        let k = -4.0_f64 / 4410.0;
+        let asymptote = 400.0 - 300.0 / (1.0 - (k * 4410.0).exp());
+        for t in [0, 1, 100, (end / 2.0) as usize] {
+            let n = (t + 1) as f64;
+            let integrated =
+                n * asymptote + (400.0 - asymptote) * (1.0 - (n * k).exp()) / (1.0 - k.exp());
+            close(
+                audio[t],
+                pcm(16384.0 * (1.0 - t as f64 / end) * (TAU * integrated / rate as f64).sin()),
+            );
+        }
+    }
+}
+
+#[test]
 fn every_envelope_point_and_coincident_terminal_points_are_consumed() {
     let audio = render(
         "[Tone]\nOn=1\nPhase=0\nF1=300\nF2=300\nEnvelope=0,0 100,100 200,20 300,80 400,0 400,0\n",
@@ -127,6 +152,23 @@ fn overtone_tracking_uses_the_tone_sweep_ratio() {
         close(
             audio[t],
             pcm(16384.0 * (1.0 - t as f64 / 12000.0) * phase.sin()),
+        );
+    }
+}
+
+#[test]
+fn tracked_overtone_phase_continues_across_blocks_after_the_tone_stops() {
+    let audio = render(
+        "[Tone]\nOn=1\nLevel=0\nPhase=0\nF1=300\nF2=300\nEnvelope=0,100 1200,0\n[Overtones]\nOn=1\nTrack1=1\nF1=900\nMethod=0\nParam=0\nEnvelope1=0,100 4800,0\n",
+        44100,
+        7,
+    );
+    for t in [1200, 2399, 2400, 3599, 3600, 4799] {
+        close(
+            audio[t],
+            pcm(16384.0
+                * (1.0 - t as f64 / 4800.0)
+                * (TAU * 900.0 * (t + 1) as f64 / 44100.0).sin()),
         );
     }
 }
@@ -219,7 +261,7 @@ fn distortion_clips_quantizes_and_averages_documented_rate_groups() {
     let source = "[Tone]\nOn=1\nLevel=128\nF1=900\nF2=900\nPhase=0\nEnvelope=0,100 12000,0\n[Distortion]\nOn=1\nClipping=12\nBits=4\nRate=0\n";
     let audio = render(source, 44100, 7);
     assert!(audio.iter().all(|x| x.abs() <= 0.5));
-    assert!(audio.iter().any(|x| *x == 0.5));
+    assert!(audio.contains(&0.5));
     let gain = 256.0 * 10.0_f64.powf(0.6);
     for t in [0, 1, 4, 11, 300, 11000] {
         let raw =
@@ -319,4 +361,46 @@ fn cymbal_and_all_sections_are_finite_and_hostile_parameters_are_refused() {
             "{extra}"
         );
     }
+}
+
+#[test]
+fn integer_reference_controls_refuse_fractional_values_instead_of_changing_the_model() {
+    for text in [
+        "[Tone]\nLevel=128.5\n",
+        "[Noise]\nSlope=-10.5\n",
+        "[NoiseBand]\ndF=10.5\n",
+        "[Overtones]\nParam=50.5\n",
+        "[Distortion]\nClipping=3.5\n",
+    ] {
+        let bytes = format!("[General]\nVersion=DrumSynth v2.0\n[Tone]\nOn=1\n{text}");
+        assert!(
+            DrumSynthPreset::parse(bytes.as_bytes())
+                .unwrap()
+                .render(44100, MAX_DRUMSYNTH_FRAMES, 7)
+                .is_err(),
+            "{text}"
+        );
+    }
+}
+
+#[test]
+fn legacy_byte_metadata_does_not_reject_or_change_an_ascii_synthesis_recipe() {
+    let recipe=b"[General]\nVersion=DrumSynth v2.0\nComment=legacy \xe9\n[Tone]\nOn=1\nEnvelope=0,100 1200,0\n";
+    let reference =
+        b"[General]\nVersion=DrumSynth v2.0\nComment=plain\n[Tone]\nOn=1\nEnvelope=0,100 1200,0\n";
+    let audio = |bytes: &[u8]| {
+        DrumSynthPreset::parse(bytes)
+            .unwrap()
+            .render(44100, MAX_DRUMSYNTH_FRAMES, 7)
+            .unwrap()
+            .audio
+    };
+    assert_eq!(audio(recipe).samples(), audio(reference).samples());
+    let invalid = b"[General]\nVersion=DrumSynth v2.0\n[Tone]\nOn=1\nF1=\xff\n";
+    assert!(
+        DrumSynthPreset::parse(invalid)
+            .unwrap()
+            .render(44100, MAX_DRUMSYNTH_FRAMES, 7)
+            .is_err()
+    );
 }

@@ -297,7 +297,7 @@ fn marker_loop_skip_and_pause_use_the_next_source_marker_without_invented_extent
 }
 
 #[test]
-fn balance_automation_clip_scales_the_public_parameter_span_and_keeps_unknown_targets_named() {
+fn balance_automation_clip_scales_the_public_parameter_span() {
     let mut e = stream();
     e.word(64, 1);
     e.byte(21, 5);
