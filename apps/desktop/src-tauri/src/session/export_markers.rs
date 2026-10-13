@@ -1,23 +1,20 @@
 //! Metadata is captured from the same immutable project as the render job.
-use windfall_codec::{WavCue, WavLoop, WavLoopKind, WavMetadata, WavNote, WavTempo};
-use windfall_engine::{SamplePool, SongFrameMap};
+use windfall_codec::{WavCue, WavLoop, WavLoopKind, WavMetadata, WavNote, WavSlice, WavTempo};
+use windfall_engine::RenderFrameMap;
 use windfall_project::{MarkerKind, PatternId, Project, TickRange};
 
 pub(super) fn song_metadata(
     project: &Project,
-    pool: &SamplePool,
-    rate: u32,
+    map: &RenderFrameMap,
     region: Option<TickRange>,
 ) -> Result<WavMetadata, String> {
-    let map = SongFrameMap::new(project, pool, rate);
     let first = region.map_or(0, |r| r.start);
-    let last = region.map_or(map.end_tick, |r| r.end);
+    let last = region.map_or(map.end_tick as u32, |r| r.end);
     // Export uses play_passes, which disables interactive navigation. Cues
     // therefore follow the finite linear render; note chunks preserve actions
     // for an importer without falsely shifting physical audio positions.
-    let origin = map.frame(first);
     let frame = |tick| {
-        u32::try_from(map.frame(tick).saturating_sub(origin))
+        u32::try_from(map.frame(f64::from(tick))?)
             .map_err(|_| "A WAV marker position exceeds the 32-bit frame range.".to_owned())
     };
     let mut metadata = WavMetadata::default();
@@ -69,7 +66,8 @@ pub(super) fn song_metadata(
     }
     // ACID has one tempo/meter, so it cannot describe an automated tempo or
     // changing meter honestly. Cue positions still follow the render clock.
-    if !map.has_tempo_map() && project.playlist.timeline.meters.is_empty() {
+    if let Some(bpm) = map.constant_tempo()
+        && project.playlist.timeline.meters.is_empty() {
         if metadata.cues.is_empty() {
             metadata.cues.push(WavCue {
                 id: 0,
@@ -81,13 +79,13 @@ pub(super) fn song_metadata(
             cue_id: metadata.cues[0].id,
             text: format!(
                 "WindfallBeats/1 {} {}",
-                project.settings.tempo_bpm,
+                bpm,
                 f64::from(last - first) / f64::from(windfall_project::PPQ)
             ),
         });
         let signature = project.settings.time_signature;
         metadata.tempo = Some(WavTempo {
-            bpm: project.settings.tempo_bpm as f32,
+            bpm: bpm as f32,
             beats: if (last - first).is_multiple_of(windfall_project::PPQ) {
                 (last - first) / windfall_project::PPQ
             } else {
@@ -100,49 +98,52 @@ pub(super) fn song_metadata(
         });
     }
     metadata
-        .validate(Some(map.frame(last).saturating_sub(origin)))
+        .validate(Some(map.frame(f64::from(last))?))
         .map_err(|e| e.to_string())?;
     Ok(metadata)
 }
 
-/// Pattern rendering uses the stored tempo and channel timing, including swing,
+/// Pattern rendering uses the captured clock and channel timing, including swing,
 /// gate and shift. IDs here are export-local, so repeated notes get unique cues.
 pub(super) fn pattern_metadata(
     project: &Project,
     pattern: PatternId,
-    rate: u32,
+    map: &RenderFrameMap,
     passes: u32,
 ) -> Result<WavMetadata, String> {
     let pattern = project
         .pattern(pattern)
         .ok_or("The export pattern no longer exists.")?;
     let length = pattern.length_ticks();
-    let per_tick = windfall_core::samples_per_tick(project.settings.tempo_bpm, f64::from(rate));
+    if passes == 0 {
+        return Err("Render the pattern at least once.".into());
+    }
+    // Prepared scores can extend a pass beyond its authored pattern length.
+    // Repeats and beat metadata must follow the actual rendered pass extent.
+    let rendered_length = map.end_tick / f64::from(passes);
     let frame = |tick: f64| -> Result<u32, String> {
-        // Match sequencer::Clock's 1e-6-frame tolerance at exact boundaries.
-        let value = (tick * per_tick - 1e-6).ceil().max(0.0);
-        if !value.is_finite() || value < 0.0 || value > f64::from(u32::MAX) {
-            return Err("A WAV note marker exceeds the 32-bit frame range.".into());
-        }
-        Ok(value as u32)
+        u32::try_from(map.frame(tick)?)
+            .map_err(|_| "A WAV note marker exceeds the 32-bit frame range.".into())
     };
     let mut metadata = WavMetadata::default();
-    let mut cue = |tick: f64, label: String| -> Result<(), String> {
+    let mut cue = |tick: f64, label: String, end: Option<f64>| -> Result<(), String> {
         if metadata.cues.len() >= windfall_codec::MAX_WAV_MARKERS {
             return Err("The pattern has more than 4096 WAV markers. Export fewer loops.".into());
         }
-        metadata.cues.push(WavCue {
-            id: metadata.cues.len() as u32 + 1,
-            frame: frame(tick)?,
-            label,
-        });
+        let id = metadata.cues.len() as u32 + 1;
+        let start = frame(tick)?;
+        metadata.cues.push(WavCue { id, frame: start, label });
+        if let Some(end) = end {
+            let length = frame(end)?.saturating_sub(start);
+            if length > 0 { metadata.slices.push(WavSlice { cue_id: id, length }); }
+        }
         Ok(())
     };
     for pass in 0..passes {
-        let origin = f64::from(pass) * f64::from(length);
+        let origin = f64::from(pass) * rendered_length;
         for marker in &pattern.timeline.markers {
             if marker.tick < length {
-                cue(origin + f64::from(marker.tick), marker.name.clone())?;
+                cue(origin + f64::from(marker.tick), marker.name.clone(), None)?;
             }
         }
         for lane in &pattern.lanes {
@@ -154,7 +155,7 @@ pub(super) fn pattern_metadata(
                 continue;
             };
             for note in &lane.notes {
-                if let Some((tick, _)) = channel.timing.place(
+                if let Some((tick, duration)) = channel.timing.place(
                     note.start,
                     note.length,
                     length,
@@ -163,13 +164,15 @@ pub(super) fn pattern_metadata(
                     cue(
                         origin + tick,
                         format!("{}: MIDI {}", channel.name, note.key),
+                        Some((origin + tick + duration).min(origin + rendered_length)),
                     )?;
                 }
             }
         }
     }
     let signature = pattern.effective_signature(project.settings.time_signature);
-    if pattern.timeline.meters.is_empty() {
+    if let Some(bpm) = map.constant_tempo()
+        && pattern.timeline.meters.is_empty() {
         if metadata.cues.is_empty() {
             metadata.cues.push(WavCue {
                 id: 1,
@@ -181,16 +184,18 @@ pub(super) fn pattern_metadata(
             cue_id: metadata.cues[0].id,
             text: format!(
                 "WindfallBeats/1 {} {}",
-                project.settings.tempo_bpm,
-                f64::from(length) * f64::from(passes) / f64::from(windfall_project::PPQ)
+                bpm,
+                map.end_tick / f64::from(windfall_project::PPQ)
             ),
         });
         metadata.tempo = Some(WavTempo {
-            bpm: project.settings.tempo_bpm as f32,
-            beats: if length.is_multiple_of(windfall_project::PPQ) {
-                (length / windfall_project::PPQ)
-                    .checked_mul(passes)
-                    .ok_or("The pattern beat count exceeds the WAV metadata range.")?
+            bpm: bpm as f32,
+            beats: if (map.end_tick % f64::from(windfall_project::PPQ)) == 0.0 {
+                let beats = map.end_tick / f64::from(windfall_project::PPQ);
+                if beats > f64::from(u32::MAX) {
+                    return Err("The pattern beat count exceeds the WAV metadata range.".into());
+                }
+                beats as u32
             } else {
                 0
             },
@@ -201,9 +206,7 @@ pub(super) fn pattern_metadata(
         });
     }
     metadata
-        .validate(Some(u64::from(frame(
-            f64::from(length) * f64::from(passes),
-        )?)))
+        .validate(Some(u64::from(frame(map.end_tick)?)))
         .map_err(|e| e.to_string())?;
     Ok(metadata)
 }
@@ -211,6 +214,14 @@ pub(super) fn pattern_metadata(
 mod tests {
     use super::*;
     use windfall_project::{Command, Document};
+    use windfall_engine::{SamplePool, RenderOptions, render_streaming_checked};
+    fn song_metadata(project: &Project, pool: &SamplePool, rate: u32, region: Option<TickRange>) -> Result<WavMetadata, String> {
+        let report = render_streaming_checked(project, pool, &RenderOptions {
+            mode: windfall_ipc::PlayMode::Song, sample_rate: rate, region,
+            ..Default::default()
+        }, &mut |_| true, &mut |_| true).map_err(|e| e.to_string())?;
+        super::song_metadata(project, &report.frame_map, region)
+    }
     #[test]
     fn navigation_actions_have_notes_on_the_finite_linear_render_grid() {
         let mut document = Document::new(Project::new("Original navigation fixture"));

@@ -41,7 +41,7 @@ const FRAME_TOLERANCE: f64 = 1e-6;
 pub(crate) const MAX_TRIGGERS: usize = 1024;
 
 /// A straight line from ticks to frames.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Clock {
     anchor_frame: u64,
     /// Tick at the anchor frame.

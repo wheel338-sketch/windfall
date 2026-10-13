@@ -221,6 +221,11 @@ impl Processor {
     pub(crate) fn effective_tempo(&self) -> f64 {
         self.state.tempo()
     }
+    /// Offline callers split at the control grid and copy this after process.
+    /// No trajectory storage or allocation is introduced on the callback.
+    pub(crate) fn export_clock(&self) -> crate::sequencer::Clock {
+        self.sequencer.clock()
+    }
 
     pub(crate) fn output_frame(&self) -> u64 {
         self.frame

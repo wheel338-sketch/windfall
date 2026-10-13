@@ -236,8 +236,24 @@ impl WavWriter {
         Ok(())
     }
 
-    /// Completes the header and moves the file to its destination, replacing
-    /// any file already there.
+    /// Adds metadata discovered while rendering, without moving streamed PCM.
+    /// RIFF permits cue/smpl/LIST/acid chunks after the data chunk.
+    pub fn set_rendered_metadata(&mut self, metadata: &crate::WavMetadata) -> Result<(), CodecError> {
+        if !self.layout.marker_chunks.is_empty() {
+            return Err(CodecError::InvalidInput("WAV metadata was already supplied before rendering".into()));
+        }
+        metadata.validate(Some(self.data_bytes / u64::from(self.layout.block_align)))?;
+        let chunks = metadata.chunks(self.layout.sample_rate)?;
+        let overhead = self.layout.header(0).len() as u64 - 8 + 1 + chunks.len() as u64;
+        if overhead + self.data_bytes > u64::from(u32::MAX) {
+            return Err(CodecError::WavTooLarge);
+        }
+        self.layout.trailing_chunks = chunks;
+        self.layout.metadata = metadata.clone();
+        Ok(())
+    }
+
+    /// Completes the header and publishes the file.
     pub fn finalize(mut self) -> Result<(), CodecError> {
         if self.broken {
             return Err(Self::broken_error());
@@ -251,6 +267,7 @@ impl WavWriter {
         if !self.data_bytes.is_multiple_of(2) {
             buffered.write_all(&[0])?;
         }
+        buffered.write_all(&self.layout.trailing_chunks)?;
         let mut file = buffered.into_inner().map_err(|error| error.into_error())?;
         file.seek(SeekFrom::Start(0))?;
         file.write_all(&self.layout.header(self.data_bytes))?;
@@ -297,6 +314,7 @@ struct Layout {
     byte_rate: u32,
     info_chunk: Vec<u8>,
     marker_chunks: Vec<u8>,
+    trailing_chunks: Vec<u8>,
     metadata: crate::WavMetadata,
 }
 
@@ -325,6 +343,7 @@ impl Layout {
             byte_rate,
             info_chunk: Vec::new(),
             marker_chunks: Vec::new(),
+            trailing_chunks: Vec::new(),
             metadata: crate::WavMetadata::default(),
         })
     }
@@ -357,7 +376,7 @@ impl Layout {
     fn max_data_bytes(&self) -> u64 {
         // The RIFF size counts everything after its own 8 bytes, including
         // the pad byte after odd-length data.
-        let overhead = self.header(0).len() as u64 - 8 + 1;
+        let overhead = self.header(0).len() as u64 - 8 + 1 + self.trailing_chunks.len() as u64;
         u64::from(u32::MAX) - overhead
     }
 
@@ -410,7 +429,7 @@ impl Layout {
         chunks.extend_from_slice(b"data");
         chunks.extend_from_slice(&(data_bytes as u32).to_le_bytes());
 
-        let riff_size = chunks.len() as u64 + data_bytes + data_bytes % 2;
+        let riff_size = chunks.len() as u64 + data_bytes + data_bytes % 2 + self.trailing_chunks.len() as u64;
         let mut header = Vec::with_capacity(chunks.len() + 8);
         header.extend_from_slice(b"RIFF");
         header.extend_from_slice(&(riff_size as u32).to_le_bytes());

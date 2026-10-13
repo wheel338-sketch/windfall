@@ -220,7 +220,7 @@ mod export_positions;
 #[cfg(test)]
 mod qa_recording_mixer;
 mod sample_playback;
-pub use export_positions::SongFrameMap;
+pub use export_positions::{RenderFrameMap, SongFrameMap};
 mod sample_instruments;
 
 pub mod peripherals;

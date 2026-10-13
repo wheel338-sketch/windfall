@@ -646,6 +646,10 @@ pub struct ExportProgress {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub mastering: Option<MasteringReview>,
+    /// The WAV tempo/beat metadata decision, based on the rendered clock.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub wav_metadata: Option<String>,
 }
 
 /// An input's channel count and common rates, without opening capture.
