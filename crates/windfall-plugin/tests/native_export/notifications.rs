@@ -4,7 +4,18 @@ use windows_sys::Win32::{Foundation::HWND, UI::WindowsAndMessaging::*};
 fn wide(text: &str) -> Vec<u16> { text.encode_utf16().chain([0]).collect() }
 fn load_editor(window: usize, path: &Path) -> String {
     unsafe {
-        let panel = GetWindow(window as HWND, GW_CHILD);
+        let mut parents = vec![window as HWND];
+        let mut panel = std::ptr::null_mut();
+        while let Some(parent) = parents.pop() {
+            let mut child = GetWindow(parent, GW_CHILD);
+            while !child.is_null() {
+                let mut class = [0u16; 256];
+                let length = GetClassNameW(child, class.as_mut_ptr(), class.len() as i32);
+                if String::from_utf16_lossy(&class[..length.max(0) as usize]).starts_with("WindfallExportControlPanel-") { panel = child; break; }
+                parents.push(child); child = GetWindow(child, GW_HWNDNEXT);
+            }
+            if !panel.is_null() { break; }
+        }
         assert!(!panel.is_null(), "export editor panel was not embedded");
         let input = GetDlgItem(panel, 2);
         assert!(!input.is_null());
