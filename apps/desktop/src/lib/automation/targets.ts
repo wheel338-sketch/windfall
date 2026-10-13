@@ -183,6 +183,7 @@ export function targetState(
     }
     case "instrumentParam": {
       if (target.param >= SCRIPT_PARAMETER_BASE) {
+        if (!channel(target.channel)) return null
         const found = scriptParameter(project, target.channel, target.param)
         return found ? { range: paramRange(found.info), stored: found.stored, info: found.info } : null
       }

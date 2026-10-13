@@ -722,6 +722,14 @@ fn script_parameter_addresses_are_checked_append_only_undoable_and_reopen_with_t
     let reopened = crate::file::from_json(&crate::file::to_json(document.project()).unwrap()).unwrap();
     assert_eq!(reopened, *document.project());
     assert_eq!(reopened.settings.scripts.parameter_addresses[0].name, "transpose");
+    let mut deleted = Document::new(reopened);
+    deleted.dispatch(Command::RemoveChannel { id: channel }, None).unwrap();
+    assert!(deleted.project().automation_range(&target).is_none());
+    let before = deleted.snapshot(None);
+    assert!(deleted.dispatch(Command::SetInstrumentParam { channel, param: SCRIPT_PARAMETER_BASE, value: 3.0 }, None).is_err());
+    assert_eq!(deleted.snapshot(None), before);
+    deleted.undo().unwrap();
+    assert!(deleted.project().automation_range(&target).is_some());
 }
 
 #[test]

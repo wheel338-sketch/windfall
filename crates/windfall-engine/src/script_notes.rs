@@ -138,6 +138,16 @@ impl Runtime {
             if output.is_some_and(|p| p.note.origin == origin) { *output = None; self.pending_count -= 1; }
         }
     }
+    pub fn prune_channels(&mut self, plan: &crate::plan::Plan) {
+        for input in &mut self.inputs {
+            if input.is_some_and(|input| plan.channel_ids.get(input.channel.0).is_none()) { *input = None; }
+        }
+        for pending in &mut self.pending {
+            if pending.is_some_and(|p| plan.channel_ids.get(p.channel.0).is_none()) {
+                *pending = None; self.pending_count -= 1;
+            }
+        }
+    }
     pub fn move_ends(&mut self, moved: &impl Fn(f64) -> f64) {
         for pending in self.pending.iter_mut().flatten() {
             pending.tick = moved(pending.tick);

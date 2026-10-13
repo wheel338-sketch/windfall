@@ -1635,6 +1635,7 @@ impl Processor {
         }
         if plan.linked_tempo() { self.sequencer.control_tempo(state.tempo(), now); }
         let old_plan = std::mem::replace(&mut self.plan, plan);
+        self.script_notes.prune_channels(&self.plan);
         for unit in state.instrument_units() {
             unit.refresh_curve_sources(&self.plan);
         }

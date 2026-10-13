@@ -20,9 +20,9 @@ export function scriptParameter(project: Pick<Project, "settings">, channel: num
   return { info, stored: binding.parameters[index] ?? info.default, index }
 }
 
-export function scriptParameterTargets(project: Pick<Project, "settings">) {
+export function scriptParameterTargets(project: Pick<Project, "settings" | "channels">) {
   return (project.settings.scripts?.parameterAddresses ?? []).flatMap((entry, index) => {
     const param = SCRIPT_PARAMETER_BASE + index
-    return scriptParameter(project, entry.channel, param) ? [{ type: "instrumentParam" as const, channel: entry.channel, param }] : []
+    return project.channels.some(channel => channel.id === entry.channel) && scriptParameter(project, entry.channel, param) ? [{ type: "instrumentParam" as const, channel: entry.channel, param }] : []
   })
 }
