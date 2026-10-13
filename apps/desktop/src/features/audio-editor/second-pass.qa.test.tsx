@@ -70,6 +70,47 @@ it("mounts persistent region/marker edits against WASM with one undo, reopen and
   expect(marker?.startFrame).toBe(marker?.endFrame)
 })
 
+it("authors cue labels notes and slice attributes through checked history and portable reopen", async () => {
+  const id = await addClip()
+  previewAdapter()
+  const clip = project().playlist.clips.find(c => c.id === id)!
+  if (clip.content.type !== "audio") throw new Error("audio")
+  const sampleId = clip.content.sample
+  vi.spyOn(app.backend, "audioEditorRegions").mockImplementation(async (_token, regions) => {
+    const sample = project().samples.find(s => s.id === sampleId)!
+    return app.backend.dispatch({ type: "setSampleRegions", sample: sampleId, expected: sample.regions ?? [], regions })
+  })
+  render(<AudioEditorButton clip={id} defaultOpen />)
+  await screen.findByRole("img", { name: /Clip waveform/ })
+  fireEvent.change(screen.getByLabelText("Start frame (included)"), { target: { value: "100" } })
+  fireEvent.change(screen.getByLabelText("End frame (excluded)"), { target: { value: "500" } })
+  await userEvent.click(screen.getByRole("button", { name: "Add region" }))
+  await screen.findByRole("button", { name: "Region · 100–500" })
+  fireEvent.change(screen.getByLabelText("Name of annotation 1"), { target: { value: "Authored phrase" } })
+  await userEvent.click(screen.getByRole("button", { name: "Add slice attributes" }))
+  fireEvent.change(screen.getByLabelText("Region Gain"), { target: { value: "0.5" } })
+  fireEvent.change(screen.getByLabelText("Region Pitch semitones"), { target: { value: "7" } })
+  fireEvent.change(screen.getByLabelText("Notes of annotation 1"), { target: { value: "Authored note é\nWindfallSlice/1 0.5 7 1 4 0 0" } })
+  const cursor = useProjectStore.getState().history.cursor
+  await userEvent.click(screen.getByRole("button", { name: "Save annotation 1" }))
+  await screen.findByRole("button", { name: "Authored phrase · 100–500" })
+  expect(useProjectStore.getState().history.cursor).toBe(cursor + 1)
+  const saved = project().samples.find(s => s.id === sampleId)!.regions!
+  expect(saved[0]).toEqual({ name: "Authored phrase", startFrame: 100, endFrame: 500, notes: ["Authored note é", "WindfallSlice/1 0.5 7 1 4 0 0"] })
+  expect((await reopened()).samples.find(s => s.id === sampleId)?.regions).toEqual(saved)
+  await act(async () => { await undo() })
+  expect(project().samples.find(s => s.id === sampleId)?.regions?.[0].name).toBe("Region")
+  await act(async () => { await redo() })
+  expect(project().samples.find(s => s.id === sampleId)?.regions).toEqual(saved)
+  await userEvent.click(screen.getByRole("button", { name: "Close editor" }))
+  await userEvent.click(screen.getByRole("button", { name: "Audio editor" }))
+  await screen.findByRole("button", { name: "Remove Authored phrase" })
+  await userEvent.click(screen.getByRole("button", { name: "Remove Authored phrase" }))
+  await waitFor(() => expect(project().samples.find(s => s.id === sampleId)?.regions ?? []).toEqual([]))
+  await act(async () => { await undo() })
+  expect(project().samples.find(s => s.id === sampleId)?.regions).toEqual(saved)
+})
+
 it("mounts advanced controls and carries selected range, quality and formant choices to native processing",async()=>{
   const id=await addClip();previewAdapter()
   const apply=vi.spyOn(app.backend,"audioEditorApply").mockRejectedValue(new Error("Refused by native fixture"))

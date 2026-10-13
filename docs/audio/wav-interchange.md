@@ -49,7 +49,40 @@ varying tempo or meter, which cannot be represented by one constant value.
 
 These versioned notes are a Windfall extension, not an ACID/RIFF standard or a
 claim of third-party support. Other applications can read standard regions and
-ignore the notes. Audio-editor preservation of the extra slice attributes and
-an action-aware navigation import workflow remain software work. Synthetic
-independent RIFF walkers inspect the extension bytes; no external application
-or listening check was run in the edit-only round.
+ignore the notes. The audio editor carries cue notes, slice attributes, exact
+beats, root key, ACID meter/tempo and smpl loop kind/count on document-owned
+`AudioRegion.notes`, default-empty for old projects. New native WAV imports read
+these off-lock before the ordinary source-version/preparation publication guard.
+Deleting annotations does not modify the source file. Checked region edits,
+history and project files preserve their notes. The editor exposes names,
+endpoints, note text, slice parameters, beats, tempo/meter/root and navigation;
+users can add, rename and remove labelled regions and markers.
+
+The editor saves its rendered selection with annotations to a Float32 WAV,
+without changing history. Extract, processing and sampler/playlist selection
+transfers write the same metadata into their app-owned WAV as well as the
+document. Frames follow the existing offset, reverse, pitch/stretch and edit
+coordinate transforms. Cropping scales exact beat counts by the retained
+fraction; stretching preserves musical beat counts. Empty regions become named
+markers with a `Collapsed annotation:` note preserving the former attribute.
+Unknown note text is preserved verbatim. Region limits are 256 annotations,
+16 notes per annotation and 1024 UTF-8 bytes per note; exceeding these refuses
+the import/edit explicitly. Invalid understood attributes are also refused.
+
+The editor's **Import annotations to timeline** action uses the current song
+clock, including tempo automation, and the clip's placement. Named regions
+produce named start/end markers. Skip/pause and forward infinite-loop annotations
+become executable native markers in one checked undo step. Finite, alternating
+and backward sample loops remain named boundaries: the native song loop has no
+sample-direction or finite-repeat equivalent. Existing timeline collision and
+range checks refuse invalid action imports atomically. ACID metadata remains
+source metadata and does not overwrite the song's tempo/meter.
+
+`WindfallLoop/1 <forward|alternating|backward> <play_count>`,
+`WindfallTempo/1 <bpm> <integer_beats> <numerator> <denominator> <root_or_-1> <one_shot>`
+and `WindfallRoot/1 <key>` are document/editor representations of standard WAV
+fields. They are written back into smpl/ACID, rather than duplicated as extension
+notes. A source-metadata annotation anchors these fields; exact beat notes remain
+RIFF notes. Synthetic independent RIFF walkers inspect cue, label, region, note,
+smpl and ACID bytes. Round-five code and fixtures have not been built or run;
+no external application or listening check was performed.

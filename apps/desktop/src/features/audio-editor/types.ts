@@ -14,7 +14,7 @@ export type AudioEditPreview = {
   spectral?: number[]
   regions?: AudioRegion[]
 }
-export type AudioRegion = { name: string; startFrame: number; endFrame: number }
+export type AudioRegion = { name: string; startFrame: number; endFrame: number; notes?: string[] }
 
 /** A frame range of the clip view: [startFrame, endFrame). */
 export type AudioEditRange = {
