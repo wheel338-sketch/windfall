@@ -74,6 +74,8 @@ export function createCandidate({
   const deps = dependencies ?? captureDependencies(source);
   validateDependencies(source, deps.inventory);
   const dest = target(platform, architecture);
+  check(!resource.pluginRuntime || resource.pluginRuntime.target === dest.triple,
+    "packaged plugin runtime target differs from installer target");
   const names = installerNames(requested.version, platform, architecture);
   const expectedSource = `source/Windfall-${requested.commit}.tar`;
   return stage(output, (staging) => {
@@ -136,7 +138,7 @@ export function createCandidate({
       resources: {
         state: "source-contract-verified",
         inventory: "resources.json",
-        helpers: "not-admitted",
+        helpers: resource.helpers,
         models: "not-admitted",
       },
       dependencies: {
@@ -254,18 +256,21 @@ export function verifyCandidate({
     ["state", "inventory", "helpers", "models"],
     "resource manifest",
   );
+  const verifiedResources = resources(source);
+  check(!verifiedResources.pluginRuntime || verifiedResources.pluginRuntime.target === m.target.triple,
+    "packaged plugin runtime target differs from installer target");
   check(
     json(m.resources) ===
       json({
         state: "source-contract-verified",
         inventory: "resources.json",
-        helpers: "not-admitted",
+        helpers: verifiedResources.helpers,
         models: "not-admitted",
       }),
     "unknown resource contract",
   );
   check(
-    json(load(inside(candidate, "resources.json"))) === json(resources(source)),
+    json(load(inside(candidate, "resources.json"))) === json(verifiedResources),
     "source resource inventory mismatch",
   );
   fields(

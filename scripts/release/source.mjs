@@ -249,11 +249,43 @@ export function resources(root) {
     conf.bundle?.active === true && !conf.bundle.externalBin?.length,
     "unaccepted packaged helper contract",
   );
-  check(
-    json(conf.bundle.resources) ===
-      json({ "../../../content/factory/": "factory/" }),
-    "unaccepted resource mapping (helper/model/resource seam requires parent integration)",
-  );
+  const acceptedMappings = {
+    "../../../content/factory/": "factory/",
+    "../../../docs/examples/dynamics-eq/": "examples/effects/",
+    "../../../target/release/plugin-runtime/": "plugin-runtime/",
+  };
+  check(conf.bundle.resources?.["../../../content/factory/"] === "factory/" &&
+    Object.entries(conf.bundle.resources).every(([source, destination]) => acceptedMappings[source] === destination),
+    "unaccepted resource mapping (only factory, owned examples and stamped plugin-runtime are accepted)");
+  const extraResources = [];
+  if (conf.bundle.resources["../../../docs/examples/dynamics-eq/"]) {
+    for (const name of walk(root, "docs/examples/dynamics-eq")) extraResources.push({ ...fileRecord(root, name), destination: `examples/effects/${name.slice("docs/examples/dynamics-eq/".length)}` });
+  }
+  let pluginRuntime = null;
+  if (conf.bundle.resources["../../../target/release/plugin-runtime/"]) {
+    const prefix = "target/release/plugin-runtime";
+    const manifest = parseJson(fs.readFileSync(inside(root, `${prefix}/distribution.json`), "utf8"));
+    fields(manifest, ["abi", "version", "target", "files"], "plugin runtime distribution");
+    const workspaceVersion = /^version\s*=\s*"([^"]+)"/m.exec(fs.readFileSync(inside(root, "Cargo.toml"), "utf8"))?.[1];
+    check(manifest.abi === 1 && manifest.version === workspaceVersion && typeof manifest.target === "string",
+      "plugin runtime ABI/version/target is mismatched");
+    const windows = /windows|win32/.test(manifest.target);
+    const mac = /darwin|macos/.test(manifest.target);
+    const expectedFiles = [windows ? "windfall_plugin.dll" : mac ? "libwindfall_plugin.dylib" : "libwindfall_plugin.so",
+      `windfall-plugin-audio${windows ? ".exe" : ""}`].sort(compare);
+    check(Array.isArray(manifest.files) && json(manifest.files.map(f => f.name).sort(compare)) === json(expectedFiles),
+      "plugin runtime distribution must contain the runtime and owned helper");
+    check(json(walk(root, prefix)) === json([...expectedFiles, "distribution.json"].map(n => `${prefix}/${n}`).sort(compare)),
+      "plugin runtime directory has missing/unlisted artifacts");
+    for (const file of manifest.files) {
+      fields(file, ["name", "sha256"], "plugin runtime file");
+      const record = fileRecord(root, `${prefix}/${file.name}`);
+      check(record.sha256 === file.sha256 && record.size > 0, "plugin runtime checksum mismatch");
+      extraResources.push({ ...record, destination: `plugin-runtime/${file.name}` });
+    }
+    extraResources.push({ ...fileRecord(root, `${prefix}/distribution.json`), destination: "plugin-runtime/distribution.json" });
+    pluginRuntime = { abi: manifest.abi, version: manifest.version, target: manifest.target };
+  }
   for (const platform of ["macOS", "linux"]) {
     const p = conf.bundle[platform];
     check(
@@ -302,13 +334,14 @@ export function resources(root) {
     mapping: { source: "content/factory", destination: "factory" },
     license: "CC0-1.0",
     generationSource: "crates/windfall-factory/src/lib.rs",
-    helpers: "not-admitted",
+    helpers: pluginRuntime ? "export-owned-audio-helper" : "not-admitted",
     models: "not-admitted",
     packagedContents: "native-inspection-required",
-    files: names.map((n) => ({
+    ...(pluginRuntime ? { pluginRuntime } : {}),
+    files: [...names.map((n) => ({
       ...fileRecord(root, n),
       destination: `factory/${n.slice("content/factory/".length)}`,
-    })),
+    })), ...extraResources],
   };
 }
 export function sourceNotices(root, captured) {

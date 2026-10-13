@@ -2,10 +2,13 @@
 use super::Session;
 use windfall_plugin::{
     EmbeddedSample, Program,
-    package::{Platform, export_bundle},
+    package::{Platform, export_bundle, resolve_runtime},
 };
 impl Session {
-    pub fn export_plugin_bundle(&self, destination: &str, runtime: &str) -> Result<(), String> {
+    pub fn export_plugin_bundle(&self, destination: &str, runtime: &str, resources: &std::path::Path) -> Result<(), String> {
+        let executable = std::env::current_exe().map_err(|e| e.to_string())?;
+        let binary = resolve_runtime(resources, &executable,
+            (!runtime.trim().is_empty()).then(|| std::path::Path::new(runtime.trim())))?;
         let (project, pool, pins) = {
             let state = self.state();
             (
@@ -31,7 +34,7 @@ impl Session {
         }
         let result = export_bundle(
             &Program { project, samples },
-            std::path::Path::new(runtime),
+            &binary,
             std::path::Path::new(destination),
             Platform::native()?,
         );

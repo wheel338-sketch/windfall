@@ -6,8 +6,8 @@
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
-    "beforeDevCommand": "pnpm dev",
-    "beforeBuildCommand": "pnpm build"
+    "beforeDevCommand": "node ../../scripts/build-plugin-runtime.mjs && pnpm dev",
+    "beforeBuildCommand": "pnpm build && node ../../scripts/build-plugin-runtime.mjs"
   },
   "app": {
     "windows": [
@@ -34,7 +34,8 @@
     "targets": "all",
     "resources": {
       "../../../content/factory/": "factory/",
-      "../../../docs/examples/dynamics-eq/": "examples/effects/"
+      "../../../docs/examples/dynamics-eq/": "examples/effects/",
+      "../../../target/release/plugin-runtime/": "plugin-runtime/"
     },
     "icon": [
       "icons/32x32.png",

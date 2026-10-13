@@ -706,6 +706,30 @@ test("unaccepted helper/model/resource mappings are gated", (t) => {
   fs.writeFileSync(p, json(conf));
   assert.throws(() => resources(f.source), /resource mapping/);
 });
+test("export-owned runtime resource inventory refuses missing helper, ABI/version and changed bytes", (t) => {
+  const f = fixture(t);
+  const config = path.join(f.source, "apps/desktop/src-tauri/tauri.conf.json");
+  const conf = load(config);
+  conf.bundle.resources["../../../target/release/plugin-runtime/"] = "plugin-runtime/";
+  fs.writeFileSync(config, json(conf));
+  const directory = path.join(f.source, "target/release/plugin-runtime");
+  fs.mkdirSync(directory, { recursive: true });
+  const version = /^version\s*=\s*"([^"]+)"/m.exec(fs.readFileSync(path.join(f.source, "Cargo.toml"), "utf8"))[1];
+  const files = [{ name: "windfall_plugin.dll", bytes: "owned runtime" }, { name: "windfall-plugin-audio.exe", bytes: "owned helper" }];
+  const manifest = { abi: 1, version, target: "x86_64-pc-windows-msvc", files: files.map(f => ({ name: f.name, sha256: sha256(Buffer.from(f.bytes)) })) };
+  for (const file of files) fs.writeFileSync(path.join(directory, file.name), file.bytes);
+  const manifestPath = path.join(directory, "distribution.json"); fs.writeFileSync(manifestPath, json(manifest));
+  assert.equal(resources(f.source).helpers, "export-owned-audio-helper");
+  fs.unlinkSync(path.join(directory, files[1].name));
+  assert.throws(() => resources(f.source), /missing\/unlisted/);
+  fs.writeFileSync(path.join(directory, files[1].name), files[1].bytes);
+  for (const bad of [{ ...manifest, abi: 2 }, { ...manifest, version: "0.0.0-wrong" }]) {
+    fs.writeFileSync(manifestPath, json(bad)); assert.throws(() => resources(f.source), /ABI\/version\/target/);
+  }
+  fs.writeFileSync(manifestPath, json(manifest));
+  fs.writeFileSync(path.join(directory, files[0].name), "changed runtime");
+  assert.throws(() => resources(f.source), /checksum mismatch/);
+});
 test("all pinned Tauri platform JSON/JSON5/TOML overrides are refused even when ignored", (t) => {
   const f = fixture(t);
   assert.equal(resources(f.source).helpers, "not-admitted");

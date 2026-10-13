@@ -1611,8 +1611,9 @@ async fn export_plugin_bundle(
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
     let _window_call = caller.enter(&window, "export_plugin_bundle")?;
+    let resources = window.app_handle().path().resource_dir().map_err(|e| e.to_string())?;
     let session = session.inner().clone();
-    blocking(move || session.export_plugin_bundle(&destination, &runtime)).await
+    blocking(move || session.export_plugin_bundle(&destination, &runtime, &resources)).await
 }
 
 #[tauri::command]
