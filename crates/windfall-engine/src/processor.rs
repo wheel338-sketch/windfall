@@ -1091,7 +1091,10 @@ impl Processor {
                     // before the full song's pass boundary. Publish that exact
                     // frame so linked-tempo callers trim their conservative
                     // minimum-tempo admission length to the rendered body.
-                    if self.sequencer.region().is_some_and(|range| range.end == tick)
+                    if self
+                        .sequencer
+                        .region()
+                        .is_some_and(|range| range.end == tick)
                         && self.sequencer.finite_end_frame(&self.plan).is_some()
                     {
                         self.rendered_end = Some(frame);

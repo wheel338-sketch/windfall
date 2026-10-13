@@ -65,7 +65,7 @@ fn raw_sf2_identity_bytes_and_real_instrument_pcm_survive_packet_recall() {
             guest
                 .render(256)
                 .unwrap()
-                .chunks_exact(crate::OUTPUT_CHANNELS)
+                .as_chunks::<{ crate::OUTPUT_CHANNELS }>().0.iter()
                 .flat_map(|f| [f[2], f[3]]),
         );
     }

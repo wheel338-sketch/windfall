@@ -782,7 +782,7 @@ impl Sequencer {
         match self.mode {
             PlayMode::Pattern => {
                 if let Some(pattern) = self.pattern(plan) {
-                    self.gather_pattern(pattern, from, to, triggers);
+                    self.gather_pattern(plan, pattern, from, to, triggers);
                 }
             }
             PlayMode::Song => self.gather_song(plan, from, to, triggers),
@@ -844,15 +844,33 @@ impl Sequencer {
         }
     }
 
-    fn gather_pattern(&self, pattern: &PlanPattern, from: u64, to: u64, triggers: &mut Triggers) {
+    fn gather_pattern(
+        &self,
+        plan: &Plan,
+        pattern: &PlanPattern,
+        from: u64,
+        to: u64,
+        triggers: &mut Triggers,
+    ) {
         let (low, high) = self.window(from, to);
-        let low = if self.chase_frame == Some(from) { 0.0 } else { low };
+        let low = if self.chase_frame == Some(from) {
+            0.0
+        } else {
+            low
+        };
         let first = pattern.events.partition_point(|event| event.tick < low);
         for event in &pattern.events[first..] {
             if event.tick > high {
                 break;
             }
-            let Some(frame) = self.note_frame(event.tick, event.tick + event.length, from, to) else {
+            let Some(frame) = self.note_frame(
+                plan,
+                event.channel,
+                event.tick,
+                event.tick + event.length,
+                from,
+                to,
+            ) else {
                 continue;
             };
             triggers.push(Trigger {
@@ -885,7 +903,11 @@ impl Sequencer {
         // The window is in what the clock counts. The clips and notes are
         // looked up by their places in the song.
         let (low, high) = self.window(from, to);
-        let low = if self.chase_frame == Some(from) { 0.0 } else { low };
+        let low = if self.chase_frame == Some(from) {
+            0.0
+        } else {
+            low
+        };
         let (low, high) = (plan.unwarp(low), plan.unwarp(high));
         let first = plan
             .clips
@@ -929,7 +951,14 @@ impl Sequencer {
                     } else {
                         (tick + event.length).min(clip_end)
                     };
-                    let Some(frame) = self.note_frame(plan.warp(tick), plan.warp(end), from, to) else {
+                    let Some(frame) = self.note_frame(
+                        plan,
+                        event.channel,
+                        plan.warp(tick),
+                        plan.warp(end),
+                        from,
+                        to,
+                    ) else {
                         continue;
                     };
                     triggers.push(Trigger {
@@ -1021,10 +1050,26 @@ impl Sequencer {
         self.chase_frame = self.playing.then_some(frame);
     }
 
-    fn note_frame(&self, tick: f64, end: f64, from: u64, to: u64) -> Option<u64> {
+    fn note_frame(
+        &self,
+        plan: &Plan,
+        channel: usize,
+        tick: f64,
+        end: f64,
+        from: u64,
+        to: u64,
+    ) -> Option<u64> {
         if self.chase_frame == Some(from) && from < to {
             let at = self.clock.tick_at(from) - self.pass_start;
-            if tick < at && end > at {
+            let sampler = &plan.channels[channel].sampler;
+            // Ordinary one-shot samples are onset events, not held voices.
+            // Replaying a finished click because its MIDI length spans the
+            // resume point would invent a new attack. Instruments/banks and
+            // gated/looped samplers do own a sounding note through its end.
+            let held = sampler.sample.is_none()
+                || sampler.envelope.is_some()
+                || sampler.loop_region.is_some();
+            if held && tick < at && end > at {
                 return Some(from);
             }
         }
@@ -1353,7 +1398,10 @@ mod tests {
         assert_eq!(ordinary, vec![(250, 64)]);
         sequencer.chase_held_notes(0);
         for capacity in [1, 2, 8] {
-            assert_eq!(played(sequencer, &plan, 1000, 64, capacity), vec![(0, 61), (0, 63), (250, 64)]);
+            assert_eq!(
+                played(sequencer, &plan, 1000, 64, capacity),
+                vec![(0, 61), (0, 63), (250, 64)]
+            );
         }
     }
 

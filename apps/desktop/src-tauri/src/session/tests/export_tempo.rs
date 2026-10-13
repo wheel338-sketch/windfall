@@ -303,7 +303,7 @@ fn inspect(path: &str) -> Written {
             }
             b"cue " => {
                 assert_eq!(body.len(), 4 + le(body, 0) as usize * 24);
-                for item in body[4..].chunks_exact(24) {
+                for item in body[4..].as_chunks::<24>().0 {
                     assert_eq!(&item[8..12], b"data");
                     assert_eq!(le(item, 4), le(item, 20));
                     cue_frames.insert(le(item, 0), le(item, 20));
@@ -330,7 +330,7 @@ fn inspect(path: &str) -> Written {
             }
             b"smpl" => {
                 assert_eq!(body.len(), 36 + le(body, 28) as usize * 24);
-                for item in body[36..].chunks_exact(24) {
+                for item in body[36..].as_chunks::<24>().0 {
                     written.loops.push((le(item, 8), le(item, 12) + 1));
                 }
             }
@@ -339,7 +339,7 @@ fn inspect(path: &str) -> Written {
                 assert!(body.len().is_multiple_of(8));
                 written.frames = (body.len() / 8) as u32;
                 let mut previous = 0.0_f32;
-                for (frame, samples) in body.chunks_exact(8).enumerate() {
+                for (frame, samples) in body.as_chunks::<8>().0.iter().enumerate() {
                     let left = f32::from_le_bytes(samples[..4].try_into().unwrap());
                     // Detector carrier steps are <= 0.1. Click attacks are
                     // > 0.25 and lie on exact note-on output frames.

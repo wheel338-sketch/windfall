@@ -375,7 +375,9 @@ mod tests {
     use super::*;
     #[test]
     fn all_input_sources_fit_without_coalescing_or_growing() {
-        assert_eq!(INPUT_PARAMETER_CAPACITY, 17665);
+        // 256 pending + 4096 control + 1024 ordinary + 4097 releases
+        // + (8192 expression recovery + 2048 keys + 65536 parameters).
+        assert_eq!(INPUT_PARAMETER_CAPACITY, 85249);
         let changes = Changes::input(INPUT_PARAMETER_CAPACITY + 1);
         for id in 0..INPUT_PARAMETER_CAPACITY {
             assert!(changes.push(id as u32, id as u32, 0.5));
