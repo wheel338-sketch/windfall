@@ -324,6 +324,93 @@ unsafe extern "C" fn write(stream: *const clap_ostream, data: *const c_void, cou
 struct Events {
     event: clap_event_midi,
 }
+
+#[test]
+fn clap_raw_sf2_callback_swap_midi_render_and_reset_have_zero_memory_calls() {
+    let host = host();
+    let plugin = unsafe { create(&FACTORY, &host, ID.as_ptr()) };
+    assert!(!plugin.is_null());
+    assert!(unsafe { init(plugin) });
+    let mut source = Source { bytes: crate::state::tests::bank_program().encode().unwrap(), offset: 0, quantum: 19 };
+    let stream = clap_istream { ctx: (&mut source as *mut Source).cast(), read: Some(read) };
+    assert!(unsafe { load(plugin, &stream) });
+    assert!(unsafe { activate(plugin, 48_000.0, 1, 256) });
+    source.offset = 0;
+    assert!(unsafe { load(plugin, &stream) });
+    assert!(unsafe { start(plugin) });
+    let mut pcm = [[[0.0f32; 64]; 2]; OUTPUT_PORTS];
+    let mut channels: [[*mut f32; 2]; OUTPUT_PORTS] = std::array::from_fn(|port| [pcm[port][0].as_mut_ptr(), pcm[port][1].as_mut_ptr()]);
+    let mut buffers: [clap_audio_buffer; OUTPUT_PORTS] = std::array::from_fn(|port| clap_audio_buffer { data32: channels[port].as_mut_ptr(), data64: ptr::null_mut(), channel_count: 2, latency: 0, constant_mask: 0 });
+    let events = Events { event: clap_event_midi { header: clap_event_header { size: size_of::<clap_event_midi>() as u32, time: 7, space_id: CLAP_CORE_EVENT_SPACE_ID, type_: CLAP_EVENT_MIDI, flags: 0 }, port_index: 0, data: [0x90, 60, 127] } };
+    let input_events = clap_input_events { ctx: (&events as *const Events).cast_mut().cast(), size: Some(size), get: Some(get) };
+    let mut block = clap_process { steady_time: 0, frames_count: 64, transport: ptr::null(), audio_inputs: ptr::null(), audio_outputs: buffers.as_mut_ptr(), audio_inputs_count: 0, audio_outputs_count: OUTPUT_PORTS as u32, in_events: &input_events, out_events: ptr::null() };
+    let (status, calls) = realtime(|| unsafe { process(plugin, &block) });
+    assert_eq!(status, CLAP_PROCESS_CONTINUE);
+    assert_eq!(calls, 0);
+    assert!(pcm[1][0][..7].iter().all(|v| *v == 0.0));
+    // Continue without repeating the note event, including linked modulation,
+    // sends, held voices and the newly published parsed bank owner.
+    block.in_events = ptr::null();
+    let mut peak = 0.0f32;
+    for _ in 0..64 {
+        let (_, calls) = realtime(|| unsafe { process(plugin, &block) });
+        assert_eq!(calls, 0);
+        peak = peak.max(pcm[1][0].iter().map(|v| v.abs()).fold(0.0, f32::max));
+    }
+    assert!(peak > 0.001);
+    let (_, calls) = realtime(|| unsafe { reset(plugin) });
+    assert_eq!(calls, 0);
+    let (_, calls) = realtime(|| unsafe { process(plugin, &block) });
+    assert_eq!(calls, 0);
+    assert!(pcm.iter().flatten().flatten().all(|v| *v == 0.0));
+    unsafe { stop(plugin); deactivate(plugin); destroy(plugin); }
+}
+
+#[test]
+fn clap_corrupt_raw_bank_logs_a_host_error_and_callback_remains_silent_without_memory_calls() {
+    unsafe extern "C" fn log_message(host: *const clap_host, _: i32, message: *const c_char) {
+        let messages = unsafe { &mut *((*host).host_data as *mut Vec<String>) };
+        messages.push(unsafe { std::ffi::CStr::from_ptr(message) }.to_string_lossy().into_owned());
+    }
+    static LOG: clap_sys::ext::log::clap_host_log = clap_sys::ext::log::clap_host_log { log: Some(log_message) };
+    unsafe extern "C" fn extension(_: *const clap_host, id: *const c_char) -> *const c_void {
+        if unsafe { std::ffi::CStr::from_ptr(id) } == c"clap.log" {
+            std::ptr::from_ref(&LOG).cast()
+        } else { ptr::null() }
+    }
+    let mut messages: Vec<String> = Vec::new();
+    let mut host = host();
+    host.host_data = (&mut messages as *mut Vec<String>).cast();
+    host.get_extension = Some(extension);
+    let plugin = unsafe { create(&FACTORY, &host, ID.as_ptr()) };
+    assert!(!plugin.is_null());
+    assert!(unsafe { init(plugin) });
+    let mut program = crate::state::tests::bank_program();
+    program.soundfonts[0].bytes = b"corrupt raw SF2".to_vec();
+    let encoded = program.encode().unwrap();
+    let mut source = Source { bytes: encoded.clone(), offset: 0, quantum: 19 };
+    let stream = clap_istream { ctx: (&mut source as *mut Source).cast(), read: Some(read) };
+    assert!(unsafe { load(plugin, &stream) });
+    assert!(unsafe { activate(plugin, 48_000.0, 1, 256) });
+    assert_eq!(messages.len(), 1);
+    assert!(messages[0].contains("raw source Some(SampleId(2))"));
+    assert!(messages[0].contains("silent"));
+    assert!(unsafe { start(plugin) });
+    let mut pcm = [[[1.0f32; 64]; 2]; OUTPUT_PORTS];
+    let mut channels: [[*mut f32; 2]; OUTPUT_PORTS] = std::array::from_fn(|port| [pcm[port][0].as_mut_ptr(), pcm[port][1].as_mut_ptr()]);
+    let mut buffers: [clap_audio_buffer; OUTPUT_PORTS] = std::array::from_fn(|port| clap_audio_buffer { data32: channels[port].as_mut_ptr(), data64: ptr::null_mut(), channel_count: 2, latency: 0, constant_mask: 0 });
+    let events = Events { event: clap_event_midi { header: clap_event_header { size: size_of::<clap_event_midi>() as u32, time: 0, space_id: CLAP_CORE_EVENT_SPACE_ID, type_: CLAP_EVENT_MIDI, flags: 0 }, port_index: 0, data: [0x90, 60, 127] } };
+    let input_events = clap_input_events { ctx: (&events as *const Events).cast_mut().cast(), size: Some(size), get: Some(get) };
+    let block = clap_process { steady_time: 0, frames_count: 64, transport: ptr::null(), audio_inputs: ptr::null(), audio_outputs: buffers.as_mut_ptr(), audio_inputs_count: 0, audio_outputs_count: OUTPUT_PORTS as u32, in_events: &input_events, out_events: ptr::null() };
+    let (_, calls) = realtime(|| unsafe { process(plugin, &block) });
+    assert_eq!(calls, 0);
+    assert!(pcm.iter().flatten().flatten().all(|v| *v == 0.0));
+    let mut destination = Destination { bytes: Vec::new(), fail: false };
+    let output = clap_ostream { ctx: (&mut destination as *mut Destination).cast(), write: Some(write) };
+    assert!(unsafe { save(plugin, &output) });
+    assert_eq!(destination.bytes, encoded, "damaged raw identity/bytes still round-trip");
+    unsafe { stop(plugin); deactivate(plugin); destroy(plugin); }
+}
 unsafe extern "C" fn size(_: *const clap_input_events) -> u32 {
     1
 }

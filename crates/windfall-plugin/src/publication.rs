@@ -28,6 +28,7 @@ struct Main {
     provider: Option<std::sync::Arc<crate::nested::Provider>>,
     pending_provider: Option<std::sync::Arc<crate::nested::Provider>>,
     offline: bool,
+    preparation_error: Option<String>,
 }
 impl Default for Publication {
     fn default() -> Self {
@@ -44,6 +45,7 @@ impl Publication {
                 provider: None,
                 pending_provider: None,
                 offline: false,
+                preparation_error: None,
             }),
             audio: UnsafeCell::new(None),
             pending: AtomicPtr::new(ptr::null_mut()),
@@ -131,6 +133,7 @@ impl Publication {
         let rate = self.rate.load(Ordering::Acquire);
         if rate == 0 {
             main.committed = program;
+            main.preparation_error = None;
             self.announce(PARAMETERS | if editor { DIRTY } else { 0 });
             return Ok(());
         }
@@ -139,6 +142,7 @@ impl Publication {
         }))
         .map_err(|_| "Program preparation panicked; previous program retained".to_owned())?;
         let engine = Box::new(prepared?);
+        main.preparation_error = Self::report_preparation(&engine);
         let changed_latency = self.latency.load(Ordering::Acquire) != engine.latency();
         self.requested_latency
             .store(engine.latency(), Ordering::Release);
@@ -167,6 +171,7 @@ impl Publication {
         let latency = engine.latency();
         unsafe {
             (&mut *self.main.get()).provider = engine.provider.clone();
+            (&mut *self.main.get()).preparation_error = Self::report_preparation(&engine);
         }
         self.latency.store(latency, Ordering::Release);
         self.requested_latency.store(latency, Ordering::Release);
@@ -176,6 +181,16 @@ impl Publication {
         }
         self.rate.store(rate as u32, Ordering::Release);
         Ok(latency)
+    }
+    fn report_preparation(engine: &GuestEngine) -> Option<String> {
+        let message = (!engine.preparation_errors().is_empty())
+            .then(|| engine.preparation_errors().join("\n"));
+        crate::runtime::error(message.as_deref().unwrap_or(""));
+        message
+    }
+    /// Host control thread only, never queried by the callback.
+    pub fn preparation_error(&self) -> Option<&str> {
+        unsafe { (&*self.main.get()).preparation_error.as_deref() }
     }
     /// Exclusive callback only. No Box construction/destruction or controller
     /// operation; the one occupied retirement slot blocks the next publication.

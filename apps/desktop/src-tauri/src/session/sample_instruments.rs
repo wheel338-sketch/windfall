@@ -42,12 +42,22 @@ pub(super) fn read_soundfont(
     path: &Path,
     budget: &Arc<windfall_dsp::sample_bank::BankBudget>,
 ) -> Result<(Vec<u8>, windfall_dsp::sample_bank::BankReservation), String> {
-    const LIMIT: u64 = 160 * 1024 * 1024;
+    read_soundfont_with_limit(path, budget, 160 * 1024 * 1024)
+}
+
+pub(super) fn read_soundfont_with_limit(
+    path: &Path,
+    budget: &Arc<windfall_dsp::sample_bank::BankBudget>,
+    limit: u64,
+) -> Result<(Vec<u8>, windfall_dsp::sample_bank::BankReservation), String> {
     let mut file =
         std::fs::File::open(path).map_err(|e| format!("Could not open SoundFont: {e}"))?;
     let metadata = file.metadata().map_err(|e| e.to_string())?;
-    if metadata.len() > LIMIT {
-        return Err("SoundFont file exceeds 160 MiB".into());
+    if metadata.len() > limit {
+        if limit == 160 * 1024 * 1024 {
+            return Err("SoundFont file exceeds 160 MiB".into());
+        }
+        return Err(format!("SoundFont file exceeds the {limit}-byte read limit"));
     }
     let size = usize::try_from(metadata.len()).map_err(|_| "SoundFont file size overflow")?;
     let reservation = budget.reserve(size)?;

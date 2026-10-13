@@ -1,5 +1,5 @@
 //! Windfall as an externally clocked plugin, separate from the desktop app.
-//! State includes the checked project and decoded user-owned assets. No file
+//! State includes the checked project, PCM and original raw SF2 sources. No file
 //! IO, device opening, controller locks or project compilation occurs in process.
 
 mod clap;
@@ -12,7 +12,7 @@ mod state;
 mod vst3;
 
 pub use clap::clap_entry;
-pub use state::{EmbeddedSample, MAX_STATE_BYTES, Program};
+pub use state::{EmbeddedSample, EmbeddedSoundFont, MAX_RAW_BANK_BYTES, MAX_STATE_BYTES, Program};
 
 use windfall_engine::{Controller, Processor};
 
@@ -29,6 +29,7 @@ pub struct GuestEngine {
     sample_rate: u32,
     latency: u32,
     provider: Option<std::sync::Arc<nested::Provider>>,
+    preparation_errors: Vec<String>,
 }
 
 impl GuestEngine {
@@ -41,6 +42,7 @@ impl GuestEngine {
         }
         program.validate()?;
         let mut samples = program.sample_pool();
+        let mut preparation_errors = program.prepare_soundfonts(&mut samples);
         let provider = if program.project.plugins.is_empty() {
             None
         } else {
@@ -52,6 +54,7 @@ impl GuestEngine {
         // Host clock wins. Retain the original document in state, but remove
         // internal clock/navigation drivers from the detached playback plan.
         let mut playback = program.project.clone();
+        preparation_errors.extend(Program::prepare_rack_soundfonts(&mut playback));
         playback
             .automations
             .retain(|lane| lane.target != windfall_project::AutomationTarget::Tempo);
@@ -72,7 +75,12 @@ impl GuestEngine {
             sample_rate: sample_rate as u32,
             latency,
             provider,
+            preparation_errors,
         })
+    }
+
+    pub fn preparation_errors(&self) -> &[String] {
+        &self.preparation_errors
     }
 
     pub fn latency(&self) -> u32 {

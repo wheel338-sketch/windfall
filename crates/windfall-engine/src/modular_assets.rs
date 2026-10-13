@@ -16,7 +16,9 @@ impl GenerationFamily {
         Arc::new(Self {
             used: std::sync::atomic::AtomicUsize::new(0),
             payload_budget: Arc::new(windfall_dsp::sample_bank::BankBudget::default()),
-            bank_budget: Arc::new(windfall_dsp::sample_bank::BankBudget::default()),
+            // Parsed banks share admission with standalone channels and other
+            // retained exported program generations, not one budget per rack.
+            bank_budget: windfall_dsp::sample_bank::BankBudget::shared(),
         })
     }
     pub(super) fn reserve(

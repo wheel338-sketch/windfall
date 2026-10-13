@@ -67,6 +67,9 @@ fn load_reader(state: &Publication, reader: impl std::io::Read) -> Result<(), St
         .map_err(|e| e.to_string())?;
     state.load_editor(crate::Program::decode(&bytes)?)
 }
+fn status_text(state: &Publication, ready: &str) -> String {
+    state.preparation_error().unwrap_or(ready).to_owned()
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -136,9 +139,8 @@ mod windows {
                     unsafe { GetWindowTextW(context.path, text.as_mut_ptr(), text.len() as i32) };
                 let path = String::from_utf16_lossy(&text[..size.max(0) as usize]);
                 let result = load_program(&context.state, &path);
-                let label = result.err().unwrap_or_else(|| {
-                    "Program queued. Host transport and tempo drive playback.".into()
-                });
+                let label = result.err().unwrap_or_else(|| status_text(&context.state,
+                    "Program queued. Host transport and tempo drive playback."));
                 unsafe {
                     SetWindowTextW(context.status, wide(&label).as_ptr());
                 }
@@ -263,7 +265,7 @@ mod windows {
             child("BUTTON", "Load program", WS_TABSTOP, 436, 68, 112, 26, 1);
             context.status = child(
                 "STATIC",
-                "Host transport, tempo and meter take precedence over the document.",
+                &status_text(&context.state, "Host transport, tempo and meter take precedence over the document."),
                 0,
                 12,
                 108,

@@ -1,4 +1,6 @@
 use windfall_plugin::{EmbeddedSample, Program};
+#[allow(dead_code)] // Shared by integration targets that use different fixtures.
+pub mod sf2;
 use windfall_project::{
     Channel, ChannelId, ChannelSource, Clip, ClipContent, ClipId, ExternalOutputRoute, Lane, Note,
     NoteId, PlaylistTrack, PlaylistTrackId, SampleAsset, SampleId, SamplePath, SamplerSettings,
@@ -83,6 +85,27 @@ pub fn program() -> Program {
             pattern: program.project.patterns[0].id,
         },
     });
+    program.validate().unwrap();
+    program
+}
+
+#[allow(dead_code)] // The nested-provider integration target only uses program().
+pub fn soundfont_program() -> Program {
+    let mut program = program();
+    program.samples.clear();
+    program.project.samples[0].soundfont = true;
+    program.project.samples[0].path = SamplePath::Project("original.sf2".into());
+    program.soundfonts.push(windfall_plugin::EmbeddedSoundFont { id: SampleId(2), bytes: sf2::bytes() });
+    let channel = &mut program.project.channels[0];
+    channel.name = "SoundFont / GM destination".into();
+    channel.source = ChannelSource::Instrument { params: windfall_project::InstrumentKind::SoundFont.default_params(), asset: None };
+    channel.sample_instrument = Some(windfall_project::SampleInstrumentAsset::SoundFont {
+        path: program.project.samples[0].path.clone(), bank: 0, program: 0, source: Some(SampleId(2)),
+    });
+    program.project.patterns[0].lanes[0].notes[0].start = 0;
+    program.project.patterns[0].lanes[0].notes[0].length = 96;
+    program.project.patterns[0].lanes[0].notes[0].key = 60;
+    program.project.mixer.tracks[0].external_output = Some(ExternalOutputRoute { left: 0, right: Some(1), exclusive: false });
     program.validate().unwrap();
     program
 }

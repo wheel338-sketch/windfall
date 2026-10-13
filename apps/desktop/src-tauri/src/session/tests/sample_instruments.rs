@@ -1224,6 +1224,68 @@ fn general_midi_fixture() -> Vec<u8> {
 }
 
 #[test]
+fn native_plugin_export_reopens_soundfont_and_general_midi_raw_sources_with_identical_pcm() {
+    use windfall_project::{ChannelPatch, ClipContent, ClipInit, NoteInit, PlaylistTrackId};
+    use windfall_plugin_host::{PluginHost, Transport};
+    let rig = Rig::new();
+    for sample in rig.project().samples { rig.wait_until_loaded_or_failed(sample.id); }
+    for channel in rig.project().channels {
+        rig.session.dispatch(Command::UpdateChannel { id: channel.id, patch: ChannelPatch { muted: Some(true), ..Default::default() } }, None).unwrap();
+    }
+    let sf = soundfont_channel(&rig);
+    let gm = ChannelId(rig.session.dispatch(Command::AddChannel { name: Some("GM device".into()), sample: None, instrument: Some(InstrumentKind::MidiOut), index: None, mixer_track: None }, None).unwrap().created[0]);
+    let raw = general_midi_fixture();
+    let file = rig.file("plugin-owned.sf2");
+    std::fs::write(&file, &raw).unwrap();
+    rig.session.soundfont_load(sf, None, file.clone(), 0, 0).unwrap();
+    let expected = rig.project().channel(gm).unwrap().source.clone();
+    rig.session.sample_instrument_general_midi(gm, expected, file.clone(), 0, 0).unwrap();
+    for channel in [sf, gm] {
+        rig.session.dispatch(Command::AddNotes { pattern: rig.pattern(), channel, notes: vec![NoteInit { start: 0, length: 96, key: 60, velocity: Some(1.0), pan: None, expression: None }] }, None).unwrap();
+        // The native GM workflow deliberately selects the real SF2 renderer.
+        assert!(matches!(rig.project().channel(channel).unwrap().source, windfall_project::ChannelSource::Instrument { params, .. } if params.kind() == InstrumentKind::SoundFont));
+    }
+    let track = PlaylistTrackId(rig.session.dispatch(Command::AddPlaylistTrack { name: None, index: None }, None).unwrap().created[0]);
+    rig.session.dispatch(Command::AddClips { clips: vec![ClipInit { track, start: 0, length: None, offset: None, muted: None, content: ClipContent::Pattern { pattern: rig.pattern() } }] }, None).unwrap();
+    let before = rig.session.document_snapshot();
+    let pool = rig.session.state().pool.clone();
+    let reference = windfall_engine::render(&before.project, &pool, &windfall_engine::RenderOptions { mode: windfall_ipc::PlayMode::Song, block_frames: 64, ..Default::default() }, &mut |_| true);
+    assert!(reference.samples().iter().any(|v| v.abs() > 0.01));
+    let runtime = std::path::PathBuf::from(std::env::var_os("WINDFALL_EXPORT_FIXTURE").expect("integrator supplies the prebuilt Windfall export runtime"));
+    let destination = rig.folder.path().join("native-plugin");
+    rig.session.export_plugin_bundle(&crate::paths::display(&destination), &crate::paths::display(&runtime), rig.folder.path()).unwrap();
+    assert_eq!(rig.project(), before.project);
+    assert_eq!(rig.session.document_snapshot().history, before.history);
+    let packet = windfall_plugin::Program::decode(&std::fs::read(destination.join("Windfall.vst3/Contents/Resources/windfall-state.json")).unwrap()).unwrap();
+    assert_eq!(packet.soundfonts.len(), 1, "same raw source is embedded once for both real instrument routes");
+    assert_eq!(packet.soundfonts[0].bytes, raw);
+    let source = packet.soundfonts[0].id;
+    assert!(packet.project.is_soundfont_source(source));
+    assert!(packet.samples.iter().all(|sample| sample.id != source));
+    std::fs::remove_file(file).unwrap();
+    for format in ["clap", "vst3"] {
+        let module = PluginHost::windfall().load(&destination.join(format!("Windfall.{format}"))).unwrap();
+        let id = module.descriptors()[0].id.clone();
+        let mut first = module.create(&id).unwrap();
+        let saved = first.save_state().unwrap();
+        drop(first);
+        let mut reopened = module.create(&id).unwrap();
+        reopened.load_state(&saved).unwrap();
+        let mut instrument = reopened.prepare_instrument(48_000.0, 256).unwrap();
+        let mut output = Vec::new();
+        for block in 0..64 {
+            instrument.set_transport(Transport { playing: true, tempo_bpm: 120.0, position_beats: (block * 64) as f64 / 24_000.0, ..Transport::default() });
+            let (mut left, mut right) = ([0.0; 64], [0.0; 64]);
+            instrument.process(&mut left, &mut right);
+            output.extend(left.into_iter().zip(right).flat_map(|(l, r)| [l, r]));
+        }
+        assert_eq!(output, reference.samples()[..output.len()], "{format} SF2/GM native PCM mismatch");
+        reopened.release_instrument(instrument).unwrap();
+        assert_eq!(reopened.save_state().unwrap().as_bytes(), saved.as_bytes());
+    }
+}
+
+#[test]
 fn general_midi_soundfont_destination_preserves_rack_notes_history_disk_and_live_export_pcm() {
     use windfall_project::{ChannelPatch, NoteInit, SampleInstrumentAsset};
     let mut rig = Rig::new();
