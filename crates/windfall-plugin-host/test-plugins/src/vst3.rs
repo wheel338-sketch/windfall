@@ -737,7 +737,7 @@ impl IAudioProcessorTrait for Component {
         .enumerate()
         {
             self.meters[index].store(value.to_bits(), std::sync::atomic::Ordering::Relaxed);
-            if let Some(changes) = unsafe { vst3::ComRef::from_raw(data.outputParameterChanges) } {
+            if !self.dynamic && let Some(changes) = unsafe { vst3::ComRef::from_raw(data.outputParameterChanges) } {
                 let mut at = 0;
                 let id = 22 + index as u32;
                 if let Some(queue) =
