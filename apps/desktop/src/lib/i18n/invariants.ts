@@ -47,7 +47,7 @@ export const invariantKeyboardKeys: Readonly<Record<string, string>> = {
 }
 
 export const invariantPatterns = [
-  { pattern: /^[\s\d.,:;/%+−–—×÷∞°·→←♭♯#()\[\]…!?=|<>∅★●○◀▶■□✓✕×-]*$/u, reason: "Numbers and notation symbols with no language-bearing words." },
+  { pattern: /^[\s\d.,:;/%+−–—×÷∞°·→←♭♯#()[\]…!?=|<>∅★●○◀▶■□✓✕×-]*$/u, reason: "Numbers and notation symbols with no language-bearing words." },
   { pattern: /^[A-G](?:#|b|♯|♭)?-?\d*$/, reason: "International letter note names used by both shipped catalogs." },
   { pattern: /^\.(?:wav|aiff?|flac|ogg|opus|mp3|wv|mid|midi|sf2|windfall|wfp|zip)$/i, reason: "File extensions; never translated." },
   { pattern: /^(?:wav|aiff?|flac|ogg|opus|mp3|wv|mid|midi|sf2|zip)$/i, reason: "Technical codec/extension identifiers used as message parameters." },
