@@ -449,7 +449,7 @@ fn isolated_stems_replay_the_full_mix_audio_dependent_tempo_clock() {
     use windfall_engine::{StemMode, StemOptions, render_stems, render_streaming};
     let (mut rig, target) = carrier();
     let other = rig.track();
-    let lane = rig.project.playlist.tracks[0].id;
+    let lane = rig.playlist_track();
     rig.audio_clip(lane, level(RATE, 0.5, 2.0), other, 0, 1920);
     let source = rig.effect(
         TrackId::MASTER,

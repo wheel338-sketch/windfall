@@ -367,7 +367,9 @@ fn every_remaining_pan_family_uses_identical_live_and_offline_pcm_under_every_la
                 params: kind.default_params(),
             };
             rig.project.patterns[0].length_steps = 1;
-            rig.note(channel, 0, 240).pan = 0.65;
+            let note = rig.note(channel, 0, 240);
+            note.key = 36;
+            note.pan = 0.65;
             let options = RenderOptions {
                 sample_rate: RATE,
                 tail_secs: 0.0,

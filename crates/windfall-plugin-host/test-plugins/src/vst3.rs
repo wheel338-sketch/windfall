@@ -222,6 +222,7 @@ impl IPluginFactory2Trait for Factory {
                         "VST3 Multi Auxiliary Detector",
                         "VST3 Note Expression Probe",
                         "VST3 MIDI Mapping Instrument",
+                        "VST3 Dynamic Capabilities",
                     ][index as usize],
                 ),
                 classFlags: 0,

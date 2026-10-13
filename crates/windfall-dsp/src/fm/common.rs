@@ -141,6 +141,8 @@ pub(super) struct Voice<const N: usize> {
     pub frequency: f32,
     pub velocity: f32,
     pub pan: crate::note_pan::NotePan,
+    law: windfall_core::PanLaw,
+    latest: bool,
     age: u64,
     pub phases: [f32; N],
     pub previous: [f32; N],
@@ -159,6 +161,8 @@ impl<const N: usize> Default for Voice<N> {
             frequency: 440.0,
             velocity: 0.0,
             pan: crate::note_pan::NotePan::default(),
+            law: windfall_core::PanLaw::Balance,
+            latest: false,
             age: 0,
             phases: [0.0; N],
             previous: [0.0; N],
@@ -198,39 +202,39 @@ impl<const N: usize> Voice<N> {
 
 pub(super) struct Bank<const N: usize> {
     pub voices: [Voice<N>; MAX_POLYPHONY],
-    law: windfall_core::PanLaw,
-    latest: Option<usize>,
 }
 
 impl<const N: usize> Default for Bank<N> {
     fn default() -> Self {
         Self {
             voices: [Voice::default(); MAX_POLYPHONY],
-            law: windfall_core::PanLaw::Balance,
-            latest: None,
         }
     }
 }
 
 impl<const N: usize> Bank<N> {
     pub fn set_note_pan_law(&mut self, law: windfall_core::PanLaw, rate: f32) {
-        self.law = law;
         for voice in &mut self.voices {
+            voice.law = law;
             voice.pan.retarget(law, rate);
         }
     }
     pub fn pan_latest(&mut self, pan: f32) {
-        if let Some(index) = self.latest {
-            self.voices[index].pan = crate::note_pan::NotePan::new(pan, self.law);
+        if let Some(voice) = self.voices.iter_mut().find(|voice| voice.latest) {
+            voice.pan = crate::note_pan::NotePan::new(pan, voice.law);
         }
     }
 
     pub fn reset(&mut self) {
-        self.latest = None;
-        self.voices.fill(Voice::default());
+        let law = self.voices[0].law;
+        self.voices.fill(Voice {
+            law,
+            pan: crate::note_pan::NotePan::new(0.0, law),
+            ..Voice::default()
+        });
     }
     pub fn note_on(&mut self, key: u8, velocity: f32) {
-        self.latest = None;
+        for voice in &mut self.voices { voice.latest = false; }
         let key = key.min(127);
         let velocity = clean(velocity, 0.0, 1.0, 0.0);
         if velocity <= 0.0 {
@@ -253,14 +257,15 @@ impl<const N: usize> Bank<N> {
                     .max_by_key(|(_, v)| v.age)
                     .map_or(0, |(i, _)| i)
             });
-        self.latest = Some(index);
         let voice = &mut self.voices[index];
         *voice = Voice {
             active: true,
             key,
             frequency: key_to_hz(f32::from(key)),
             velocity,
-            pan: crate::note_pan::NotePan::new(0.0, self.law),
+            pan: crate::note_pan::NotePan::new(0.0, voice.law),
+            law: voice.law,
+            latest: true,
             ..Voice::default()
         };
         for env in &mut voice.envelopes {

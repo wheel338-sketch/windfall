@@ -314,7 +314,8 @@ fn speech_callbacks_have_zero_alloc_realloc_free() {
     let root = format!(
         "#![allow(dead_code)]\nextern crate serde; extern crate ts_rs; extern crate windfall_core;\n\
          #[path = {}] mod param;\nmod blocks {{ #[path = {}] pub mod math; }}\n\
-         #[path = {}] mod note_expression;\n\
+           #[path = {}] mod note_expression;\n\
+           #[path = {}] mod note_pan;\n\
          pub use note_expression::{{NoteExpression, NoteInstanceId}};\n\
          mod instrument {{ use crate::param::ParamSet; use crate::{{NoteExpression, NoteInstanceId}};\n{}\n}}\n\
          #[path = {}] mod speech;\n#[path = {}] mod allocator_probe;\n\
@@ -322,6 +323,7 @@ fn speech_callbacks_have_zero_alloc_realloc_free() {
         path("param.rs"),
         path("blocks/math.rs"),
         path("note_expression.rs"),
+          path("note_pan.rs"),
         trait_source,
         path("speech/mod.rs"),
         path("speech/allocator_probe.rs")

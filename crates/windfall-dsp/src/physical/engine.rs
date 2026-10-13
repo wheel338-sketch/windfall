@@ -271,8 +271,8 @@ pub(super) struct Engine {
     pub fresh: bool,
     pub until_control: usize,
     pub smoothing: f32,
-    last_output: (f32, f32),
-    retrigger: (f32, f32),
+    last_output: f32,
+    retrigger: f32,
     retrigger_remaining: usize,
 }
 
@@ -289,8 +289,8 @@ impl Engine {
             fresh: true,
             until_control: 0,
             smoothing: 1.0,
-            last_output: (0.0, 0.0),
-            retrigger: (0.0, 0.0),
+            last_output: 0.0,
+            retrigger: 0.0,
             retrigger_remaining: 0,
         }
     }
@@ -317,8 +317,8 @@ impl Engine {
         self.serial = 0;
         self.fresh = true;
         self.until_control = 0;
-        self.last_output = (0.0, 0.0);
-        self.retrigger = (0.0, 0.0);
+        self.last_output = 0.0;
+        self.retrigger = 0.0;
         self.retrigger_remaining = 0;
     }
 
@@ -401,31 +401,28 @@ impl Engine {
         let mut output = (0.0, 0.0);
         for voice in &mut self.voices {
             if voice.active {
-                let sample = voice.tick(self.model, settings, self.sample_rate);
+                let mut sample = voice.tick(self.model, settings, self.sample_rate);
+                if self.model == Model::FingerBass {
+                    // Endpoint correction belongs to the mono string before
+                    // its per-note pan. A sounding law change must ramp the
+                    // corrected endpoint as well as the newly generated PCM.
+                    sample = sample * settings.level * 0.25;
+                    if self.retrigger_remaining > 0 {
+                        let total = (self.sample_rate * 0.004).ceil().max(1.0);
+                        if self.retrigger_remaining as f32 == total { self.retrigger -= sample; }
+                        sample += self.retrigger * self.retrigger_remaining as f32 / total;
+                        self.retrigger_remaining -= 1;
+                    }
+                    self.last_output = sample;
+                }
                 let pan = voice.pan.tick();
                 output.0 += sample * pan.0;
                 output.1 += sample * pan.1;
             }
         }
-        // Fixed headroom at the eight-voice cap; stereo is centered mono.
-        let mut output = (
-            output.0 * settings.level * 0.25,
-            output.1 * settings.level * 0.25,
-        );
-        if self.retrigger_remaining > 0 {
-            let total = (self.sample_rate * 0.004).ceil().max(1.0);
-            if self.retrigger_remaining as f32 == total {
-                // Crossfade the endpoint difference, rather than adding the
-                // old endpoint on top of the replacement string's first sample.
-                self.retrigger.0 -= output.0;
-                self.retrigger.1 -= output.1;
-            }
-            output.0 += self.retrigger.0 * self.retrigger_remaining as f32 / total;
-            output.1 += self.retrigger.1 * self.retrigger_remaining as f32 / total;
-            self.retrigger_remaining -= 1;
+        if self.model == Model::FingerBass { output } else {
+            (output.0 * settings.level * 0.25, output.1 * settings.level * 0.25)
         }
-        self.last_output = output;
-        output
     }
 
     pub fn active_voices(&self) -> usize {
