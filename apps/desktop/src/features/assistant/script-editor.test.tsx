@@ -131,3 +131,21 @@ describe("script editor mounted cases (worker responses are explicit fixtures)",
     saved.dispose(); reopened.dispose()
   })
 })
+
+it("edits installed script parameters through checked history and exposes their automation menu", async () => {
+  const selected = channel("Kick").id
+  await dispatch({ type: "setScriptLibrary", library: {
+    assets: [{ reference: { id: "live", revision: 1 }, languageVersion: 1, kind: "noteTransform", name: "Live",
+      source: "param transpose 0 12 0\nset key key transpose + 0 127 clamp\nemit" }],
+    channels: [{ channel: selected, script: { id: "live", revision: 1 }, parameters: [] }], controllers: [],
+  } })
+  open()
+  const knob = await screen.findByRole("slider", { name: "transpose" })
+  const before = useProjectStore.getState().history.cursor
+  fireEvent.keyDown(knob, { key: "ArrowUp" })
+  await waitFor(() => expect(useProjectStore.getState().project.settings.scripts?.channels[0].parameters[0]).toBeGreaterThan(0))
+  expect(useProjectStore.getState().history.cursor).toBe(before + 1)
+  fireEvent.contextMenu(knob)
+  expect(await screen.findByRole("menuitem", { name: "Create automation clip" })).toBeVisible()
+  expect(screen.getByRole("menuitem", { name: "Link to internal controller" })).toBeVisible()
+})

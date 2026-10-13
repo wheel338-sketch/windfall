@@ -88,10 +88,9 @@ target value = min + (max - min) * formula(x)
 automation point's value means for the same `AutomationTarget`:
 `Project::automation_range(target).value(n)` gives the target's own unit.
 Sources do not need to know target units. Internal sources require project
-`Param` targets and absolute maps without pickup. Tempo is explicitly refused:
-the engine currently compiles it into the song clock map, so supporting
-internal tempo modulation requires a clock feedback contract. Internal sources
-cannot use `Slot` or `Action` targets or application-global links.
+`Param` targets and absolute maps without pickup. Tempo uses the bounded runtime
+clock contract below. Internal sources cannot use `Slot` or `Action` targets or
+application-global links.
 
 - `min` above `max` runs the link backwards.
 - `formula` is optional text such as `1 - x^2`. Grammar and functions are
@@ -166,6 +165,50 @@ The normal parameter context menu lists internal sources and ports. Source
 editors show existing links and permit range, x mapping, smoothing and removal.
 XY/XYZ values use ordinary parameter gestures and automation recording; drawn
 envelope points and custom panel layouts persist as owner configuration.
+
+## Internal Tempo clock contract - round five
+
+An internal `Param { target: Tempo }` link selects an integrated musical clock.
+Its normalized map declares the tempo interval inside the existing 10..522 BPM
+range; reversed intervals work. Formula output and smoothing stay bounded, and
+positive minimum tempo guarantees forward progress. No project edit runs from
+the callback. Multiple links retain stored-order last-writer semantics.
+
+The 64-frame control grid is anchored at transport play/seek, independently of
+callback buffer partitions. A grid consumes the preceding source endpoint,
+applies link smoothing once, reanchors the sequencer without moving musical
+endpoints, and holds its effective tempo until the next grid. Sequencer notes,
+note gates/curves, automation positions, clip start/end/fades, metronome clicks
+and ordinary tempo-synced processors all use that clock/tempo. Tempo-synced
+internal sources read the preceding grid's effective tempo. Their already
+computed endpoint drives the next grid, giving a causal feedback delay and no
+algebraic loop. The ordinary static tempo map remains the baseline; internal
+links override it. Removing the last Tempo link returns to the static map at
+the same musical position, including remapping held-note and clip endpoints.
+
+Play/seek begins a deterministic source epoch: source phase/detector state and
+link smoothing return to prepared settings, seeded by the static map at the
+seek tick, with a fresh grid origin. Loops keep a continuous clock and source
+phase; repeating the same operation/input history reproduces the same samples.
+Compatible plan edits carry source phase, smoothing and effective tempo.
+
+Audio clips keep their declared native tape speed, as with static tempo
+automation; their timeline boundaries and fades follow the integrated clock.
+Seek starts native audio at the existing reference-map source offset. It does
+not invent historical detector input. Host elapsed seconds count actual output
+samples within the new epoch. Offline full-mix and streaming export run the
+same Processor, record the exact finite transport end frame, and use that
+integrated duration plus requested latency/tail rather than stored-BPM length.
+Isolated To-master stems first capture the full-mix grid trajectory off audio
+and replay it in each isolated pass; detector input changes cannot alter stem
+clock alignment. Track-output stems share one full-mix processor.
+The positive minimum provides an upper bound for progress/cancellation. Offline
+renders have no external input; equality is for the same deterministic project
+and initial transport/source state.
+
+The source/parameter edits, bounds, persistence, undo/redo and menu use existing
+checked commands. New deterministic tests are listed in the round-five handoff;
+none was executed by this edit-only worker.
 
 ## How hardware uses it
 

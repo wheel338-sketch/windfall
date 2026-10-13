@@ -4,10 +4,11 @@ import { Input } from "@/components/ui/input"
 import { ControllerChoice, globalChoices } from "@/features/controllers/links-panel"
 import { effectDescriptor, instrumentDescriptor } from "@/features/params/descriptors"
 import { automationBlocked, describeTarget, targetState } from "@/lib/automation/targets"
+import { scriptParameterTargets } from "@/lib/script-parameters"
 import { TRACK_PROCESSING_INFO } from "@/lib/track-processing"
 
 export function scriptTargetChoices(project: Project): { value: string; label: string; target: LinkTarget | null }[] {
-  const targets: AutomationTarget[] = []
+  const targets: AutomationTarget[] = [...scriptParameterTargets(project)]
   for (const channel of project.channels) {
     targets.push({ type: "channelVolume", channel: channel.id }, { type: "channelPan", channel: channel.id })
     const plugin = project.plugins?.find(p => p.target.type === "instrument" && p.target.channel === channel.id)

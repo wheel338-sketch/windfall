@@ -9,6 +9,7 @@ import type {
 } from "@/bindings"
 import descriptors from "@/bindings/descriptors.json"
 import { DEFAULT_TRACK_PROCESSING, TRACK_PROCESSING_INFO } from "@/lib/track-processing"
+import { scriptParameter, SCRIPT_PARAMETER_BASE } from "@/lib/script-parameters"
 import { rackParameter } from "@/features/modular/parameters"
 
 import {
@@ -181,6 +182,10 @@ export function targetState(
         : null
     }
     case "instrumentParam": {
+      if (target.param >= SCRIPT_PARAMETER_BASE) {
+        const found = scriptParameter(project, target.channel, target.param)
+        return found ? { range: paramRange(found.info), stored: found.stored, info: found.info } : null
+      }
       const rack = project.settings.modularRacks?.find((rack) => rack.channel === target.channel)
       if (rack) {
         if (target.param >= 32) {
@@ -287,6 +292,10 @@ export function describeTarget(
     case "effectMix":
       return `${effectLabel(project, target.effect)} · Mix`
     case "instrumentParam": {
+      if (target.param >= SCRIPT_PARAMETER_BASE) {
+        const found = scriptParameter(project, target.channel, target.param)
+        return `${channel(target.channel)} script: ${found?.info.name ?? "removed parameter"}`
+      }
       const info = targetState(project, target)?.info
       return `${channel(target.channel)} · ${info?.name ?? "setting"}`
     }
