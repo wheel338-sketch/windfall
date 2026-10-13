@@ -30,6 +30,7 @@ import {
 } from "@/lib/canvas"
 import { ignoresSnap } from "@/lib/edit-modifiers"
 import { DEFAULT_NOTE_EXPRESSION } from "@/lib/note-expression"
+import { useProjectStore } from "@/lib/store/project"
 import { MAX_PATTERN_STEPS } from "@/lib/units"
 import { meterSegments } from "@/lib/timeline"
 
@@ -1331,6 +1332,16 @@ export class Editor {
 
   /** Changes the selection in place: flags only, no rebuild. */
   private applySelection(ids: Set<number>): void {
+    const ctx = this.ctx
+    if (ctx) {
+      const live = new Set(ctx.notes.map((note) => note.id))
+      for (const group of useProjectStore.getState().project.noteEditGroups ?? []) {
+        if (group.pattern !== ctx.pattern.id || group.channel !== ctx.channel) continue
+        if (group.notes.some((id) => ids.has(id))) {
+          for (const id of group.notes) if (live.has(id)) ids.add(id)
+        }
+      }
+    }
     this.selected = ids
     const batch = this.scene.items.batch
     const indices: number[] = []
@@ -1345,7 +1356,14 @@ export class Editor {
 
   private toggleSelected(id: number): void {
     const ids = new Set(this.selected)
-    if (!ids.delete(id)) ids.add(id)
+    if (ids.delete(id)) {
+      const ctx = this.ctx
+      for (const group of useProjectStore.getState().project.noteEditGroups ?? []) {
+        if (ctx && group.pattern === ctx.pattern.id && group.channel === ctx.channel && group.notes.includes(id)) {
+          for (const member of group.notes) ids.delete(member)
+        }
+      }
+    } else ids.add(id)
     this.applySelection(ids)
   }
 

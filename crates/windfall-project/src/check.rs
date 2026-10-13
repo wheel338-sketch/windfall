@@ -46,6 +46,22 @@ impl Project {
             ));
         }
         check_settings(self)?;
+        if self.note_edit_groups.len() > 65536
+            || self
+                .note_edit_groups
+                .iter()
+                .map(|g| g.notes.len())
+                .sum::<usize>()
+                > 262144
+            || self.note_edit_groups.iter().any(|g| {
+                g.group == 0
+                    || g.pattern.0 == 0
+                    || g.channel.0 == 0
+                    || g.notes.iter().any(|n| n.0 == 0 || n.0 >= self.next_id)
+            })
+        {
+            return Err("note edit groups exceed their ID/count bounds".into());
+        }
         if self.retained_source_data.len() > 32
             || self.retained_source_data.iter().any(|entry| {
                 entry.source.is_empty()

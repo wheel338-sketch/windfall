@@ -85,6 +85,12 @@ pub enum MarkerKind {
     },
     /// Stop here. Resume passes this action once.
     Pause,
+    /// Default song playback anchor, used when playback begins at tick zero.
+    Start,
+    /// Automatic recording region. It does not jump or stop ordinary playback.
+    Punch {
+        end: u32,
+    },
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -105,7 +111,9 @@ impl TimelineMarker {
                 "a marker needs a name of 1 to {MAX_MARKER_NAME_BYTES} bytes"
             ));
         }
-        if let MarkerKind::Loop { end } | MarkerKind::Skip { end } = self.kind {
+        if let MarkerKind::Loop { end } | MarkerKind::Skip { end } | MarkerKind::Punch { end } =
+            self.kind
+        {
             TickRange {
                 start: self.tick,
                 end,
@@ -116,7 +124,7 @@ impl TimelineMarker {
     }
     fn extent(&self) -> Option<(u32, u32)> {
         match self.kind {
-            MarkerKind::Named => None,
+            MarkerKind::Named | MarkerKind::Start | MarkerKind::Punch { .. } => None,
             MarkerKind::Pause => Some((self.tick, self.tick)),
             MarkerKind::Loop { end } | MarkerKind::Skip { end } => Some((self.tick, end)),
         }
@@ -133,6 +141,25 @@ pub struct Timeline {
     pub markers: Vec<TimelineMarker>,
 }
 impl Timeline {
+    /// Last start action in timeline order wins, independent of label names.
+    pub fn start_tick(&self) -> Option<u32> {
+        self.markers
+            .iter()
+            .filter(|m| m.kind == MarkerKind::Start)
+            .map(|m| m.tick)
+            .next_back()
+    }
+    /// Next recording interval at or after the requested playhead. A request
+    /// inside the interval records its suffix; past all intervals records normally.
+    pub fn punch_at(&self, tick: u32) -> Option<TickRange> {
+        self.markers.iter().find_map(|m| match m.kind {
+            MarkerKind::Punch { end } if end > tick => Some(TickRange {
+                start: m.tick.max(tick),
+                end,
+            }),
+            _ => None,
+        })
+    }
     pub fn is_empty(&self) -> bool {
         self.meters.is_empty() && self.markers.is_empty()
     }

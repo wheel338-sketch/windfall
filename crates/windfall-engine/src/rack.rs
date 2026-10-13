@@ -22,6 +22,47 @@ use crate::voice::Origin;
 /// Logical note owners, allocated before entering the audio callback.
 const MAX_HELD_NOTES: usize = 1024;
 
+#[cfg(test)]
+mod imported_slide_tests {
+    use super::*;
+    #[test]
+    fn imported_instrument_slide_uses_top_pitch_at_onset_not_latest_note_id() {
+        let params = InstrumentKind::SubtractiveSynth.default_params();
+        let mut unit = InstrumentUnit::build(&params, None, 48000, 120.0);
+        for (i, pitch, color, end) in [
+            (0, 72.0, 3, 600.0),
+            (1, 60.0, 3, 480.0),
+            (2, 80.0, 4, 600.0),
+            (3, 90.0, 3, 100.0),
+        ] {
+            unit.notes[i] = HeldInstrumentNote {
+                active: true,
+                id: NoteInstanceId(i as u64 + 1),
+                pitch,
+                end,
+                expression: NoteExpression {
+                    color_group: Some(color),
+                    ..NoteExpression::NEUTRAL
+                },
+                ..HeldInstrumentNote::EMPTY
+            };
+        }
+        let expression = NoteExpression {
+            color_group: Some(3),
+            ..NoteExpression::NEUTRAL
+        };
+        unit.slide_notes(76, expression, 120.0, 360.0, Origin::Sequenced);
+        assert_eq!(unit.notes[0].glide.unwrap().at(240.0), 74.0);
+        assert_eq!(unit.notes[1].glide.unwrap().at(360.0), 64.0);
+        assert!(unit.notes[2].glide.is_none());
+        assert!(unit.notes[3].glide.is_none());
+        unit.slide_notes(70, expression, 240.0, 480.0, Origin::Sequenced);
+        assert_eq!(unit.notes[0].glide.unwrap().at(480.0), 70.0);
+        assert_eq!(unit.notes[1].glide.unwrap().at(480.0), 58.0);
+        assert_eq!(unit.notes[1].end, 480.0);
+    }
+}
+
 /// How an effect is joining or leaving the chain it sits in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Splice {
@@ -1193,7 +1234,7 @@ impl InstrumentUnit {
         Some(id)
     }
 
-    /// A slide transposes the held chord from the most recent owner's pitch.
+    /// A slide transposes the held chord from its highest sounding pitch.
     /// It starts no new note, retains source envelopes and original endings.
     pub fn slide_notes(
         &mut self,
@@ -1213,7 +1254,12 @@ impl InstrumentUnit {
                     && note.expression.color_group.unwrap_or(0) == group
                     && note.end > at
             })
-            .max_by_key(|note| note.id.0)
+            .max_by(|a, b| {
+                a.glide
+                    .map_or(a.pitch, |g| g.at(at))
+                    .total_cmp(&b.glide.map_or(b.pitch, |g| g.at(at)))
+                    .then(a.id.0.cmp(&b.id.0))
+            })
         else {
             return;
         };

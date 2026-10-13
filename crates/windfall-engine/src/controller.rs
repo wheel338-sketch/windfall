@@ -829,10 +829,16 @@ impl Controller {
         state.transport.playing = true;
         state.sequence = state.sequence.wrapping_add(1);
         let sequence = state.sequence;
+        let from = (state.transport.mode == windfall_ipc::PlayMode::Song
+            && state.region.is_none()
+            && self.inner.shared.tick() == 0.0)
+            .then_some(state.plan.song_start)
+            .flatten()
+            .map(f64::from);
         state.send(Message::Play {
             sequence,
             passes,
-            from: None,
+            from,
         });
     }
 

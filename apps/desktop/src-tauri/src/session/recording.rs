@@ -286,6 +286,17 @@ impl Session {
         if start >= MAX_SONG_TICKS {
             return Err("Recording start is outside the song.".into());
         }
+        let punch = if source.loop_recording.is_none() {
+            self.state()
+                .document
+                .project()
+                .playlist
+                .timeline
+                .punch_at(start)
+        } else {
+            None
+        };
+        let start = punch.map_or(start, |region| region.start);
         let alignment = source.alignment.clone().unwrap_or_default();
         if !alignment.offset_ms.is_finite() || alignment.offset_ms.abs() > 1000.0 {
             return Err("Recording offset must be between -1000 and 1000 milliseconds.".into());
@@ -360,9 +371,12 @@ impl Session {
         };
         let written = Arc::new(AtomicU64::new(0));
         let count_in = self.controller().transport().count_in_bars.unwrap_or(0);
-        let counted_transport =
-            (count_in > 0 || alignment.synchronize || loop_region.is_some() || is_group)
-                .then(|| self.controller().clone());
+        let counted_transport = (count_in > 0
+            || alignment.synchronize
+            || loop_region.is_some()
+            || punch.is_some()
+            || is_group)
+            .then(|| self.controller().clone());
         let metrics = Arc::new(AlignmentMetrics::default());
         let mut take = Take {
             capture: None,
@@ -409,7 +423,7 @@ impl Session {
         }
         if let Some(controller) = &counted_transport {
             controller.stop();
-            controller.set_timeline_region(Some(loop_region.unwrap_or(
+            controller.set_timeline_region(Some(loop_region.or(punch).unwrap_or(
                 windfall_project::TickRange {
                     start,
                     end: MAX_SONG_TICKS,

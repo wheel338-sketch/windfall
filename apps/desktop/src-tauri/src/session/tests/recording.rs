@@ -96,6 +96,42 @@ fn recording_attaches_at_chosen_tick_with_undo_and_save_round_trip() {
         .unwrap();
     assert_eq!(info.frames, 480);
 }
+
+#[test]
+fn imported_punch_region_sets_capture_start_end_and_restores_the_previous_transport_region() {
+    let rig = Rig::new();
+    rig.session
+        .dispatch(
+            Command::AddTimelineMarker {
+                tick: 960,
+                name: "Imported punch".into(),
+                kind: windfall_project::MarkerKind::Punch { end: 1920 },
+            },
+            None,
+        )
+        .unwrap();
+    let before = rig.project();
+    assert_eq!(rig.session.controller().timeline_region(), None);
+    let state = rig
+        .session
+        .recording_start_with(source(), 0, None, synthetic)
+        .unwrap();
+    assert!(state.active);
+    assert_eq!(state.frames, 480);
+    assert_eq!(
+        rig.session.controller().timeline_region(),
+        Some(windfall_project::TickRange {
+            start: 960,
+            end: 1920
+        })
+    );
+    rig.session.recording_stop().unwrap();
+    assert_eq!(rig.project().playlist.clips.last().unwrap().start, 960);
+    assert_eq!(rig.session.controller().timeline_region(), None);
+    rig.session.undo().unwrap();
+    assert_eq!(rig.project().playlist.timeline, before.playlist.timeline);
+    assert_eq!(rig.project().playlist.clips, before.playlist.clips);
+}
 #[test]
 fn cancel_failed_open_and_dropout_remove_only_owned_take() {
     let rig = Rig::new();

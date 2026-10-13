@@ -32,7 +32,7 @@ pub struct SamplePlayback {
     #[serde(default, skip_serializing_if = "legacy_wrap_is_false")]
     #[ts(as = "Option<bool>", optional)]
     pub legacy_key_wrap: bool,
-    /// Only used to migrate pre-asset v1 sample tables without losing their audio.
+    /// Inline mono source, including imported embedded WAV fallback audio.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub inline_source: Option<InlinePlaybackSource>,
@@ -76,7 +76,7 @@ impl SamplePlayback {
     pub fn validate(&self) -> Result<(), String> {
         if let Some(source) = &self.inline_source
             && (source.data.is_empty()
-                || source.data.len() > 4096
+                || source.data.len() > 4 * 1024 * 1024
                 || !(1000..=384000).contains(&source.sample_rate)
                 || source.data.iter().any(|v| !v.is_finite()))
         {

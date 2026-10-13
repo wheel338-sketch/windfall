@@ -21,7 +21,7 @@ pub(crate) fn compile(timeline: &Timeline) -> Vec<NavigationPoint> {
         .markers
         .iter()
         .filter_map(|m| match m.kind {
-            MarkerKind::Named => None,
+            MarkerKind::Named | MarkerKind::Start | MarkerKind::Punch { .. } => None,
             MarkerKind::Pause => Some(NavigationPoint {
                 tick: m.tick,
                 action: NavigationAction::Pause,

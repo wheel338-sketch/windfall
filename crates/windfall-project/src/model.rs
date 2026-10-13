@@ -199,6 +199,21 @@ pub struct Project {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(as = "Option<Vec<RetainedSourceData>>", optional)]
     pub retained_source_data: Vec<RetainedSourceData>,
+    /// Deleted note references are inert; ordinary deletion/undo preserves
+    /// imported editor group identity without changing sound or MIDI color.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<NoteEditGroup>>", optional)]
+    pub note_edit_groups: Vec<NoteEditGroup>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct NoteEditGroup {
+    pub pattern: PatternId,
+    pub channel: ChannelId,
+    pub group: u16,
+    pub notes: Vec<NoteId>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -316,6 +331,7 @@ impl Project {
             plugins: Vec::new(),
             retained_plugins: Vec::new(),
             retained_source_data: Vec::new(),
+            note_edit_groups: Vec::new(),
         }
     }
 

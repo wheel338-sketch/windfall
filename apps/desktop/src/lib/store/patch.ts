@@ -94,6 +94,10 @@ export function applyPatch(
   const { project } = state
   const next: Project = {
     ...project,
+    noteEditGroups: shareStructure(
+      project.noteEditGroups,
+      patch.noteEditGroups ?? project.noteEditGroups
+    ),
     notebook: shareStructure(
       project.notebook,
       patch.notebook ?? project.notebook

@@ -11,6 +11,27 @@ use crate::support::{Rig, counted, counting, left, run};
 const RATE: u32 = 48_000;
 
 #[test]
+fn imported_start_anchor_and_punch_marker_preserve_real_transport_frames_without_navigation() {
+    let mut rig = tape();
+    marker(&mut rig, 100, MarkerKind::Start);
+    marker(&mut rig, 110, MarkerKind::Punch { end: 130 });
+    rig.project.check().unwrap();
+    let (mut processor, controller) = rig.song_processor(RATE);
+    controller.play();
+    let audio = run(&mut processor, 1000, 37);
+    assert_eq!(left(&audio)[200], counted(20 * 25 + 100 * 25 + 200));
+    assert!(controller.transport().playing);
+    assert!((controller.frame().tick - 140.0).abs() < 0.0001);
+    controller.stop();
+    let _ = run(&mut processor, 128, 17);
+    controller.seek(200.0);
+    controller.play();
+    let audio = run(&mut processor, 400, 23);
+    assert_eq!(left(&audio)[200], counted(20 * 25 + 200 * 25 + 200));
+    assert_eq!(controller.navigation_overflows(), 0);
+}
+
+#[test]
 fn timeline_hosted_transport_uses_song_meters_only_in_song_mode() {
     use std::sync::{
         Arc,

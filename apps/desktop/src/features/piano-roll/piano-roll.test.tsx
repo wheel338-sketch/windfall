@@ -7,7 +7,8 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { isStepNote, litSteps } from "@/features/channel-rack/steps"
 import { runAction, shortcutLabel } from "@/lib/actions"
 import { emptyProject } from "@/lib/ipc/sim/project"
-import { dispatch, redo, undo } from "@/lib/store/project"
+import { DEFAULT_NOTE_EXPRESSION } from "@/lib/note-expression"
+import { dispatch, redo, undo, useProjectStore } from "@/lib/store/project"
 import { setTransportPattern } from "@/lib/store/transport"
 import { useUiStore } from "@/lib/store/ui"
 import { settle } from "@/test/harness"
@@ -66,6 +67,40 @@ beforeEach(async () => {
 afterEach(() => {
   closeNoteTools()
   roll.stop()
+})
+
+it("selects and moves imported edit-group members together across MIDI colors", async () => {
+  await openLead([
+    { ...n(0, 64), expression: { ...DEFAULT_NOTE_EXPRESSION, colorGroup: 0 } },
+    { ...n(480, 67), expression: { ...DEFAULT_NOTE_EXPRESSION, colorGroup: 1 } },
+    n(960, 60),
+  ])
+  const [first, second] = notesOf("Lead")
+  const state = useProjectStore.getState()
+  useProjectStore.setState({
+    project: {
+      ...state.project,
+      noteEditGroups: [
+        {
+          pattern: currentPattern().id,
+          channel: channel("Lead").id,
+          group: 7,
+          notes: [first.id, second.id],
+        },
+      ],
+    },
+  })
+  roll.editor.setSelection([first.id])
+  expect(roll.editor.selection).toEqual(new Set([first.id, second.id]))
+  roll.editor.pointerDown(at(100, 64), "left")
+  roll.editor.pointerMove(at(340, 65))
+  roll.editor.pointerUp(at(340, 65))
+  await settle()
+  expect(notesOf("Lead").map((note) => [note.start, note.key])).toEqual([
+    [240, 65],
+    [720, 68],
+    [960, 60],
+  ])
 })
 
 describe("draw tool", () => {

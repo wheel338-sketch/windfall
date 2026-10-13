@@ -1044,6 +1044,10 @@ pub enum Command {
         sample: SampleId,
         expected: SamplePath,
     },
+    /// Checked editor note grouping, in one undo step.
+    SetNoteEditGroups {
+        groups: Vec<crate::NoteEditGroup>,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
