@@ -49,6 +49,7 @@ impl WrapperOptions {
 }
 const CAPACITY: usize = crate::processor::BLOCK_EVENT_CAPACITY;
 struct Fixed {
+    auxiliary: crate::outputs::OutputBank,
     input: [Box<[f32]>; 2],
     output: [Box<[f32]>; 2],
     key: Box<[[f32; 2]]>,
@@ -60,6 +61,7 @@ struct Fixed {
 impl Fixed {
     fn new(block: usize) -> Self {
         Self {
+            auxiliary: crate::outputs::OutputBank::new(block),
             input: [
                 vec![0.0; block].into_boxed_slice(),
                 vec![0.0; block].into_boxed_slice(),
@@ -77,6 +79,8 @@ impl Fixed {
     }
 }
 struct Policy {
+    auxiliary_check: Box<[[f32; 2]]>,
+    rendered: crate::outputs::OutputBank,
     native: Box<dyn ProcessorBackend>,
     fixed: Option<Fixed>,
     smart: bool,
@@ -90,11 +94,14 @@ pub(crate) fn wrap(
     options: &WrapperOptions,
     rate: f64,
     tail: u32,
+    max_block: usize,
 ) -> Box<dyn ProcessorBackend> {
     if !options.smart_disable && options.fixed_block.is_none() {
         return native;
     }
     Box::new(Policy {
+        auxiliary_check: vec![[0.0; 2]; max_block].into_boxed_slice(),
+        rendered: crate::outputs::OutputBank::new(max_block),
         native,
         fixed: options.fixed_block.map(Fixed::new),
         smart: options.smart_disable,
@@ -154,7 +161,15 @@ impl Policy {
         if let Some(tail) = result.tail {
             self.tail = tail as usize;
         }
-        if self.smart && idle && quiet(ol) && quiet(or) && self.tail != u32::MAX as usize {
+        let mut auxiliary_quiet = true;
+        if self.smart {
+            for bus in 0..crate::MAX_PORTS {
+                let output = &mut self.auxiliary_check[..ol.len()];
+                self.native.copy_output(bus, output);
+                auxiliary_quiet &= output.iter().flatten().all(|value| value.is_finite() && value.abs() <= 1e-9);
+            }
+        }
+        if self.smart && idle && quiet(ol) && quiet(or) && auxiliary_quiet && self.tail != u32::MAX as usize {
             self.quiet = self.quiet.saturating_add(ol.len());
             // Finite tails plus one second of observed quiet; output readings
             // never authorize skipping a plugin that declares an endless tail.
@@ -169,6 +184,11 @@ impl Policy {
     }
 }
 impl ProcessorBackend for Policy {
+    fn copy_output(&self, bus: u32, output: &mut [[f32; 2]]) -> bool {
+        if self.fixed.is_some() { self.rendered.copy(bus, output) }
+        else if self.asleep { output.fill([0.0; 2]); false }
+        else { self.native.copy_output(bus, output) }
+    }
     fn controls_processed(&self) -> bool {
         self.fixed.as_ref().is_none_or(|fixed| {
             !fixed
@@ -262,6 +282,7 @@ impl ProcessorBackend for Policy {
                 }
                 ol[frame] = fixed.output[0][cursor];
                 or[frame] = fixed.output[1][cursor];
+                for (rendered, bus) in self.rendered.buses.iter_mut().zip(&fixed.auxiliary.buses) { rendered[frame] = bus[cursor]; }
                 fixed.input[0][cursor] = il[frame];
                 fixed.input[1][cursor] = ir[frame];
                 fixed.key[cursor] = key
@@ -280,6 +301,7 @@ impl ProcessorBackend for Policy {
                         fixed.steady,
                         out,
                     )?;
+                    for (bus, output) in fixed.auxiliary.buses.iter_mut().enumerate() { if self.asleep { output.fill([0.0; 2]); } else { self.native.copy_output(bus as u32, output); } }
                     drops = drops.saturating_add(result.dropped_events);
                     status = result.status;
                     fixed.events.clear();
@@ -312,9 +334,11 @@ impl ProcessorBackend for Policy {
     }
     fn reset(&mut self) {
         self.native.reset();
+        self.rendered.clear();
         self.asleep = false;
         self.quiet = 0;
         if let Some(f) = &mut self.fixed {
+            f.auxiliary.clear();
             for buffer in f.input.iter_mut().chain(f.output.iter_mut()) {
                 buffer.fill(0.0);
             }
@@ -399,6 +423,7 @@ mod tests {
             },
             8.0,
             0,
+            4,
         );
         let mut run = |input: f32, events: &[HostEvent]| {
             let mut il = [input; 4];

@@ -961,6 +961,7 @@ mod tests {
                             parameters: vec![],
                             sidechain_input: None,
                             auxiliary_inputs: Vec::new(),
+                            capabilities: Default::default(),
                             wrapper: Default::default(),
                         },
                     },

@@ -60,6 +60,7 @@ pub(crate) fn execute(project: &mut Project, command: Command) -> Result<Outcome
     };
     let result = transaction.run(command).and_then(|label| {
         crate::rack::check_project(transaction.project).map_err(CommandError::invalid)?;
+        transaction.project.check_plugin_routing().map_err(CommandError::invalid)?;
         if transaction.edits.iter().any(|edit| match edit {
             Edit::Clips { remove, insert } => remove
                 .iter()
@@ -1375,6 +1376,38 @@ impl Transaction<'_> {
                 }));
                 }
                 "Save plugin state"
+            }
+            Command::ReadmitPlugin { target, state, parameters, auxiliary_inputs, outputs } => {
+                let mut plugins = self.project.plugins.clone();
+                let plugin = plugins.iter_mut().find(|plugin| plugin.target == target)
+                    .ok_or_else(|| CommandError::invalid("the plugin is not in this project"))?;
+                let mut current = plugin.clone(); current.parameters = parameters.clone(); current.capabilities.unavailable_parameters.clear();
+                current.validate().map_err(CommandError::invalid)?;
+                plugin.capabilities.revision = plugin.capabilities.revision.checked_add(1)
+                    .ok_or_else(|| CommandError::invalid("plugin capability revision exhausted"))?;
+                plugin.state = state;
+                plugin.admit_parameters(parameters);
+                plugin.auxiliary_inputs = auxiliary_inputs;
+                plugin.capabilities.outputs = outputs;
+                plugin.validate().map_err(CommandError::invalid)?;
+                self.push(Edit::Plugins(Change { old: self.project.plugins.clone(), new: plugins }));
+                "Re-admit plugin capabilities"
+            }
+            Command::SetPluginOutputRoute { target, output, track } => {
+                let mut plugins = self.project.plugins.clone();
+                let plugin = plugins.iter_mut().find(|plugin| plugin.target == target)
+                    .ok_or_else(|| CommandError::invalid("the plugin is not in this project"))?;
+                if let Some(track) = track {
+                    if !plugin.capabilities.outputs.iter().any(|port| port.index == output)
+                        || self.project.mixer.track(track).is_none_or(|track| track.current) {
+                        return Err(CommandError::invalid("the native output or mixer track is unavailable"));
+                    }
+                }
+                plugin.capabilities.routes.retain(|route| route.output != output);
+                if let Some(track) = track { plugin.capabilities.routes.push(crate::PluginOutputRoute { output, track }); }
+                plugin.validate().map_err(CommandError::invalid)?;
+                self.push(Edit::Plugins(Change { old: self.project.plugins.clone(), new: plugins }));
+                "Route native plugin output"
             }
             Command::SetPluginWrapper { target, options } => {
                 options.validate().map_err(CommandError::invalid)?;

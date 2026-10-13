@@ -467,6 +467,7 @@ mod plugin_error_tests {
                         parameters: Vec::new(),
                         sidechain_input: None,
                         auxiliary_inputs: Vec::new(),
+                        capabilities: Default::default(),
                         wrapper: Default::default(),
                     },
                 },

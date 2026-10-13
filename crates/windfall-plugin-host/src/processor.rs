@@ -101,6 +101,7 @@ pub(crate) struct ProcessFailed;
 /// One plugin format's way of running a block. The processor calls these
 /// on the audio thread only, never two at once.
 pub(crate) trait ProcessorBackend: Send + 'static {
+    fn copy_output(&self, _bus: u32, output: &mut [[f32; 2]]) -> bool { output.fill([0.0; 2]); false }
     fn set_realtime(&mut self, _realtime: bool) {}
     /// Control-side ownership barrier before native deactivation. Never called
     /// from process/reset/stop; worker providers return their native processor.
@@ -219,6 +220,14 @@ pub(crate) struct ProcessorParts {
 }
 
 impl PluginProcessor {
+    pub fn copy_output(&self, bus: u32, output: &mut [[f32; 2]]) -> bool {
+        if self.health().failed { output.fill([0.0; 2]); return false; }
+        let available = self.backend.copy_output(bus, output);
+        if output.iter().flatten().any(|sample| !sample.is_finite()) {
+            output.fill([0.0; 2]); self.shared.health.failed.store(true, Ordering::Relaxed); return false;
+        }
+        available
+    }
     /// Cached format/input capability; no discovery or FFI on audio.
     pub fn supports_midi_expression(&self) -> bool {
         self.backend.supports_midi_expression()

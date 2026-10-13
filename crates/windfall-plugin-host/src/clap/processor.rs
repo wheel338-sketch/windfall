@@ -284,6 +284,22 @@ fn transport_event(transport: &Transport) -> Result<TransportEvent, ProcessFaile
 }
 
 impl ProcessorBackend for ClapProcessor {
+    fn copy_output(&self, bus: u32, output: &mut [[f32; 2]]) -> bool {
+        let Some(buffer) = self.outputs.buffers.get(bus as usize) else { output.fill([0.0; 2]); return false; };
+        // Only auxiliary buffers own stable memory; main pointers may refer to a
+        // previous caller. Never dereference those after returning process.
+        let main = self.outputs.main.as_ref().is_some_and(|main| buffer.data32 == unsafe { self.outputs.pointers.as_ptr().add(main.first) }.cast_mut());
+        if main || buffer.channel_count == 0 || output.len() > self.outputs.owned[0].len() { output.fill([0.0; 2]); return false; }
+        for (frame, out) in output.iter_mut().enumerate() {
+            // SAFETY: auxiliary output pointers own activation-sized buffers.
+            unsafe {
+                let left = *(*buffer.data32).add(frame);
+                let right = *(*buffer.data32.add(if buffer.channel_count > 1 { 1 } else { 0 })).add(frame);
+                *out = [left, right];
+            }
+        }
+        true
+    }
     fn supports_midi_expression(&self) -> bool {
         self.dialect == Dialect::Midi
     }

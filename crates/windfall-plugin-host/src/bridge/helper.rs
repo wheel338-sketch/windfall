@@ -99,6 +99,29 @@ impl Native {
         self.activate()?;
         result
     }
+    fn readmit(&mut self, epoch: u64, pending: &[ControlParameter]) -> io::Result<(Vec<u8>, Vec<DescribedParameter>, crate::PluginLayout)> {
+        self.check_capture_epoch(epoch)?;
+        self.deactivate()?;
+        self.instance.idle(&mut |_| {});
+        self.instance.refresh_capabilities().map_err(error)?;
+        for intent in pending {
+            if let Some(param) = self.instance.param(intent.id) {
+                let pending = self.host_values.get(&intent.id) != Some(&intent.value) || self.uncertain.contains(&intent.id);
+                if !param.read_only && pending && self.instance.deactivation_param_value(intent.id).is_none() && !self.instance.set_param(intent.id, intent.value) {
+                    return Err(error("refreshed parameter reconciliation refused"));
+                }
+            }
+        }
+        let state = captured_state(self.instance.save_state().map_err(error)?)?;
+        let parameters = self.instance.params().to_vec().into_iter().filter(|param| !param.hidden).map(|param| DescribedParameter {
+            spec: ControlParameter { id: param.id, min: param.min, max: param.max,
+                value: self.instance.param_value(param.id).unwrap_or(param.default),
+                read_only: param.read_only, stepped: param.stepped },
+            name: param.name, automatable: param.automatable,
+        }).collect();
+        self.check_capture_epoch(epoch)?;
+        Ok((state, parameters, self.instance.layout().clone()))
+    }
     fn adopt_timeline(&mut self) -> io::Result<u64> {
         let epoch = self.region.timeline_epoch().map_err(error)?;
         if epoch < self.epoch {
@@ -324,6 +347,10 @@ impl Native {
                 &mut output.right[at..end],
                 Some(&input.key[at..end]),
             );
+            output.output_count = self.instance.layout().audio_outputs.len();
+            for bus in 0..output.output_count {
+                processor.copy_output(bus as u32, &mut output.auxiliary.buses[bus][at..end]);
+            }
             let after = processor.health();
             output.native_drops = output
                 .native_drops
@@ -692,6 +719,7 @@ fn run(address: SocketAddr) -> io::Result<()> {
         }
         specs.push(spec);
     }
+    instance.refresh_capabilities().map_err(error)?;
     let mut processor = instance
         .activate_with_options(
             f64::from(config.sample_rate),
@@ -761,6 +789,13 @@ fn run(address: SocketAddr) -> io::Result<()> {
             }
             let mut response = Packet::new(packet.request, packet.owner, Message::Stopped);
             match packet.body {
+                Message::Readmit { epoch, pending } => match native.readmit(epoch, &pending) {
+                    Ok((state, parameters, layout)) => {
+                        response.state = state;
+                        response.body = Message::Described { parameters, layout };
+                    }
+                    Err(error) => response.body = Message::Error { message: error.to_string() },
+                },
                 Message::Describe => match native.describe() {
                     Ok((state, parameters, layout)) => {
                         response.state = state;
@@ -824,7 +859,7 @@ fn run(address: SocketAddr) -> io::Result<()> {
             native.adopt_timeline()?;
         }
         let mut worked = false;
-        if let Some((slot, sequence)) = native.region.take_input(&mut input).map_err(error)? {
+        if native.processor.is_some() && let Some((slot, sequence)) = native.region.take_input(&mut input).map_err(error)? {
             worked = true;
             let result = native.admit_input(input.epoch).and_then(|admitted| {
                 if admitted {
@@ -848,19 +883,23 @@ fn run(address: SocketAddr) -> io::Result<()> {
         native.adopt_timeline()?;
         crate::gui::pump_events(Some(Duration::ZERO));
         let mut changed = false;
+        let mut restart = false;
         native.instance.idle(&mut |notification| {
+            restart |= matches!(notification, PluginNotification::RestartRequested | PluginNotification::ParamsRescanned | PluginNotification::LatencyChanged { .. });
             if matches!(
                 notification,
                 PluginNotification::ParamChanged { .. }
                     | PluginNotification::StateChanged
                     | PluginNotification::RestartRequested
                     | PluginNotification::ParamsRescanned
+                    | PluginNotification::LatencyChanged { .. }
             ) {
                 native.dirty = true;
                 changed = true;
             }
         });
         native.adopt_timeline()?;
+        if restart { native.region.request_readmission(); }
         if changed {
             native.region.publish_native_change().map_err(error)?;
         }

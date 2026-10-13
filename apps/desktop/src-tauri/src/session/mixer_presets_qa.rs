@@ -470,6 +470,7 @@ fn qa_a_preset_with_a_plugin_that_is_not_installed_keeps_its_binding_and_state()
         parameters: Vec::new(),
         sidechain_input: None,
         auxiliary_inputs: Vec::new(),
+        capabilities: Default::default(),
         wrapper: Default::default(),
     });
     preset.validate().unwrap();

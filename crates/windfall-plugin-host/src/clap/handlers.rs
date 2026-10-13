@@ -302,7 +302,7 @@ impl HostLatencyImpl for MainThread<'_> {
 
 impl HostAudioPortsImpl for MainThread<'_> {
     fn is_rescan_flag_supported(&self, _flag: AudioPortRescanFlags) -> bool {
-        false
+        true
     }
 
     fn rescan(&self, _flags: AudioPortRescanFlags) {

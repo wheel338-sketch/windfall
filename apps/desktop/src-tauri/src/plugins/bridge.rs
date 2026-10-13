@@ -57,6 +57,7 @@ impl Metadata {
 pub(super) struct Record {
     pub editor_open: bool,
     pub note_capabilities: Arc<super::note_capabilities::Published>,
+    pub pending_capture: Option<(Vec<PluginParameter>, super::runtime::CapturedState)>,
     pub dirty_serial: u64,
     pub acknowledged_serial: u64,
     pub capture_sent: bool,
@@ -86,6 +87,18 @@ impl Record {
             }
         }
         Ok(())
+    }
+    pub fn readmit(&self, desired: &[PluginParameter]) -> Result<(Vec<u8>, super::capabilities::Readmission), String> {
+        self.check_document(desired)?;
+        let snapshot = self.metadata.snapshot()?;
+        let mut pending = self.specs.clone();
+        for spec in &mut pending {
+            if let Some(parameter) = desired.iter().find(|param| param.id == spec.id) { spec.value = f64::from(parameter.value); }
+        }
+        let (state, parameters, layout) = self.control.readmit(snapshot.1, &pending, Duration::from_secs(2))?;
+        self.check_document(desired)?;
+        if self.metadata.snapshot()? != snapshot { return Err("Plugin controls changed during capability re-admission".into()); }
+        Ok((state, super::capabilities::described(parameters, layout)))
     }
     pub fn capture(&self, desired: &[PluginParameter]) -> Result<CapturedBinding, String> {
         self.check_document(desired)?;
@@ -211,7 +224,7 @@ pub(super) fn options(
         parameters: binding
             .parameters
             .iter()
-            .filter(|param| !param.read_only)
+            .filter(|param| !param.read_only && binding.parameter_available(param.id))
             .map(|param| ParameterSpec {
                 id: param.id,
                 min: f64::from(param.min),
@@ -310,6 +323,7 @@ pub(super) fn launch(
     let record = Record {
         editor_open: false,
         note_capabilities: note_capabilities.clone(),
+        pending_capture: None,
         dirty_serial: 0,
         acknowledged_serial: 0,
         capture_sent: false,
@@ -389,6 +403,7 @@ impl HostedEffect for Audio {
         self.retired = true;
         if let Some(selection) = &self.selection { let _ = selection.compare_exchange(self.token, 0, Ordering::AcqRel, Ordering::Acquire); }
     }
+    fn copy_output(&self, bus: u32, output: &mut [[f32; 2]]) -> bool { self.process.copy_output(bus, output) }
     fn set_sidechain_input(&mut self, input: Option<u32>) {
         self.process.set_sidechain_input(input);
     }
@@ -702,6 +717,7 @@ mod tests {
             });
             std::fs::copy(std::env::var_os("WINDFALL_BRIDGE_FIXTURE").unwrap(), &path).unwrap();
             let binding = PluginBinding {
+                capabilities: Default::default(),
                 target: windfall_project::PluginTarget::Effect {
                     effect: windfall_project::EffectId(9123),
                 },
@@ -827,6 +843,7 @@ mod tests {
         let binding = PluginBinding {
             sidechain_input: None,
             auxiliary_inputs: Vec::new(),
+            capabilities: Default::default(),
             wrapper: Default::default(),
             target: windfall_project::PluginTarget::Effect {
                 effect: windfall_project::EffectId(1),
@@ -999,6 +1016,7 @@ mod tests {
         let binding = PluginBinding {
             sidechain_input: None,
             auxiliary_inputs: Vec::new(),
+            capabilities: Default::default(),
             wrapper: Default::default(),
             target: windfall_project::PluginTarget::Instrument {
                 channel: windfall_project::ChannelId(9001),

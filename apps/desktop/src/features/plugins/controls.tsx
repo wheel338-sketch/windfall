@@ -31,6 +31,7 @@ function Parameter({
   index: number
 }) {
   useLanguageStore((state) => state.language)
+  const unavailable = binding.capabilities?.unavailableParameters.includes(parameter.id) ?? false
   const id = useId()
   const track = useProjectStore(
     (state) =>
@@ -73,12 +74,12 @@ function Parameter({
   return (
     <Field
       orientation="horizontal"
-      data-disabled={parameter.readOnly || undefined}
+      data-disabled={parameter.readOnly || unavailable || undefined}
     >
       <FieldLabel htmlFor={id}>{parameter.name}</FieldLabel>
       <ValueContextItems
         items={
-          parameter.automatable && !parameter.readOnly ? automation.items : []
+          parameter.automatable && !parameter.readOnly && !unavailable ? automation.items : []
         }
       >
         <Input
@@ -87,7 +88,7 @@ function Parameter({
           min={parameter.min}
           max={parameter.max}
           step={parameter.stepped ? 1 : "any"}
-          disabled={parameter.readOnly}
+          disabled={parameter.readOnly || unavailable}
           value={value.value}
           onFocus={value.onGestureStart}
           onBlur={value.onGestureEnd}
@@ -102,6 +103,13 @@ function Parameter({
 }
 export function PluginControls({ binding }: { binding: PluginBinding }) {
   useLanguageStore((state) => state.language)
+  const tracks = useProjectStore((state) => state.project.mixer.tracks)
+  const capabilities = binding.capabilities
+  const outputs = [...(capabilities?.outputs ?? []), ...(capabilities?.routes ?? []).filter((route) => !(capabilities?.outputs ?? []).some((port) => port.index === route.output)).map((route) => ({ index: route.output, name: `Saved output ${route.output + 1} (unavailable)`, channels: 0 }))]
+  const diagnostics = [
+    ...(capabilities?.unavailableParameters ?? []).map((id) => `Parameter ${id} is unavailable. Its automation and controller links are retained and will resume when it returns.`),
+    ...(capabilities?.routes ?? []).filter((route) => !(capabilities?.outputs ?? []).some((port) => port.index === route.output) || !tracks.some((track) => track.id === route.track)).map((route) => `Saved output ${route.output + 1} to mixer track ${route.track} is unavailable. The route is retained.`),
+  ]
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {
     let cancelled = false
@@ -165,7 +173,22 @@ export function PluginControls({ binding }: { binding: PluginBinding }) {
         >{t("Close native editor")}</Button>
         <Button size="sm" variant="outline" onClick={() => openPluginManager()}>{t("Manage plugins")}</Button>
       </div>
+      {diagnostics.length > 0 && <Alert><AlertTitle>Plugin capabilities changed</AlertTitle><AlertDescription>{diagnostics.map((diagnostic) => <p key={diagnostic}>{diagnostic}</p>)}</AlertDescription></Alert>}
       <PluginWrapperControls binding={binding} />
+      <FieldGroup>
+        {outputs.map((port) => {
+          const route = capabilities?.routes.find((route) => route.output === port.index)
+          const items = [{ value: -1, label: "Disconnected" }, ...tracks.filter((track) => !track.current).map((track) => ({ value: track.id, label: track.name }))]
+          return <Field key={port.index}><FieldLabel>{port.name || `Output ${port.index + 1}`}</FieldLabel>
+            <Select value={route?.track ?? -1} items={items} onValueChange={(track: number | null) => {
+              if (track !== null) void dispatch({ type: "setPluginOutputRoute", target: binding.target, output: port.index, track: track < 0 ? null : track }).catch((error: unknown) => reportError(error, "Could not route the native output"))
+            }}>
+              <SelectTrigger aria-label={`Route plugin output ${port.index + 1}`}><SelectValue /></SelectTrigger>
+              <SelectContent><SelectGroup>{items.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent>
+            </Select>
+          </Field>
+        })}
+      </FieldGroup>
       <FieldGroup>
         {binding.target.type === "effect" && (
           <Field>

@@ -73,6 +73,7 @@ impl WorkerWait {
 }
 
 struct Packet {
+    auxiliary: crate::outputs::OutputBank,
     input: [Box<[f32]>; 2],
     output: [Box<[f32]>; 2],
     key: Box<[[f32; 2]]>,
@@ -90,6 +91,7 @@ struct Packet {
 impl Packet {
     fn new(block: usize) -> Self {
         Self {
+            auxiliary: crate::outputs::OutputBank::new(block),
             input: std::array::from_fn(|_| vec![0.0; block].into_boxed_slice()),
             output: std::array::from_fn(|_| vec![0.0; block].into_boxed_slice()),
             key: vec![[0.0; 2]; block].into_boxed_slice(),
@@ -110,6 +112,7 @@ impl Packet {
         }
     }
     fn silence(&mut self) {
+        self.auxiliary.clear();
         for output in &mut self.output {
             output.fill(0.0);
         }
@@ -132,6 +135,7 @@ struct Signals {
     completed_controls: AtomicU64,
 }
 struct Threaded {
+    rendered: crate::outputs::OutputBank,
     send: rtrb::Producer<Packet>,
     receive: rtrb::Consumer<Packet>,
     local: Packet,
@@ -176,6 +180,7 @@ pub(crate) fn wrap(
     });
     let (send, receive, worker) = start(native, &signals);
     Box::new(Threaded {
+        rendered: crate::outputs::OutputBank::new(block),
         send,
         receive,
         local: Packet::new(block),
@@ -259,6 +264,7 @@ fn start(
                         }
                     },
                 );
+                for (bus, output) in packet.auxiliary.buses.iter_mut().enumerate() { native.copy_output(bus as u32, output); }
                 match result {
                     Ok(mut result) => {
                         result.dropped_events = result.dropped_events.saturating_add(drops);
@@ -329,6 +335,9 @@ impl Threaded {
     }
 }
 impl ProcessorBackend for Threaded {
+    fn copy_output(&self, bus: u32, output: &mut [[f32; 2]]) -> bool {
+        if self.failed { output.fill([0.0; 2]); false } else { self.rendered.copy(bus, output) }
+    }
     fn controls_processed(&self) -> bool {
         !self.failed && self.signals.completed_controls.load(Ordering::Acquire) == self.controls
     }
@@ -420,6 +429,7 @@ impl ProcessorBackend for Threaded {
             }
             out_left[frame] = self.local.output[0][cursor];
             out_right[frame] = self.local.output[1][cursor];
+            for (rendered, bus) in self.rendered.buses.iter_mut().zip(&self.local.auxiliary.buses) { rendered[frame] = bus[cursor]; }
             self.local.input[0][cursor] = in_left[frame];
             self.local.input[1][cursor] = in_right[frame];
             self.local.key[cursor] = key

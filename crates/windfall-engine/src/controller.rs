@@ -1627,6 +1627,7 @@ mod tests {
         project.plugins.push(PluginBinding {
             sidechain_input: None,
             auxiliary_inputs: Vec::new(),
+            capabilities: Default::default(),
             wrapper: Default::default(),
             target: PluginTarget::Effect {
                 effect: EffectId(20),
@@ -2128,6 +2129,7 @@ mod tests {
         project.plugins.push(PluginBinding {
             sidechain_input: None,
             auxiliary_inputs: Vec::new(),
+            capabilities: Default::default(),
             wrapper: Default::default(),
             target: PluginTarget::Effect {
                 effect: EffectId(950),

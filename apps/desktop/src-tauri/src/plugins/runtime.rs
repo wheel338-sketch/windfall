@@ -60,14 +60,31 @@ pub struct PendingUpdate {
     pub revision: u64,
     pub update: Update,
 }
+#[derive(Clone)]
 pub(crate) struct CapturedState {
+    pub readmission: Option<super::capabilities::Readmission>,
     pub bytes: Vec<u8>,
     pub parameters: Vec<(u32, f32)>,
     pub restart: bool,
     serial: u64,
 }
+impl CapturedState {
+    fn overlay_document(&mut self, before: &[windfall_project::PluginParameter], desired: &[windfall_project::PluginParameter]) {
+        for param in desired {
+            if before.iter().find(|old| old.id == param.id).is_some_and(|old| old.value != param.value) {
+                let mut value = param.value;
+                if let Some(metadata) = &mut self.readmission
+                    && let Some(current) = metadata.parameters.iter_mut().find(|current| current.id == param.id) {
+                    value = value.clamp(current.min, current.max); current.value = value;
+                }
+                if let Some((_, stored)) = self.parameters.iter_mut().find(|(id, _)| *id == param.id) { *stored = value; }
+            }
+        }
+    }
+}
 struct Instance {
     note_capabilities: Arc<super::note_capabilities::Published>,
+    pending_capture: Option<(Vec<windfall_project::PluginParameter>, CapturedState)>,
     identity: u64,
     target: PluginTarget,
     plugin: PluginInstance,
@@ -89,6 +106,7 @@ struct Instance {
     controls: ParameterControls,
 }
 struct OwnerCapture {
+    readmission: Option<super::capabilities::Readmission>,
     state: PluginState,
     parameters: Vec<(u32, f32)>,
     recovery_error: Option<String>,
@@ -192,7 +210,7 @@ pub(super) fn parameter_controls(binding: &PluginBinding) -> ParameterControls {
     binding
         .parameters
         .iter()
-        .filter(|param| !param.read_only)
+        .filter(|param| !param.read_only && binding.parameter_available(param.id))
         .map(|param| ParameterControl::new(param.id, param.value))
         .collect()
 }
@@ -334,7 +352,7 @@ impl Instance {
             return Err("Plugin capture was cancelled".into());
         }
         self.check_capture_document(desired)?;
-        if self.binding.format == "clap" {
+        if self.binding.format == "clap" && !(rebuilding && self.restart) {
             let state = self
                 .plugin
                 .save_state()
@@ -349,6 +367,7 @@ impl Instance {
                 }
             }
             return Ok(OwnerCapture {
+                readmission: None,
                 state,
                 parameters,
                 recovery_error: None,
@@ -387,6 +406,7 @@ impl Instance {
             // Read after the returned boundary: callbacks may publish new controls
             // while the owner waits, and their generations must not be acknowledged
             // using a value read before that boundary.
+            if rebuilding && self.restart { self.plugin.refresh_capabilities().map_err(|error| error.to_string())?; }
             let intents = self.capture_intents(desired);
             let mut reconciled = Vec::with_capacity(intents.len());
             for CaptureIntent {
@@ -396,6 +416,7 @@ impl Instance {
                 value,
             } in intents
             {
+                if self.plugin.param(id).is_none() { continue; }
                 // Lifecycle edits linearize after the queued controls returned by
                 // this boundary. They supersede both accepted and rejected points.
                 if self.plugin.deactivation_param_value(id).is_some() {
@@ -437,10 +458,19 @@ impl Instance {
                 .map_err(|error| error.to_string())?;
             let parameters = self.parameter_values();
             self.check_capture_document(desired)?;
-            Ok((state, parameters, reconciled))
+            let readmission = if rebuilding && self.restart {
+                self.plugin.refresh_capabilities().map_err(|error| error.to_string())?;
+                Some(super::capabilities::native(&mut self.plugin))
+            } else { None };
+            Ok((state, parameters, reconciled, readmission))
         })();
         // Even a failed save must give the sounding instance back when safe.
-        let restore = self.restore();
+        let restore = if rebuilding && self.restart && captured.is_ok() {
+            // A fresh processor/plan will own refreshed ports and PDC. The old
+            // audio slot remains in its bounded dry/silent ownership fallback.
+            self.ownership.cancel();
+            Ok(())
+        } else { self.restore() };
         let recovery_error = match restore {
             Ok(()) => None,
             // A requested restart will install a new plan and its correct
@@ -449,10 +479,16 @@ impl Instance {
             Err(error) if rebuilding && self.restart && captured.is_ok() => Some(error),
             Err(error) => return Err(error),
         };
+        if rebuilding && let Ok((state, parameters, _, readmission)) = &captured {
+            self.pending_capture = Some((desired.to_vec(), CapturedState {
+                bytes: state.as_bytes().to_vec(), parameters: parameters.clone(), readmission: readmission.clone(),
+                restart: self.restart, serial: self.dirty_serial,
+            }));
+        }
         if lifetime.cancelled() {
             return Err("Plugin capture was cancelled".into());
         }
-        captured.map(|(state, parameters, reconciled)| {
+        captured.map(|(state, parameters, reconciled, readmission)| {
             for (id, generation, document) in reconciled {
                 let control = self
                     .controls
@@ -467,6 +503,7 @@ impl Instance {
                     .fetch_max(document, std::sync::atomic::Ordering::Release);
             }
             OwnerCapture {
+                readmission,
                 state,
                 parameters,
                 recovery_error,
@@ -490,6 +527,10 @@ pub(crate) fn binding_identity(binding: &PluginBinding) -> u64 {
     if !binding.wrapper.is_default() {
         binding.wrapper.hash(&mut hash);
     }
+    binding.capabilities.revision.hash(&mut hash);
+    binding.capabilities.unavailable_parameters.hash(&mut hash);
+    for port in &binding.capabilities.outputs { port.index.hash(&mut hash); port.channels.hash(&mut hash); }
+    for param in &binding.parameters { param.id.hash(&mut hash); param.min.to_bits().hash(&mut hash); param.max.to_bits().hash(&mut hash); }
     hash.finish()
 }
 struct Owner {
@@ -567,7 +608,11 @@ fn maintain_owner(
                 && selected(&owner.selection, record.binding.target) == Some(*token)
                 && record.revision == owner_revision.load(std::sync::atomic::Ordering::Acquire)
             {
-                record.dirty_serial = record.control.native_change_serial();
+                record.dirty_serial = record.dirty_serial.max(record.control.native_change_serial());
+                let failed = record.status().failed;
+                if failed && record.dirty_serial <= record.acknowledged_serial {
+                    record.dirty_serial = record.acknowledged_serial.saturating_add(1);
+                }
                 if record.dirty_serial > record.acknowledged_serial && !record.capture_sent {
                     record.capture_sent = updates
                         .try_send(PendingUpdate {
@@ -590,7 +635,7 @@ fn maintain_owner(
                     errors.push((
                         record.binding.target,
                         format!(
-                            "Process bridge failed; retry manually: {}",
+                            "Process bridge recovery is pending: {}",
                             status
                                 .error
                                 .unwrap_or_else(|| { "native helper unavailable".into() })
@@ -1122,10 +1167,11 @@ impl Runtime {
                 .map_err(|error| error.to_string())?;
         }
         for param in &binding.parameters {
-            if !param.read_only {
+            if !param.read_only && binding.parameter_available(param.id) {
                 instance.set_param(param.id, f64::from(param.value));
             }
         }
+        instance.refresh_capabilities().map_err(|error| error.to_string())?;
         Ok(instance)
     }
     pub fn discover(&self, mut binding: PluginBinding) -> Result<PluginBinding, String> {
@@ -1147,6 +1193,7 @@ impl Runtime {
                 drop(audio);
                 let (state, parameters, layout) = result?;
                 binding.state = state;
+                binding.capabilities.outputs = super::capabilities::ports(&layout.audio_outputs);
                 binding.auxiliary_inputs = layout
                     .audio_inputs
                     .into_iter()
@@ -1177,6 +1224,7 @@ impl Runtime {
         }
         self.call(move |owner| {
             let mut instance = Self::create(owner, &binding)?;
+            binding.capabilities.outputs = super::capabilities::ports(&instance.layout().audio_outputs);
             binding.auxiliary_inputs = instance
                 .layout()
                 .audio_inputs
@@ -1239,6 +1287,7 @@ impl Runtime {
                     if lifetime.cancelled() {
                         return Err("Plugin capture was cancelled".into());
                     }
+                    if record.control.readmission_requested() { return Err("Plugin capability re-admission is pending; save again after the prepared plan is installed".into()); }
                     let (state, parameters) = record.capture(&binding.parameters)?;
                     if lifetime.cancelled()
                         || current_revision.load(std::sync::atomic::Ordering::Acquire) != revision
@@ -1266,6 +1315,7 @@ impl Runtime {
                     && record.binding.format == binding.format
                     && record.binding.state == binding.state
                 {
+                    if record.restart { return Err("Plugin capability re-admission is pending; save again after the prepared plan is installed".into()); }
                     let captured = match record.capture(lifetime, false, &binding.parameters) {
                         Ok(captured) => captured,
                         Err(error) => {
@@ -1334,25 +1384,62 @@ impl Runtime {
                         return Err("Plugin capture was cancelled".into());
                     }
                     let serial = record.dirty_serial;
-                    let (bytes, parameters) = match record.capture(&desired) {
+                    if let Some((before, captured)) = &record.pending_capture {
+                        let mut captured = captured.clone();
+                        captured.overlay_document(before, &desired);
+                        record.pending_capture = Some((desired.clone(), captured.clone()));
+                        return Ok(Some(captured));
+                    }
+                    if let Some((bytes, parameters, layout)) = record.control.last_valid_readmission() {
+                        let metadata = super::capabilities::described(parameters, layout);
+                        let captured = CapturedState { bytes, parameters: metadata.parameters.iter().map(|param| (param.id, param.value)).collect(), readmission: Some(metadata), restart: true, serial: record.dirty_serial };
+                        record.pending_capture = Some((desired.clone(), captured.clone()));
+                        return Ok(Some(captured));
+                    }
+                    if record.status().failed {
+                        // A completed control reply survives helper death in its
+                        // supervisor cache. An incomplete native save has no new
+                        // bytes: recover the durable checkpoint plus current intent.
+                        let checkpoint = record.control.last_valid_state();
+                        let captured = CapturedState {
+                            readmission: None,
+                            bytes: checkpoint.map_or_else(|| record.binding.state.clone(), |state| state.state),
+                            parameters: desired.iter().map(|parameter| (parameter.id, parameter.value)).collect(),
+                            restart: true, serial: record.dirty_serial,
+                        };
+                        record.pending_capture = Some((desired.clone(), captured.clone()));
+                        return Ok(Some(captured));
+                    }
+                    let readmitting = record.control.readmission_requested();
+                    let mut readmission = None;
+                    let captured = if readmitting {
+                        record.readmit(&desired).map(|(bytes, metadata)| {
+                            let values = metadata.parameters.iter().map(|p| (p.id, p.value)).collect();
+                            readmission = Some(metadata);
+                            (bytes, values)
+                        })
+                    } else { record.capture(&desired) };
+                    let (bytes, parameters) = match captured {
                         Ok(captured) => captured,
                         Err(error) => {
                             record.capture_sent = false;
                             return Err(error);
                         }
                     };
+                    let captured = CapturedState {
+                        readmission, bytes, parameters, restart: readmitting, serial,
+                    };
+                    // Preserve successful bytes across preparation refusal, lost
+                    // ACK receipts and helper exit. Retry document acceptance,
+                    // never repeat native save for this serial.
+                    record.pending_capture = Some((desired.clone(), captured.clone()));
                     if lifetime.cancelled()
                         || revision.load(std::sync::atomic::Ordering::Acquire) != request.revision
                     {
                         record.capture_sent = false;
                         return Err("Plugin capture ownership changed".into());
                     }
-                    return Ok(Some(CapturedState {
-                        bytes,
-                        parameters,
-                        restart: false,
-                        serial,
-                    }));
+                    return Ok(Some(captured));
                 }
                 let Some(record) = owner.instances.get_mut(&request.token).filter(|record| {
                     record.playback
@@ -1363,6 +1450,11 @@ impl Runtime {
                 }) else {
                     return Ok(None);
                 };
+                if let Some((before, captured)) = &record.pending_capture {
+                    let mut captured = captured.clone(); captured.overlay_document(before, &desired);
+                    record.pending_capture = Some((desired.clone(), captured.clone()));
+                    return Ok(Some(captured));
+                }
                 let captured = record.capture(lifetime, true, &desired)?;
                 if let Some(error) = captured.recovery_error {
                     let mut errors = errors.lock().unwrap_or_else(|error| error.into_inner());
@@ -1371,12 +1463,12 @@ impl Runtime {
                 }
                 let state = captured.state.into_bytes();
                 let restart = record.restart;
-                Ok(Some(CapturedState {
-                    bytes: state,
-                    parameters: captured.parameters,
-                    restart,
-                    serial: record.dirty_serial,
-                }))
+                let captured = CapturedState {
+                    readmission: captured.readmission, bytes: state, parameters: captured.parameters,
+                    restart, serial: record.dirty_serial,
+                };
+                record.pending_capture = Some((desired.clone(), captured.clone()));
+                Ok(Some(captured))
             })?;
         Ok(captured)
     }
@@ -1466,11 +1558,13 @@ impl Runtime {
             if let Some(record) = owner.bridges.get_mut(&ticket.token) {
                 record.capture_sent = false;
                 record.acknowledged_serial = record.acknowledged_serial.max(ticket.serial);
+                if record.pending_capture.as_ref().is_some_and(|(_, captured)| captured.serial <= ticket.serial) { record.pending_capture = None; }
                 checkpoint(owner, lifetime);
                 return Ok(super::capture_ack::CaptureAckCompletion::Acknowledged);
             }
             let completion = if let Some(record) = owner.instances.get_mut(&ticket.token) {
                 record.capture_sent = false;
+                if record.pending_capture.as_ref().is_some_and(|(_, captured)| captured.serial <= ticket.serial) { record.pending_capture = None; }
                 if record.dirty_serial == ticket.serial {
                     record.dirty = false;
                     record.restart = false;
@@ -1638,6 +1732,7 @@ impl Runtime {
                 && let Some(old) = selected(&owner.selection, binding.target)
                     .and_then(|token| owner.bridges.get(&token))
                 && old.binding == binding
+                && old.revision == revision
                 && let Some(state) = old.control.last_valid_state()
             {
                 options.state = state.state;
@@ -1815,6 +1910,7 @@ impl ExpressionOwner {
 struct Audio {
     retired: bool,
     note_capabilities: Arc<super::note_capabilities::Published>,
+    rendered: windfall_plugin_host::outputs::OutputBank,
     sidechain_input: Option<u32>,
     instrument: bool,
     selection: Option<Arc<std::sync::atomic::AtomicU64>>,
@@ -2022,6 +2118,7 @@ impl HostedEffect for Audio {
         self.retired = true;
         if let Some(selection) = &self.selection { let _ = selection.compare_exchange(self.token, 0, std::sync::atomic::Ordering::AcqRel, std::sync::atomic::Ordering::Acquire); }
     }
+    fn copy_output(&self, bus: u32, output: &mut [[f32; 2]]) -> bool { self.rendered.copy(bus, output) }
     fn set_sidechain_input(&mut self, input: Option<u32>) {
         self.sidechain_input = input;
     }
@@ -2092,6 +2189,7 @@ impl HostedEffect for Audio {
                     &mut left[index..index + 1],
                     &mut right[index..index + 1],
                     None,
+                    index,
                 );
                 self.pan_clock = self.pan_clock.saturating_add(1);
             }
@@ -2105,14 +2203,14 @@ impl HostedEffect for Audio {
                     self.publish_expression_owner(slot);
                 }
             }
-            self.process_pan_block(left, right, key);
+            self.process_pan_block(left, right, key, 0);
             self.pan_clock = self
                 .pan_clock
                 .saturating_add(left.len().min(right.len()) as u64);
         }
     }
     fn set_param(&mut self, id: u32, value: f32) {
-        if !value.is_finite() {
+        if !value.is_finite() || !self.controls.iter().any(|control| control.id == id) {
             return;
         }
         if let Some(control) = self.controls.iter().find(|control| control.id == id) {
@@ -2148,7 +2246,7 @@ impl HostedEffect for Audio {
 }
 
 impl Audio {
-    fn process_pan_block(&mut self, left: &mut [f32], right: &mut [f32], key: Option<&[[f32; 2]]>) {
+    fn process_pan_block(&mut self, left: &mut [f32], right: &mut [f32], key: Option<&[[f32; 2]]>, output_offset: usize) {
         // Reconcile after engine commands and note expirations, immediately
         // before sounding. A boundary alone must never resurrect a released key.
         self.reconcile();
@@ -2162,6 +2260,15 @@ impl Audio {
                 right.fill(0.0);
             }
             None => {}
+        }
+        let adapter = self.ownership.as_ref().and_then(|ownership| ownership.current());
+        for (bus, output) in self.rendered.buses.iter_mut().enumerate() {
+            let output = &mut output[output_offset..output_offset + left.len().min(right.len())];
+            match adapter {
+                Some(Adapter::Effect(unit)) => { unit.copy_output(bus as u32, output); }
+                Some(Adapter::Instrument(unit)) => { unit.copy_output(bus as u32, output); }
+                None => output.fill([0.0; 2]),
+            }
         }
         if !left.is_empty()
             && !right.is_empty()
@@ -2649,7 +2756,7 @@ impl PluginFactory for Runtime {
                 let pending_params = binding
                     .parameters
                     .iter()
-                    .filter(|param| !param.read_only)
+                    .filter(|param| !param.read_only && binding.parameter_available(param.id))
                     .map(|param| (param.id, None))
                     .collect();
                 let note_capabilities = Arc::new(super::note_capabilities::Published::default());
@@ -2668,6 +2775,7 @@ impl PluginFactory for Runtime {
                     token,
                     Instance {
                         note_capabilities: note_capabilities.clone(),
+                        pending_capture: None,
                         identity: binding_identity(&binding),
                         target,
                         plugin: instance,
@@ -2693,6 +2801,7 @@ impl PluginFactory for Runtime {
                 Ok(Box::new(Audio {
                 retired: false,
                     note_capabilities,
+                    rendered: windfall_plugin_host::outputs::OutputBank::new(block),
                     sidechain_input: None,
                     instrument: false,
                     selection,
@@ -2727,6 +2836,7 @@ impl PluginFactory for Runtime {
             Ok(Box::new(Audio {
                 retired: false,
                 note_capabilities: Arc::new(super::note_capabilities::Published::default()),
+                    rendered: windfall_plugin_host::outputs::OutputBank::new(block),
                 sidechain_input: None,
                 instrument: false,
                 selection: fallback_selection,
@@ -2822,7 +2932,7 @@ impl PluginFactory for Runtime {
                 let pending_params = binding
                     .parameters
                     .iter()
-                    .filter(|param| !param.read_only)
+                    .filter(|param| !param.read_only && binding.parameter_available(param.id))
                     .map(|param| (param.id, None))
                     .collect();
                 let note_capabilities = Arc::new(super::note_capabilities::Published::default());
@@ -2842,6 +2952,7 @@ impl PluginFactory for Runtime {
                     token,
                     Instance {
                         note_capabilities: note_capabilities.clone(),
+                        pending_capture: None,
                         identity: binding_identity(&binding),
                         target,
                         plugin: instance,
@@ -2867,6 +2978,7 @@ impl PluginFactory for Runtime {
                 Ok(Box::new(Audio {
                 retired: false,
                     note_capabilities,
+                    rendered: windfall_plugin_host::outputs::OutputBank::new(block),
                     sidechain_input: None,
                     instrument: true,
                     selection,
@@ -2905,6 +3017,7 @@ impl PluginFactory for Runtime {
             Ok(Box::new(Audio {
                 retired: false,
                 note_capabilities: Arc::new(super::note_capabilities::Published::default()),
+                    rendered: windfall_plugin_host::outputs::OutputBank::new(block),
                 sidechain_input: None,
                 instrument: true,
                 selection: fallback_selection,

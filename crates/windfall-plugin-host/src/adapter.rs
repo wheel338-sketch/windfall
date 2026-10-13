@@ -81,6 +81,7 @@ pub struct PluginEffect {
 }
 
 impl PluginEffect {
+    pub fn copy_output(&self, bus: u32, output: &mut [[f32; 2]]) -> bool { self.processor.copy_output(bus, output) }
     pub fn controls_processed(&self) -> bool {
         self.processor.controls_processed()
     }
@@ -262,6 +263,7 @@ pub struct PluginInstrument {
 }
 
 impl PluginInstrument {
+    pub fn copy_output(&self, bus: u32, output: &mut [[f32; 2]]) -> bool { self.processor.copy_output(bus, output) }
     pub fn controls_processed(&self) -> bool {
         self.processor.controls_processed()
     }

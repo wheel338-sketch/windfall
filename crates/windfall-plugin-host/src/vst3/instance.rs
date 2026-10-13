@@ -74,6 +74,13 @@ pub(super) struct VstInstance {
     controller_values: Vec<u64>,
     deactivation_values: Vec<(u32, f64, Option<f64>)>,
 }
+struct Capabilities {
+    layout: PluginLayout,
+    params: Vec<PluginParam>,
+    values: Arc<[Value]>,
+    controller_values: Vec<u64>,
+    deactivation_values: Vec<(u32, f64, Option<f64>)>,
+}
 fn utf16(text: &[u16]) -> String {
     String::from_utf16_lossy(&text[..text.iter().position(|&v| v == 0).unwrap_or(text.len())])
 }
@@ -116,6 +123,49 @@ impl VstInstance {
             .as_ref()
             .map(|controller| Connection::new(&component, controller));
         let handler = Handler::new();
+        if let Some(controller) = &controller {
+            // SAFETY: initialized controller and live host interfaces.
+            unsafe {
+                let handler_ptr = handler.to_com_ptr::<IComponentHandler>().expect("handler");
+                controller.setComponentHandler(handler_ptr.as_ptr());
+                // A separate controller must receive the component's initial state.
+                let stream = Stream::new(Vec::new(), crate::state::MAX_STATE_BYTES, true);
+                let iface = stream.to_com_ptr::<IBStream>().expect("stream");
+                if component.getState(iface.as_ptr()) == kResultOk {
+                    stream.rewind();
+                    controller.setComponentState(iface.as_ptr());
+                }
+            }
+        }
+        let Capabilities { layout, params, values, controller_values, deactivation_values } = Self::read_capabilities(&component, &controller)?;
+        let separate = separate_guard.is_some();
+        // Ownership of termination moves to Objects. Drop COM refs without
+        // calling terminate a second time (forget only the initialized wrappers).
+        drop(initialized.into_inner());
+        if let Some(controller_guard) = separate_guard {
+            drop(controller_guard.into_inner());
+        }
+        Ok(Self {
+            objects: Arc::new(Objects {
+                component,
+                processor,
+                controller,
+                separate,
+                connection,
+                _context: context,
+                _module: module,
+            }),
+            layout,
+            params,
+            values,
+            handler,
+            active: false,
+            editor: None,
+            controller_values,
+            deactivation_values,
+        })
+    }
+    fn read_capabilities(component: &ComPtr<IComponent>, controller: &Option<ComPtr<IEditController>>) -> Result<Capabilities, PluginError> {
         let mut layout = PluginLayout {
             has_state: true,
             ..PluginLayout::default()
@@ -155,15 +205,6 @@ impl VstInstance {
                 *count = buses as u32;
             }
             if let Some(controller) = &controller {
-                let handler_ptr = handler.to_com_ptr::<IComponentHandler>().expect("handler");
-                controller.setComponentHandler(handler_ptr.as_ptr());
-                // A separate controller must receive the component's initial state.
-                let stream = Stream::new(Vec::new(), crate::state::MAX_STATE_BYTES, true);
-                let iface = stream.to_com_ptr::<IBStream>().expect("stream");
-                if component.getState(iface.as_ptr()) == kResultOk {
-                    stream.rewind();
-                    controller.setComponentState(iface.as_ptr());
-                }
                 let count = controller.getParameterCount();
                 if !(0..=MAX_PARAMETERS as i32).contains(&count) {
                     return Err(PluginError::Layout("absurd parameter count".into()));
@@ -253,32 +294,7 @@ impl VstInstance {
             .filter(|v| v.writable)
             .map(|v| (v.id, 0.0, None))
             .collect();
-        let separate = separate_guard.is_some();
-        // Ownership of termination moves to Objects. Drop COM refs without
-        // calling terminate a second time (forget only the initialized wrappers).
-        drop(initialized.into_inner());
-        if let Some(controller_guard) = separate_guard {
-            drop(controller_guard.into_inner());
-        }
-        Ok(Self {
-            objects: Arc::new(Objects {
-                component,
-                processor,
-                controller,
-                separate,
-                connection,
-                _context: context,
-                _module: module,
-            }),
-            layout,
-            params,
-            values: values.into(),
-            handler,
-            active: false,
-            editor: None,
-            controller_values,
-            deactivation_values,
-        })
+        Ok(Capabilities { layout, params, values: values.into(), controller_values, deactivation_values })
     }
     fn value(&self, id: u32) -> Option<&Value> {
         self.values
@@ -338,6 +354,28 @@ impl InstanceBackend for VstInstance {
                 self.flush_params(std::slice::from_ref(change), out);
             }
         }
+    }
+    fn refresh_capabilities(&mut self) -> Result<(), PluginError> {
+        if self.active { return Err(PluginError::AlreadyActive); }
+        let previous_edits = self.deactivation_values.clone();
+        let Capabilities { layout, params, values, controller_values, mut deactivation_values } = Self::read_capabilities(&self.objects.component, &self.objects.controller)?;
+        for (id, _, after) in &mut deactivation_values {
+            *after = previous_edits.iter().find(|(previous, _, _)| previous == id).and_then(|(_, _, after)| *after);
+        }
+        for value in values.iter() {
+            if let Some(previous) = self.value(value.id)
+                && previous.pending.load(Ordering::Relaxed)
+                && !deactivation_values.iter().any(|(id, _, after)| *id == value.id && after.is_some()) {
+                value.set(previous.normalized());
+                value.pending.store(true, Ordering::Relaxed);
+            }
+        }
+        self.layout = layout;
+        self.params = params;
+        self.values = values;
+        self.controller_values = controller_values;
+        self.deactivation_values = deactivation_values;
+        Ok(())
     }
     fn layout(&self) -> &PluginLayout {
         &self.layout
@@ -658,9 +696,7 @@ impl InstanceBackend for VstInstance {
         }
         if flags & 8 != 0 {
             let latency = unsafe { self.objects.processor.getLatencySamples() };
-            if let Some(shared) = active {
-                shared.latency.store(latency, Ordering::Relaxed);
-            }
+            // Old prepared compensation remains fixed until re-admission.
             notify(PluginNotification::LatencyChanged { samples: latency });
         }
         if flags & 4 != 0 {

@@ -74,7 +74,7 @@ const TAIL_SLACK_FRAMES: u64 = 256;
 /// Most routed effect outputs one track can have: every slot of its chain
 /// with every output an effect can offer.
 const MAX_TAPS_PER_TRACK: usize =
-    windfall_project::MAX_EFFECT_SLOTS * windfall_dsp::MAX_AUX_OUTPUTS;
+    windfall_project::MAX_EFFECT_SLOTS * 64;
 
 /// Lengths, in frames, of the fades a change of plan can start.
 #[derive(Debug, Clone, Copy)]
@@ -686,6 +686,15 @@ impl Layout {
                 }
                 self.arrival[channel.track] = self.arrival[channel.track].max(latency);
                 self.reach[channel.track] = self.reach[channel.track].max(latency);
+                if let Some(binding) = plan.plugins.iter().find(|binding| binding.target == key) {
+                    for route in &binding.capabilities.routes {
+                        if binding.capabilities.outputs.iter().any(|port| port.index == route.output)
+                            && let Some(target) = plan.track_ids.get(route.track.0) {
+                            self.arrival[target] = self.arrival[target].max(latency);
+                            self.reach[target] = self.reach[target].max(latency);
+                        }
+                    }
+                }
             }
         }
         for &index in &plan.order {
@@ -886,7 +895,15 @@ impl Layout {
     }
 }
 
+pub(crate) struct NativeInstrumentOutput {
+    pub channel: usize,
+    pub bus: u32,
+    pub track: usize,
+    pub delay: crate::rack::Compensation,
+}
+
 pub(crate) struct PlanState {
+    pub native_instrument_outputs: Vec<NativeInstrumentOutput>,
     pub workers: Box<crate::parallel::Workers>,
     pub parallel_scratch: Vec<crate::mixer::TrackScratch>,
     layout: Option<Layout>,
@@ -1297,6 +1314,18 @@ impl PlanState {
             history_capacity: 0,
         };
 
+        let mut native_instrument_outputs = Vec::new();
+        for binding in &plan.plugins {
+            let windfall_project::PluginTarget::Instrument { channel } = binding.target else { continue; };
+            let Some(channel) = plan.channel_ids.get(channel.0) else { continue; };
+            let latency = ledger.plugins.get(&binding.target).map_or(0, |record| record.1);
+            for route in &binding.capabilities.routes {
+                if !binding.capabilities.outputs.iter().any(|port| port.index == route.output) { continue; }
+                let Some(track) = plan.track_ids.get(route.track.0).filter(|&track| !plan.tracks[track].current) else { continue; };
+                let delay = layout.arrival[track].saturating_sub(latency);
+                native_instrument_outputs.push(NativeInstrumentOutput { channel, bus: route.output, track, delay: crate::rack::Compensation::new(delay, delay) });
+            }
+        }
         let mut edges = vec![Ramp::at_rest(0.0); plan.edge_count];
         let mut edge_delays: Vec<DelaySlot> =
             (0..plan.edge_count).map(|_| DelaySlot::none()).collect();
@@ -1680,6 +1709,7 @@ impl PlanState {
                 .collect(),
             edges,
             chains,
+            native_instrument_outputs,
             key_delays,
             instruments,
             direct,

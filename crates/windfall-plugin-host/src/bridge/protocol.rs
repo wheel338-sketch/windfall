@@ -2,7 +2,7 @@
 
 use crate::{HostEvent, Transport};
 
-pub const VERSION: u32 = 8;
+pub const VERSION: u32 = 9;
 pub const DEFAULT_BLOCK: usize = 256;
 pub const MAGIC: u32 = u32::from_le_bytes(*b"WFBR");
 pub const SLOT_COUNT: usize = 4;
@@ -15,16 +15,19 @@ pub const HELPER_FAILURE: usize = 26;
 pub const OWNER_COMPLETIONS: usize = 27;
 pub const TIMELINE_EPOCH: usize = 28;
 pub const NATIVE_CHANGES: usize = 29;
+pub const READMISSION: usize = 30;
 pub const META_WORDS: usize = 64;
 pub const INPUT: usize = META_WORDS;
 pub const KEY_INPUT: usize = INPUT + MAX_BLOCK * 2;
 pub const OUTPUT: usize = KEY_INPUT + MAX_BLOCK * 2;
-pub const NOTES: usize = OUTPUT + MAX_BLOCK * 2;
+pub const AUX_OUTPUT: usize = OUTPUT + MAX_BLOCK * 2;
+pub const NOTES: usize = AUX_OUTPUT + MAX_BLOCK * 2 * crate::MAX_PORTS as usize;
 pub const NOTE_KEYS: usize = 16 * 128;
 pub const NOTE_SNAPSHOT_WORDS: usize = 9;
 pub const INSTANCES: usize = NOTES + NOTE_KEYS;
 pub const PARAMETERS: usize = INSTANCES + crate::MAX_NOTE_INSTANCES * NOTE_SNAPSHOT_WORDS;
 pub const INSTANCE_COUNT: usize = 54;
+pub const OUTPUT_COUNT: usize = 55;
 pub const EVENTS: usize = PARAMETERS + PARAM_CAPACITY * 3;
 pub const EVENT_WORDS: usize = 8;
 pub const SLOT_WORDS: usize = (EVENTS + EVENT_CAPACITY * EVENT_WORDS).next_multiple_of(16);
@@ -509,10 +512,10 @@ mod tests {
     #[test]
     fn earlier_mapping_versions_never_downgrade_the_v8_note_snapshot_contract() {
         let mut header = config().header().unwrap();
-        assert_eq!(header[1], 8);
+        assert_eq!(header[1], 9);
         assert_eq!(header[OWNER_COMPLETIONS], 0);
         assert_eq!(header[TIMELINE_EPOCH], 1);
-        for version in [1, 2, 3, 4, 5, 6, 7] {
+        for version in [1, 2, 3, 4, 5, 6, 7, 8] {
             header[1] = version;
             assert_eq!(
                 Config::from_header(&header, REGION_BYTES),

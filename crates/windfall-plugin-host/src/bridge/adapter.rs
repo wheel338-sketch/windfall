@@ -58,6 +58,7 @@ pub struct Health {
 }
 
 pub struct Audio {
+    rendered: crate::outputs::OutputBank,
     sidechain_input: Option<u32>,
     region: Region,
     signals: Arc<Signals>,
@@ -115,6 +116,7 @@ impl Audio {
         }
         let latency = region.config.latency();
         let mut audio = Self {
+            rendered: crate::outputs::OutputBank::new(MAX_BLOCK),
             sidechain_input: None,
             region,
             signals,
@@ -630,6 +632,10 @@ impl Audio {
         // discarded on a future boundary without native-generation ack.
         self.region.discard_before(expected + 1);
     }
+    pub fn copy_output(&self, bus: u32, output: &mut [[f32; 2]]) -> bool {
+        if self.signals.failed.load(Ordering::Acquire) || bus as usize >= self.output.output_count { output.fill([0.0; 2]); false }
+        else { self.rendered.copy(bus, output) }
+    }
     pub fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
         self.process_sidechain(left, right, None);
     }
@@ -639,6 +645,9 @@ impl Audio {
         right: &mut [f32],
         key: Option<&[[f32; 2]]>,
     ) {
+        self.process_sidechain_at(left, right, key, 0);
+    }
+    fn process_sidechain_at(&mut self, left: &mut [f32], right: &mut [f32], key: Option<&[[f32; 2]]>, offset: usize) {
         if left.len() != right.len() {
             self.signals.failed.store(true, Ordering::Release);
             return;
@@ -649,6 +658,10 @@ impl Audio {
         for (index, (left, right)) in left.iter_mut().zip(right).enumerate() {
             if self.cursor == 0 {
                 self.choose_output();
+            }
+            for bus in 0..self.output.output_count {
+                if offset + index >= MAX_BLOCK { continue; }
+                self.rendered.buses[bus][offset + index] = if self.available { self.output.auxiliary.buses[bus][self.cursor] } else { [0.0; 2] };
             }
             let input = [finite_input(*left), finite_input(*right)];
             self.input.left[self.cursor] = input[0];
@@ -821,11 +834,12 @@ impl Audio {
             let corrupt = self.health.corrupt_blocks;
             let full = self.health.full_blocks;
             let unknown = self.health.unknown_blocks;
-            self.process_sidechain(
+            self.process_sidechain_at(
                 &mut left[offset..offset + frames],
                 &mut right[offset..offset + frames],
                 // A key shorter than the audio is silent past its own end only.
                 key.map(|key| &key[offset.min(key.len())..(offset + frames).min(key.len())]),
+                offset,
             );
             if self.health.corrupt_blocks != corrupt {
                 return Err(OfflineError::Corrupt);
@@ -1305,6 +1319,7 @@ mod tests {
                     left: [0.125; MAX_BLOCK],
                     right: [0.125; MAX_BLOCK],
                     native_drops: 0,
+                    ..OutputBlock::silent()
                 },
                 OUTPUT_OK,
             );

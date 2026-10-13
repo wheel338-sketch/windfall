@@ -45,6 +45,7 @@ pub struct Applied {
 pub struct Document {
     _asset_pins: windfall_dsp::asset::AssetPins,
     project: Project,
+    plugin_addresses: Vec<PluginAddresses>,
     revision: u64,
     entries: Vec<Entry>,
     /// How many entries are applied. Entries from here on have been undone.
@@ -55,6 +56,19 @@ pub struct Document {
     /// The gesture that made the last applied entry, while later dispatches
     /// of that gesture may still merge into it.
     open_gesture: Option<u64>,
+}
+
+#[derive(Debug, Clone)]
+struct PluginAddresses {
+    target: crate::PluginTarget,
+    format: String,
+    path: String,
+    id: String,
+    parameters: Vec<crate::PluginParameter>,
+}
+impl PluginAddresses {
+    fn of(binding: &crate::PluginBinding) -> Self { Self { target: binding.target, format: binding.format.clone(), path: binding.path.clone(), id: binding.id.clone(), parameters: binding.parameters.clone() } }
+    fn matches(&self, binding: &crate::PluginBinding) -> bool { self.target == binding.target && self.format == binding.format && self.path == binding.path && self.id == binding.id }
 }
 
 #[derive(Debug, Clone)]
@@ -91,6 +105,7 @@ impl Document {
     pub fn new(project: Project) -> Self {
         Self {
             _asset_pins: project_asset_pins(&project),
+            plugin_addresses: project.plugins.iter().map(PluginAddresses::of).collect(),
             project,
             revision: 0,
             entries: Vec::new(),
@@ -167,6 +182,7 @@ impl Document {
             edit.mark(Direction::Forward, &mut touched);
         }
         self.drop_removed_patterns(&mut touched);
+        self.retain_plugin_addresses(&mut touched);
 
         if outcome.edits.is_empty() {
             if self.open_gesture != gesture {
@@ -422,6 +438,7 @@ impl Document {
             edit.mark(Direction::Backward, touched);
         }
         self.cursor -= 1;
+        self.retain_plugin_addresses(touched);
         true
     }
 
@@ -434,7 +451,24 @@ impl Document {
             edit.mark(Direction::Forward, touched);
         }
         self.cursor += 1;
+        self.retain_plugin_addresses(touched);
         true
+    }
+
+    /// History can restore values/topology, but cannot release an automation
+    /// address for reuse. Rejected transactions never enter this registry.
+    fn retain_plugin_addresses(&mut self, touched: &mut Touched) {
+        for binding in &mut self.project.plugins {
+            if let Some(known) = self.plugin_addresses.iter_mut().find(|known| known.matches(binding)) {
+                let before = binding.clone();
+                let current = std::mem::replace(&mut binding.parameters, known.parameters.clone());
+                let missing = binding.capabilities.unavailable_parameters.clone();
+                binding.admit_parameters(current);
+                for id in missing { if !binding.capabilities.unavailable_parameters.contains(&id) { binding.capabilities.unavailable_parameters.push(id); } }
+                known.parameters = binding.parameters.clone();
+                if *binding != before { touched.plugins = true; self.saved = None; }
+            } else { self.plugin_addresses.push(PluginAddresses::of(binding)); }
+        }
     }
 
     /// `Touched::patterns` lists patterns whose data changed; one that no

@@ -299,7 +299,7 @@ impl PlanTrack {
         self.edges
             .iter()
             .filter_map(|edge| edge.tap)
-            .filter(|tap| tap.place == place)
+            .filter(|tap| tap.place == place && usize::from(tap.output) < windfall_dsp::MAX_AUX_OUTPUTS)
             .fold(0, |mask, tap| mask | (1 << tap.output))
     }
 }
@@ -981,7 +981,7 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
     };
     let swing = f64::from(unit(project.settings.swing));
 
-    let (mut tracks, order) = compile_mixer(&project.mixer);
+    let (mut tracks, order) = compile_mixer_plugins(&project.mixer, &project.plugins);
     for effect in tracks.iter_mut().flat_map(|track| &mut track.effects) {
         if let EffectParams::Scratch(p) = &mut effect.params {
             p.runtime_source = pool
@@ -1637,7 +1637,9 @@ pub(crate) fn compile_audio_clips(
 /// silent. While any track is soloed, a track is heard only if it is soloed
 /// itself, feeds a soloed track through outputs and sends, or carries a
 /// soloed track's signal on toward the master.
-fn compile_mixer(mixer: &Mixer) -> (Vec<PlanTrack>, Vec<usize>) {
+#[cfg(test)]
+fn compile_mixer(mixer: &Mixer) -> (Vec<PlanTrack>, Vec<usize>) { compile_mixer_plugins(mixer, &[]) }
+fn compile_mixer_plugins(mixer: &Mixer, plugins: &[windfall_project::PluginBinding]) -> (Vec<PlanTrack>, Vec<usize>) {
     let fallback_master = [MixerTrack {
         dock: windfall_project::MixerDock::default(),
         external_output: None,
@@ -1742,11 +1744,24 @@ fn compile_mixer(mixer: &Mixer) -> (Vec<PlanTrack>, Vec<usize>) {
                 });
                 Some(edge)
             });
+            let native_taps = plugins.iter().filter_map(|binding| {
+                let windfall_project::PluginTarget::Effect { effect } = binding.target else { return None; };
+                let place = effects.iter().position(|slot| slot.id == effect)?;
+                Some((binding, effect, place))
+            }).flat_map(|(binding, effect, place)| {
+                binding.capabilities.routes.iter().filter_map(move |route| {
+                    if !binding.capabilities.outputs.iter().any(|port| port.index == route.output) { return None; }
+                    let mut edge = edge(route.track, false, false, 1.0)?;
+                    edge.tap = Some(PlanTap { effect, output: route.output as u8, place });
+                    Some(edge)
+                })
+            });
             let edges: Vec<PlanEdge> = output
                 .into_iter()
                 .chain(sends)
                 .chain(keys)
                 .chain(taps)
+                .chain(native_taps)
                 .collect();
             PlanTrack {
                 processing: track.processing,

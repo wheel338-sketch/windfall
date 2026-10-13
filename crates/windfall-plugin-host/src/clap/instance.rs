@@ -275,6 +275,36 @@ impl ClapInstance {
 }
 
 impl InstanceBackend for ClapInstance {
+    fn refresh_capabilities(&mut self) -> Result<(), PluginError> {
+        // Finish a requested owner callback without consuming its dirty/restart
+        // notifications. The installed owner will deliver those through idle.
+        let callback = self.instance.access_shared_handler(|shared| shared.take(flag::CALLBACK));
+        if callback != 0 { self.instance.call_on_main_thread_callback(); }
+        let plugin = self.instance.plugin_handle();
+        let inputs = read_ports(self.extensions.audio_ports, &plugin, true)?;
+        let outputs = read_ports(self.extensions.audio_ports, &plugin, false)?;
+        let (mut note_inputs, mut note_outputs, mut dialect) = (0, 0, Dialect::None);
+        if let Some(ports) = self.extensions.note_ports {
+            note_inputs = ports.count(&plugin, true);
+            note_outputs = ports.count(&plugin, false);
+            if note_inputs > MAX_PORTS || note_outputs > MAX_PORTS {
+                return Err(PluginError::Layout("invalid refreshed note ports".into()));
+            }
+            let mut buffer = NotePortInfoBuffer::new();
+            if let Some(port) = ports.get(&plugin, 0, true, &mut buffer) {
+                if port.supported_dialects.contains(NoteDialects::CLAP) { dialect = Dialect::Clap; }
+                else if port.supported_dialects.contains(NoteDialects::MIDI) { dialect = Dialect::Midi; }
+            }
+        }
+        let params = read_params(self.extensions.params, &plugin);
+        self.layout.audio_inputs = inputs.iter().map(audio_port).collect();
+        self.layout.audio_outputs = outputs.iter().map(audio_port).collect();
+        self.layout.note_inputs = note_inputs;
+        self.layout.note_outputs = note_outputs;
+        self.layout.parameter_count = params.len() as u32;
+        self.inputs = inputs; self.outputs = outputs; self.dialect = dialect; self.params = params;
+        Ok(())
+    }
     fn layout(&self) -> &PluginLayout {
         &self.layout
     }
@@ -460,7 +490,7 @@ impl InstanceBackend for ClapInstance {
             && let (Some(latency), Some(active)) = (self.extensions.latency, active)
         {
             let samples = latency.get(&self.instance.plugin_handle());
-            if active.latency.swap(samples, Ordering::Relaxed) != samples {
+            if active.latency.load(Ordering::Relaxed) != samples {
                 notify(PluginNotification::LatencyChanged { samples });
             }
         }

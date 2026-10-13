@@ -139,6 +139,7 @@ fn nested_hosted_node_owners_capture_state_parameters_presets_and_removal_histor
     let (mut doc, channel) = document();
     let mut inner = RackGraph { next_id: 2, nodes: vec![node(1, RackProcessor::Effect { params: EffectKind::Polarity.default_params(), mix: 1.0 })], ..Default::default() };
     inner.nodes[0].hosted = Some(PluginBinding {
+        capabilities: Default::default(),
         wrapper: Default::default(), target: PluginTarget::Effect { effect: EffectId(0) }, format: "clap".into(), path: "C:/owned/fixture.clap".into(), id: "org.windfall.test.bridge-delayed".into(), name: "Owned fixture".into(), state: vec![10, 20, 30], parameters: vec![PluginParameter { id: 7, name: "Gain".into(), min: 0.0, max: 1.0, value: 0.5, stepped: false, read_only: false, automatable: true }], sidechain_input: None, auxiliary_inputs: Vec::new(),
     });
     let mut rack = RackGraph { next_id: 2, nodes: vec![node(1, RackProcessor::Rack { graph: Box::new(inner) })], ..Default::default() };

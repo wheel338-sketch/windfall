@@ -187,6 +187,7 @@ fn utility_effects_r3_fixed_stage_removal_before_and_after_matrices_is_allocatio
                     rig.project.plugins.push(windfall_project::PluginBinding {
                         sidechain_input: None,
                         auxiliary_inputs: Vec::new(),
+                        capabilities: Default::default(),
                         wrapper: Default::default(),
                         target: windfall_project::PluginTarget::Effect { effect: fixed },
                         format: "clap".into(),
@@ -333,6 +334,7 @@ fn utility_effects_r3_unheard_speculative_native_slots_retire_without_activation
         rig.project.plugins.push(windfall_project::PluginBinding {
             sidechain_input: None,
             auxiliary_inputs: Vec::new(),
+            capabilities: Default::default(),
             wrapper: Default::default(),
             target: windfall_project::PluginTarget::Effect { effect: plugin },
             format: "clap".into(),
@@ -380,6 +382,7 @@ fn utility_effects_r3_restored_native_id_uses_a_new_active_owner_not_a_retiring_
     let binding = windfall_project::PluginBinding {
         sidechain_input: None,
         auxiliary_inputs: Vec::new(),
+        capabilities: Default::default(),
         wrapper: Default::default(),
         target: windfall_project::PluginTarget::Effect { effect: plugin },
         format: "clap".into(),
@@ -442,6 +445,7 @@ fn r4_restore_tone(hosted: bool) {
     let binding = windfall_project::PluginBinding {
         sidechain_input: None,
         auxiliary_inputs: Vec::new(),
+        capabilities: Default::default(),
         wrapper: Default::default(),
         target: windfall_project::PluginTarget::Effect { effect: fixed },
         format: "clap".into(),
@@ -532,6 +536,7 @@ fn utility_effects_r4_repeated_restore_remove_tones_before_between_after_matrice
             let binding = windfall_project::PluginBinding {
                 sidechain_input: None,
                 auxiliary_inputs: Vec::new(),
+                capabilities: Default::default(),
                 wrapper: Default::default(),
                 target: windfall_project::PluginTarget::Effect { effect: fixed },
                 format: "clap".into(),
@@ -639,6 +644,7 @@ fn utility_effects_r4_restoration_keeps_serial_route_compensation_cancelling() {
                 let binding = windfall_project::PluginBinding {
                     sidechain_input: None,
                     auxiliary_inputs: Vec::new(),
+                    capabilities: Default::default(),
                     wrapper: Default::default(),
                     target: windfall_project::PluginTarget::Effect { effect: fixed },
                     format: "clap".into(),
@@ -850,6 +856,7 @@ fn r4_binding(effect: windfall_project::EffectId) -> windfall_project::PluginBin
     windfall_project::PluginBinding {
         sidechain_input: None,
         auxiliary_inputs: Vec::new(),
+        capabilities: Default::default(),
         wrapper: Default::default(),
         target: windfall_project::PluginTarget::Effect { effect },
         format: "clap".into(),
@@ -1371,6 +1378,7 @@ fn utility_effects_r3_prepared_native_revision_cannot_be_activated_as_a_departin
     rig.project.plugins.push(windfall_project::PluginBinding {
         sidechain_input: None,
         auxiliary_inputs: Vec::new(),
+        capabilities: Default::default(),
         wrapper: Default::default(),
         target: windfall_project::PluginTarget::Effect { effect: plugin },
         format: "clap".into(),
@@ -1957,6 +1965,7 @@ fn utility_effects_r2_sampler_matrix_and_hosted_delay_keep_pdc_and_plugin_owners
         rig.project.plugins.push(PluginBinding {
             sidechain_input: None,
             auxiliary_inputs: Vec::new(),
+            capabilities: Default::default(),
             wrapper: Default::default(),
             target: PluginTarget::Effect { effect: plugin },
             format: "clap".into(),

@@ -145,6 +145,7 @@ fn add() -> Command {
         plugin: PluginBinding {
             sidechain_input: None,
             auxiliary_inputs: Vec::new(),
+            capabilities: Default::default(),
             wrapper: Default::default(),
             target: PluginTarget::Effect {
                 effect: EffectId(0),

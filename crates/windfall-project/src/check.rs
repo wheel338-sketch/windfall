@@ -198,6 +198,7 @@ impl Project {
                 return Err("a plugin binding has a missing or repeated owner".to_owned());
             }
         }
+        self.check_plugin_routing()?;
         check_patterns(self)?;
         check_automations(self)?;
         check_playlist(self)

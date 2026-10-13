@@ -28,6 +28,8 @@ pub trait HostedEffect: Send {
     /// Release editor/capture selection, while retaining audio/tail ownership.
     /// Callback metadata only; no native destruction or shared-owner release.
     fn retire_from_document(&mut self) {}
+    /// Reads the last rendered native auxiliary bus without running DSP again.
+    fn copy_output(&self, _bus: u32, output: &mut [[f32; 2]]) -> bool { output.fill([0.0; 2]); false }
     fn set_sidechain_input(&mut self, _input: Option<u32>) {}
     /// Services an ownership exchange without processing sound. Called at
     /// callback/block boundaries for stopped, bypassed and retiring slots too.
@@ -181,7 +183,12 @@ pub(crate) fn identity(binding: &PluginBinding) -> u64 {
     if !binding.wrapper.is_default() {
         binding.wrapper.hash(&mut hash);
     }
+    binding.capabilities.revision.hash(&mut hash);
+    binding.capabilities.unavailable_parameters.hash(&mut hash);
+    for port in &binding.capabilities.outputs { port.index.hash(&mut hash); port.channels.hash(&mut hash); }
     for parameter in &binding.parameters {
+        parameter.min.to_bits().hash(&mut hash);
+        parameter.max.to_bits().hash(&mut hash);
         parameter.id.hash(&mut hash);
     }
     hash.finish()
@@ -270,6 +277,7 @@ pub(crate) struct ExternalEffect {
     remaining: usize,
     latency: usize,
     sample_rate: u32,
+    wet_frames: Box<[f32]>,
 }
 
 impl ExternalEffect {
@@ -297,6 +305,7 @@ impl ExternalEffect {
             remaining: 0,
             latency,
             sample_rate: rate,
+            wet_frames: vec![wet; crate::mixer::MAX_BLOCK].into_boxed_slice(),
         };
         slot.apply(binding);
         slot
@@ -360,9 +369,15 @@ impl ExternalEffect {
                     self.wet = self.target;
                 }
             }
+            self.wet_frames[index] = self.wet;
             left[index] = dry[index][0] + (left[index] - dry[index][0]) * self.wet;
             right[index] = dry[index][1] + (right[index] - dry[index][1]) * self.wet;
         }
+    }
+    pub fn copy_output(&self, bus: u32, output: &mut [[f32; 2]]) -> bool {
+        let good = self.unit.as_ref().is_some_and(|unit| unit.copy_output(bus, output));
+        for (frame, wet) in output.iter_mut().zip(&self.wet_frames) { frame[0] *= wet; frame[1] *= wet; }
+        good
     }
     pub fn latency(&self) -> usize {
         self.latency
@@ -398,6 +413,10 @@ mod tests {
         cursor: usize,
     }
     impl HostedEffect for Fixture {
+        fn copy_output(&self, bus: u32, output: &mut [[f32; 2]]) -> bool {
+            let value = match bus { 1 => [0.125, 0.125], 2 => [0.25, 0.375], _ => { output.fill([0.0; 2]); return false; } };
+            output.fill(value); true
+        }
         fn control_boundary(&mut self) {
             self.boundaries.fetch_add(1, Ordering::Relaxed);
         }
@@ -455,7 +474,7 @@ mod tests {
     impl PluginFactory for FixtureFactory {
         fn effect(
             &self,
-            _: &PluginBinding,
+            binding: &PluginBinding,
             _: u32,
             _: usize,
         ) -> Result<Box<dyn HostedEffect>, String> {
@@ -466,7 +485,7 @@ mod tests {
                 level: 1.0,
                 held: false,
                 instrument: false,
-                delay: vec![[0.0; 2]; self.latency].into_boxed_slice(),
+                delay: vec![[0.0; 2]; if binding.state.first() == Some(&0xFE) { binding.state.get(1).copied().map_or(0, usize::from) } else { self.latency }].into_boxed_slice(),
                 cursor: 0,
             }))
         }
@@ -492,6 +511,7 @@ mod tests {
         PluginBinding {
             sidechain_input: None,
             auxiliary_inputs: Vec::new(),
+            capabilities: Default::default(),
             wrapper: Default::default(),
             target: PluginTarget::Instrument {
                 channel: ChannelId(0),
@@ -893,4 +913,72 @@ mod tests {
             "normalized 0.4 must map to native 0.8 in the discovered 0..2 range, using native ID 43"
         );
     }
+    #[test]
+    fn saved_native_output_routes_match_live_pcm_offline_reopen_and_undo() {
+        for instrument in [true, false] {
+            let mut doc = Document::new(project());
+            let source = doc.dispatch(Command::AddMixerTrack { name: Some("Native source".into()) }, None).unwrap().created[0];
+            let first = doc.dispatch(Command::AddMixerTrack { name: Some("Mono destination".into()) }, None).unwrap().created[0];
+            let second = doc.dispatch(Command::AddMixerTrack { name: Some("Stereo destination".into()) }, None).unwrap().created[0];
+            let target = if instrument { doc.project().plugins[0].target } else {
+                doc.dispatch(Command::AddPluginEffect { track: TrackId(source), plugin: binding() }, None).unwrap();
+                doc.project().plugins.last().unwrap().target
+            };
+            let mut project = doc.project().clone();
+            project.channels[0].volume = 1.0;
+            project.settings.pan_law = windfall_project::PanLaw::Balance;
+            let plugin = project.plugins.iter_mut().find(|plugin| plugin.target == target).unwrap();
+            plugin.capabilities.outputs = vec![PluginAuxInput { index: 1, name: "Mono".into(), channels: 1 }, PluginAuxInput { index: 2, name: "Stereo".into(), channels: 2 }];
+            let mut doc = Document::new(project);
+            doc.dispatch(Command::SetPluginOutputRoute { target, output: 1, track: Some(TrackId(first)) }, None).unwrap();
+            doc.dispatch(Command::SetPluginOutputRoute { target, output: 2, track: Some(TrackId(second)) }, None).unwrap();
+            let routed = doc.project().clone();
+            doc.undo().unwrap(); assert_eq!(doc.project().plugin(target).unwrap().capabilities.routes.len(), 1);
+            doc.redo().unwrap(); assert_eq!(doc.project(), &routed);
+            let reopened = windfall_project::file::from_json(&windfall_project::file::to_json(&routed).unwrap()).unwrap();
+            assert_eq!(reopened, routed);
+            let mut pool = crate::SamplePool::new(); pool.set_plugin_factory(Arc::new(FixtureFactory::default()));
+            let options = crate::RenderOptions { block_frames: 137, ..Default::default() };
+            let exported = crate::render(&reopened, &pool, &options, &mut |_| true);
+            let (mut processor, control) = crate::Processor::new(48_000);
+            control.set_project(&reopened, &pool); control.play();
+            let mut live = vec![0.0; exported.samples().len()];
+            for chunk in live.chunks_mut(58) { assert_eq!(crate::test_alloc::allocator_calls(|| processor.process(chunk)), 0); }
+            assert_eq!(live, exported.samples());
+            let mut baseline = reopened.clone(); baseline.plugins.iter_mut().find(|plugin| plugin.target == target).unwrap().capabilities.routes.clear();
+            let reference = crate::render(&baseline, &pool, &options, &mut |_| true);
+            // Auxiliary outputs are before the effect/channel's destination
+            // faders. Two native buses add independent stereo markers.
+            for (at, (actual, base)) in exported.samples().iter().zip(reference.samples()).enumerate().skip(4096).take(1024) {
+                let expected = if at % 2 == 0 { 0.375 } else { 0.5 };
+                assert!((actual - base - expected).abs() < 1e-6, "instrument={instrument}, sample={at}");
+            }
+        }
+    }
+
+    #[test]
+    fn dynamic_readmission_rebuilds_native_latency_compensation_off_callback() {
+        let mut doc = Document::new(project());
+        doc.dispatch(Command::AddPluginEffect { track: TrackId::MASTER, plugin: binding() }, None).unwrap();
+        let target = doc.project().plugins.last().unwrap().target;
+        let parameters = doc.project().plugin(target).unwrap().parameters.clone();
+        let factory = Arc::new(FixtureFactory::default());
+        let mut pool = crate::SamplePool::new(); pool.set_plugin_factory(factory.clone());
+        let (mut processor, control) = crate::Processor::new(48_000);
+        let reference = crate::render(doc.project(), &pool, &crate::RenderOptions::default(), &mut |_| true);
+        for latency in [37, 64, 17] {
+            doc.dispatch(Command::ReadmitPlugin { target, state: vec![0xFE, latency], parameters: parameters.clone(), auxiliary_inputs: vec![], outputs: vec![] }, None).unwrap();
+            control.set_project(doc.project(), &pool); control.play();
+            for _ in 0..32 { assert_eq!(crate::test_alloc::allocator_calls(|| processor.process(&mut [0.0; 1024])), 0); }
+            // The control snapshot after the completed splice retires the old
+            // latency reservation before asserting the settled plan's PDC.
+            control.set_project(doc.project(), &pool);
+            processor.process(&mut [0.0; 1024]);
+            assert_eq!(control.latency_frames(), u32::from(latency));
+            let compensated = crate::render(doc.project(), &pool, &crate::RenderOptions::default(), &mut |_| true);
+            assert_eq!(compensated.samples(), reference.samples(), "changed native latency must preserve exported note boundaries");
+        }
+        assert!(factory.made.load(Ordering::Relaxed) >= 6, "each live and render admission prepares independent owners");
+    }
+
 }
