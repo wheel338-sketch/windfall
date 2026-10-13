@@ -26,6 +26,7 @@ import {
   portable,
   rootPath,
   run,
+  sha256,
   stage,
   unique,
   walk,

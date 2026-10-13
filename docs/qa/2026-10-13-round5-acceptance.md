@@ -54,6 +54,8 @@ All nine branches are merged. Final Rust workspace (4691 passing), frontend (645
 - Final artifacts PASS: bindings generation621files170s (`target/round5-bindings-final.log`), fresh comparison (`target/round5-bindings-compare-final.log`), simulator7149664bytes118s (`target/round5-sim-final.log`) and freshness (`target/round5-sim-check-final.log`), Node bindings tests10/0/0 (`target/round5-bindings-tests-final.log`). Expanded prefix audit against469be35c PASS (`target/round5-prefix-final.log`), adding all6 note-module prefixes/221params/15choices to prior Command/ALL/effect/instrument/track audit. Frontend typecheck PASS24s (`target/round5-typecheck-final.log`) and lint PASS49s (`target/round5-lint-final.log`),zero diagnostics. Full frontend suite is active; result pending.
 - FINAL frontend suite PASS: `pnpm --dir apps/desktop test --maxWorkers=4 --reporter=default --reporter=json --outputFile=../../target/round5-frontend-final-results.json`, **6453 passed /0 failed /0 skipped**,524 passing files,exit0,559s (`target/round5-frontend-final.log`; JSON `target/round5-frontend-final-results.json`). Production frontend build PASS exit0,24s (`target/round5-frontend-build-final.log`); Vite retains its informational large-chunk warning. Parity check PASS342rows/21in-progress,exit0 (`target/round5-parity-final.log`), tracker untouched. Refreshed Apple host PASS5s and desktop/export PASS21s zero warnings/errors (`target/round5-macos-host-final.log`, `target/round5-macos-desktop-final.log`); Linux host/common PASS9s (`target/round5-linux-host-final.log`). Real stems/native queue active, no result credited.
 
+- Real stem harness PASS: explicit software-only ignored case `real_onnx_four_stem_synthetic_mix_evidence`, **1/0/0**,50.56s tests/148s total (`target/round5-real-stems-final.log`). Exact ORT/model/evidence variables and command are in `target/round5/real-stems.sh`; actual reports/4 WAV stems at both44100/48000Hz are under `target/round5-stem-evidence/1791899684181-27488-44100Hz/` and `1791899703036-27488-48000Hz/`. No hardware case or real device run. Release-script first attempt68/1/0 (`target/round5-release-script-tests.log`) found missing sha256 import in authored resource inventory test; imported the production helper, retaining all missing/ABI/version/hash refusal assertions. Full rerun **69/0/0**,exit0,112s (`target/round5-release-script-tests-final.log`). Native Tauri build active; no result credited.
+
 ## Gate table
 
 Final refreshed gates are pending. Preliminary commands/counts and failures are recorded above; they are not replaced by inherited results.
@@ -136,5 +138,3 @@ The paired unrestricted/selected numbers below were measured in this run. Multip
 | Hybrid sequencer | 1.6898272s | 1.0075318s | 1.0650557s | 1.0772217s | 0.5038 |
 | Hybrid sequencer | 1.7052122s | 1.0289805s | 1.033521s | 1.0819831s | 0.5145 |
 | Hybrid sequencer | 1.6177088s | 1.010378s | 1.0250469s | 1.0257405s | 0.5052 |
-
-
