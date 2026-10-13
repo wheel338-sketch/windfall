@@ -31,10 +31,10 @@ fn equality(bytes: &[u8], rate: u32) {
     controller.set_transport(TransportPatch { mode: Some(PlayMode::Song), loop_song: Some(false), ..Default::default() });
     controller.play();
     let latency = controller.latency_frames() as usize;
-    let body = (0.3 * rate as f64) as usize;
-    let mut output = vec![0.0; (latency + body) * 2];
+    let frames = pcm.frames();
+    let mut output = vec![0.0; (latency + frames) * 2];
     for block in output.chunks_mut(127 * 2) { live.process(block); }
-    assert_eq!(&output[latency * 2..], &pcm.samples()[..body * 2], "live/offline PCM must be exact after PDC");
+    assert_eq!(&output[latency * 2..], pcm.samples(), "live/offline note and complete release PCM must be exact after PDC");
     for block_frames in [7, 127, 1024] {
         let rendered = render_reporting(&prepared.project, &prepared.pool,
             &windfall_engine::RenderOptions { block_frames, ..prepared.options.clone() }, &mut |_| true);
