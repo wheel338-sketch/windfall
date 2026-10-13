@@ -146,7 +146,13 @@ impl DrumSynthPreset {
         max_frames: usize,
         seed: u64,
     ) -> Result<DrumSynthRendered, CodecError> {
-        model::render(self, rate, max_frames, seed)
+        self.render_cancellable(rate, max_frames, seed, &mut || true)
+    }
+    /// Worker-side cancellation at each bounded synthesis block. No prefix is
+    /// returned after cancellation; ordinary deterministic rendering is unchanged.
+    pub fn render_cancellable(&self, rate: u32, max_frames: usize, seed: u64,
+        keep_going: &mut dyn FnMut() -> bool) -> Result<DrumSynthRendered, CodecError> {
+        model::render(self, rate, max_frames, seed, keep_going)
     }
     fn envelope(
         &self,

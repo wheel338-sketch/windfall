@@ -869,7 +869,7 @@ fn carry_owned_presets(
         if source.parent() != Some(owned_folder)
             || !source
                 .extension()
-                .is_some_and(|e| e.eq_ignore_ascii_case("ds") || e.eq_ignore_ascii_case("wav"))
+                .is_some_and(|e| e.eq_ignore_ascii_case("ds") || e.eq_ignore_ascii_case("wav") || e.eq_ignore_ascii_case("wfpreset"))
         {
             continue;
         }

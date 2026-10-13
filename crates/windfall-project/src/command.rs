@@ -1044,6 +1044,10 @@ pub enum Command {
         sample: SampleId,
         expected: SamplePath,
     },
+    /// Retains the portable source and regeneration controls for rendered PCM.
+    RegisterPresetRender {
+        recipe: crate::SamplePresetRender,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]

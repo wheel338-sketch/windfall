@@ -39,11 +39,18 @@ pub struct ClipPlace {
 
 /// An audio file that is decoded and about to be put to use in the project.
 pub(super) struct Import {
-    browser: Option<LibraryFileToken>,
+    pub(super) browser: Option<LibraryFileToken>,
     pub(super) file: PathBuf,
     pub(super) buffer: AudioBuffer,
     /// The document that was open when decoding started.
-    generation: u64,
+    pub(super) generation: u64,
+    pub(super) owned: Option<super::preset_assets::OwnedPreset>,
+    pub(super) render_guard: Option<super::preset_render::Guard>,
+}
+impl Import {
+    fn name(&self) -> String {
+        paths::stem(self.owned.as_ref().map_or(&self.file, |owned| &owned.original))
+    }
 }
 
 impl Session {
@@ -203,12 +210,12 @@ impl Session {
         self.add_channel_import(import, index)
     }
 
-    fn add_channel_import(
+    pub(super) fn add_channel_import(
         &self,
         import: Import,
         index: Option<u32>,
     ) -> Result<DispatchResult, String> {
-        let name = paths::stem(&import.file);
+        let name = import.name();
         self.dispatch_with_sample(import, "Add channel", |sample| Command::AddChannel {
             name: Some(name.clone()),
             sample: Some(sample),
@@ -243,7 +250,7 @@ impl Session {
         self.replace_sample_import(channel, import)
     }
 
-    fn replace_sample_import(
+    pub(super) fn replace_sample_import(
         &self,
         channel: ChannelId,
         import: Import,
@@ -316,7 +323,7 @@ impl Session {
         place: ClipPlace,
         installed: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
     ) -> Result<DispatchResult, String> {
-        let name = paths::stem(&import.file);
+        let name = import.name();
         self.dispatch_import(import, installed, |state, path, sample, buffer| {
             let project = state.document.project();
             let next_id = if project.sample(sample).is_some() {
@@ -393,6 +400,11 @@ impl Session {
 
     fn decode_for_generation(&self, path: &str, generation: u64) -> Result<Import, String> {
         let file = paths::absolute(path)?;
+        if file.extension().is_some_and(|e| e.eq_ignore_ascii_case("wfpreset") || e.eq_ignore_ascii_case("ds")) {
+            let import = self.prepare_preset_import(&file, generation, None, Default::default(), None)?;
+            #[cfg(test)] self.pause("import:decoded");
+            return Ok(import);
+        }
         self.pin_derived(&file);
         let buffer = self.inner.cache.decode(&file)?;
         #[cfg(test)]
@@ -402,6 +414,8 @@ impl Session {
             file,
             buffer,
             generation,
+            owned: None,
+            render_guard: None,
         })
     }
 
@@ -424,7 +438,7 @@ impl Session {
         label: &str,
         then: impl FnOnce(SampleId) -> Command,
     ) -> Result<DispatchResult, String> {
-        let name = paths::stem(&import.file);
+        let name = import.name();
         self.dispatch_import(import, None, |_, path, sample, _| Command::Batch {
             label: Some(label.to_owned()),
             commands: vec![Command::AddSample { name, path }, then(sample)],
@@ -439,8 +453,8 @@ impl Session {
         installed: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
         build: impl FnOnce(&State, SamplePath, SampleId, &AudioBuffer) -> Command,
     ) -> Result<DispatchResult, String> {
-        let original_file = import.file.clone();
-        let mut owned_preset = self.own_preset(&mut import)?;
+        let original_file = import.owned.as_ref().map_or_else(|| import.file.clone(), |p| p.original.clone());
+        let mut owned_preset = self.own_preset(&mut import);
         // Read annotations off-lock from the same decoded file version. The
         // ordinary post-preparation version guard below covers this read too.
         let wav_regions = if import
@@ -488,13 +502,31 @@ impl Session {
             let source = state.pool.get(sample).unwrap_or(&import.buffer);
             let mut command = build(&state, path, sample, source);
             if let Some(owned) = &owned_preset {
+                // Lower the first part on a private document to learn the
+                // source's exact ID, including optional mixer allocations.
+                let source_id = if owned.settings.is_some() {
+                    let mut candidate = windfall_project::Document::new(project.clone());
+                    candidate.dispatch(command.clone(), None).map_err(|e| e.to_string())?;
+                    if let Some(settings) = owned.settings
+                        && let Some(channel) = candidate.project().channels.iter().find(|c| c.source.sample() == Some(sample)) {
+                        command = Command::Batch {
+                            label: Some("Prepare rendered sampler".into()),
+                            commands: vec![command, Command::UpdateSampler {
+                                id: channel.id, patch: windfall_project::SamplerPatch {
+                                    root_key: Some(settings.note), ..Default::default()
+                                },
+                            }],
+                        };
+                    }
+                    Some(SampleId(candidate.project().next_id))
+                } else { None };
                 command = Command::Batch {
-                    label: Some("Import DrumSynth source and rendered sample".into()),
+                    label: Some("Import preset source and rendered sample".into()),
                     commands: vec![
                         command,
                         Command::AddSample {
                             name: format!(
-                                "{} (DrumSynth source)",
+                                "{} (preset source)",
                                 crate::paths::stem(&owned.original)
                             ),
                             path: sample_path_for(
@@ -505,6 +537,14 @@ impl Session {
                         },
                     ],
                 };
+                if let (Some(settings), Some(source)) = (owned.settings, source_id) {
+                    command = Command::Batch {
+                        label: Some("Render preset as sample".into()),
+                        commands: vec![command, Command::RegisterPresetRender {
+                            recipe: windfall_project::SamplePresetRender { sample, source, settings },
+                        }],
+                    };
+                }
             }
             if held.is_none()
                 && let Some(regions) = &wav_regions
@@ -524,6 +564,7 @@ impl Session {
             }
             let mut ticket =
                 self.sample_edit_ticket(&state, command, None, vec![(sample, source.clone())])?;
+            if let Some(guard) = &import.render_guard { ticket = ticket.cancellable(guard.cancellation()); }
             if let Some(installed) = &installed {
                 ticket = ticket.on_install(installed.clone());
             }
@@ -554,17 +595,15 @@ impl Session {
                     "The project audio rate changed during preset rendering. Try again.".into(),
                 );
             }
-            let current = self.inner.cache.decode(&owned.original)?;
-            if !self
-                .inner
-                .cache
-                .same_file_version(&owned.original_audio, &current)
-                || super::preset_assets::read_original(&owned.original)? != owned.bytes
-            {
+            if crate::samples::FileKey::of(&owned.original)? != owned.original_version
+                || super::preset_assets::read_original(&owned.original)? != owned.bytes {
                 return Err("The preset source changed during preparation. Try again.".into());
             }
         }
         let mut result = {
+            // Cancellation and final publication are serialized: a successful
+            // cancel cannot race past the last guard into an installation.
+            let _preset_jobs = crate::sync::lock(&self.inner.preset_jobs);
             let _recording = self.import_recording_guard(installed.is_some())?;
             let _library = import
                 .browser
@@ -625,6 +664,9 @@ impl Session {
     }
 
     fn check_import_generation(&self, state: &State, import: &Import) -> Result<(), String> {
+        if let Some(guard) = &import.render_guard {
+            guard.check(state)?;
+        }
         if state.generation != import.generation {
             return Err(format!(
                 "\"{}\" was not added, because another project was opened while it was loading.",

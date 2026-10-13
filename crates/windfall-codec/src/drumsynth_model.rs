@@ -140,7 +140,9 @@ pub(super) fn render(
     rate: u32,
     max_frames: usize,
     seed: u64,
+    keep_going: &mut dyn FnMut() -> bool,
 ) -> Result<DrumSynthRendered, CodecError> {
+    if !keep_going() { return Err(invalid("Preset rendering cancelled")); }
     if !(8000..=192000).contains(&rate) || max_frames == 0 || max_frames > MAX_DRUMSYNTH_FRAMES {
         return Err(invalid("invalid render rate or frame budget"));
     }
@@ -304,6 +306,7 @@ pub(super) fn render(
     let distortion_gain = gain * attenuation * 10.0_f64.powf(clipping * 0.05);
     let mut out = Vec::with_capacity(length);
     for start in (0..length).step_by(BLOCK) {
+        if !keep_going() { return Err(invalid("Preset rendering cancelled")); }
         let mut data = [0.0_f64; BLOCK];
         let mut increments = [f2; BLOCK];
         if active[1] {

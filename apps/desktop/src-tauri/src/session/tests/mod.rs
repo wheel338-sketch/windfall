@@ -21,6 +21,7 @@ mod files;
 mod files_qa;
 mod flp;
 mod import_formats;
+mod preset_render;
 mod import_recording;
 mod library;
 mod mastering_qa;

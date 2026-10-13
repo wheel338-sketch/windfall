@@ -1569,6 +1569,33 @@ async fn samples_reload(
 }
 
 #[tauri::command]
+fn preset_render_begin(
+    session: State<'_, Session>, window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
+) -> Result<crate::session::PresetRenderTicket, String> {
+    let _window_call = caller.enter(&window, "preset_render_begin")?;
+    session.preset_render_begin()
+}
+#[tauri::command]
+fn preset_render_cancel(
+    session: State<'_, Session>, request: u64, window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
+) -> Result<(), String> {
+    let _window_call = caller.enter(&window, "preset_render_cancel")?;
+    session.preset_render_cancel(request);
+    Ok(())
+}
+#[tauri::command]
+async fn preset_render_file(
+    session: State<'_, Session>, request: u64, input: crate::session::PresetRenderRequest,
+    window: tauri::WebviewWindow, caller: crate::window_calls::WindowCaller,
+) -> Result<DispatchResult, String> {
+    let _window_call = caller.enter(&window, "preset_render_file")?;
+    let session = session.inner().clone();
+    blocking(move || session.preset_render_file(request, input)).await
+}
+
+#[tauri::command]
 async fn add_channel_from_file(
     session: State<'_, Session>,
     path: String,
@@ -2232,6 +2259,9 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         slice_discard,
         samples_reload,
         soundfont_presets,
+        preset_render_begin,
+        preset_render_cancel,
+        preset_render_file,
         soundfont_load,
         soundfont_relink,
         sample_instrument_speech,
