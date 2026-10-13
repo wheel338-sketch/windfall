@@ -57,7 +57,7 @@ export function RackEffectEditor({ node, setParam, apply, commit }: { node: Rack
   const Editor = customEditor(params.type)
   const owner = { impulse: node.asset?.type === "impulse" ? node.asset.impulse : null,
     setImpulse: (impulse: import("@/bindings").ConvolverImpulse | null) => apply(impulse ? { type: "impulse", impulse } : null), commit,
-    source: node.asset?.type === "audio" ? node.asset.audio : null,
+    source: node.asset?.type === "audio" ? node.asset.audio : params.type === "scratch" && params.sourceId !== 0 ? { name: `Unowned legacy sample ${params.sourceId}`, sampleRate: 48000, frames: null } : null,
     setSource: (audio: import("@/bindings").RackAudioAsset | null) => apply(audio ? { type: "audio", audio } : null) }
   // Only the asset editors are used here. Other custom editors can own mixer
   // meters/routes; their generic controls remain scoped to this rack node.

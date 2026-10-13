@@ -73,6 +73,13 @@ pub(super) fn instrument(params: &InstrumentParams, asset: Option<&RackNodeAsset
         }
         Some(RackNodeAsset::SoundFont { bytes: Some(bytes), bank, program, .. }) => Some(windfall_dsp::sample_bank::soundfont::parse_soundfont_preset_budgeted(bytes, *bank, *program, budget).map_err(|e| e.to_string())?),
         Some(RackNodeAsset::SoundFont { bytes: None, .. }) => Some(windfall_dsp::sample_bank::SampleBank::unavailable("Missing rack SoundFont; relink in the module editor".into())),
+        None if params.kind() == windfall_dsp::InstrumentKind::PianoKeys => {
+            // Match the standalone channel's version-one original piano recipe.
+            let reservation = budget.reserve(30 * 24000 * 3 * 4)?;
+            let mut bank = windfall_dsp::sample_bank::sources::piano_bank(false);
+            bank.retain_reservation(reservation);
+            Some(bank)
+        }
         _ => None,
     };
     if let Some(bank) = bank {

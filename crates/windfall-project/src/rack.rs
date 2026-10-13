@@ -215,6 +215,9 @@ impl RackGraph {
         let mut missing = Vec::new();
         for node in &self.nodes {
             if let Some(asset) = &node.asset { missing.extend(asset.missing_sources().into_iter().map(|name| format!("{}: {name}", node.name))); }
+            if node.asset.is_none() && let RackProcessor::Effect { params: EffectParams::Scratch(params), .. } = &node.processor && params.source_id != 0 {
+                missing.push(format!("{}: unowned legacy sample {}; relink its WAV", node.name, params.source_id));
+            }
             if let RackProcessor::Rack { graph } = &node.processor { missing.extend(graph.missing_assets()); }
         }
         missing

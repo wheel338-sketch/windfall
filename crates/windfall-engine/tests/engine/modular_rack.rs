@@ -196,6 +196,16 @@ fn replaced_owned_rack_ir_finishes_its_delayed_audio_and_retires_without_callbac
 }
 
 #[test]
+fn rack_default_piano_prepares_the_standalone_original_bank_before_first_note() {
+    let mut rack_graph = graph(None);
+    rack_graph.nodes[1].processor = RackProcessor::Instrument { params: windfall_project::InstrumentKind::PianoKeys.default_params() };
+    let mut rack = ModularRack::prepare(&rack_graph, RATE, 120.0).unwrap();
+    let mut left = [0.0; 1024]; let mut right = left;
+    assert_eq!(allocator_calls(|| { rack.note_on(NoteInstanceId(1), RackNote::default()); rack.process(&mut left, &mut right); rack.note_off(NoteInstanceId(1)); }), 0);
+    assert!(left.iter().map(|v| v*v).sum::<f32>() > 0.01);
+}
+
+#[test]
 fn rack_automation_clip_and_internal_link_match_independent_notes_live_offline_and_reopen() {
     use super::support::{Rig, run};
     use windfall_engine::{RenderOptions, render};

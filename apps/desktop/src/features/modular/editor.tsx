@@ -215,7 +215,7 @@ export function ModularEditor({ channel, root }: { channel: Channel; root: RackG
               current={() => { const latest = useProjectStore.getState().project.settings.modularRacks?.find((rack) => rack.channel === channel.id)?.graph; return latest ? graphAt(latest, activePath).nodes.find((node) => node.id === current.id) : undefined }}
               apply={(asset, gesture) => updateNode({ ...current, asset }, gesture)}
               setParam={(index, value, gesture) => queueParameter(current.id, "instrument", processor.params.type, index, value, gesture)} />
-              : <RackEffectEditor key={current.id} node={current} apply={(asset) => updateNode({ ...current, asset })}
+              : <RackEffectEditor key={current.id} node={current} apply={(asset) => updateNode({ ...current, asset, processor: processor.params.type === "scratch" && !asset ? { ...processor, params: { ...processor.params, sourceId: 0 } } : processor })}
                 commit={(field, value) => void updateNode({ ...current, processor: { ...processor, params: { ...processor.params, [field]: value } } })}
                 setParam={(index, value, gesture) => queueParameter(current.id, "effect", processor.params.type, index, value, gesture)} />}
 
