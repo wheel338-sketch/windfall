@@ -573,3 +573,226 @@ maximum_test!(beepmap_maximum_load_deadline, ColorScan, 16);
 maximum_test!(boobass_maximum_load_deadline, FingerBass, 1);
 maximum_test!(drumpad_maximum_load_deadline, Membrane, 1);
 maximum_test!(drumsynth_live_maximum_load_deadline, DrumVoice, 8);
+
+// PianoKeys admission: at most 5% of one logical core for a representative
+// 16-note chord, 20% for all 128 voices. These are release-build budgets, far
+// below the general 75% gate. No debug multiplier: acceptance runs --release.
+const PIANO_REPRESENTATIVE_RATIO: f64 = 0.05;
+const PIANO_MAXIMUM_RATIO: f64 = 0.20;
+
+fn piano_strike(unit: &mut AnyInstrument, voices: usize) {
+    for voice in 0..voices {
+        let key = if voices == 128 {
+            voice as u8
+        } else {
+            24 + voice as u8 * 5
+        };
+        // Distinct keys, source zones, velocities and stereo positions. Both
+        // generated velocity layers sound; no identical-voice shortcut applies.
+        unit.note_on_instance(
+            NoteInstanceId(voice as u64 + 1),
+            key,
+            (0.5 + (voice * 53 % 128) as f32) / 128.0,
+            (voice as f32 / voices as f32) * 1.6 - 0.8,
+            NoteExpression::default(),
+        );
+    }
+}
+
+fn piano_deadline(
+    rate: usize,
+    partition: &[usize],
+    voices: usize,
+    bank: &std::sync::Arc<windfall_dsp::sample_bank::SampleBank>,
+) {
+    let budget = if voices == 128 {
+        PIANO_MAXIMUM_RATIO
+    } else {
+        PIANO_REPRESENTATIVE_RATIO
+    };
+    let params = InstrumentKind::PianoKeys.default_params();
+    let mut unit = AnyInstrument::new(&params);
+    unit.prepare(rate as f32, 511);
+    assert!(unit.install_sample_bank(bank.clone()));
+    let mut left = [0.0; 511];
+    let mut right = [0.0; 511];
+    let mut best = [Duration::MAX; 3];
+    let mut reference = None;
+    let event_frames = rate / 8;
+    for _ in 0..3 {
+        let mut elapsed = [Duration::ZERO; 3];
+        let mut peak_callback = Duration::ZERO;
+        let mut stats = PcmStats::default();
+        let mut held_energy = 0.0;
+        let mut release_energy = 0.0;
+        let mut full_load = true;
+        let mut drained = false;
+        let calls = allocator_calls(|| {
+            let at = Instant::now();
+            unit.reset();
+            unit.set_params(&params);
+            piano_strike(&mut unit, voices);
+            elapsed[0] += at.elapsed();
+            // Held: 2 seconds at full polyphony. Pedal-held key-up: 1/8 s.
+            // Pedal-up/release: 1/4 s (up to 198 ms with live controls); tail: 1/8 s.
+            // Sustain is implemented by MIDI's control worker, which defers
+            // note-offs, not by a PianoKeys parameter. Its actual CC64 path is
+            // tested in hardware_piano_keys_sustain_keeps_both_velocity_layers.
+            let held_end = rate * 2 + event_frames;
+            let release_end = held_end + rate / 4;
+            let end = release_end + event_frames;
+            let mut frame = 0;
+            let mut block = 0;
+            while frame < end {
+                let phase = if frame < held_end {
+                    0
+                } else if frame < release_end {
+                    1
+                } else {
+                    2
+                };
+                let boundary = match phase {
+                    0 => held_end,
+                    1 => release_end,
+                    _ => end,
+                };
+                let frames = partition[block % partition.len()]
+                    .min(event_frames - frame % event_frames)
+                    .min(boundary - frame);
+                let at = Instant::now();
+                if frame % event_frames == 0 {
+                    let mut changed = params;
+                    assert!(changed.set(
+                        2,
+                        if frame / event_frames % 2 == 0 {
+                            80.0
+                        } else {
+                            110.0
+                        }
+                    ));
+                    assert!(changed.set(
+                        0,
+                        if frame / event_frames % 2 == 0 {
+                            0.37
+                        } else {
+                            0.51
+                        }
+                    ));
+                    assert!(changed.set(
+                        1,
+                        if frame / event_frames % 2 == 0 {
+                            -0.25
+                        } else {
+                            0.35
+                        }
+                    ));
+                    assert!(changed.set(
+                        3,
+                        if frame / event_frames % 2 == 0 {
+                            0.65
+                        } else {
+                            0.92
+                        }
+                    ));
+                    unit.set_params(&changed);
+                    if frame > 0 && frame < rate * 2 && frame % (event_frames * 4) == 0 {
+                        piano_strike(&mut unit, voices);
+                    }
+                }
+                if frame == held_end {
+                    for voice in 0..voices {
+                        let key = if voices == 128 {
+                            voice as u8
+                        } else {
+                            24 + voice as u8 * 5
+                        };
+                        unit.note_off_instance(NoteInstanceId(voice as u64 + 1), key);
+                    }
+                }
+                if phase == 0 {
+                    full_load &= unit.active_voices() == voices;
+                }
+                unit.process(&mut left[..frames], &mut right[..frames]);
+                let duration = at.elapsed();
+                elapsed[phase] += duration;
+                peak_callback = peak_callback.max(duration);
+                if phase == 0 {
+                    full_load &= unit.active_voices() == voices;
+                }
+                // Numerical observation is deliberately outside timed callback work.
+                let before = stats.energy;
+                stats.observe(&left[..frames], &right[..frames]);
+                if phase == 0 {
+                    held_energy += stats.energy - before;
+                }
+                if phase == 1 {
+                    release_energy += stats.energy - before;
+                }
+                frame += frames;
+                block += 1;
+            }
+            drained = unit.active_voices() == 0 && left.iter().chain(&right).all(|x| *x == 0.0);
+        });
+        assert_eq!(
+            calls, 0,
+            "PianoKeys events/controls/release/reset allocator calls"
+        );
+        assert!(
+            full_load,
+            "PianoKeys did not sustain {voices} voices at {rate} Hz"
+        );
+        assert!(drained, "PianoKeys release/tail did not end");
+        assert!(
+            held_energy > 1e-5 && release_energy > 1e-5,
+            "PianoKeys measured silent work"
+        );
+        stats.assert_bounded("PianoKeys");
+        if let Some(hash) = reference {
+            assert_eq!(stats.hash, hash, "PianoKeys reset PCM");
+        }
+        reference = Some(stats.hash);
+        for phase in 0..3 {
+            best[phase] = best[phase].min(elapsed[phase]);
+        }
+        eprintln!(
+            "PianoKeys rate={rate} voices={voices} partition={partition:?} phase_times={elapsed:?} slowest_callback={peak_callback:?} energy={} hash={:016x}",
+            stats.energy, stats.hash
+        );
+    }
+    for (phase, seconds) in [
+        2.0 + event_frames as f64 / rate as f64,
+        0.25,
+        event_frames as f64 / rate as f64,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let ratio = best[phase].as_secs_f64() / seconds;
+        eprintln!(
+            "PianoKeys admission rate={rate} voices={voices} partition={partition:?} phase={phase} ratio={ratio:.5} budget={budget}"
+        );
+        assert!(
+            ratio < budget,
+            "PianoKeys {rate} Hz/{voices} voices/{partition:?} phase {phase}: {ratio:.5} >= low-CPU budget {budget}"
+        );
+    }
+}
+
+#[test]
+fn piano_keys_production_low_cpu_admission_at_all_rates_polyphonies_and_partitions() {
+    let _serial = PROFILES
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    // The actual saved acoustic recipe, including all thirty key/layer sources.
+    // Source synthesis and Arc cloning/installation stay off the guarded render.
+    let bank = std::sync::Arc::new(windfall_dsp::sample_bank::sources::piano_bank(false));
+    assert_eq!(bank.zones().len(), 30);
+    assert_eq!(windfall_dsp::sample_bank::BANK_VOICES, 128);
+    for rate in [44_100, 48_000, 96_000] {
+        for voices in [16, 128] {
+            for partition in [&[64][..], &[256][..], &[480][..], &[1, 7, 64, 127, 511][..]] {
+                piano_deadline(rate, partition, voices, &bank);
+            }
+        }
+    }
+}
