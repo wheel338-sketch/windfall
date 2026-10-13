@@ -289,11 +289,11 @@ impl Session {
         };
         #[cfg(test)]
         self.pause("save:write");
-        project = if installation {
-            self.capture_plugins_idle(project, plugin_revision)?
-        } else {
-            self.capture_plugins(project, plugin_revision)?
-        };
+        // Installation's owned freeze has already captured and joined native
+        // state before the unsaved decision, then stopped its processors.
+        if !installation {
+            project = self.capture_plugins(project, plugin_revision)?;
+        }
         self.pin_derived_project(&project);
 
         let prepare = |project: &mut Project, target: &Path| -> Result<_, String> {

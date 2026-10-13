@@ -103,6 +103,7 @@ impl CapturedState {
     }
 }
 struct Instance {
+    editor_parent: Option<usize>,
     note_capabilities: Arc<super::note_capabilities::Published>,
     pending_capture: Option<(Vec<windfall_project::PluginParameter>, CapturedState)>,
     identity: u64,
@@ -294,10 +295,16 @@ impl Instance {
                 .plugin
                 .release_effect(adapter)
                 .map_err(|error| error.error.to_string()),
-            Adapter::Instrument(adapter) => self
-                .plugin
-                .release_instrument(adapter)
-                .map_err(|error| error.error.to_string()),
+            Adapter::Instrument(mut adapter) => {
+                // The callback has returned/retired ownership. Deliver an
+                // actual all-notes-off/reset boundary before deactivation,
+                // including held native note instances, on this owner only.
+                adapter.all_notes_off();
+                adapter.process(&mut [0.0; 1], &mut [0.0; 1]);
+                adapter.reset();
+                self.plugin.release_instrument(adapter)
+                    .map_err(|error| error.error.to_string())
+            }
         }
     }
     fn release(&mut self, adapter: Adapter) -> Result<(), String> {
@@ -642,7 +649,12 @@ fn maintain_owner(
                 .lock()
                 .unwrap_or_else(|error| error.into_inner())
                 .remove(&token);
-            owner.bridges.remove(&token);
+            if let Some(record) = owner.bridges.remove(&token) {
+                // Retirement can be observed by idle before the explicit
+                // update barrier reaches this FIFO. Use the same joined native
+                // release path here so acknowledgment never races helper exit.
+                let _ = record.control.shutdown_for_update();
+            }
         }
         for (token, record) in &mut owner.bridges {
             if record.editor_open
@@ -1056,6 +1068,18 @@ impl Runtime {
         timeout: Duration,
         job: impl FnOnce(&mut Owner, &JobLifetime) -> Result<T, String> + Send + 'static,
     ) -> Result<T, String> {
+        self.call_with_deadline(timeout, true, job)
+    }
+    // Update capture returns only plain data. On timeout it cancels delivery,
+    // while native recovery and discarded data remain on the serial owner.
+    // Unlike ordinary capture this must give the UI a bounded refusal even if
+    // foreign code never returns. No session guard/result is moved into the job.
+    fn call_with_deadline<T: Send + 'static>(
+        &self,
+        timeout: Duration,
+        join_running: bool,
+        job: impl FnOnce(&mut Owner, &JobLifetime) -> Result<T, String> + Send + 'static,
+    ) -> Result<T, String> {
         use std::sync::atomic::Ordering;
         let (sender, receiver) = mpsc::sync_channel(1);
         let lifetime = Arc::new(JobLifetime::default());
@@ -1113,7 +1137,7 @@ impl Runtime {
                             {
                                 continue;
                             }
-                            if phase == 1 {
+                            if phase == 1 && join_running {
                                 // Join native work/recovery while the caller's
                                 // exclusion remains held. Only an error crosses
                                 // back; cancelled payloads stay on the owner.
@@ -1333,11 +1357,18 @@ impl Runtime {
         self.capture_at(project, revision)
     }
     /// Captures only from the document revision paired with the save snapshot.
-    pub fn capture_at(&self, mut project: Project, revision: u64) -> Result<Project, String> {
+    pub fn capture_at(&self, project: Project, revision: u64) -> Result<Project, String> {
+        self.capture_at_deadline(project, revision, Duration::from_secs(15), true)
+    }
+    pub(crate) fn capture_for_update(&self, project: Project, revision: u64, timeout: Duration) -> Result<Project, String> {
+        self.capture_at_deadline(project, revision, timeout, false)
+    }
+    fn capture_at_deadline(&self, mut project: Project, revision: u64, timeout: Duration, join_running: bool) -> Result<Project, String> {
         let current_revision = self.revision.clone();
         let errors = self.errors.clone();
-        self.call_with_lifetime(Duration::from_secs(15), move |owner, lifetime| {
+        self.call_with_deadline(timeout, join_running, move |owner, lifetime| {
             if current_revision.load(std::sync::atomic::Ordering::Relaxed) != revision {
+                if !join_running { return Err("Plugin revision changed before update capture".into()); }
                 return Ok(project);
             }
             for binding in project.plugin_bindings_mut() {
@@ -1354,8 +1385,14 @@ impl Runtime {
                     if lifetime.cancelled() {
                         return Err("Plugin capture was cancelled".into());
                     }
-                    if record.control.readmission_requested() { return Err("Plugin capability re-admission is pending; save again after the prepared plan is installed".into()); }
-                    let (state, parameters) = record.capture(&binding.parameters)?;
+                    let (state, parameters) = if record.control.readmission_requested() {
+                        if join_running { return Err("Plugin capability re-admission is pending; save again after the prepared plan is installed".into()); }
+                        let (state, metadata) = record.readmit(&binding.parameters)?;
+                        binding.parameters = metadata.parameters;
+                        binding.auxiliary_inputs = metadata.auxiliary_inputs;
+                        binding.capabilities.outputs = metadata.outputs;
+                        (state, Vec::new())
+                    } else { record.capture(&binding.parameters)? };
                     if lifetime.cancelled()
                         || current_revision.load(std::sync::atomic::Ordering::Acquire) != revision
                         || selected(&owner.selection, binding.target) != selected_token
@@ -1382,8 +1419,15 @@ impl Runtime {
                     && record.binding.format == binding.format
                     && record.binding.state == binding.state
                 {
-                    if record.restart { return Err("Plugin capability re-admission is pending; save again after the prepared plan is installed".into()); }
-                    let captured = match record.capture(lifetime, false, &binding.parameters) {
+                    if record.restart && join_running { return Err("Plugin capability re-admission is pending; save again after the prepared plan is installed".into()); }
+                    let pending = if !join_running {
+                        record.pending_capture.as_ref().filter(|(_, captured)| captured.serial == record.dirty_serial).map(|(before, captured)| {
+                            let mut captured = captured.clone();
+                            captured.overlay_document(before, &binding.parameters);
+                            OwnerCapture { readmission: captured.readmission, state: PluginState::from_bytes(captured.bytes), parameters: captured.parameters, recovery_error: None }
+                        })
+                    } else { None };
+                    let captured = match pending.map_or_else(|| record.capture(lifetime, !join_running, &binding.parameters), Ok) {
                         Ok(captured) => captured,
                         Err(error) => {
                             let mut errors =
@@ -1401,6 +1445,11 @@ impl Runtime {
                         );
                     }
                     binding.state = captured.state.into_bytes();
+                    if let Some(metadata) = captured.readmission {
+                        binding.parameters = metadata.parameters;
+                        binding.auxiliary_inputs = metadata.auxiliary_inputs;
+                        binding.capabilities.outputs = metadata.outputs;
+                    }
                     for param in &mut binding.parameters {
                         if let Some((_, value)) =
                             captured.parameters.iter().find(|value| value.0 == param.id)
@@ -1412,6 +1461,10 @@ impl Runtime {
                         .lock()
                         .unwrap_or_else(|error| error.into_inner())
                         .retain(|(target, _)| *target != binding.target);
+                    continue;
+                }
+                if !join_running && selected_token.is_some() {
+                    return Err("Plugin ownership changed before update capture; retry installation".into());
                 }
             }
             Ok(project)
@@ -1702,9 +1755,15 @@ impl Runtime {
         open: bool,
         parent: Option<usize>,
     ) -> Result<(), String> {
+        self.editor_owned(target, binding, open, parent, true)
+    }
+    pub(crate) fn update_reopen_editor(&self, target: PluginTarget, parent: Option<usize>) -> Result<(), String> {
+        self.editor_owned(target, None, true, parent, false)
+    }
+    fn editor_owned(&self, target: PluginTarget, binding: Option<PluginBinding>, open: bool, parent: Option<usize>, join_running: bool) -> Result<(), String> {
         let revision = self.revision.load(std::sync::atomic::Ordering::Relaxed);
         let scale = self.editor_scale_percent.clone();
-        self.call(move |owner| {
+        self.call_with_deadline(Duration::from_secs(5), join_running, move |owner, _| {
             #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
             if let Some(record) =
                 selected(&owner.selection, target).and_then(|token| owner.bridges.get_mut(&token))
@@ -1729,6 +1788,7 @@ impl Runtime {
                 let result = record.control.editor_with_options(open, options);
                 if result.is_ok() {
                     record.editor_open = open;
+                    record.editor_parent = parent;
                 }
                 return result;
             }
@@ -1750,6 +1810,7 @@ impl Runtime {
                 instance
                     .open_editor(&super::wrapper::editor(&record.binding, parent))
                     .map_err(|error| error.to_string())?;
+                record.editor_parent = parent;
                 let application =
                     f64::from(scale.load(std::sync::atomic::Ordering::Relaxed)) / 100.0;
                 if let Err(error) = instance.set_editor_scale(application)
@@ -1882,8 +1943,74 @@ impl Runtime {
             Ok(audio)
         })
     }
+    pub(crate) fn update_editors(&self, timeout: Duration) -> Result<Vec<(PluginTarget, Option<usize>)>, String> {
+        self.call_with_deadline(timeout, false, |owner, _| {
+            let mut editors = Vec::new();
+            for (token, record) in &owner.instances {
+                if record.playback && selected(&owner.selection, record.target) == Some(*token)
+                    && record.plugin.editor().is_some()
+                {
+                    editors.push((record.target, record.editor_parent));
+                }
+            }
+            #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
+            for (token, record) in &owner.bridges {
+                if record.playback && selected(&owner.selection, record.binding.target) == Some(*token)
+                    && record.editor_open
+                {
+                    editors.push((record.binding.target, record.editor_parent));
+                }
+            }
+            Ok(editors)
+        })
+    }
+    #[cfg(all(test, windows))]
+    pub(crate) fn update_test_editor_window(&self, target: PluginTarget) -> Result<usize, String> {
+        self.call(move |owner| {
+            let token = selected(&owner.selection, target).ok_or("No selected native owner")?;
+            if let Some(window) = owner.instances.get(&token)
+                .and_then(|record| record.plugin.editor()).and_then(|info| info.window)
+            { return Ok(window); }
+            let record = owner.bridges.get(&token).filter(|record| record.editor_open).ok_or("No native editor window")?;
+            struct Search { process: u32, parent: Option<usize>, window: usize }
+            unsafe extern "system" fn find(window: windows_sys::Win32::Foundation::HWND, data: isize) -> i32 {
+                use windows_sys::Win32::UI::WindowsAndMessaging::{GetWindowThreadProcessId, GetWindow, GW_OWNER};
+                // SAFETY: synchronous EnumWindows callback borrows Search.
+                let search = unsafe { &mut *(data as *mut Search) };
+                let mut process = 0;
+                unsafe { GetWindowThreadProcessId(window, &mut process); }
+                if process == search.process && search.parent.is_none_or(|parent| unsafe { GetWindow(window, GW_OWNER) } as usize == parent) {
+                    search.window = window as usize;
+                    return 0;
+                }
+                1
+            }
+            let mut search = Search { process: record.status().process_id, parent: record.editor_parent, window: 0 };
+            unsafe { windows_sys::Win32::UI::WindowsAndMessaging::EnumWindows(Some(find), (&mut search as *mut Search) as isize); }
+            if search.window == 0 { Err("No native helper editor window".into()) } else { Ok(search.window) }
+        })
+    }
+
+    pub(crate) fn update_close_editors(&self, timeout: Duration) -> Result<(), String> {
+        self.call_with_deadline(timeout, false, |owner, lifetime| {
+            for record in owner.instances.values_mut() {
+                if lifetime.cancelled() { return Err("Update editor close cancelled".into()); }
+                record.plugin.close_editor();
+            }
+            #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
+            for record in owner.bridges.values_mut() {
+                if lifetime.cancelled() { return Err("Update editor close cancelled".into()); }
+                if record.editor_open {
+                    record.control.editor(false)?;
+                    record.editor_open = false;
+                }
+            }
+            Ok(())
+        })
+    }
+
     pub(crate) fn update_shutdown_barrier(&self) -> Result<(), String> {
-        self.call(|owner| {
+        self.call_with_deadline(Duration::from_secs(5), false, |owner, _| {
             // Audio::drop queued all native retirement before the acknowledged
             // stream shutdown. FIFO dispatch joins those jobs before returning.
             for record in owner.instances.values_mut() {
@@ -1893,6 +2020,20 @@ impl Runtime {
                 if let Some(adapter) = record.returned.take() {
                     record.retire(adapter);
                 }
+            }
+            #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
+            {
+                // A job's reply precedes the next owner idle turn. Reap here
+                // rather than acknowledging while idle still owns old helpers.
+                let retired: Vec<_> = owner.bridges.iter().filter_map(|(token, record)|
+                    (!record.alive.load(std::sync::atomic::Ordering::Acquire)).then_some(*token)).collect();
+                let mut refused = Vec::new();
+                for token in retired {
+                    if let Some(record) = owner.bridges.remove(&token)
+                        && let Err(error) = record.control.shutdown_for_update() { refused.push(error); }
+                    owner.controls.lock().unwrap_or_else(|error| error.into_inner()).remove(&token);
+                }
+                if !refused.is_empty() { return Err(format!("Native helper update shutdown failed: {}", refused.join("; "))); }
             }
             Ok(())
         })
@@ -2968,6 +3109,7 @@ impl PluginFactory for Runtime {
                 owner.instances.insert(
                     token,
                     Instance {
+                        editor_parent: None,
                         note_capabilities: note_capabilities.clone(),
                         pending_capture: None,
                         identity: binding_identity(&binding),
@@ -3103,13 +3245,17 @@ impl PluginFactory for Runtime {
             target,
             self.call(move |owner| {
                 let mut instance = Self::create(owner, &binding)?;
-                let adapter = instance
+                let mut adapter = instance
                     .prepare_instrument_with_options(
                         rate as f32,
                         super::wrapper::max_block(&binding, block),
                         &super::wrapper::native(&binding)?,
                     )
                     .map_err(|error| error.to_string())?;
+                // Fresh playback owners restore settings/opaque bytes but do
+                // not inherit sounding voices that a plugin may serialize.
+                // Run reset here, before the adapter crosses to the callback.
+                adapter.reset();
                 if adapter.latency_samples() > rate as usize {
                     let _ = instance.release_instrument(adapter);
                     return Err("Plugin latency exceeds the one-second compensation limit".into());
@@ -3145,6 +3291,7 @@ impl PluginFactory for Runtime {
                 owner.instances.insert(
                     token,
                     Instance {
+                        editor_parent: None,
                         note_capabilities: note_capabilities.clone(),
                         pending_capture: None,
                         identity: binding_identity(&binding),

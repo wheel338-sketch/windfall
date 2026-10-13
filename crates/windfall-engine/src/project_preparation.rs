@@ -579,6 +579,15 @@ pub(crate) struct ClosingStream {
 }
 
 impl Controller {
+    /// Control/device-owner only: stop the callback inside `close`, then fence
+    /// its owners and preserve only sequenced resume intent. A user Stop while
+    /// detached revokes that intent. Also used by headless lifecycle fixtures.
+    pub fn suspend_stream(&self, close: impl FnOnce()) -> Result<(), PublicationRefusal> {
+        let closing = self.begin_close(true)?;
+        close();
+        self.finish_close(closing);
+        Ok(())
+    }
     pub(crate) fn try_attach(
         &self,
         rate: u32,

@@ -20,15 +20,17 @@ pub(crate) async fn fetch(
     cap: usize,
     mut progress: impl FnMut(u64, Option<u64>),
 ) -> Result<Option<Vec<u8>>, String> {
-    super::updates::validate_redirect(&url, 0).map_err(str::to_owned)?;
+    super::updates::validate_endpoint(&url).map_err(str::to_owned)?;
+    let loopback_http = url.scheme() == "http";
+    let client = reqwest::Client::builder()
+        .redirect(super::updates::update_redirect_policy())
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(120));
+    let client = if loopback_http { client.no_proxy() } else { client };
     fetch_client(
         url,
         cap,
-        &reqwest::Client::builder()
-            .redirect(super::updates::update_redirect_policy())
-            .connect_timeout(Duration::from_secs(10))
-            .timeout(Duration::from_secs(120))
-            .build()
+        &client.build()
             .map_err(|error| error.to_string())?,
         &mut progress,
     )

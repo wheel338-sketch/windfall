@@ -10,6 +10,8 @@ Integration in progress. No final acceptance recommendation yet. Tracker files r
 
 ## Final gates
 
+- Updates merged without conflicts; `cargo check --workspace --all-targets` PASS, zero warnings/errors, exit 0, 8 s (`target/round6-branch02-check-repair1.log`). Added an explicit `Result<(), String>` for capture publication's error type; initial inference failure retained. Rollback/dirty capture/endpoint native tests pending.
+
 Pending. Counts are reported only for commands actually completed in this run.
 
 ## Cross-target checks

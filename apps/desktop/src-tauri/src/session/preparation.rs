@@ -166,7 +166,23 @@ impl ReadyProject {
         session: &'a Session,
         state: &State,
     ) -> Result<ProjectPublicationLease<'a>, AdmissionRefusal> {
-        if session
+        self.publication_owned(session, state, false)
+    }
+    /// Only the owned update shutdown may publish while ordinary edits freeze.
+    pub(super) fn publication_for_update<'a>(
+        &'a mut self,
+        shutdown: &'a super::UpdateShutdown,
+        state: &State,
+    ) -> Result<ProjectPublicationLease<'a>, AdmissionRefusal> {
+        self.publication_owned(shutdown.session(), state, true)
+    }
+    fn publication_owned<'a>(
+        &'a mut self,
+        session: &'a Session,
+        state: &State,
+        installation: bool,
+    ) -> Result<ProjectPublicationLease<'a>, AdmissionRefusal> {
+        if !installation && session
             .inner
             .update_installing
             .load(std::sync::atomic::Ordering::Acquire)

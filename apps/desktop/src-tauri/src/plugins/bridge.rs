@@ -56,6 +56,7 @@ impl Metadata {
 
 pub(super) struct Record {
     pub editor_open: bool,
+    pub editor_parent: Option<usize>,
     pub note_capabilities: Arc<super::note_capabilities::Published>,
     pub pending_capture: Option<(Vec<PluginParameter>, super::runtime::CapturedState)>,
     pub dirty_serial: u64,
@@ -331,6 +332,7 @@ pub(super) fn launch(
     note_capabilities.publish(caps.0, caps.1);
     let record = Record {
         editor_open: false,
+        editor_parent: None,
         note_capabilities: note_capabilities.clone(),
         pending_capture: None,
         dirty_serial: 0,
