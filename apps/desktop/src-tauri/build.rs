@@ -1,5 +1,10 @@
 fn main() {
-    tauri_build::build();
+    // Let the linker own the single executable manifest for both the app and
+    // library-test executables. Tauri still emits its icon/version resources.
+    tauri_build::try_build(tauri_build::Attributes::new().windows_attributes(
+        tauri_build::WindowsAttributes::new_without_app_manifest(),
+    ))
+    .expect("Tauri build configuration");
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
         // Tauri's executable manifest enables Common Controls v6. Library
         // unit-test executables also link the real dialog APIs (TaskDialogIndirect)
