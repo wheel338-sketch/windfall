@@ -260,6 +260,9 @@ pub(crate) fn pump_events() {
             return;
         }
         let mode = string("kCFRunLoopDefaultMode");
+        // Service NSTimer/CFRunLoop sources as well as queued NSEvents in the
+        // helper, without waiting for a source or creating another GUI thread.
+        CFRunLoopRunInMode(mode.cast_const(), 0.0, 1);
         let date = send(objc_getClass(c"NSDate".as_ptr()), c"distantPast");
         let next: unsafe extern "C" fn(Obj, Obj, usize, Obj, Obj, i8) -> Obj =
             std::mem::transmute(objc_msgSend as unsafe extern "C" fn());

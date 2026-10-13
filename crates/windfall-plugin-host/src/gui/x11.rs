@@ -51,7 +51,11 @@ impl Window {
                 return Err("X11 refused the editor container".into());
             }
             XStoreName(display, window, title.as_ptr());
-            XSelectInput(display, window, (1 << 17) | (1 << 19) | (1 << 21)); // Structure/SubstructureNotify/Focus
+            XSelectInput(
+                display,
+                window,
+                (1 << 0) | (1 << 1) | (1 << 17) | (1 << 19) | (1 << 21),
+            ); // Keys/Structure/SubstructureNotify/Focus
             let mut delete = XInternAtom(display, c"WM_DELETE_WINDOW".as_ptr(), 0);
             let protocols = XInternAtom(display, c"WM_PROTOCOLS".as_ptr(), 0);
             XSetWMProtocols(display, window, &mut delete, 1);
@@ -195,6 +199,48 @@ impl Window {
             }
         }
     }
+    fn forward_key(&self, key: KeyEvent) {
+        let Some(child) = self.children.borrow().first().copied() else {
+            return;
+        };
+        unsafe {
+            let connection = XGetXCBConnection(self.display);
+            if connection.is_null() {
+                return;
+            }
+            // The container is XEmbed's keyboard proxy. Forward its core key
+            // events to the plugin rather than requiring the plugin to steal
+            // server focus from the DAW. Native child focus needs no forwarding.
+            let event = KeyEvent32 {
+                response: key.any.kind as u8,
+                detail: key.keycode as u8,
+                sequence: 0,
+                time: key.time as u32,
+                root: key.root as u32,
+                event: child,
+                child: 0,
+                root_x: key.root_x as i16,
+                root_y: key.root_y as i16,
+                x: key.x as i16,
+                y: key.y as i16,
+                state: key.state as u16,
+                same_screen: u8::from(key.same_screen != 0),
+                padding: 0,
+            };
+            let mask = if key.any.kind == 2 { 1 } else { 2 };
+            let cookie = xcb_send_event_checked(
+                connection,
+                0,
+                child,
+                mask,
+                (&event as *const KeyEvent32).cast(),
+            );
+            let error = xcb_request_check(connection, cookie);
+            if !error.is_null() {
+                free(error);
+            }
+        }
+    }
     fn monitor(&self) -> f64 {
         unsafe {
             let mut x = 0;
@@ -285,6 +331,7 @@ impl Backend for Window {
                     continue;
                 }
                 match event.kind {
+                    2 | 3 => self.forward_key(event.key),
                     22 => {
                         let e = event.configure;
                         if e.target == self.window && e.width > 0 && e.height > 0 {
@@ -298,6 +345,12 @@ impl Backend for Window {
                         }
                     }
                     9 | 10 => {
+                        let focus = event.focus;
+                        // Moving server focus into a child or a temporary grab
+                        // must not deactivate the containing plugin window.
+                        if focus.mode != 0 || focus.detail == 2 {
+                            continue;
+                        }
                         let focused = event.kind == 9;
                         self.focused.set(focused);
                         for child in self.children.borrow().iter().copied() {

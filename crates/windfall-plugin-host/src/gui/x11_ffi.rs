@@ -40,6 +40,13 @@ pub struct DestroyEvent {
 }
 #[repr(C)]
 #[derive(Clone, Copy)]
+pub struct FocusEvent {
+    pub any: AnyEvent,
+    pub mode: c_int,
+    pub detail: c_int,
+}
+#[repr(C)]
+#[derive(Clone, Copy)]
 pub struct KeyEvent {
     pub any: AnyEvent,
     pub root: Xid,
@@ -61,6 +68,7 @@ pub union Event {
     pub configure: ConfigureEvent,
     pub client: ClientEvent,
     pub destroy: DestroyEvent,
+    pub focus: FocusEvent,
     pub key: KeyEvent,
     pub pad: [c_long; 24],
 }
@@ -248,6 +256,23 @@ pub struct ClientMessage32 {
     pub window: u32,
     pub kind: u32,
     pub data: [u32; 5],
+}
+#[repr(C)]
+pub struct KeyEvent32 {
+    pub response: u8,
+    pub detail: u8,
+    pub sequence: u16,
+    pub time: u32,
+    pub root: u32,
+    pub event: u32,
+    pub child: u32,
+    pub root_x: i16,
+    pub root_y: i16,
+    pub x: i16,
+    pub y: i16,
+    pub state: u16,
+    pub same_screen: u8,
+    pub padding: u8,
 }
 #[link(name = "X11-xcb")]
 unsafe extern "C" {

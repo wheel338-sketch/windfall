@@ -22,6 +22,10 @@ pub struct Rect {
 }
 #[link(name = "AppKit", kind = "framework")]
 unsafe extern "C" {}
+#[link(name = "CoreFoundation", kind = "framework")]
+unsafe extern "C" {
+    pub fn CFRunLoopRunInMode(mode: *const c_void, seconds: f64, return_after_source: u8) -> i32;
+}
 #[link(name = "objc")]
 unsafe extern "C" {
     pub fn objc_getClass(name: *const c_char) -> Obj;
