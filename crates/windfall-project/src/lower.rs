@@ -2758,6 +2758,7 @@ impl Transaction<'_> {
         value: f32,
     ) -> Result<String, CommandError> {
         if param >= crate::scripting::SCRIPT_PARAMETER_BASE {
+            self.channel_index(channel)?;
             let (index, info, _) = self.project.settings.scripts.parameter(channel, param)
                 .ok_or_else(|| CommandError::invalid("Script parameter owner was removed"))?;
             if !value.is_finite() || value < info.min as f32 || value > info.max as f32 {

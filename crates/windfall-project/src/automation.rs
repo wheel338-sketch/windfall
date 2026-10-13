@@ -287,6 +287,7 @@ impl Project {
             }
             AutomationTarget::InstrumentParam { channel, param } => {
                 if param >= crate::scripting::SCRIPT_PARAMETER_BASE {
+                    self.channel(channel)?;
                     return self.settings.scripts.parameter_state(channel, param);
                 }
                 if let Some(rack) = self
