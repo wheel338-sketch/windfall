@@ -30,8 +30,19 @@
 - Initial simulator generation PASS, exit 0, 6,957,179 bytes, 1m15s (`target/round4-sim-generate.log`). Initial registry audit against `3186193f` passes saved prefixes: Command 125→126, EffectKind 67→68, InstrumentKind 50→50; effect parameters 1089/choices 469, instrument parameters 1529/choices 453 (`target/round4-prefix-audit.log`). That audit invocation overlapped the simulator build; final audit must be rerun serially. Formatter applied to workspace and independent fixture (exit 0; `target/round4-fmt-apply.log`, `target/round4-fixture-fmt-apply.log`). Final artifact provenance/checks pending after formatting.
 - Corrected benchmark workload compile check PASS, exit 0, zero warnings/errors, 8.98s (`target/round4-benchmark-workload-check.log`); workload integrity assertion added subsequently and still needs execution.
 - Strict Clippy repaired to zero: `cargo clippy --offline --workspace --all-targets -- -D warnings`, PASS, exit 0, 14.66s (`target/round4-clippy-repair2.log`). Supported autofixes plus callback/parser type aliases, array chunks, equivalent pattern/ramp matching and four narrowly justified named Tauri wire-argument expectations; no broad suppression/assertion/tolerance removal. Initial strict failure and autofix logs retained. Clippy's autofix rejected its own streamed-test array-comparison conversion and left the original unchanged; corrected dereference manually. First manual repair needed typed byte-array dereferences; failed log retained. Ordinary product/test suites still unexecuted at this checkpoint.
+- Native fixture build PASS (`target/round4-fixture-build.log`, 1.69s); current desktop helper/export runtime build PASS (`target/round4-native-helper-build.log`, 2m38s). Test wrapper now exports explicit main-checkout prebuilt `WINDFALL_BRIDGE_FIXTURE`, `WINDFALL_DESKTOP_BRIDGE_HELPER`, `WINDFALL_EXPORT_FIXTURE`, preventing nested Cargo in native fixture gates. Full workspace suite started with native media capture bootstrap directory `target/r4-media`; no model/device opt-ins enabled. Result pending.
 
 ## Final gates
+
+First full workspace run `cargo test --offline --workspace --no-fail-fast -- --test-threads=1` with genuine media-capture bootstrap enabled exits 101 (`target/round4-workspace-tests.log`): sum of 181 emitted result blocks is 4,514 passed / 28 failed / 38 ignored, including the failed crash-child result (the parent also fails). Eleven Cargo targets fail. These are diagnostic results, not final acceptance. Product repairs and a full rerun are required; none quarantined.
+
+Repairs in progress: constrain mono pitch ceiling to sample-rate/8 at 8 kHz; compact file input metadata reserve is one 16-KiB chunk (no retained PCM/read vectors); permit selected file-backed stem jobs; validate project controller scripts structurally then against project-owned targets; open copied audio with write access for Windows flush; serialize extraction collectors using a lease outside the child before releasing its Windows byte-range owner lock for rename/delete; expire logical held notes on the fast render publication path; report missing video audio as the same visible decode capability refusal. Native performance fixtures now author a real synth note and assert audible PCM rather than capturing an empty pattern.
+
+Corrected expectation derivations (assertions remain): selected capture disk is `(997-11)*2*4 = 7,888` bytes, not the full 1,003-frame source; after a 256-byte decoder reservation shrinks to 64-byte PCM, exactly 192 bytes remain (193 refuses, 192 accepts, then 1 refuses); the export fixture now writes five files including WavPack; `Project::new` has no playlist track, so the pad fixture must author one; an FLP archive intentionally includes the changed pan-law event (verify exact reconstructed container separately from executable project equality); live synth PCM comparison removes the public reported latency just as existing rendering tests do; Send Tap defaults to zero, so the auxiliary fixture now explicitly requests a nonzero send; native top-level ownership is queried with `GetWindow(GW_OWNER)` rather than child-parent-only behavior. No tolerance, limit, failure assertion or ignore was relaxed.
+
+The ordinary dense Matrix workload also fails unchanged 0.75x gate at 1.3125x. Candidate optimization transposes all six distinct FM/ring destination rows into SIMD lanes while preserving every source's ordered multiply/add/product (SSE2 on x86_64; ordered portable scalar path). Added independent lane bit-equality proof; numerical and ordinary/release admission reruns pending. Strict workspace Clippy after these candidate repairs passes zero warnings/errors (`target/round4-clippy-integration-repair1.log`, 1.16s); first repair compile failure from SendTapParams namespace is retained.
+
+Overseer supplied a real pack/runtime and moved the opt-in end-to-end stem harness into this run. It must execute serially **after ordinary gates pass**; not yet run. Nothing in `target/stem-pack` will be committed. Supplied manifest: UMX-HQ 1.0.1 / openunmix 1.3.0, MIT weights from Zenodo 3370489, `model.onnx` 160,591,400 bytes, SHA-256 `33d5228ef954527a82212d75a0a208336181d0d81044bc17a163f09f91cd28aa`; CPU opset17 input `[1,2,262144]`, output `[1,4,2,262144]`, segment/overlap/context 131072/65536/65536. `runtime.json` reports ONNX Runtime 1.22.1, runtime DLL 14,854,688 bytes, SHA-256 `c7151fd9844ad7c7d18525f1177e9ef62d91e4a6ac3583d0be700554a2b2b1d6`, wheel SHA-256 `6a64291d57ea966a245f749eb970f4fa05a64d26672e05a83fdb5db6b7d62f87`. These are supplied provenance fields; actual native harness and local hash verification remain pending.
 
 Partial gate results below; unlisted gates remain unexecuted. Inherited builder results are context only, not acceptance evidence for this integrated tree.
 
@@ -46,6 +57,8 @@ Partial gate results below; unlisted gates remain unexecuted. Inherited builder 
 | `cargo test --offline -p windfall-codec --lib --tests --no-fail-fast -- --test-threads=1` | PASS; 187 passed / 0 failed / 2 ignored (9 result blocks) | 0 | `target/round4-codec-tests.log` |
 | `cargo test --offline -p windfall-dsp --lib -- --test-threads=1` | PASS; 694 passed / 0 failed / 0 ignored | 0 | `target/round4-dsp-units-dense-repair.log` |
 | `cargo test --offline --release -p windfall-dsp --test dsp p2_effect_budgets -- --test-threads=1 --nocapture` | PASS; 3 passed / 0 failed / 0 ignored, corrected independent stereo/moving workload | 0 | `target/round4-effects-dense-release.log` |
+| `cargo test --offline --release -p windfall-dsp --test dsp instrument_deadlines -- --test-threads=1 --nocapture` | PASS; 21 passed / 0 failed / 0 ignored (20 instruments plus density guard), corrected moving workload | 0 | `target/round4-instruments-dense-final-release.log` |
+| `cargo test --offline --release -p windfall-dsp --test dsp e1_cpu -- --test-threads=1 --nocapture` | PASS; 3 passed / 0 failed / 0 ignored, 144 measurements including seven-band EQ | 0 | `target/round4-e1-release.log` |
 
 ## Benchmark integrity
 
@@ -58,6 +71,32 @@ Workload correction candidate: six distinct ratios/detunes/levels/key scales/fee
 - Root optimization 2: Matrix prepares ratio log offsets, route masks/aliases and ordered requested-depth sums on graph configuration rather than moving pitch; key gains update only when key changes. Pitch/rate-dependent increments and Carson scales continue moving. Monotonic clamped increment allows exact highest source selection by prepared ratio ordering, lazily evaluating distinct required source frequencies; no FM/ring edge or carrier is removed. Focused unchanged dense Matrix release **1/0/0**, exit 0, **0.7328x**, 201.3238ms tail / 41.464s (`target/round4-matrix-dense-metadata-release.log`). Final aggregate instrument gate and numerical/allocation regression remain pending. Added exact original ordered-scale reference across sparse/dense routes, clipping, moving pitch/keys and rates, plus exact PCM reference with live graph edits; full DSP unit run pending.
 - Complete DSP unit regression **694/0/0**, exit 0, 52.61s (`target/round4-dsp-units-dense-repair.log`). Both new exact arithmetic/PCM references pass, alongside all existing signal/partition/allocator tests and new sample-bank/rack/pan-law tests. No tolerance/assertion/skip weakened. Corrected effect release gate and final instrument aggregate pending.
 - Corrected effect release gate **3/0/0**, exit 0, 4.63s (`target/round4-effects-dense-release.log`): independent stereo histories and moving parameters pass all unchanged maximum-quality/model/graph/reset/callback budgets. Pitch Shift Mix worst **0.247547 / 0.50**, Voice **0.395398 / 0.50**, four-harmony Pitch Correct **0.099909 / 0.50**. No effect DSP repair was needed after workload correction. Remaining instrument final aggregate is required.
+- Final corrected instrument aggregate **21/0/0**, exit 0, 76.53s (`target/round4-instruments-dense-final-release.log`), all 20 instruments/variants plus density guard; unchanged **0.75x** admission and every tail/allocator/signal/repeatability assertion pass. Matrix **0.7409x**; Hybrid Serial/Pairs/Stack/Parallel **0.4913/0.4783/0.4898/0.4824x**. This is local admitted CPU share, not a physical device callback-deadline claim. Workspace strict Clippy after optimization also passes zero warnings/errors (`target/round4-clippy-dsp-repair.log`, 17.34s). Source optimization checkpoint `dfdabc4c`.
+
+Before/after maximum held CPU shares (worst variant per instrument). The first column is **inherited** builder evidence from `target/round4-builder-final-instruments.log`, not a test run by this integrator. Both corrected-workload columns were measured here, and every limit remains 0.75x. Tail and allocator gates are recorded separately in the same raw logs.
+
+| Instrument test | Inherited builder workload | First corrected workload | Corrected workload after DSP optimization |
+| --- | ---: | ---: | ---: |
+| `autogun` | 0.2742x | 0.2679x | 0.2667x |
+| `bassdrum` | 0.0138x | 0.0154x | 0.0151x |
+| `beepmap` | 0.4524x | 0.4540x | 0.4590x |
+| `boobass` | 0.0009x | 0.0009x | 0.0009x |
+| `drumaxx` | 0.1132x | 0.1128x | 0.1132x |
+| `drumpad` | 0.0063x | 0.0077x | 0.0077x |
+| `drumsynth_live` | 0.0124x | 0.0122x | 0.0125x |
+| `flex` | 0.3239x | 0.3407x | 0.3276x |
+| `gms` | 0.5492x | 0.5653x | 0.5655x |
+| `harmless` | 0.4431x | 0.5839x | 0.5803x |
+| `harmor` | 0.4531x | 0.4626x | 0.4615x |
+| `kepler` | 0.3482x | 0.3512x | 0.3482x |
+| `kepler_exo` | 0.4048x | 0.4189x | 0.4166x |
+| `minisynth` | 0.0667x | 0.0768x | 0.0670x |
+| `morphine` | 0.4454x | 0.4504x | 0.4540x |
+| `ogun` | 0.4751x | 0.4777x | 0.4845x |
+| `poizone` | 0.2622x | 0.2806x | 0.2822x |
+| `sawer` | 0.3589x | 0.3701x | 0.3517x |
+| `sytrus` | 0.4975x | 1.2084x | 0.7409x |
+| `toxic_biohazard` | 0.4893x | 1.1185x | 0.4913x |
 
 ## macOS cross-check
 
