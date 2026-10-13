@@ -1266,7 +1266,7 @@ impl Runtime {
     }
     pub fn discover(&self, mut binding: PluginBinding) -> Result<PluginBinding, String> {
         #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
-        if self.bridge_enabled {
+        if super::wrapper::use_bridge(&binding, self.bridge_enabled)? {
             let helper = super::bridge::helper_path(self.bridge_helper.as_deref())?;
             return self.call(move |owner| {
                 let stamp = Self::approved_binding(owner, &binding)?;
@@ -2602,6 +2602,9 @@ mod capture_ack_tests;
 #[cfg(all(test, windows))]
 #[path = "ownership_tests.rs"]
 pub(crate) mod ownership_tests;
+#[cfg(all(test, windows))]
+#[path = "provider_policy_tests.rs"]
+mod provider_policy_tests;
 #[cfg(all(test, windows))]
 #[path = "sidechain_bus_tests.rs"]
 mod sidechain_bus_tests;

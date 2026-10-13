@@ -23,10 +23,12 @@
 
 use std::time::Duration;
 
+#[cfg(any(test, target_os = "macos"))]
+pub(crate) mod au_geometry;
 #[cfg(any(test, target_os = "macos", target_os = "linux"))]
 pub(crate) mod bridge_editor;
 #[cfg(target_os = "macos")]
-mod cocoa;
+pub(crate) mod cocoa;
 #[cfg(target_os = "macos")]
 #[allow(dead_code)] // shared ABI includes the exported panel's selectors
 pub(crate) mod cocoa_ffi;

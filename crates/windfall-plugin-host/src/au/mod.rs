@@ -801,7 +801,15 @@ impl InstanceBackend for Instance {
             self.reset_notified = true;
             notify(PluginNotification::RestartRequested);
         }
-        if self.editor.as_ref().is_some_and(|editor| !editor.visible()) {
+        if let Some(editor) = &mut self.editor
+            && let Some(info) = editor.poll()
+        {
+            notify(PluginNotification::EditorResized {
+                width: info.width,
+                height: info.height,
+            });
+        }
+        if self.editor.as_ref().is_some_and(cocoa::Editor::closed) {
             self.editor = None;
             notify(PluginNotification::EditorClosed);
         }
@@ -823,6 +831,12 @@ impl InstanceBackend for Instance {
     }
     fn editor(&self) -> Option<EditorInfo> {
         self.editor.as_ref().map(cocoa::Editor::info)
+    }
+    fn set_editor_scale(&mut self, application: f64) -> Result<EditorInfo, EditorError> {
+        self.editor
+            .as_mut()
+            .ok_or(EditorError::NoEditor)?
+            .set_scale(application)
     }
 }
 fn remove_callbacks(unit: Unit, inputs: usize) -> Result<(), PluginError> {
