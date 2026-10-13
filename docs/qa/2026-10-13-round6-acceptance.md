@@ -1,6 +1,6 @@
 # Round-six acceptance — 2026-10-13
 
-All eight branches are merged. Rust confirmation passes4817/0/40; frontend confirmation has6488 passes and2 strict translation-admission failures. Remaining final gates are running; no final row recommendation yet. Tracker files remain untouched.
+All eight branches are merged. Final source checkpoint **b886b736**; later commits update this record only. Rust4817/0/40; frontend6488/2/0, with only strict translation admissions failing. Recommendation: **7 done /3 in-progress**. Tracker files remain untouched.
 
 ## Running record
 
@@ -9,6 +9,8 @@ All eight branches are merged. Rust confirmation passes4817/0/40; frontend confi
 - WAV-tempo check PASS: `cargo check --workspace --all-targets`, zero warnings/errors, exit 0, 9 s (`target/round6-branch01-check-repair2.log`). Two fixture compile repairs: `UpdateClips.updates` and explicitly f32 controller-map range inputs. No assertion/tolerance change; failed initial/repair1 logs retained. Native tempo/PCM fixtures remain unexecuted.
 
 ### Integration and verification record
+
+- Final serial gate group completed: **31/32 gate rows exit0**, with full frontend's two strict translation admissions the sole failing gate. Real ONNX1/0/0, release E1 3/0/0, P2 3/0/0, instruments22/0/0, threading1/0/0, release/resource scripts69/0/0 and fixture capture9/0/0 pass. Tauri debug/no-bundle PASS407s; native software-memory-sink smokes **18+65+35+34=152 checks**, all passed; factory verification passes. Exact commands, durations and log/report paths follow. Confirmed all8 branch tips are ancestors of HEAD; no build/test/helper process remains active. Budget checkpoint stops with the three explicit SOFTWARE rows below, rather than relabeling the untranslated guards or unimplemented audio/FLP controls as external checks.
 
 - Final four cross-target checks PASS zero errors/warnings on repaired source: Apple host all-targets4s (`target/round6-macos-host-final.log`), Apple desktop/export all-targets30s (`target/round6-macos-desktop-final.log`), Linux host/common all-targets12s (`target/round6-linux-host-final.log`), Linux broad desktop/engine/export/analysis/codec/archive/factory check-only28s (`target/round6-linux-desktop-final.log`), all exit0. Exact wrapper invocations and scoped environments are expanded in the cross-target section below. AU/Cocoa, production provider selection, editor scaling, bridge/helper, rollback, source packets, preset rendering, FLP/recording and coded MIDI paths are included. Isolated metadata checks are not native linking/runtime evidence. Real ONNX and release/packaging/window gates now follow serially.
 
@@ -87,44 +89,149 @@ All eight branches are merged. Rust confirmation passes4817/0/40; frontend confi
 
 ## Final gate table
 
-First six-merge full workspace completed **4772 passed /3 failed /40 ignored**,
-185 completed result blocks, exit101,1551s (`target/round6-workspace-six.log`).
-Failures: future-schema test still refuses now-supported schema3 (use4), older
-Hello3 child fixture still only permits1/2 (permit1..3 while asserting rejection
-before metadata), and VST3 native output-flood workload30,000 no longer exceeds
-the grown164,866 SDK note buffer. Increase the injected flood to200,000; preserve
-all drop/unknown/ACK/recovery/memory assertions. Capacity derivation:
-2048 keys +1024 instances +2×80897 block reserve =164866. These are stronger or
-updated fixture inputs, never looser limits. Repairs and reruns pending.
+31/32 gate rows exit0. Frontend is **not** a zero-failure admission: its two guard failures represent unimplemented translation. Rust counts are passed/failed/ignored; frontend/Node counts are passed/failed/skipped. All commands ran serially under the initial MSVC/jobs/PATH/fixture environment, without external affinity or priority settings. Deadline harnesses use their recorded internal measuring-thread policy; limits and workloads are unchanged.
 
-Six-merge schema3 native refresh PASS `cargo build --offline -p windfall-desktop
--p windfall-plugin -p windfall-plugin-host --bins --lib`, exit0,106s
-(`target/round6-native-build-six.log`). First full workspace run on this
-checkpoint started with rebuilt owned fixtures and explicit environment:
-`cargo test --workspace --no-fail-fast -- --test-threads=1`
-(`target/round6-workspace-six.log`). No completion/count credited while active.
+| Gate | Exact command | Result/counts | Time | Log |
+|---|---|---|---|---|
+| Format | `cargo fmt --all --check` | PASS: zero differences;exit0 | 3s | `target/round6-fmt-confirm.log` |
+| Strict Rust lint | `cargo clippy --workspace --all-targets -- -D warnings` | PASS: zero warnings/errors;exit0 | 11s | `target/round6-clippy-final.log` |
+| Rust workspace | `cargo test --workspace --no-fail-fast -- --test-threads=1` | PASS: 4817/0/40;186 result blocks;exit0 | 826s | `target/round6-workspace-confirm.log` |
+| Release E1 | `cargo test --offline --release -p windfall-dsp --test dsp e1_cpu -- --test-threads=1 --nocapture` | PASS: 3/0/0;exit0 | 32s | `target/round6-e1-release-final.log` |
+| Release P2 | `cargo test --offline --release -p windfall-dsp --test dsp p2_effect_budgets -- --test-threads=1 --nocapture` | PASS: 3/0/0;exit0 | 19s | `target/round6-p2-release-final.log` |
+| Release instruments | `cargo test --offline --release -p windfall-dsp --test dsp instrument_deadlines -- --test-threads=1 --nocapture` | PASS: 22/0/0;exit0 | 123s | `target/round6-instruments-release-final.log` |
+| Release threading | `cargo test --offline --release -p windfall-engine --test engine release_many_heavy_tracks -- --test-threads=1 --nocapture` | PASS: 1/0/0;exit0 | 69s | `target/round6-threading-release-final.log` |
+| Fresh binding generation | `bash scripts/gen-bindings.sh target/round6/final-bindings` | PASS: 624 files;exit0 | 46s | `target/round6-bindings-final.log` |
+| Fresh binding comparison | `node scripts/check-bindings.mjs target/round6/final-bindings` | PASS: zero differences;exit0 | 0s | `target/round6-bindings-compare-final.log` |
+| Simulator generation | `bash scripts/build-sim.sh` | PASS: 7345192 bytes;exit0 | 13s | `target/round6-sim-final.log` |
+| Simulator freshness | `node scripts/check-sim.mjs` | PASS: current source fingerprints;exit0 | 0s | `target/round6-sim-check-confirm.log` |
+| Binding regressions | `node --test scripts/check-bindings.test.mjs` | PASS: 10/0/0;exit0 | 0s | `target/round6-bindings-tests-confirm.log` |
+| Registry prefixes | `node target/round6/prefix-audit.cjs` | PASS: c0144d31 retained;Command129→131,Effect68,Instrument50;exit0 | 0s | `target/round6-prefix-final.log` |
+| Added-test registration | `node target/round6/registration-audit.cjs` | PASS: 99 added/99 observed/missing0 against70ae38eb;exit0 | 3s | `target/round6-registration-final.log` |
+| Frontend typecheck | `pnpm --dir apps/desktop typecheck` | PASS: zero diagnostics;exit0 | 13s | `target/round6-typecheck-confirm.log` |
+| Frontend lint | `pnpm --dir apps/desktop lint` | PASS: zero diagnostics;exit0 | 33s | `target/round6-lint-confirm.log` |
+| Frontend suite | `pnpm --dir apps/desktop test --maxWorkers=4 --reporter=default --reporter=json --outputFile=../../target/round6-frontend-confirm-results.json` | FAIL: 6488/2/0;531 passing/2 failing files;strict translation admissions remain red;exit1 | 468s | `target/round6-frontend-confirm.log` |
+| Production frontend | `pnpm --dir apps/desktop build` | PASS: build complete; informational chunk-size warning retained;exit0 | 16s | `target/round6-frontend-build-final.log` |
+| Parity consistency | `node scripts/parity.mjs --check` | PASS: 342 rows;327 done/10 in-progress/5 wont-do;tracker unchanged;exit0 | 0s | `target/round6-parity-final.log` |
+| Real ONNX stems | `bash target/round5/real-stems.sh` | PASS: 1/0/0;four outputs at44100/48000Hz;exit0 | 87s | `target/round6-real-stems-final.log` |
+| Release/resource scripts | `node --test scripts/release/release.test.mjs scripts/release/workflow.test.mjs` | PASS: 69/0/0;exit0 | 106s | `target/round6-release-scripts-final.log` |
+| Software capture opt-ins | `cargo test --offline -p windfall-desktop --lib plugins::runtime::capture_ack_tests:: -- --test-threads=1 --include-ignored` | PASS: 9/0/0;only fixture capture module opted in;exit0 | 7s | `target/round6-capture-optins-final.log` |
+| Tauri debug/no-bundle | `pnpm --dir apps/desktop tauri build --debug --no-bundle` | PASS: application/runtime/helper built;exit0 | 407s | `target/round6-tauri-build-final.log` |
+| Analyzer window | `node scripts/analyzer-window-smoke.mjs target/debug/windfall-desktop.exe target/round6-analyzer-window/report.json 9271` | PASS: 18 checks; software-memory-sink;exit0 | 10s | `target/round6-analyzer-window-final.log` |
+| Sample window | `node scripts/sample-workflow-window-smoke.mjs target/debug/windfall-desktop.exe target/round6-sample-window/report.json 9272` | PASS: 65 checks; software-memory-sink;exit0 | 10s | `target/round6-sample-window-final.log` |
+| Notebook window | `node scripts/notebook-isolation-window-smoke.mjs target/debug/windfall-desktop.exe target/round6-notebook-window/report.json 9273` | PASS: 35 checks; software-memory-sink;exit0 | 2s | `target/round6-notebook-window-final.log` |
+| Video window | `node scripts/video-player-window-smoke.mjs target/debug/windfall-desktop.exe target/round6-video-window/report.json 9274` | PASS: 34 checks; software-memory-sink;exit0 | 1s | `target/round6-video-window-final.log` |
+| Factory content | `cargo run --offline -p windfall-factory -- verify content/factory` | PASS: content/factory matches generator;exit0 | 1s | `target/round6-factory-final.log` |
+| Apple host | `cargo check --offline --target aarch64-apple-darwin -p windfall-plugin-host --all-targets` | PASS: all targets;metadata only;zero warnings/errors;exit0 | 4s | `target/round6-macos-host-final.log` |
+| Apple desktop/export | `bash target/round5/macos-check.sh` | PASS: all targets;isolated DOCS_RS/Zig;zero warnings/errors;exit0 | 30s | `target/round6-macos-desktop-final.log` |
+| Linux host/common | `bash target/round5/linux-check.sh -p windfall-plugin-host -p windfall-core -p windfall-dsp -p windfall-project -p windfall-ipc -p windfall-stretch` | PASS: all targets;ordinary pkg-config;zero warnings/errors;exit0 | 12s | `target/round6-linux-host-final.log` |
+| Linux broad integration | `bash target/round5/linux-desktop-check-only.sh` | PASS: all targets;isolated synthetic pkg-config/DOCS_RS/Zig;zero warnings/errors;exit0 | 28s | `target/round6-linux-desktop-final.log` |
 
-Pending all eight merges. Counts above are actual completed commands on the
-stated intermediate source; no final full-workspace or frontend-suite result is
-credited yet. Packet schema3 strict Clippy passes with zero diagnostics, exit0,
-8s (`target/round6-packet-clippy-repair1.log`).
+## Cross-target results and exact environment
 
-## Cross-target checks
+All four final checks type-check the repaired source. Portable production policy,
+AU model/geometry, wrapper/editor ownership, bridge/expression, packet and renderer
+logic pass in the recorded Windows workspace. No Apple/Linux native link/runtime
+or library ABI is credited.
 
-- Latest Linux host/common PASS `bash target/round5/linux-check.sh -p windfall-plugin-host -p windfall-core -p windfall-dsp -p windfall-project -p windfall-ipc -p windfall-stretch`, zero warnings/errors, exit0,17s (`target/round6-linux-host-checkpoint.log`): host X11/native/run-loop/CLAP/VST3 frame/editor, bridge Unix mapping/helper/control and common/project/IPC/FLP/MIDI logic. Expanded wrapper sets Zig Linux CC/AR and `cargo check --offline --target x86_64-unknown-linux-gnu <packages> --all-targets`, ordinary pkg-config.
-- Latest Linux full integration check-only PASS `bash target/round5/linux-desktop-check-only.sh`, zero warnings/errors, exit0,54s (`target/round6-linux-desktop-checkpoint.log`): desktop/engine/plugin/plugin-host/analysis/codec/archive/factory all targets plus transitive modules, X11 parent/GUI-thread lookup/editor lifetime, exported X11 panel/timers, current rollback/resume and schema3/raw-source/prepared renderer/stem paths. Wrapper adds isolated `target/linux-desktop-typecheck`, `DOCS_RS=1`, Zig CC/AR and intentionally synthetic pkg-config; exact command/environment/limitations are the round-five expanded check recorded above. No own module in this scope remains blocked. These artifacts deliberately cannot link and never serve a release; real ALSA/GTK/WebKit/X11 ABI/link/runtime remains external. No system/package install or upstream/cache source edit performed.
+| Target and command | Our modules included | Result and limits |
+|---|---|---|
+| `aarch64-apple-darwin`: `cargo check --offline --target aarch64-apple-darwin -p windfall-plugin-host --all-targets` | AU adapter/sys/Cocoa view ownership, shared Cocoa Window, AU geometry/model, native CLAP/VST3 GUI/processor adapters, bridge mapping/helper/expression/recovery, common/DSP dependencies and applicable target test modules. | PASS zero diagnostics; `target/round6-macos-host-final.log`. Metadata only. |
+| `aarch64-apple-darwin`: `bash target/round5/macos-check.sh` | Desktop production provider discovery/default effect+instrument preparation, AU/editor parent/GUI-thread/runtime/owner/capture/rollback, exported Cocoa panel/CLAP/VST3/runtime, engine CoreAudio/CoreMIDI and shared renderer/FLP/preset/raw-source/packet/MIDI logic; all desktop/plugin targets and transitive dependencies. | PASS zero diagnostics; `target/round6-macos-desktop-final.log`. Isolated Zig/DOCS_RS check-only upstream Objective-C helper exception; no own AU/Cocoa module remains uncompiled. Actual AppKit/CoreAudio/CoreMIDI/native AU execution remains external. |
+| `x86_64-unknown-linux-gnu`: `bash target/round5/linux-check.sh -p windfall-plugin-host -p windfall-core -p windfall-dsp -p windfall-project -p windfall-ipc -p windfall-stretch` | Native host X11/run-loop/CLAP/VST3 frame/editor, bridge Unix mapping/helper/notes/control, common/DSP/project/IPC/stretch and transitive FLP/MIDI. | PASS zero diagnostics; `target/round6-linux-host-final.log`. Ordinary pkg-config configuration, no synthetic system discovery in this host/common check. |
+| `x86_64-unknown-linux-gnu`: `bash target/round5/linux-desktop-check-only.sh` | Desktop/engine/plugin/plugin-host/analysis/codec/archive/factory all targets: X11 parent/GUI-thread/editor ownership, exported X11 panel/timers, ALSA/MIDI/CPAL adapter Rust, packet/preset/rollback/render/stem/import/coded MIDI paths; transitive common/DSP/project/IPC/stretch/FLP/MIDI. | PASS zero diagnostics; `target/round6-linux-desktop-final.log`. Isolated synthetic pkg-config plus DOCS_RS C-build skips reach every requested own Rust module. Native ALSA/GTK/WebKit/X11/LAME ABI, C implementation, linking and runtime are unverified external checks. These artifacts cannot link and are never distribution artifacts. |
 
-- Latest six-merge checkpoint Apple host PASS, zero warnings/errors, exit0,3s (`target/round6-macos-host-checkpoint.log`), exact command `cargo check --offline --target aarch64-apple-darwin -p windfall-plugin-host --all-targets`. Desktop/export PASS, zero warnings/errors, exit0,29s (`target/round6-macos-desktop-checkpoint.log`), `bash target/round5/macos-check.sh` with the previously expanded isolated Zig/DOCS_RS command. Includes all AU/Cocoa/GUI/bridge/helper paths above plus current project raw-source roles, new preset renderer/IPC, rollback/resume and schema3 export/native Cocoa panel. No module in this Apple scope remains uncompiled. Portable AU/ownership/scaling logic passed in the recorded Windows suites; actual AppKit/Audio Unit/CoreAudio/CoreMIDI linking/runtime remains external.
+Expanded wrappers (all inherit `CARGO_BUILD_JOBS=8` and the runner's MSVC/PATH setup):
 
-- First-five-branch Apple host PASS: `cargo check --offline --target aarch64-apple-darwin -p windfall-plugin-host --all-targets`, exit 0, zero warnings/errors, 6 s (`target/round6-macos-host-first.log`). Includes AU adapter/sys/Cocoa, new portable AU geometry, shared Cocoa Window, bridge/helper/expression and native CLAP/VST3 paths.
-- First-five-branch Apple desktop/export PASS: `bash target/round5/macos-check.sh`, exit 0, zero warnings/errors, 25 s (`target/round6-macos-desktop-first.log`). Expanded command/environment follows round-five cross-target section: scoped Zig CC/AR, `DOCS_RS=1`, isolated `target/macos-desktop-typecheck`, `cargo check --offline --target aarch64-apple-darwin -p windfall-desktop -p windfall-plugin --all-targets`. Includes desktop production provider selection/AU owner/editor/runtime and exported Cocoa panel/runtime, engine/common dependencies. Rust metadata only; no native linking/execution credited.
+```sh
+# Apple desktop/export only
+export CC_aarch64_apple_darwin="$(cygpath -w "$PWD/target/round5/zig-cc.cmd")"
+export AR_aarch64_apple_darwin="$(cygpath -w "$PWD/target/round5/zig-ar.cmd")"
+export CC_aarch64_apple_darwin_IS_CLANG=1
+export CARGO_TARGET_DIR=target/macos-desktop-typecheck
+export DOCS_RS=1
+cargo check --offline --target aarch64-apple-darwin -p windfall-desktop -p windfall-plugin --all-targets
 
-Pending. Use established round-five isolated metadata-only scripts; no native runtime/link claim.
+# Linux host/common; package arguments are the exact gate-table list
+export CC_x86_64_unknown_linux_gnu="$(cygpath -w "$PWD/target/round5/zig-linux-cc.cmd")"
+export AR_x86_64_unknown_linux_gnu="$(cygpath -w "$PWD/target/round5/zig-ar.cmd")"
+export CC_x86_64_unknown_linux_gnu_IS_CLANG=1
+cargo check --offline --target x86_64-unknown-linux-gnu -p windfall-plugin-host -p windfall-core -p windfall-dsp -p windfall-project -p windfall-ipc -p windfall-stretch --all-targets
+
+# Linux broad check adds this isolated environment to the Linux compiler wrappers
+export DOCS_RS=1
+export CARGO_TARGET_DIR=target/linux-desktop-typecheck
+export PKG_CONFIG_ALLOW_CROSS=1
+export PKG_CONFIG="$(cygpath -w "$PWD/target/round5/pkg-config-check-only-v2.cmd")"
+cargo check --offline --target x86_64-unknown-linux-gnu -p windfall-desktop -p windfall-engine -p windfall-plugin -p windfall-plugin-host -p windfall-analysis -p windfall-codec -p windfall-archive -p windfall-factory --all-targets
+```
+
+The reused compiler wrappers use the existing `target/cross-venv` Zig environment.
+Synthetic pkg-config returns1.8.1 for its own version,99.0.0 for package versions,
+`x11 wayland` for backend targets, a check-only path for other variable probes,
+and `-lwindfall_check_only_not_a_real_system_library` for libs/cflags. This is
+explicit metadata-only discovery, not installed system libraries. No tool,
+dependency cache or upstream source was installed/modified in this round.
+
+Real stem gate expands the established wrapper to:
+
+```sh
+export WINDFALL_ORT_DYLIB='C:/Users/ewhee/.t3/projects/windfall/target/stem-pack/pack/onnxruntime.dll'
+export WINDFALL_STEM_MODEL_PACK='C:/Users/ewhee/.t3/projects/windfall/target/stem-pack/pack'
+export WINDFALL_STEM_EVIDENCE='C:/Users/ewhee/.t3/projects/windfall/target/round5-stem-evidence'
+cargo test --offline -p windfall-desktop real_onnx_four_stem_synthetic_mix_evidence -- --ignored --nocapture --test-threads=1
+```
+
+This selects only the software ONNX case. Its actual four WAV outputs and reports
+at44100/48000Hz are under timestamped directories in the explicitly named
+`target/round5-stem-evidence`; they are not renamed to imply a different path.
+Capture opt-ins select only `plugins::runtime::capture_ack_tests::`; no hardware
+ignore or device harness was enabled. Every native-window report identifies
+`software-memory-sink`; no real output/input/MIDI device was opened.
 
 ## Dependency/manifest changes
 
-Pending integrated audit. No installation performed by this integrator.
+Audit against `70ae38eb`: no `Cargo.toml`, `Cargo.lock` or desktop `package.json`
+changes; no new Rust crate/package/version or system tool installation. Existing
+locked dependencies and the prior cross-check virtual environment are reused.
+Generated TypeScript bindings and simulator artifacts are refreshed; schemas and
+registry prefixes are verified against `c0144d31`. Internal bridge ABI10 and packet
+schema3 are documented protocol changes, not dependencies. Packet schemas1/2
+remain accepted, and saved command/descriptor/choice indices retain their prefix.
 
 ## Row acceptance
 
-Pending integrated verification of all ten currently in-progress rows.
+Inventory is the ten `in-progress` rows in `docs/parity/parity.json` (327done,
+10in-progress,5wont-do;342total). The tracker is unchanged. W means the final
+passing Rust confirmation log, `target/round6-workspace-confirm.log` (4817/0/40).
+UI means `target/round6-frontend-confirm-results.json` (6488/2/0). The two failing
+UI files are the explicit language admissions; none is ignored or excluded.
+Passing named cases/modules below were actually executed. Cross-target metadata
+plus portable logic meets the recorded [QA completion rule](README.md); it does
+not claim another OS's runtime. Recommendation: **7 done /3 in-progress**.
+
+| Row id and summary | Passing evidence actually run | Still open | Recommendation |
+|---|---|---|---|
+| `fmt-export-wav-markers` — Embeds loop points and markers from the timeline or notes into rendered WAV files. | W: all3 `session::tests::export_tempo` native cases independently compare RIFF cues/loops/note slices against constant, synced-LFO and audio-dependent PCM, full/region/stems/reopen. Final timeline module12/0/0 also measures exact full/selected buffer/stream/stem origins with Start/Punch at22050/48000/96000Hz (`target/round6-timeline-green.log`). Existing codec/export/UI regressions pass. | EXTERNAL-ONLY: Third-party RIFF/ACID readers, private annotation corpora and listening. All requested actual-clock metadata paths are built and passing. | `done` |
+| `core-lifetime-free-updates` — License holders receive every later version of the program without paying again. | W: all9 update_shutdown cases, native cancellation/all shutdown stages, exact opaque state/editor owner/sustained sequence restoration, cleared live notes and revoked Stop resume; updates7 and transfer5 pass including real generated-key production signature verification, corruption/truncation/wrong keys, endpoint templates and delayed replay headers. Release/resource scripts pass. Initial full signature failure and deterministic red/green reproduction retained above. | EXTERNAL-ONLY: Operator signing/update-server credentials, actual published packages/installer execution, network distribution and other-OS installer/editor lifecycle. Rollback, joined dirty capture and bounded production verification are measured here. | `done` |
+| `fmt-host-fl-as-plugin` — Runs the whole program as an instrument plugin inside another host, with multiple outputs. | W: plugin library26/0/0, native_export/nested_export, exact raw SF2/General MIDI packet reopen and native PCM, rendered preset original-source/PCM packet recall after source deletion, duplicate/oversize/damage diagnostics, owned assets/native nested state/reset/ports/allocator/retirement cases. Final Apple/Linux desktop/export checks include panel/runtime and schema3. | EXTERNAL-ONLY: Third-party DAW acceptance/multibus routing, vendor processors/private banks, signing/notarization, physical devices, listening and actual other-OS runtime. Bounded originals are preserved rather than substituted with PCM. | `done` |
+| `wf-project-settings` — Per-project choices for meter, timing resolution and how panning affects level. | W: project settings/timebase/meter/pan-law, bridged-versus-direct native PCM and live expression ramps, actual MIDI-channel routing, helper recovery/allocator and fixed/threaded/export regressions. UI plugin note-capability/settings tests pass. | SOFTWARE: Prepare independently addressable per-note audio for Pan-only/Volume-only native processors and apply their complementary host operation for all four mixed native/host route combinations without affecting overlapping notes or double application. Preserve current/target/remaining ramp phase and sounding owner identity, with block-boundary route crossfades when Pan/Volume/instance capabilities disappear/return. Add measured CLAP/VST3 mid-note click bounds and full declared-MPE controller gesture coverage to those implementations. Current summed plugin outputs and target-only recovery cannot provide this behavior. | `in-progress` |
+| `fmt-host-au` — Loads Audio Unit instruments and effects on macOS. | W:3 production provider-policy regressions with bridging enabled, default effect/instrument discovery/preparation before helper lookup, wrapper selection, AU model7 and geometry4, project AU registry/history/portable reopen. Final Apple host and desktop/export all-target checks compile AU/Cocoa and real production insertion/owner/editor paths. | EXTERNAL-ONLY: Actual stock/vendor AU audio/state/reset/insertion/save/reopen/editor execution on macOS, native AppKit/CoreAudio/CoreMIDI linking, focus/lifetime and listening/physical devices. Production AU now reaches the Cocoa-main adapter rather than CLAP/VST3-only validation. | `done` |
+| `core-vst2-vst3-audio-unit-and-clap-support` — Loads third-party instrument and effect plugins in the common plugin formats. | W: production AU policy above plus complete native CLAP/VST3 dynamic ports/parameters/tombstones/routes/PDC/capture/restart/replacement/editor/bridge regressions. Apple/Linux host and desktop/export checks all pass; portable AU/native ownership logic passes here. | EXTERNAL-ONLY: Other-OS native linking/runtime, vendor interoperability/editor behavior, physical devices and listening. SCOPE: VST2 is explicitly excluded by [QA README decisions —2026-10-11](README.md); its tracker row is wont-do. No AU production-routing software omission remains. | `done` |
+| `wf-ui-scaling` — Scales the interface and plugin windows for high-resolution displays. | W: AU geometry4 covers nondefault wrapper opening, live application zoom, independent backing density/monitor transitions, invalid scale rollback, plugin/user resize and close fencing; native wrapper/editor ownership cases pass. UI application/canvas/control scaling tests pass. Final Apple host+desktop and Linux integration checks compile real backend scale paths; all4 software native-window smokes pass. | EXTERNAL-ONLY: Real AppKit/AU view transforms/input/focus, vendor factory views, Retina/mixed-density monitor transitions and actual other-OS native GUI execution. AU host-owned application zoom and InstanceBackend scale are implemented and type-checked. | `done` |
+| `fmt-import-legacy-presets` — Renders small synth or speech preset files into a sampler channel as if they were samples. | W: complete public DrumSynth codec/native import regressions, preset-render engine5/0/0 across all29 accepted synth kinds plus speech, live/offline exact release PCM, partition/rate/mono/hostile/cancel tests; native preset jobs7/0/0 preserve browser/drop/source/result identity, one-step history, portable reopen/re-render, source deletion and plugin packet recall. UI mounted preset dialog/catalog/live en→es tests pass. | EXTERNAL-ONLY: Musical listening, voice quality and additional lawful corpora. SCOPE: [QA README decision —2026-10-13](README.md) excludes proprietary SYN/speech byte layouts with explicit refusal; Windfall-owned synth/speech presets provide the accepted capability. Public DrumSynth text synthesis and original-source ownership are implemented. | `done` |
+| `fmt-flp-import` — Reads notes, clips, automation, routing and sample references out of an FL project file. | FLP204/0/0 (`target/round6-flp-eight-repair3.log`) and all FLP cases in W: public event/native layout numerics, bounded references/slices/embedded WAV, controllers, notes/edit groups, Start/Punch/loops and saved original blobs. W: highest-pitch slide rules, real timeline12/0/0 and native recording Punch transport restoration. UI grouped piano-roll movement and simulator Start/Punch transport pass. | SOFTWARE: Execute decoded public native controls that currently report `no corresponding stand-in control`, including Multiband Delay's16-band/eight-bank delay/volume/pan state (only bank1 bands0..2 currently execute) and 3x Osc pulse-width/delay/band/high controls. Add the matching target state/DSP/descriptor mappings and measured independent control/PCM/reopen fixtures; source archival/per-field warnings do not complete known-layout translation. SCOPE: Unnamed instrument automation numbers, absent controller formula serialization/smoothing units, unknown nonlinear interiors and devices/tails with no public semantic layout remain opaque with the named per-item source-evidence warnings, as [QA README](README.md) allows; no numbers/equations are fabricated. | `in-progress` |
+| `wf-languages` — Shows the interface in a chosen language. | UI: catalog/guard behavior/native-code/locale/control/reactive toast/MIDI/preset tests pass; full suite6488 passing cases. Rust coded MIDI registry/serialization and corresponding native consumers pass in W; cross-target title/consumer code compiles. Protocol capitalization and Spanish MIDI count regressions are repaired,40/0/0 focused. | SOFTWARE: Replace6086 guarded source occurrences with registry messages/reactive display metadata; complete10862 repeated descriptor/language-address omissions for processor/parameter/choice/generated-group labels in both shipped catalogs. Extend append-only Rust codes+parameters beyond MIDI to project/recording/path/plugin/helper/import/update/history/status/refusal families; retain coded references through all toasts/reviews/dialogs, semantic menus/readouts and native create-time/reactive captions, with locale-aware counts/numbers/dates/time and unchanged authored names. Whole-app and descriptor zero-omission guards still fail; no prose was bulk allowlisted. Counts are occurrence/address totals, not distinct strings. | `in-progress` |
+
+## Exact stopping point
+
+All eight required branches are merged, all listed gates were executed serially,
+and no branch is pending. Rust, focused repaired UI, cross-target, release,
+packaging, factory and software native-window checks pass. Full frontend remains
+red solely on the two language admissions. This is a committed budget checkpoint,
+not completion of the last implementation round: the concrete SOFTWARE items in
+the three rows above remain to implement. No build/test process remains active,
+no hardware ignore/device harness was run, and no new branch/push/PR/tag was made.
+Resume from the final tip on `feat/parity-100` in this checkout. Implement the
+per-note audio/route migration, remaining known-layout FLP target controls and
+whole-app/Rust-code localization; retain the measured invariants and strict guards,
+then regenerate only affected artifacts and repeat the relevant/full serial gates.
