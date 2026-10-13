@@ -233,7 +233,9 @@ fn sslf_states_nested_delay_banks_and_float_arrays_use_the_public_offsets() {
     let mut b = vec![0; 1544];
     b[8..12].copy_from_slice(&120_f32.to_le_bytes());
     let c = effect("Multiband Delay", &b);
-    assert_eq!(effect_value(&c, "timeMs.0"), 120.0);
+    // The first of sixteen source bands is band 1 of bank 1, not the legacy
+    // three-band "low" control this expectation named before round seven.
+    assert_eq!(effect_value(&c, "banks.0.timeMs.0"), 120.0);
     assert!(format!("{:?}", c.report).contains("bank_8/pan.15"));
 }
 

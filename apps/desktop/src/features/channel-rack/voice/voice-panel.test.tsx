@@ -117,6 +117,8 @@ it("edits the channel filter, the resonance envelope and a target LFO as complet
     shape: "sine",
     rateHz: 5,
     depth: 0,
+    delayMs: 0,
+    retrigger: false,
   })
   for (const target of ["pan", "pitch", "cutoff", "resonance"])
     expect(
@@ -189,7 +191,14 @@ it("follows the saved settings again once its own save has settled", async () =>
 
 it("sanitizes the filter, the target LFOs and the layer children", () => {
   const value = createDefaultChannelVoiceSettings()
-  const idle = { enabled: false, shape: "sine", rateHz: 5, depth: 0 } as const
+  const idle = {
+    enabled: false,
+    shape: "sine",
+    rateHz: 5,
+    depth: 0,
+    delayMs: 0,
+    retrigger: false,
+  } as const
   const clean = sanitizeChannelVoiceSettings({
     ...value,
     envelopes: {
@@ -202,8 +211,15 @@ it("sanitizes the filter, the target LFOs and the layer children", () => {
       },
       resonance: { ...value.envelopes.pan, depth: 9 },
       lfos: {
-        volume: { enabled: true, shape: "square", rateHz: 500, depth: -7 },
-        pan: { ...idle, rateHz: Number.NaN },
+        volume: {
+          enabled: true,
+          shape: "square",
+          rateHz: 500,
+          depth: -7,
+          delayMs: 1e9,
+          retrigger: true,
+        },
+        pan: { ...idle, rateHz: Number.NaN, delayMs: Number.NaN },
         pitch: idle,
         cutoff: idle,
         resonance: idle,
@@ -227,6 +243,14 @@ it("sanitizes the filter, the target LFOs and the layer children", () => {
   expect(clean.envelopes.resonance?.depth).toBe(1)
   expect(clean.envelopes.lfos?.volume).toMatchObject({ rateHz: 30, depth: -1 })
   expect(clean.envelopes.lfos?.pan.rateHz).toBe(5)
+  expect(clean.envelopes.lfos?.volume).toMatchObject({
+    delayMs: 20_000,
+    retrigger: true,
+  })
+  expect(clean.envelopes.lfos?.pan).toMatchObject({
+    delayMs: 0,
+    retrigger: false,
+  })
   expect(clean.layer?.children).toHaveLength(16)
   expect(clean.layer?.children.slice(0, 2)).toEqual([4, 10])
 })

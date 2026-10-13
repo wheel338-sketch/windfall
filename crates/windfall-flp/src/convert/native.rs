@@ -832,7 +832,9 @@ fn effect_layout(name: &str, size: usize) -> Option<(EffectKind, Layout)> {
         "multiband delay" => {
             let mut l = Layout::words("version reserved");
             // The public definition is marked UNFINISHED. All eight named
-            // banks of 16 delay/volume/pan floats are nevertheless explicit.
+            // banks of 16 delay/volume/pan floats are nevertheless explicit,
+            // and each lands on the stand-in's sixteen-band bank of the same
+            // number.
             for bank in 0..8 {
                 for row in 0..3 {
                     for band in 0..16 {
@@ -841,11 +843,13 @@ fn effect_layout(name: &str, size: usize) -> Option<(EffectKind, Layout)> {
                             offset: 8 + bank * 192 + row * 64 + band * 4,
                             scalar: Scalar::Float,
                             name: format!("bank_{}/{n}.{band}", bank + 1),
-                            target: if bank == 0 && band < 3 {
-                                format!("{}.{band}", ["timeMs", "level", "pan"][row])
-                            } else {
-                                String::new()
-                            },
+                            // Raw float taken in the stand-in's own unit
+                            // (ms, gain, pan) and clamped to its range: the
+                            // public definition names the arrays, no units.
+                            target: format!(
+                                "banks.{bank}.{}.{band}",
+                                ["timeMs", "level", "pan"][row]
+                            ),
                             range: (-f64::from(f32::MAX), f64::from(f32::MAX)),
                             number: None,
                             formula: Some(|v| v),
@@ -1080,6 +1084,11 @@ pub(super) fn effect(name: &str, state: &[u8], tempo: f64) -> Option<Translated>
     if name == "effector" {
         set("xyEnabled", 1.0);
     }
+    if name == "multiband delay" {
+        // The public layout names no playing bank: the first one plays.
+        set("layout", 1.0);
+        set("bank", 1.0);
+    }
     if name == "fruity delay 3" && state.len() >= 108 && word(3).is_some_and(|v| v != 0) {
         set("sync", 0.0);
         set(
@@ -1116,11 +1125,11 @@ pub(super) fn reports(name: &str, state: &[u8]) -> Vec<String> {
                 .get(i * 8..i * 8 + 8)
                 .and_then(|b| b.try_into().ok())
                 .map(f64::from_le_bytes);
-            lines.push(format!("{name}.{field}={raw:?}: public f64 at {}; oscillator tuning/shape/level, cutoff/Q, ADSR and shared modulation use the reported numerical rules; pulse width/delay/band/high controls have no matching stand-in descriptor; unk fields have no public meaning and remain opaque.",i*8));
+            lines.push(format!("{name}.{field}={raw:?}: public f64 at {}; oscillator tuning/shape/level, pulse width, cutoff/Q, band/high filter levels, ADSR, LFO delay and shared modulation use the reported numerical rules; unk fields have no public meaning and remain opaque.",i*8));
         }
         for (i,field) in "osc1_on osc1_o1 osc1_o2 osc1_warm osc2_on osc2_o1 osc2_o2 osc2_warm osc3_on osc3_o1 osc3_o2 osc3_warm lfo_on lfo_retrigger svf_on unk_6 lfo_trackamp unk_7 chorus_on unk_8".split_whitespace().enumerate(){
             let raw=state.get(436+i*4..440+i*4).and_then(|b|b.try_into().ok()).map(u32::from_le_bytes);
-            lines.push(format!("{name}.{field}={raw:?}: public flag at {}; oscillator/LFO/filter enable mapped; per-oscillator octave layers, warmth, retrigger/trackamp and chorus have no equivalent flag in this stand-in; unknown words remain opaque.",436+i*4));
+            lines.push(format!("{name}.{field}={raw:?}: public flag at {}; oscillator/LFO/filter enable, octave layers and LFO retrigger mapped; warmth, trackamp and chorus are reported per channel; unknown words remain opaque.",436+i*4));
         }
         return lines;
     }
@@ -1183,7 +1192,7 @@ pub(super) fn reports(name: &str, state: &[u8]) -> Vec<String> {
             "{name}: a documented field is nonfinite or outside the public source range; state retained, safe defaults used."
         )];
     }
-    let mut reports:Vec<String>=l.fields.iter().filter(|f|!matches!(f.name.as_str(),"version"|"reserved") && !(key == "multiband delay" && f.target.is_empty())).map(|f| {
+    let mut reports:Vec<String>=l.fields.iter().filter(|f|!matches!(f.name.as_str(),"version"|"reserved") && key != "multiband delay").map(|f| {
         match f.read(bytes) {
             None=>format!("{name}.{}: truncated/nonfinite public field; safe default retained.",f.name),
             Some(v)=>match descriptors.iter().find(|p|p.id==f.target) {
@@ -1197,23 +1206,40 @@ pub(super) fn reports(name: &str, state: &[u8]) -> Vec<String> {
         }
     }).collect();
     if key == "multiband delay" {
-        // Keep all 375 unrepresentable controls visible within the bounded report.
-        // One line per bank/row retains each source name and value, rather than
-        // exhausting the category's 200-line budget before reaching later banks.
+        // One line per bank and row keeps all 384 values inside the bounded
+        // report: each names its source field, value and stand-in control.
         for bank in 1..=8 {
-            for row in ["delay", "vol", "pan"] {
+            for (row, unit) in [
+                ("delay", "milliseconds, 1..1000"),
+                ("vol", "gain, 0..1"),
+                ("pan", "pan, -1..1"),
+            ] {
                 let prefix = format!("bank_{bank}/{row}.");
                 let fields = l
                     .fields
                     .iter()
-                    .filter(|f| f.target.is_empty() && f.name.starts_with(&prefix))
-                    .map(|f| format!("{}={:?}", f.name, f.read(bytes)))
+                    .filter(|f| f.name.starts_with(&prefix))
+                    .map(
+                        |f| match (f.read(bytes), descriptors.iter().find(|p| p.id == f.target)) {
+                            (Some(v), Some(info)) => {
+                                format!(
+                                    "{}={v}->{}={}",
+                                    f.name,
+                                    info.id,
+                                    v.clamp(f64::from(info.min), f64::from(info.max))
+                                )
+                            }
+                            _ => format!("{}: truncated/nonfinite, default kept", f.name),
+                        },
+                    )
                     .collect::<Vec<_>>();
-                if !fields.is_empty() {
-                    reports.push(format!("{name}: decoded public fields {}; no corresponding stand-in controls (state retained).", fields.join(", ")));
-                }
+                reports.push(format!(
+                    "{name}: {} (raw float taken as {unit}; the public definition gives no unit).",
+                    fields.join(", ")
+                ));
             }
         }
+        reports.push(format!("{name}: the public definition names no playing bank, band frequencies, feedback or wet level. Bank 1 plays; the other seven are kept as selectable banks; band edges are Windfall's own (40 Hz to 16 kHz, equal ratios); feedback and mix stay at the stand-in defaults."));
     }
     if key == "fruity free filter" {
         reports.push(format!("{name}: DawVert dataset numbers/ranges and universal converter disagree on frequency/type ranges; explicit dataset numbering is retained, but converter type/700 and freq/1024 ranges supply the seven named responses and Hz. The converter's negative index at type=0 is treated as lowpass safe fallback; source range disagreement is an approximation, not established acoustic parity."));

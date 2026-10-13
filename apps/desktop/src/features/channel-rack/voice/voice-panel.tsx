@@ -302,7 +302,26 @@ function TargetLfoControls({
               {...gestures}
             />
           </Field>
+          <Field>
+            <Knob
+              label="Delay"
+              aria-label={`${title} delay`}
+              value={value.delayMs}
+              min={0}
+              max={20_000}
+              defaultValue={0}
+              showValue
+              format={(delay) => `${Math.round(delay)} ms`}
+              onValueChange={(delayMs) => set({ delayMs })}
+              {...gestures}
+            />
+          </Field>
         </FieldGroup>
+        <Enabled
+          label={`Restart ${target} LFO on each note`}
+          checked={value.retrigger}
+          onChange={(retrigger) => set({ retrigger })}
+        />
         <FieldDescription>
           Full depth: {LFO_FULL_DEPTH[target]}.
         </FieldDescription>

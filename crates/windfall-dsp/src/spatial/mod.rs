@@ -12,7 +12,9 @@ mod phaser;
 mod room;
 mod stereo;
 
-pub use band_delay::{BandDelay, BandDelayParams};
+pub use band_delay::{
+    BANKS, BandBank, BandDelay, BandDelayParams, BandLayout, WIDE_BANDS, wide_edge_hz,
+};
 pub use bucket::{BUCKET_GUARD_HZ, BUCKET_SAMPLES, BucketMode, BucketSweep};
 pub use chorus::{
     HyperChorus, HyperChorusParams, SWARM_MAX_VOICES, VintageChorus, VintageChorusParams,

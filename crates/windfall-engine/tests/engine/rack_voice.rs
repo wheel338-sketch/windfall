@@ -472,6 +472,7 @@ fn the_cutoff_envelope_and_lfo_move_the_first_modulation_target() {
         shape: LfoShape::Square,
         rate_hz: 5.0,
         depth: 0.5,
+        ..TargetLfo::default()
     };
     rig.channel_mut(channel).voice = wobble;
     let (mut processor, controller) = rig.processor(RATE);
@@ -500,6 +501,7 @@ fn the_resonance_envelope_and_lfo_move_the_second_modulation_target() {
         shape: LfoShape::Square,
         rate_hz: 5.0,
         depth: 0.6,
+        ..TargetLfo::default()
     };
     rig.channel_mut(channel).voice = voice;
     let (mut processor, controller) = rig.processor(RATE);
@@ -530,6 +532,7 @@ fn the_volume_lfo_is_a_tremolo_between_its_depth_and_full_level() {
             shape,
             rate_hz: 10.0,
             depth,
+            ..TargetLfo::default()
         };
         left(&held_level(voice))
     };
@@ -569,6 +572,7 @@ fn the_pan_lfo_and_envelope_move_the_note_between_the_sides() {
         shape: LfoShape::Square,
         rate_hz: 10.0,
         depth: 1.0,
+        ..TargetLfo::default()
     };
     let out = held_level(voice);
     let (l, r) = (left(&out), right(&out));
@@ -604,6 +608,7 @@ fn the_pitch_envelope_and_lfo_bend_the_note() {
         shape: LfoShape::Square,
         rate_hz: 5.0,
         depth: 0.5,
+        ..TargetLfo::default()
     };
     let wobble = bent(voice);
     assert!((frequency(&wobble[480..4320], RATE) - 880.0).abs() < 1.0);
@@ -653,6 +658,7 @@ fn modulated_rig() -> Rig {
         shape,
         rate_hz,
         depth,
+        ..TargetLfo::default()
     };
     voice.envelopes.lfos.volume = lfo(7.0, 0.4, LfoShape::Sine);
     voice.envelopes.lfos.pan = lfo(3.0, -0.3, LfoShape::Triangle);

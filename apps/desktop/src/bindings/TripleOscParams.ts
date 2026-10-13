@@ -2,4 +2,12 @@
 import type { AnalogEnvelopeParams } from "./AnalogEnvelopeParams";
 import type { AnalogOscParams } from "./AnalogOscParams";
 
-export type TripleOscParams = { oscillators: [AnalogOscParams, AnalogOscParams, AnalogOscParams], cutoffHz: number, resonance: number, envelopeAmount: number, envelope: AnalogEnvelopeParams, gain: number, };
+export type TripleOscParams = { oscillators: [AnalogOscParams, AnalogOscParams, AnalogOscParams], cutoffHz: number, resonance: number, envelopeAmount: number, envelope: AnalogEnvelopeParams, gain: number, 
+/**
+ * How much of the band-pass output of the filter joins the low-pass one.
+ */
+bandMix: number, 
+/**
+ * How much of the high-pass output of the filter joins the low-pass one.
+ */
+highMix: number, };

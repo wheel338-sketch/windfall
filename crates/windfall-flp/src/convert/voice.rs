@@ -280,6 +280,7 @@ impl Builder<'_> {
                 shape: windfall_project::LfoShape::Sine,
                 rate_hz: (word(14) as f32 / 65536.0 * 127.0).clamp(0.01, 20.0),
                 depth: (word(11) as f32 / 65536.0 / 5.5).clamp(0.0, 1.0),
+                ..Default::default()
             };
             self.report.say(section,Outcome::Approximated,format!("Channel {} Fruity DX10 vibrato/lforate mapped using DawVert amount=n/5.5, rate=n*127; shared pitch LFO depth and 0.01..20Hz stand-in range apply.",channel.iid));
             outcome = Outcome::Approximated;
@@ -357,11 +358,20 @@ impl Builder<'_> {
                 let rate = (2.0_f64.powf((1.0 + v(22).unwrap_or(0.5) * 998.0 - 500.0) / 100.0)
                     * multiplier)
                     .clamp(0.01, 20.0) as f32;
+                // The public converter reads lfo_del and lfo_retrigger but
+                // gives the delay no rule of its own; it uses the time rule
+                // the same device publishes for its envelopes, 4*v^3 seconds.
+                let delay_ms = (4.0 * v(21).unwrap_or(0.0).powi(3) * 1000.0)
+                    .clamp(0.0, f64::from(windfall_project::TargetLfo::MAX_DELAY_MS))
+                    as f32;
+                let retrigger = flag(13);
                 settings.envelopes.lfos.cutoff = windfall_project::TargetLfo {
                     enabled: flag(12) && flag(14),
                     shape,
                     rate_hz: rate,
                     depth: ((v(29).unwrap_or(0.5) - 0.5) * 2.0).clamp(-1.0, 1.0) as f32,
+                    delay_ms,
+                    retrigger,
                 };
                 let weighted = |offset: usize| {
                     let mut weight = 0.0;
@@ -384,9 +394,11 @@ impl Builder<'_> {
                     shape,
                     rate_hz: rate,
                     depth: ((weighted(4) - 0.5) * 2.0).clamp(-1.0, 1.0) as f32,
+                    delay_ms,
+                    retrigger,
                 };
                 self.report.say(section,Outcome::Approximated,format!("Channel {} SimSynth osc1/2/3_env and osc1/2/3_lfo are combined by enabled oscillator level into the stand-in's shared pitch routes; centered source amounts use (v-.5)*4800 cents and (v-.5)*2 LFO depth. Distinct oscillator trajectories cannot be represented by this stand-in.",channel.iid));
-                self.report.say(section,Outcome::Approximated,format!("Channel {} SimSynth svf ADSR: 4*v^3 seconds, depth=env*6.4 octaves; LFO rate=2^((1+rate*998-500)/100), saw/noise doubled; on/cutoff depth mapped, source shape {source_shape} approximated by the available sine/triangle/square. Oscillator-specific pitch routes, delay/retrigger, band/high outputs and chorus have no matching per-oscillator stand-in controls.",channel.iid));
+                self.report.say(section,Outcome::Approximated,format!("Channel {} SimSynth svf ADSR: 4*v^3 seconds, depth=env*6.4 octaves; LFO rate=2^((1+rate*998-500)/100), saw/noise doubled; on/cutoff depth mapped, source shape {source_shape} approximated by the available sine/triangle/square. lfo_del={:?} -> LFO start delay {delay_ms} ms (4*v^3 seconds, the device's published envelope time rule; the public converter reads the field without a rule of its own); lfo_retrigger -> retrigger={retrigger}. Oscillator-specific pitch routes have no matching per-oscillator stand-in controls.",channel.iid,v(21)));
                 outcome = Outcome::Approximated;
             }
         }
@@ -589,6 +601,9 @@ impl Builder<'_> {
                         },
                         rate_hz: (self.tempo_bpm / 240.0) as f32,
                         depth: env.lfo_amount.unwrap_or(0).clamp(-128, 128) as f32 / 128.0,
+                        // PyFLP _EnvLFOFlags.LFOPhaseRetrig, bit 5.
+                        retrigger: env.flags & 32 != 0,
+                        ..Default::default()
                     };
                     match index {
                         0 => settings.envelopes.lfos.pan = lfo,
@@ -608,7 +623,7 @@ impl Builder<'_> {
                         env.lfo_predelay.unwrap_or(100).saturating_sub(100),
                     ),
                     ("attack", env.lfo_attack.unwrap_or(100).saturating_sub(100)),
-                    ("sync/retrigger", env.flags & 34),
+                    ("tempo sync", env.flags & 2),
                 ] {
                     if value != 0 {
                         self.report.say(section,Outcome::Dropped,format!("Channel {} {target} LFO {name}={value} is not expressible by the stand-in.",channel.iid));

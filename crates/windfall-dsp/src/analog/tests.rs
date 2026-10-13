@@ -145,9 +145,17 @@ fn params<P: ParamSet + serde::Serialize + serde::de::DeserializeOwned + ts_rs::
 #[test]
 fn parameter_indices_defaults_serialization_and_sanitization() {
     params::<AnalogEnvelopeParams>(4);
-    params::<AnalogOscParams>(4);
+    // Round seven appended pulse width and two octave layers per oscillator
+    // and the band/high levels of the filter; earlier rows keep their indices.
+    params::<AnalogOscParams>(7);
     params::<AcidLineParams>(75);
-    params::<TripleOscParams>(20);
+    params::<TripleOscParams>(31);
+    assert_eq!(AnalogOscParams::index_of("level"), Some(3));
+    assert_eq!(
+        TripleOscParams::index_of("oscillators.0.pulseWidth"),
+        Some(20)
+    );
+    assert_eq!(TripleOscParams::index_of("highMix"), Some(30));
     params::<WaveLaneParams>(9);
     params::<MacroVoiceParams>(4);
     assert_eq!(AcidLineParams::index_of("steps.15.slide"), Some(74));
@@ -482,4 +490,148 @@ fn reset_repeats_original_audio_with_current_parameters() {
     repeat::<TripleOsc>();
     repeat::<WaveLane>();
     repeat::<MacroVoice>();
+}
+
+/// The amplitude of the `hz` component over a whole number of its cycles.
+fn component(signal: &[f32], hz: f64) -> f64 {
+    let (mut re, mut im) = (0.0, 0.0);
+    for (n, x) in signal.iter().enumerate() {
+        let angle = std::f64::consts::TAU * hz * n as f64 / 48_000.0;
+        re += f64::from(*x) * angle.cos();
+        im += f64::from(*x) * angle.sin();
+    }
+    2.0 * (re * re + im * im).sqrt() / signal.len() as f64
+}
+
+/// One second of one held A3 from oscillator 1 alone, after the attack, at a
+/// level where the output stage is linear.
+fn held_a3(edit: impl FnOnce(&mut TripleOscParams)) -> Vec<f32> {
+    let mut p = TripleOscParams {
+        cutoff_hz: 18_000.0,
+        resonance: 0.0,
+        envelope_amount: 0.0,
+        gain: 0.05,
+        ..TripleOscParams::default()
+    };
+    p.envelope = AnalogEnvelopeParams {
+        attack_ms: 0.0,
+        decay_ms: 0.0,
+        sustain: 1.0,
+        release_ms: 10.0,
+    };
+    p.oscillators[0].level = 1.0;
+    p.oscillators[1].level = 0.0;
+    p.oscillators[2].level = 0.0;
+    edit(&mut p);
+    let mut synth = TripleOsc::default();
+    synth.prepare(48_000.0, 64);
+    synth.set_params(&p);
+    synth.note_on(57, 1.0);
+    render(&mut synth, 72_000, 64)[24_000..].to_vec()
+}
+
+#[test]
+fn triple_osc_pulse_width_sets_the_overtones_of_a_pulse() {
+    // A pulse high for a share w of its cycle has overtone n at sin(pi n w)/n.
+    for width in [0.2_f32, 0.35, 0.5, 0.8] {
+        let signal = held_a3(|p| {
+            p.oscillators[0].waveform = Waveform::Pulse;
+            p.oscillators[0].pulse_width = width;
+        });
+        let first = component(&signal, 220.0);
+        assert!(first > 1e-4, "width {width}: silent");
+        for n in 2..=5 {
+            let want = ((std::f64::consts::PI * f64::from(n) * f64::from(width)).sin()
+                / f64::from(n)
+                / (std::f64::consts::PI * f64::from(width)).sin())
+            .abs();
+            let got = component(&signal, 220.0 * f64::from(n)) / first;
+            println!("TRIPLE pulse width={width} n={n} got={got:.5} want={want:.5}");
+            assert!(
+                (got - want).abs() < 0.01,
+                "width {width} overtone {n}: {got} vs {want}"
+            );
+        }
+    }
+    // Half is the square that older projects played.
+    let square = held_a3(|p| p.oscillators[0].waveform = Waveform::Square);
+    let pulse = held_a3(|p| p.oscillators[0].waveform = Waveform::Pulse);
+    assert_eq!(square, pulse);
+}
+
+#[test]
+fn triple_osc_octave_layers_mix_half_and_half_in_order() {
+    let alone = held_a3(|p| p.oscillators[0].waveform = Waveform::Sine);
+    let base = component(&alone, 220.0);
+    for (octave, two, want) in [
+        (true, false, [0.5, 0.5, 0.0]),
+        (false, true, [0.5, 0.0, 0.5]),
+        (true, true, [0.25, 0.25, 0.5]),
+    ] {
+        let signal = held_a3(|p| {
+            p.oscillators[0].waveform = Waveform::Sine;
+            p.oscillators[0].octave_up = octave;
+            p.oscillators[0].two_octaves_up = two;
+        });
+        // The filter is 18 kHz and flat here to well inside the tolerance.
+        for (hz, want) in [220.0, 440.0, 880.0].into_iter().zip(want) {
+            let got = component(&signal, hz) / base;
+            println!("TRIPLE layers octave={octave} two={two} hz={hz} got={got:.5} want={want}");
+            assert!(
+                (got - want).abs() < 0.005,
+                "{octave} {two} {hz}: {got} vs {want}"
+            );
+        }
+    }
+}
+
+#[test]
+fn triple_osc_band_and_high_levels_follow_the_filter_transfer_function() {
+    // With s = j tan(pi f / rate) / tan(pi fc / rate) and k = 1/Q the three
+    // outputs share one denominator, so adding b band (at unity peak) and h
+    // high to the low-pass scales a sine by |1 + b k s + h s^2|.
+    let (cutoff, resonance) = (880.0_f64, 0.3_f64);
+    let k = 1.0 / (0.707 + resonance * 9.0);
+    let warped = |hz: f64| {
+        (std::f64::consts::PI * hz / 48_000.0).tan()
+            / (std::f64::consts::PI * cutoff / 48_000.0).tan()
+    };
+    let play = |band: f32, high: f32| {
+        held_a3(|p| {
+            p.oscillators[0].waveform = Waveform::Saw;
+            p.cutoff_hz = cutoff as f32;
+            p.resonance = resonance as f32;
+            p.band_mix = band;
+            p.high_mix = high;
+        })
+    };
+    let low = play(0.0, 0.0);
+    for (band, high) in [(1.0_f32, 0.0_f32), (0.0, 1.0), (0.6, 0.3), (1.0, 1.0)] {
+        let mixed = play(band, high);
+        for n in [1.0, 2.0, 4.0, 7.0] {
+            let hz = 220.0 * n;
+            let s = warped(hz);
+            let (b, h) = (f64::from(band), f64::from(high));
+            let want = ((1.0 - h * s * s).powi(2) + (b * k * s).powi(2)).sqrt();
+            let got = component(&mixed, hz) / component(&low, hz);
+            println!("TRIPLE filter band={band} high={high} hz={hz} got={got:.5} want={want:.5}");
+            assert!(
+                (got - want).abs() < 0.01 * want.max(1.0),
+                "{band} {high} {hz}: {got} vs {want}"
+            );
+        }
+    }
+    // No band or high level is exactly the low-pass that older projects had.
+    let mut old = TripleOsc::default();
+    old.prepare(48_000.0, 64);
+    old.note_on(60, 0.8);
+    let before = render(&mut old, 4096, 64);
+    let saved = r#"{"oscillators":[{"waveform":"saw","semitones":0.0,"detuneCents":0.0,"level":0.5},{"waveform":"saw","semitones":0.0,"detuneCents":0.0,"level":0.5},{"waveform":"saw","semitones":0.0,"detuneCents":0.0,"level":0.5}],"cutoffHz":4000.0,"resonance":0.15,"envelopeAmount":0.3,"envelope":{"attackMs":5.0,"decayMs":180.0,"sustain":0.7,"releaseMs":180.0},"gain":0.5}"#;
+    let opened: TripleOscParams = serde_json::from_str(saved).unwrap();
+    assert_eq!(opened, TripleOscParams::default());
+    let mut new = TripleOsc::default();
+    new.prepare(48_000.0, 64);
+    new.set_params(&opened);
+    new.note_on(60, 0.8);
+    assert_eq!(render(&mut new, 4096, 64), before);
 }

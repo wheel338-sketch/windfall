@@ -74,6 +74,7 @@ fn filter_envelope_and_lfo_settings_are_sanitized_undoable_and_saved() {
         shape: LfoShape::Square,
         rate_hz: 1000.0,
         depth: -3.0,
+        ..TargetLfo::default()
     };
     settings.envelopes.lfos.cutoff.rate_hz = f32::INFINITY;
     settings.envelopes.lfo.target = LfoTarget::Resonance;
@@ -376,4 +377,30 @@ fn damaged_layer_lists_in_a_file_are_refused() {
         bad["channels"][1]["voice"]["layer"]["children"] = children;
         assert!(file::from_json(&bad.to_string()).is_err());
     }
+}
+
+#[test]
+fn target_lfo_saved_before_delay_and_retrigger_opens_with_neither() {
+    let old: TargetLfo =
+        serde_json::from_str(r#"{"enabled":true,"shape":"square","rateHz":7.5,"depth":0.25}"#)
+            .unwrap();
+    assert_eq!(
+        old,
+        TargetLfo {
+            enabled: true,
+            shape: LfoShape::Square,
+            rate_hz: 7.5,
+            depth: 0.25,
+            delay_ms: 0.0,
+            retrigger: false,
+        }
+    );
+    let edited = TargetLfo {
+        delay_ms: 350.0,
+        retrigger: true,
+        ..old
+    };
+    let json = serde_json::to_string(&edited).unwrap();
+    assert!(json.contains("\"delayMs\":350.0") && json.contains("\"retrigger\":true"));
+    assert_eq!(serde_json::from_str::<TargetLfo>(&json).unwrap(), edited);
 }

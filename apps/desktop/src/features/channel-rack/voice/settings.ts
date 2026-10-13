@@ -54,7 +54,14 @@ const defaultEnvelope = (): ModulationEnvelope => ({
 })
 
 export function createDefaultTargetLfo(): TargetLfo {
-  return { enabled: false, shape: "sine", rateHz: 5, depth: 0 }
+  return {
+    enabled: false,
+    shape: "sine",
+    rateHz: 5,
+    depth: 0,
+    delayMs: 0,
+    retrigger: false,
+  }
 }
 
 export function createDefaultTargetLfos(): ChannelTargetLfos {
@@ -161,6 +168,8 @@ export function sanitizeChannelVoiceSettings(
       ...value,
       rateHz: finite(value.rateHz, 0.01, 30, 5),
       depth: finite(value.depth, -1, 1, 0),
+      delayMs: finite(value.delayMs ?? 0, 0, 20_000, 0),
+      retrigger: value.retrigger === true,
     }
   }
   function layer(value: LayerSettings): LayerSettings {

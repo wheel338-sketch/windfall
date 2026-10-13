@@ -8,4 +8,14 @@ export type TargetLfo = { enabled: boolean, shape: ChannelLfoShape, rateHz: numb
 /**
  * Normalized bipolar amount; see [`ChannelTargetLfos`] for full scale.
  */
-depth: number, };
+depth: number, 
+/**
+ * How long after a note starts the LFO stays out. It then fades in
+ * over five milliseconds.
+ */
+delayMs: number, 
+/**
+ * Starts the wave from the beginning of its cycle on every new note,
+ * once the delay has passed, instead of letting it run on.
+ */
+retrigger: boolean, };

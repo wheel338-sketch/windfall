@@ -285,6 +285,12 @@ pub struct TargetLfo {
     pub rate_hz: f32,
     /// Normalized bipolar amount; see [`ChannelTargetLfos`] for full scale.
     pub depth: f32,
+    /// How long after a note starts the LFO stays out. It then fades in
+    /// over five milliseconds.
+    pub delay_ms: f32,
+    /// Starts the wave from the beginning of its cycle on every new note,
+    /// once the delay has passed, instead of letting it run on.
+    pub retrigger: bool,
 }
 impl Default for TargetLfo {
     fn default() -> Self {
@@ -293,14 +299,19 @@ impl Default for TargetLfo {
             shape: LfoShape::Sine,
             rate_hz: 5.0,
             depth: 0.0,
+            delay_ms: 0.0,
+            retrigger: false,
         }
     }
 }
 impl TargetLfo {
+    /// The longest start delay, in milliseconds.
+    pub const MAX_DELAY_MS: f32 = 20_000.0;
     pub fn sanitized(self) -> Self {
         Self {
             rate_hz: finite(self.rate_hz, 0.01, 30.0, 5.0),
             depth: finite(self.depth, -1.0, 1.0, 0.0),
+            delay_ms: finite(self.delay_ms, 0.0, Self::MAX_DELAY_MS, 0.0),
             ..self
         }
     }

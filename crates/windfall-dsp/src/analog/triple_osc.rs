@@ -73,11 +73,19 @@ impl Instrument for TripleOsc {
                         voice.key as f32 + osc.semitones + osc.detune_cents * 0.01,
                         self.sample_rate,
                     );
-                    raw += voice.oscillator(i, osc.waveform, inc) * osc.level / 3.0;
+                    raw += voice.layered(i, *osc, inc) * osc.level / 3.0;
                 }
                 let envelope = voice.envelope(p.envelope, self.sample_rate);
                 let cutoff = p.cutoff_hz * (p.envelope_amount * envelope * 4.0).exp2();
-                let sample = voice.finish(raw, envelope, cutoff, p.resonance, self.sample_rate);
+                let sample = voice.finish_mixed(
+                    raw,
+                    envelope,
+                    cutoff,
+                    p.resonance,
+                    p.band_mix,
+                    p.high_mix,
+                    self.sample_rate,
+                );
                 let pan = voice.pan.tick();
                 sum.0 += sample * pan.0;
                 sum.1 += sample * pan.1;

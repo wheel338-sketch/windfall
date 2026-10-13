@@ -38,6 +38,13 @@ pub struct AnalogOscParams {
     pub semitones: f32,
     pub detune_cents: f32,
     pub level: f32,
+    /// The share of each cycle the pulse waveform spends high.
+    pub pulse_width: f32,
+    /// Mixes in the same wave an octave up at equal weight.
+    pub octave_up: bool,
+    /// Mixes in the same wave two octaves up at equal weight with what is
+    /// already there.
+    pub two_octaves_up: bool,
 }
 
 impl Default for AnalogOscParams {
@@ -47,6 +54,9 @@ impl Default for AnalogOscParams {
             semitones: 0.0,
             detune_cents: 0.0,
             level: 0.5,
+            pulse_width: 0.5,
+            octave_up: false,
+            two_octaves_up: false,
         }
     }
 }
@@ -57,6 +67,9 @@ param_set!(AnalogOscParams, "Oscillator controls", {
     float [semitones] "semitones" "Oscillator pitch" { Semitones, Linear, -24.0, 24.0, 0.0 }
     float [detune_cents] "detuneCents" "Oscillator detune" { Cents, Linear, -100.0, 100.0, 0.0 }
     float [level] "level" "Oscillator level" { Gain, Linear, 0.0, 1.0, 0.5 }
+    float [pulse_width] "pulseWidth" "Oscillator pulse width" { Fraction, Linear, 0.01, 0.99, 0.5 }
+    toggle [octave_up] "octaveUp" "Oscillator octave layer" { false }
+    toggle [two_octaves_up] "twoOctavesUp" "Oscillator two-octave layer" { false }
 });
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
@@ -68,6 +81,10 @@ pub struct TripleOscParams {
     pub envelope_amount: f32,
     pub envelope: AnalogEnvelopeParams,
     pub gain: f32,
+    /// How much of the band-pass output of the filter joins the low-pass one.
+    pub band_mix: f32,
+    /// How much of the high-pass output of the filter joins the low-pass one.
+    pub high_mix: f32,
 }
 
 impl Default for TripleOscParams {
@@ -79,6 +96,8 @@ impl Default for TripleOscParams {
             envelope_amount: 0.3,
             envelope: AnalogEnvelopeParams::default(),
             gain: 0.5,
+            band_mix: 0.0,
+            high_mix: 0.0,
         }
     }
 }
@@ -105,6 +124,18 @@ param_set!(TripleOscParams, "Three oscillator synth", {
     float [envelope.sustain] "envelope.sustain" "Sustain" { Fraction, Linear, 0.0, 1.0, 0.7 }
     float [envelope.release_ms] "envelope.releaseMs" "Release" { Milliseconds, Linear, 0.0, 4000.0, 180.0 }
     float [gain] "gain" "Output level" { Gain, Linear, 0.0, 1.0, 0.5 }
+    // Appended in round seven. Rows above keep their indices.
+    float [oscillators[0].pulse_width] "oscillators.0.pulseWidth" "Oscillator 1 pulse width" { Fraction, Linear, 0.01, 0.99, 0.5 }
+    toggle [oscillators[0].octave_up] "oscillators.0.octaveUp" "Oscillator 1 octave layer" { false }
+    toggle [oscillators[0].two_octaves_up] "oscillators.0.twoOctavesUp" "Oscillator 1 two-octave layer" { false }
+    float [oscillators[1].pulse_width] "oscillators.1.pulseWidth" "Oscillator 2 pulse width" { Fraction, Linear, 0.01, 0.99, 0.5 }
+    toggle [oscillators[1].octave_up] "oscillators.1.octaveUp" "Oscillator 2 octave layer" { false }
+    toggle [oscillators[1].two_octaves_up] "oscillators.1.twoOctavesUp" "Oscillator 2 two-octave layer" { false }
+    float [oscillators[2].pulse_width] "oscillators.2.pulseWidth" "Oscillator 3 pulse width" { Fraction, Linear, 0.01, 0.99, 0.5 }
+    toggle [oscillators[2].octave_up] "oscillators.2.octaveUp" "Oscillator 3 octave layer" { false }
+    toggle [oscillators[2].two_octaves_up] "oscillators.2.twoOctavesUp" "Oscillator 3 two-octave layer" { false }
+    float [band_mix] "bandMix" "Filter band-pass level" { Gain, Linear, 0.0, 1.0, 0.0 }
+    float [high_mix] "highMix" "Filter high-pass level" { Gain, Linear, 0.0, 1.0, 0.0 }
 });
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]

@@ -440,3 +440,195 @@ fn spatial_reported_tails_really_expire() {
     tail_check::<Spreader>();
     tail_check::<StereoEnhancer>();
 }
+
+/// The sixteen-band layout written out from its definition in f64: fifteen
+/// two-section one-pole lowpasses at the fixed edges, neighbouring differences
+/// as bands, then a whole-sample delay, level and balance per band.
+fn wide_reference(
+    input: &[f64],
+    time_ms: &[f32; WIDE_BANDS],
+    level: &[f32; WIDE_BANDS],
+    pan: &[f32; WIDE_BANDS],
+    right: bool,
+) -> Vec<f64> {
+    let rate = f64::from(RATE);
+    let mut lowpassed = vec![vec![0.0; input.len()]; WIDE_BANDS - 1];
+    for (edge, out) in lowpassed.iter_mut().enumerate() {
+        let hz = 40.0 * 400.0_f64.powf(edge as f64 / 14.0);
+        let pole = (-std::f64::consts::TAU * hz.min(rate * 0.45) / rate).exp();
+        let (mut a, mut b) = (0.0, 0.0);
+        for (n, x) in input.iter().enumerate() {
+            a = (1.0 - pole) * x + pole * a;
+            b = (1.0 - pole) * a + pole * b;
+            out[n] = b;
+        }
+    }
+    let mut output = vec![0.0; input.len()];
+    for band in 0..WIDE_BANDS {
+        let delay = (f64::from(time_ms[band]) * rate / 1000.0).round() as usize;
+        let side = f64::from(pan[band]);
+        let balance = if right {
+            (1.0 + side).min(1.0)
+        } else {
+            (1.0 - side).min(1.0)
+        };
+        for n in delay..input.len() {
+            let m = n - delay;
+            let upto = if band < WIDE_BANDS - 1 {
+                lowpassed[band][m]
+            } else {
+                input[m]
+            };
+            let below = if band == 0 {
+                0.0
+            } else {
+                lowpassed[band - 1][m]
+            };
+            output[n] += (upto - below) * f64::from(level[band]) * balance;
+        }
+    }
+    output
+}
+
+#[test]
+fn spatial_band_sixteen_layout_matches_its_written_out_definition() {
+    // Whole-sample delays at 8 kHz, a different one per band, with uneven
+    // levels and pans so no band can stand in for another.
+    let time_ms: [f32; WIDE_BANDS] = std::array::from_fn(|band| 5.0 + 2.5 * band as f32);
+    let level: [f32; WIDE_BANDS] = std::array::from_fn(|band| 0.25 + 0.05 * band as f32);
+    let pan: [f32; WIDE_BANDS] = std::array::from_fn(|band| -0.75 + 0.1 * band as f32);
+    let mut params = BandDelayParams {
+        layout: BandLayout::Sixteen,
+        bank: 3,
+        feedback: [0.0; 3],
+        mix: 1.0,
+        ..Default::default()
+    };
+    params.banks[2] = BandBank {
+        time_ms,
+        level,
+        pan,
+    };
+    let mut fx = BandDelay::default();
+    fx.prepare(RATE, 128);
+    fx.set_params(&params);
+    let input: Vec<f64> = (0..1200)
+        .map(|n| {
+            if n == 0 {
+                1.0
+            } else {
+                0.3 * (0.37 * n as f64).sin() * (-(n as f64) / 200.0).exp()
+            }
+        })
+        .collect();
+    let mut l: Vec<f32> = input.iter().map(|x| *x as f32).collect();
+    let mut r = l.clone();
+    fx.process(&mut l, &mut r);
+    let (mut worst, mut peak) = (0.0_f64, 0.0_f64);
+    for (out, right) in [(&l, false), (&r, true)] {
+        let want = wide_reference(
+            &input
+                .iter()
+                .map(|x| f64::from(*x as f32))
+                .collect::<Vec<_>>(),
+            &time_ms,
+            &level,
+            &pan,
+            right,
+        );
+        for (got, want) in out.iter().zip(&want) {
+            worst = worst.max((f64::from(*got) - want).abs());
+            peak = peak.max(want.abs());
+        }
+    }
+    println!("BAND16 reference worst={worst:.3e} peak={peak:.4}");
+    assert!(peak > 0.05, "the reference must be audible: {peak}");
+    assert!(worst < 5e-6, "worst difference {worst}");
+    // Another bank plays other values: the default bank is 250 ms, so nothing
+    // has come back yet inside this window.
+    let mut other = BandDelay::default();
+    other.prepare(RATE, 128);
+    other.set_params(&BandDelayParams { bank: 4, ..params });
+    let mut l: Vec<f32> = input.iter().map(|x| *x as f32).collect();
+    let mut r = l.clone();
+    other.process(&mut l, &mut r);
+    assert!(l.iter().chain(&r).take(2 * 1999).all(|x| x.abs() < 2e-6));
+}
+
+#[test]
+fn spatial_band_sixteen_bands_recombine_and_layout_changes_do_not_click() {
+    let mut params = BandDelayParams {
+        layout: BandLayout::Sixteen,
+        feedback: [0.0; 3],
+        mix: 1.0,
+        ..Default::default()
+    };
+    params.banks[0].time_ms = [10.0; WIDE_BANDS];
+    let mut fx = BandDelay::default();
+    fx.prepare(RATE, 128);
+    fx.set_params(&params);
+    let mut l = vec![0.0; 400];
+    let mut r = l.clone();
+    l[0] = 1.0;
+    r[0] = 1.0;
+    fx.process(&mut l, &mut r);
+    for (i, x) in l.iter().enumerate() {
+        let expected = if i == 80 { 1.0 } else { 0.0 };
+        assert!((x - expected).abs() < 2e-6, "sample {i}: {x}");
+    }
+    assert_eq!(l, r);
+    // A sounding 100 Hz echo, then the layout flips: the wet signal may fall
+    // no faster than the 5 ms fade allows, plus the tone's own slope.
+    let mut fx = BandDelay::default();
+    fx.prepare(RATE, 128);
+    fx.set_params(&params);
+    let mut l = sine(100.0, 4000);
+    let mut r = l.clone();
+    fx.process(&mut l[..2000], &mut r[..2000]);
+    fx.set_params(&BandDelayParams {
+        layout: BandLayout::Three,
+        time_ms: [10.0; 3],
+        ..params
+    });
+    fx.process(&mut l[2000..], &mut r[2000..]);
+    let slope = 0.2 * std::f32::consts::TAU * 100.0 / RATE;
+    let fade = 0.2 / (0.005 * RATE);
+    let mut worst = 0.0_f32;
+    for n in 1900..4000 {
+        worst = worst.max((l[n] - l[n - 1]).abs());
+    }
+    println!(
+        "BAND16 layout change worst_step={worst:.5} bound={:.5}",
+        slope + fade
+    );
+    assert!(worst <= slope + fade + 1e-4, "step {worst}");
+    assert!(
+        l[3900..].iter().any(|x| x.abs() > 0.05),
+        "the new layout sounds"
+    );
+}
+
+#[test]
+fn spatial_band_delay_keeps_saved_indices_and_opens_older_settings() {
+    assert_eq!(BandDelayParams::index_of("mix"), Some(14));
+    assert_eq!(BandDelayParams::index_of("layout"), Some(15));
+    assert_eq!(BandDelayParams::index_of("bank"), Some(16));
+    assert_eq!(BandDelayParams::index_of("banks.0.timeMs.0"), Some(17));
+    assert_eq!(BandDelayParams::index_of("banks.7.pan.15"), Some(400));
+    assert_eq!(BandDelayParams::descriptors().len(), 401);
+    // What a project saved before the sixteen-band layout existed.
+    let old = r#"{"lowHz":250.0,"highHz":2500.0,"timeMs":[100.0,200.0,300.0],"level":[0.5,0.6,0.7],"pan":[-1.0,0.0,1.0],"feedback":[0.1,0.2,0.3],"mix":0.4}"#;
+    let opened: BandDelayParams = serde_json::from_str(old).unwrap();
+    assert_eq!(opened.layout, BandLayout::Three);
+    assert_eq!(opened.bank, 1);
+    assert_eq!(opened.banks, [BandBank::default(); BANKS]);
+    assert_eq!(opened.time_ms, [100.0, 200.0, 300.0]);
+    assert_eq!(opened, opened.sanitized());
+    let mut edited = opened;
+    edited.layout = BandLayout::Sixteen;
+    edited.bank = 8;
+    edited.banks[7].pan[15] = -0.5;
+    let reopened: BandDelayParams =
+        serde_json::from_str(&serde_json::to_string(&edited).unwrap()).unwrap();
+    assert_eq!(reopened, edited);
+}

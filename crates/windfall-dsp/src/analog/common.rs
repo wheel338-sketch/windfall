@@ -75,6 +75,8 @@ pub(super) struct Voice {
     pub velocity: f32,
     pub pan: crate::note_pan::NotePan,
     pub oscillators: [Oscillator; 3],
+    /// The octave and two-octave layers of each oscillator.
+    pub layers: [[Oscillator; 2]; 3],
     pub rng: [Rng; 3],
     pub pink: [PinkNoise; 3],
     pub envelope: Adsr,
@@ -94,6 +96,7 @@ impl Default for Voice {
             velocity: 0.0,
             pan: crate::note_pan::NotePan::default(),
             oscillators: [Oscillator::default(); 3],
+            layers: [[Oscillator::default(); 2]; 3],
             rng: [Rng::new(1), Rng::new(2), Rng::new(3)],
             pink: [PinkNoise::default(); 3],
             envelope: Adsr::default(),
@@ -110,11 +113,31 @@ impl Voice {
     pub fn active(&self) -> bool {
         !self.envelope.is_idle() || self.steal_remaining > 0
     }
-    pub fn oscillator(&mut self, index: usize, waveform: Waveform, inc: f32) -> f32 {
-        match waveform {
+    /// One oscillator with its pulse width and octave layers. Each enabled
+    /// layer is mixed half and half with what is already there, the octave
+    /// first: with both on the result is a quarter fundamental, a quarter
+    /// octave and a half two octaves. Noise has no pitch and is not layered.
+    pub fn layered(&mut self, index: usize, osc: super::AnalogOscParams, inc: f32) -> f32 {
+        match osc.waveform {
             Waveform::WhiteNoise => self.rng[index].bipolar(),
             Waveform::PinkNoise => self.pink[index].tick(&mut self.rng[index]),
-            _ => self.oscillators[index].tick(waveform, inc, 0.5),
+            waveform => {
+                let mut value = self.oscillators[index].tick(waveform, inc, osc.pulse_width);
+                for (layer, (enabled, ratio)) in [(osc.octave_up, 2.0), (osc.two_octaves_up, 4.0)]
+                    .into_iter()
+                    .enumerate()
+                {
+                    if enabled {
+                        let above = self.layers[index][layer].tick(
+                            waveform,
+                            (inc * ratio).min(MAX_INCREMENT),
+                            osc.pulse_width,
+                        );
+                        value = 0.5 * above + 0.5 * value;
+                    }
+                }
+                value
+            }
         }
     }
     pub fn envelope(&mut self, params: AnalogEnvelopeParams, sample_rate: f32) -> f32 {
@@ -137,6 +160,29 @@ impl Voice {
     ) -> f32 {
         let coeffs = SvfCoeffs::new(cutoff, 0.707 + resonance * 9.0, sample_rate);
         let filtered = self.filter.tick(&coeffs, raw).low;
+        self.amplify(filtered, level, sample_rate)
+    }
+    /// As [`Voice::finish`], with the band-pass output (at unity peak gain)
+    /// and the high-pass output of the filter added to the low-pass one.
+    #[allow(clippy::too_many_arguments)]
+    pub fn finish_mixed(
+        &mut self,
+        raw: f32,
+        level: f32,
+        cutoff: f32,
+        resonance: f32,
+        band: f32,
+        high: f32,
+        sample_rate: f32,
+    ) -> f32 {
+        let q = 0.707 + resonance * 9.0;
+        let coeffs = SvfCoeffs::new(cutoff, q, sample_rate);
+        let out = self.filter.tick(&coeffs, raw);
+        let filtered = if band == 0.0 && high == 0.0 {
+            out.low
+        } else {
+            out.low + band * out.band / q + high * out.high
+        };
         self.amplify(filtered, level, sample_rate)
     }
     pub fn amplify(&mut self, raw: f32, level: f32, sample_rate: f32) -> f32 {

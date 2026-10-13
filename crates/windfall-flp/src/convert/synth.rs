@@ -151,12 +151,15 @@ fn simsynth(state: &[u8]) -> Translated {
         if word(i * 4) == Some(0) {
             osc.level = 0.0;
         }
-        if value(i * 7).is_some_and(|v| v != 0.5) {
-            notes.push(match i {
-                0 => "osc1_pw: pulse-width shaping has no stand-in control",
-                1 => "osc2_pw: pulse-width shaping has no stand-in control",
-                _ => "osc3_pw: pulse-width shaping has no stand-in control",
-            });
+        // DawVert wave.py draws the square high where sin > (pw - .5) * 2,
+        // which is a share .5 - asin((pw - .5) * 2) / pi of the cycle. Only
+        // the square has a width there; the other shapes ignore it.
+        if let Some(pw) = value(i * 7) {
+            let threshold = ((pw - 0.5) * 2.0).clamp(-1.0, 1.0);
+            osc.pulse_width = (0.5 - threshold.asin() / std::f64::consts::PI) as f32;
+            if osc.waveform == Waveform::Square && pw != 0.5 {
+                osc.waveform = Waveform::Pulse;
+            }
         }
         if value(i * 7 + 4).is_some_and(|v| v != 0.5) {
             notes.push(match i {
@@ -172,14 +175,12 @@ fn simsynth(state: &[u8]) -> Translated {
                 _ => "osc3_env: folded into the shared channel pitch envelope",
             });
         }
-        for (offset, name) in [
-            (1, "oscillator octave-one layer"),
-            (2, "oscillator octave-two layer"),
-            (3, "oscillator warm/unison"),
-        ] {
-            if word(i * 4 + offset).is_some_and(|v| v != 0) {
-                notes.push(name);
-            }
+        // DawVert adds the same wave at twice and four times the pitch,
+        // each mixed half and half with what is already there.
+        osc.octave_up = word(i * 4 + 1).is_some_and(|v| v != 0);
+        osc.two_octaves_up = word(i * 4 + 2).is_some_and(|v| v != 0);
+        if word(i * 4 + 3).is_some_and(|v| v != 0) {
+            notes.push("oscillator warm/unison");
         }
     }
     // DawVert simsynth_time(v) = (2*v)^3 / 2 seconds.
@@ -215,16 +216,21 @@ fn simsynth(state: &[u8]) -> Translated {
         params.resonance = 0.0;
     }
     notes.push("svf_cut/svf_kb converted from DawVert MIDI cutoff fit to Hz; svf_emph*0.8; independent svf ADSR and LFO use channel modulation");
-    for (index, name) in [(21, "lfo_del"), (32, "svf_high"), (33, "svf_band")] {
-        if value(index).is_some() {
-            notes.push(name);
-        }
+    // No public rule scales these two: the 0..1 value is taken as the level
+    // of that filter output beside the low-pass one.
+    if let Some(high) = value(32) {
+        params.high_mix = high as f32;
     }
-    for (index, name) in [
-        (13, "lfo_retrigger"),
-        (16, "lfo_trackamp"),
-        (18, "chorus_on"),
-    ] {
+    if let Some(band) = value(33) {
+        params.band_mix = band as f32;
+    }
+    if word(14) == Some(0) {
+        // A switched-off filter has no band or high output.
+        params.high_mix = 0.0;
+        params.band_mix = 0.0;
+    }
+    notes.push("osc1/2/3_pw set the pulse width of a square by DawVert's rule, share high = .5 - asin((pw - .5) * 2) / pi, and are carried unheard on other shapes; osc_o1/o2 switch the octave and two-octave layers; svf_high and svf_band are taken 0..1 as the level of that filter output (the public sources give them no rule)");
+    for (index, name) in [(16, "lfo_trackamp"), (18, "chorus_on")] {
         if word(index).is_some_and(|v| v != 0) {
             notes.push(name);
         }

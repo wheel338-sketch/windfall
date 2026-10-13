@@ -149,9 +149,9 @@ pub use physical::{
     AcousticString, AcousticStringParams, FingerBass, FingerBassParams, Pluck, PluckParams,
 };
 pub use spatial::{
-    BandDelay, BandDelayParams, HyperChorus, HyperChorusParams, Room, RoomParams, Spreader,
-    SpreaderParams, StackedFlanger, StackedFlangerParams, StereoEnhancer, StereoEnhancerParams,
-    VintageChorus, VintageChorusParams, VintagePhaser, VintagePhaserParams,
+    BandBank, BandDelay, BandDelayParams, BandLayout, HyperChorus, HyperChorusParams, Room,
+    RoomParams, Spreader, SpreaderParams, StackedFlanger, StackedFlangerParams, StereoEnhancer,
+    StereoEnhancerParams, VintageChorus, VintageChorusParams, VintagePhaser, VintagePhaserParams,
 };
 
 pub mod control;

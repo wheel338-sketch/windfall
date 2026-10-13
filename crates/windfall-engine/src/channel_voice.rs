@@ -537,6 +537,12 @@ pub struct PreparedChannelEnvelopes {
     phase: f64,
     /// The dedicated LFOs: volume, pan, pitch, cutoff, resonance.
     phases: [f64; 5],
+    /// Frames each dedicated LFO stays out after a note starts.
+    delays: [u32; 5],
+    /// Frames since the last note start, saturating.
+    since_gate: u32,
+    /// Frames an LFO takes to fade in once its delay has passed.
+    fade: u32,
     rate: f64,
 }
 pub struct ModulationBlock {
@@ -600,11 +606,23 @@ impl PreparedChannelEnvelopes {
                 rate as f32,
             );
         }
+        let lfos = settings.lfos;
+        let delays = [
+            lfos.volume,
+            lfos.pan,
+            lfos.pitch,
+            lfos.cutoff,
+            lfos.resonance,
+        ]
+        .map(|lfo| (f64::from(lfo.delay_ms) * 0.001 * rate).round() as u32);
         Self {
             settings,
             generators,
             phase: 0.0,
             phases: [0.0; 5],
+            delays,
+            since_gate: 0,
+            fade: (rate * 0.005).round().max(1.0) as u32,
             rate,
         }
     }
@@ -626,6 +644,19 @@ impl PreparedChannelEnvelopes {
         for envelope in &mut self.generators {
             envelope.gate_on();
         }
+        self.since_gate = 0;
+        let lfos = self.settings.lfos;
+        for (phase, lfo) in self.phases.iter_mut().zip([
+            lfos.volume,
+            lfos.pan,
+            lfos.pitch,
+            lfos.cutoff,
+            lfos.resonance,
+        ]) {
+            if lfo.retrigger {
+                *phase = 0.0;
+            }
+        }
     }
     pub fn gate_off(&mut self) {
         for envelope in &mut self.generators {
@@ -638,6 +669,7 @@ impl PreparedChannelEnvelopes {
         }
         self.phase = 0.0;
         self.phases = [0.0; 5];
+        self.since_gate = 0;
     }
     pub fn process_block(&mut self, frames: usize, out: &mut ModulationBlock) {
         out.frames = frames.min(MAX_BLOCK_FRAMES);
@@ -683,19 +715,32 @@ impl PreparedChannelEnvelopes {
             }
             self.phase = (self.phase + f64::from(lfo.rate_hz) / self.rate).rem_euclid(1.0);
             for (index, target) in targets.iter().enumerate() {
-                if target.enabled {
+                // Out during its delay, then in over the fade. A retriggered
+                // wave waits at the start of its cycle until then.
+                let waiting = self.since_gate < self.delays[index];
+                if target.enabled && !waiting {
+                    let passed = self.since_gate - self.delays[index];
+                    let depth = if self.delays[index] > 0 && passed < self.fade {
+                        target.depth * passed as f32 / self.fade as f32
+                    } else {
+                        target.depth
+                    };
                     let wave = lfo_wave(target.shape, self.phases[index]);
                     match index {
-                        0 => volume *= tremolo(wave, target.depth),
-                        1 => values[2] += wave * target.depth,
-                        2 => values[1] += wave * target.depth * 2400.0,
-                        3 => values[0] += wave * target.depth * 8.0,
-                        _ => values[3] += wave * target.depth,
+                        0 => volume *= tremolo(wave, depth),
+                        1 => values[2] += wave * depth,
+                        2 => values[1] += wave * depth * 2400.0,
+                        3 => values[0] += wave * depth * 8.0,
+                        _ => values[3] += wave * depth,
                     }
                 }
-                self.phases[index] =
-                    (self.phases[index] + f64::from(target.rate_hz) / self.rate).rem_euclid(1.0);
+                if !(waiting && target.retrigger) {
+                    self.phases[index] = (self.phases[index]
+                        + f64::from(target.rate_hz) / self.rate)
+                        .rem_euclid(1.0);
+                }
             }
+            self.since_gate = self.since_gate.saturating_add(1);
             out.filter_cutoff_offset[frame] = values[0].clamp(-8.0, 8.0);
             out.pitch_cents[frame] = values[1].clamp(-2400.0, 2400.0);
             out.pan[frame] = values[2].clamp(-1.0, 1.0);
@@ -1045,5 +1090,89 @@ mod tests {
         );
         let settings = ChannelVoiceSettings::deserialize(empty).unwrap();
         assert_eq!(settings, ChannelVoiceSettings::default());
+    }
+
+    /// Pitch-LFO cents for `frames` frames after the state `envelopes` is in.
+    fn pitch_lfo(envelopes: &mut PreparedChannelEnvelopes, frames: usize) -> Vec<f32> {
+        let mut out = ModulationBlock::default();
+        let mut cents = Vec::with_capacity(frames);
+        while cents.len() < frames {
+            let block = (frames - cents.len()).min(MAX_BLOCK_FRAMES);
+            envelopes.process_block(block, &mut out);
+            cents.extend_from_slice(&out.pitch_cents[..block]);
+        }
+        cents
+    }
+
+    #[test]
+    fn target_lfo_delay_holds_the_wave_out_then_fades_it_in() {
+        // 5 Hz at half depth is 1200 cents of swing; 100 ms is 4800 frames
+        // at 48 kHz and the fade is 240 frames.
+        let lfo = |retrigger| TargetLfo {
+            enabled: true,
+            shape: LfoShape::Sine,
+            rate_hz: 5.0,
+            depth: 0.5,
+            delay_ms: 100.0,
+            retrigger,
+        };
+        let wave = |frame: f64| (std::f64::consts::TAU * 5.0 * frame / 48_000.0).sin() * 1200.0;
+        for retrigger in [true, false] {
+            let mut settings = ChannelEnvelopes::default();
+            settings.lfos.pitch = lfo(retrigger);
+            let mut envelopes = PreparedChannelEnvelopes::prepare(settings, 48_000.0);
+            for gate in 0..2_usize {
+                envelopes.gate_on();
+                let cents = pitch_lfo(&mut envelopes, 12_000);
+                let mut worst = 0.0_f64;
+                for (n, got) in cents.iter().enumerate() {
+                    let want = if n < 4800 {
+                        0.0
+                    } else {
+                        let fade = ((n - 4800) as f64 / 240.0).min(1.0);
+                        // Retriggered, the wave starts when the delay ends;
+                        // left running, it has been turning since the first
+                        // frame of the first note.
+                        let frame = if retrigger {
+                            (n - 4800) as f64
+                        } else {
+                            (n + gate * 12_000) as f64
+                        };
+                        wave(frame) * fade
+                    };
+                    worst = worst.max((f64::from(*got) - want).abs());
+                }
+                println!("LFO delay retrigger={retrigger} gate={gate} worst={worst:.4e} cents");
+                assert!(worst < 0.01, "retrigger {retrigger} gate {gate}: {worst}");
+                assert!(cents[..4800].iter().all(|value| *value == 0.0));
+                assert!(cents.iter().any(|value| value.abs() > 1000.0));
+            }
+        }
+        // No delay is the LFO as it was: full depth from the first frame.
+        let mut settings = ChannelEnvelopes::default();
+        settings.lfos.pitch = TargetLfo {
+            delay_ms: 0.0,
+            ..lfo(false)
+        };
+        let mut envelopes = PreparedChannelEnvelopes::prepare(settings, 48_000.0);
+        envelopes.gate_on();
+        for (n, got) in pitch_lfo(&mut envelopes, 4800).iter().enumerate() {
+            assert!((f64::from(*got) - wave(n as f64)).abs() < 0.01, "frame {n}");
+        }
+        let old = lfo(false);
+        let hostile = TargetLfo {
+            delay_ms: f32::NAN,
+            ..old
+        };
+        assert_eq!(hostile.sanitized().delay_ms, 0.0);
+        assert_eq!(
+            TargetLfo {
+                delay_ms: 1.0e9,
+                ..old
+            }
+            .sanitized()
+            .delay_ms,
+            TargetLfo::MAX_DELAY_MS
+        );
     }
 }
