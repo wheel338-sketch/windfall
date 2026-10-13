@@ -64,6 +64,7 @@ mod stem_separation;
 mod timeline;
 mod transport_acceptance;
 mod versions;
+mod video_playback;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

@@ -5,6 +5,7 @@ import { StripWaveform } from "@/features/mixer/waveform-meter"
 import { LargeClock } from "@/features/stage/large-clock"
 import { LargeMasterMeter } from "@/features/stage/large-master-meter"
 import { VisualizerCanvas } from "@/features/visualizer/panel"
+import { VideoPlayer } from "@/features/video/player"
 import { backend } from "@/lib/ipc"
 import { useProjectStore } from "@/lib/store/project"
 import { useUiStore } from "@/lib/store/ui"
@@ -24,6 +25,7 @@ type Fixture = {
 type EffectView = "limiter" | "tuner" | "eq" | null
 type SmokeApi = {
   prepare(): Promise<Fixture>
+  prepareVideo(): Promise<unknown>
   control(operation: string, value?: number): Promise<unknown>
   select(source: "left" | "right" | "mix"): void
   effect(view: EffectView): void
@@ -56,6 +58,12 @@ export function readDisplays(root: HTMLElement | null) {
     return { live: canvas.dataset.live, width: canvas.width, height: canvas.height,
       foreground, opaque, hash: hash.toString(16).padStart(8, "0") }
   })
+  const videos = [...root.querySelectorAll<HTMLCanvasElement>("canvas[aria-label='Timeline video']")].map((canvas) => {
+    const context = canvas.getContext("2d")
+    if (!context) throw new Error("Timeline video has no real CanvasRenderingContext2D")
+    return { ...canvas.dataset, width: canvas.width, height: canvas.height,
+      pixels: [...context.getImageData(0, 0, canvas.width, canvas.height).data] }
+  })
   return {
     clock: { position: text("[data-slot=large-clock] [data-part=position]"), time: text("[data-slot=large-clock] [data-part=time]") },
     master: { left: text("[data-slot=large-master-meter] [data-side=left]"), right: text("[data-slot=large-master-meter] [data-side=right]") },
@@ -67,10 +75,11 @@ export function readDisplays(root: HTMLElement | null) {
     tuner: { note: text("[data-slot=tuner-note]"), cents: text("[data-slot=tuner-cents]"), values: data("[data-slot=tuner-editor]") },
     statuses: data("[data-slot=analyzer-status]"),
     visualizer,
+    videos,
   }
 }
 
-function SmokeViews({ fixture, source, effect, visualizer }: { fixture: Fixture | null; source: AnalyzerSource | null; effect: EffectView; visualizer: boolean }) {
+function SmokeViews({ fixture, source, effect, visualizer, video }: { fixture: Fixture | null; source: AnalyzerSource | null; effect: EffectView; visualizer: boolean; video: boolean }) {
   useAnalyzerSelection("scope", source ? { source, want: { scope:true, spectrum:true, vector:true, envelope:true } } : null)
   useAnalyzerSelection("visualizer", visualizer && source ? { source, want: { spectrum:true, scope:false, vector:false, envelope:false } } : null)
   const project = useProjectStore((state) => state.project)
@@ -89,6 +98,7 @@ function SmokeViews({ fixture, source, effect, visualizer }: { fixture: Fixture 
       {fixture?.tracks.map((id) => <div key={id} className="h-12"><StripWaveform id={id} active vertical={false} wide /></div>)}
       {slot && track && <div className="col-span-2"><EffectEditor trackId={track.id} slot={slot} /></div>}
       {visualizer && <div className="col-span-2"><VisualizerCanvas settings={{ scene:"bars", hue:180, intensity:1 }} /></div>}
+      {video && project.settings.stageMedia?.videos.map((placement, index) => <div className="col-span-2" key={`${index}:${placement.path}`}><VideoPlayer placement={placement} /></div>)}
     </div>
   </section>
 }
@@ -102,6 +112,7 @@ export function AnalyzerSmokeHost() {
   const [source, setSource] = useState<AnalyzerSource | null>(null)
   const [effect, setEffect] = useState<EffectView>(null)
   const [visualizer, setVisualizer] = useState(false)
+  const [video, setVideo] = useState(false)
   useEffect(() => {
     if (backend.kind !== "tauri") return
     let disposed = false
@@ -121,6 +132,12 @@ export function AnalyzerSmokeHost() {
         useUiStore.setState((state) => ({ mixerMeterMode:"waveform", panels:{ ...state.panels, mixer:true } }))
         return result
       },
+      async prepareVideo() {
+        const result = await backend.analyzerSmokeControl("prepareVideo", null)
+        setFixture(null); setEffect(null); setVisualizer(false); setVideo(true)
+        setSource({ type:"mixOutput" })
+        return result
+      },
       control,
       select(side) {
         if (!fixture) throw new Error("Prepare the native fixture first")
@@ -137,5 +154,5 @@ export function AnalyzerSmokeHost() {
     window.__windfallAnalyzerSmoke = api
     return () => { if (window.__windfallAnalyzerSmoke === api) delete window.__windfallAnalyzerSmoke }
   }, [enabled, fixture, source])
-  return enabled ? <SmokeViews fixture={fixture} source={source} effect={effect} visualizer={visualizer} /> : null
+  return enabled ? <SmokeViews fixture={fixture} source={source} effect={effect} visualizer={visualizer} video={video} /> : null
 }
