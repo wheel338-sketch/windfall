@@ -6,11 +6,17 @@ import type { ExpressionMap } from "./ExpressionMap";
 import type { PluginBinding } from "./PluginBinding";
 import type { PresetTables } from "./PresetTables";
 import type { RackGraph } from "./RackGraph";
+import type { SampleInstrumentAsset } from "./SampleInstrumentAsset";
 
 /**
  * What a rack channel sounds like.
  */
-export type ChannelPreset = { tables?: PresetTables, 
+export type ChannelPreset = { 
+/**
+ * Portable text-voice recipe. Its generated project PCM is deliberately
+ * excluded: the versioned recipe regenerates it on the control side.
+ */
+sampleInstrument?: SampleInstrumentAsset, tables?: PresetTables, 
 /**
  * The channel's name and color, which loading restores only when asked.
  */

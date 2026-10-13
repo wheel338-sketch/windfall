@@ -29,4 +29,8 @@ cancelled?: boolean,
  * What mastering measured before and after. Only on the last event of
  * an export that asked for mastering and went through.
  */
-mastering?: MasteringReview, };
+mastering?: MasteringReview, 
+/**
+ * The WAV tempo/beat metadata decision, based on the rendered clock.
+ */
+wavMetadata?: string, };

@@ -24,8 +24,10 @@ fn equality(bytes: &[u8], rate: u32) {
     let prepared = preset::prepare(bytes, controls, rate, &mut || true).unwrap();
     let pcm = preset::render(bytes, controls, rate, &mut || true).unwrap();
     assert!(pcm.samples().iter().any(|x| x.abs() > 1e-5));
+    // Publish while detached; dropping an attached consumer before publication
+    // deliberately refuses that stale stream epoch in the production protocol.
     let (processor, controller) = Processor::new(rate);
-    drop(processor);
+    controller.suspend_stream(|| drop(processor)).unwrap();
     controller.set_project(&prepared.project, &prepared.pool);
     let mut live = Processor::reopen(&controller, rate);
     controller.set_transport(TransportPatch { mode: Some(PlayMode::Song), loop_song: Some(false), ..Default::default() });

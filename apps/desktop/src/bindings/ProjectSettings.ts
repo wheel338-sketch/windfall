@@ -3,11 +3,12 @@ import type { ChannelRack } from "./ChannelRack";
 import type { ControllerLink } from "./ControllerLink";
 import type { InternalControllerSettings } from "./InternalControllerSettings";
 import type { PanLaw } from "./PanLaw";
+import type { SamplePresetRender } from "./SamplePresetRender";
 import type { ScriptLibrary } from "./ScriptLibrary";
 import type { StageMedia } from "./StageMedia";
 import type { TimeSignature } from "./TimeSignature";
 
-export type ProjectSettings = { name: string, 
+export type ProjectSettings = { presetRenders?: Array<SamplePresetRender>, name: string, 
 /**
  * Project author, at most 256 UTF-8 bytes after trimming.
  */

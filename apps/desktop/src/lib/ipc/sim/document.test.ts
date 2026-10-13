@@ -22,6 +22,7 @@ function fullProject() {
   const ids = {
     sample: 0,
     spareSample: 0,
+    presetSource: 0,
     channel: 0,
     synth: 0,
     keyDrum: 0,
@@ -60,6 +61,11 @@ function fullProject() {
       type: "addSample",
       name: "Spare",
       path: { kind: "factory", path: "Drums/Kicks/Kick 02.wav" },
+    })
+    ;[ids.presetSource] = run({
+      type: "addSample",
+      name: "Original recipe",
+      path: { kind: "external", path: "C:/Windfall/Original.wfpreset" },
     })
     ;[ids.sparePattern] = run({ type: "addPattern" })
     ;[ids.track] = run({ type: "addMixerTrack" })
@@ -977,6 +983,7 @@ const EVERY_COMMAND: { [Type in Command["type"]]: (ids: Ids) => Command } = {
   relinkSamplePath: (ids) => ({ type: "relinkSamplePath", sample: ids.sample, expected: ids.project.samples.find(sample=>sample.id===ids.sample)!.path, path: {kind:"external",path:"C:/Windfall/relinked.wav"} }),
   registerSoundFontSource: (ids) => ({type:"registerSoundFontSource",sample:ids.spareSample,expected:ids.project.samples.find(s=>s.id===ids.spareSample)!.path}),
   captureArrangementTimeline: (ids) => ({ type: "captureArrangementTimeline", id: ids.project.playlist.arrangementBook!.active! }),
+  registerPresetRender: (ids) => ({ type: "registerPresetRender", recipe: { sample: ids.sample, source: ids.presetSource, settings: { note: 60, velocity: 0.8, lengthSecs: 1, tailSecs: 3, stereo: true } } }),
 }
 
 /** A project as the document reports it, apart from the id counter. */
