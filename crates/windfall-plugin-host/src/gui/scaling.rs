@@ -1,5 +1,6 @@
 //! Application zoom is distinct from native monitor DPI. Combine exactly once
-//! for Windows native plugin APIs (never use webview devicePixelRatio here).
+//! for physical native APIs (never use webview devicePixelRatio here). CLAP's
+//! Cocoa API uses logical points and an application-only NSView transform.
 use super::EditorError;
 
 pub(crate) fn content_scale(application: f64, monitor: f64) -> Result<f64, EditorError> {

@@ -57,7 +57,8 @@ pub struct EditorOptions {
     /// window appears without taking the keyboard from what the user is
     /// doing.
     pub take_focus: bool,
-    /// Where to put the window's top left corner on the screen, in pixels.
+    /// Initial native screen coordinates (AppKit points on Cocoa, pixels on
+    /// Windows/X11).
     /// `None` leaves it to the system.
     pub position: Option<(i32, i32)>,
     /// Multiplier of platform DPI. Refused native scaling is an explicit error.
@@ -99,11 +100,11 @@ impl EditorOptions {
 /// An open editor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EditorInfo {
-    /// The host's window around the editor, as the platform's handle (an
-    /// `HWND` on Windows). `None` when the plugin made its own window.
+    /// The host's embedding parent: HWND, NSView pointer or X11 window id.
+    /// `None` when the plugin made its own floating window.
     pub window: Option<usize>,
-    /// The size of the editor in pixels. Zero when the plugin made its own
-    /// window and does not say.
+    /// Native API dimensions: physical pixels on Windows/X11, logical points
+    /// on Cocoa. Zero when a floating plugin does not supply a size.
     pub width: u32,
     pub height: u32,
     /// The user can resize the window.
