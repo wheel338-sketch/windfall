@@ -12,14 +12,15 @@ import { Switch } from "@/components/ui/switch"
 import { ValueContextItems } from "@/components/value-context-menu"
 import { useHint } from "@/lib/store/hint"
 import { cn } from "@/lib/utils"
+import { message, translatedText, useTranslation } from "@/lib/i18n"
 
 import { clampParam } from "./access"
 import {
-  formatParam,
+  formatParamDisplay,
   paramIsBipolar,
   paramScale,
   paramUnitKind,
-  parseParam,
+  parseParamDisplay,
 } from "./format"
 import {
   SEGMENTED_MAX_CHOICES,
@@ -90,13 +91,13 @@ export function paramHint(
   value: number,
   description?: string
 ): string {
-  const head = `${info.name}: ${formatParam(info, value)}`
-  if (description) return `${head}. ${description}`
+  const values = { name: translatedText(info.name), value: formatParamDisplay(info, value) }
+  if (description) return message("{name}: {value}. {description}", { ...values, description: translatedText(description) })
   if (info.kind === "toggle") {
-    return `${head}. Click to turn it ${value >= 0.5 ? "off" : "on"}`
+    return message(value >= 0.5 ? "{name}: {value}. Click to turn it off" : "{name}: {value}. Click to turn it on", values)
   }
-  if (info.kind === "choice") return `${head}. Click to choose another`
-  return `${head}. Drag up or down, Shift for fine, double-click for ${formatParam(info, info.default)}`
+  if (info.kind === "choice") return message("{name}: {value}. Click to choose another", values)
+  return message("{name}: {value}. Drag up or down, Shift for fine, double-click for {default}", { ...values, default: formatParamDisplay(info, info.default) })
 }
 
 /**
@@ -126,9 +127,10 @@ export const ParamControl = memo(function ParamControl({
   marker,
   className,
 }: ParamControlProps) {
+  const t = useTranslation()
   const shown = clampParam(info, value)
   const hint = useHint(paramHint(info, shown, description))
-  const text = label === undefined ? info.name : label
+  const text = label === undefined ? t(info.name) : typeof label === "string" ? t(label) : label
 
   // A click is a whole gesture: one undo step.
   function commit(next: number) {
@@ -154,7 +156,7 @@ export const ParamControl = memo(function ParamControl({
         data-param={info.id}
         size={size}
         label={text ?? undefined}
-        aria-label={info.name}
+        aria-label={t(info.name)}
         showValue
         min={info.min}
         max={info.max}
@@ -163,8 +165,8 @@ export const ParamControl = memo(function ParamControl({
         bipolar={paramIsBipolar(info)}
         center={0}
         defaultValue={info.default}
-        format={(next) => formatParam(info, next)}
-        parse={(typed) => parseParam(info, typed)}
+        format={(next) => formatParamDisplay(info, next)}
+        parse={(typed) => parseParamDisplay(info, typed)}
         unitKind={paramUnitKind(info)}
         value={shown}
         onValueChange={onValueChange}
@@ -245,7 +247,7 @@ export const ParamControl = memo(function ParamControl({
           {labelNode}
           <Switch
             size="sm"
-            aria-label={info.name}
+            aria-label={t(info.name)}
             checked={on}
             disabled={disabled}
             onCheckedChange={(next) => commit(next ? 1 : 0)}
@@ -271,7 +273,7 @@ export const ParamControl = memo(function ParamControl({
           <ToggleLed
             variant="dot"
             size="lg"
-            aria-label={info.name}
+            aria-label={t(info.name)}
             pressed={on}
             disabled={disabled}
             color={color}
@@ -283,7 +285,7 @@ export const ParamControl = memo(function ParamControl({
           data-slot="param-value"
           className="leading-none text-foreground tabular-nums"
         >
-          {formatParam(info, shown)}
+          {formatParamDisplay(info, shown)}
         </span>
       </div>
     )

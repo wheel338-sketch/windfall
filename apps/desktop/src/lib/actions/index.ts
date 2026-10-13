@@ -130,7 +130,7 @@ export async function runAction(id: string): Promise<void> {
   try {
     await action.run()
   } catch (error) {
-    reportError(error, action.title)
+    reportError(error, action.titleMessage ?? action.title)
   }
 }
 

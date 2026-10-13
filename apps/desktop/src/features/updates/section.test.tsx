@@ -4,9 +4,10 @@ import { useProjectStore } from "@/lib/store/project"
 import { useTransportStore } from "@/lib/store/transport"
 import { UpdatesSection } from "./section"
 import type { UpdateApi, UpdateProgress } from "./native"
+import { setLanguage } from "@/lib/i18n"
 
 const original = useProjectStore.getState()
-afterEach(() => { useProjectStore.setState(original); useTransportStore.setState({ playing: false }); localStorage.removeItem("windfall.update-channel") })
+afterEach(() => { useProjectStore.setState(original); useTransportStore.setState({ playing: false }); localStorage.removeItem("windfall.update-channel"); setLanguage("en") })
 function fixture(): UpdateApi {
   return {
     check: vi.fn(async () => ({ configured: true, reason: null, update: { token: 1, version: "0.2.0", notes: "Release notes", channel: "stable" as const, projectFormat: 1 } })),
@@ -17,6 +18,22 @@ function fixture(): UpdateApi {
   }
 }
 describe("signed desktop update surface", () => {
+  it("retranslates retained availability and native errors without checking again", async () => {
+    const api = fixture()
+    render(<UpdatesSection api={api} />)
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Check for updates" })))
+    expect(screen.getByText("Version 0.2.0 is available.")).toBeVisible()
+    act(() => setLanguage("es"))
+    expect(screen.getByText("La versión 0.2.0 está disponible.")).toBeVisible()
+    expect(api.check).toHaveBeenCalledTimes(1)
+    vi.mocked(api.download).mockRejectedValueOnce(new Error("The package was not verified. Nothing was installed."))
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Descargar y verificar" })))
+    expect(screen.getByRole("alert")).toHaveTextContent("No se verificó el paquete. No se instaló nada.")
+    act(() => setLanguage("en"))
+    expect(screen.getByRole("alert")).toHaveTextContent("The package was not verified. Nothing was installed.")
+    expect(api.download).toHaveBeenCalledTimes(1)
+    expect(api.install).not.toHaveBeenCalled()
+  })
   it("requires verification and freezes before the save/discard/cancel decision", async () => {
     const api = fixture(); useProjectStore.setState({ dirty: false })
     render(<UpdatesSection api={api} />)

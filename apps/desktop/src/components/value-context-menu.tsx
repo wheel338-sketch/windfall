@@ -17,6 +17,7 @@ import {
 } from "@/components/audio"
 
 import { isTextField } from "@/lib/text-field-menu"
+import { dynamicTitle, message } from "@/lib/i18n"
 
 import {
   ContextActions,
@@ -45,6 +46,8 @@ export type CopiedValue = {
   unitKind: string | undefined
   /** Its readout: "−18.0 dB". */
   text: string
+  /** Numeric input for a bare-number readout, independent of its locale. */
+  canonicalText?: string
 }
 
 /**
@@ -99,10 +102,10 @@ export function pasteOutcome(
     sameKind ||
     copied.unitKind === PLAIN_NUMBER ||
     (copied.unitKind === undefined && control.unitKind === undefined)
-  if (!byText) return { reason: "Another unit" }
-  const parsed = control.parse(copied.text)
+  if (!byText) return { reason: message("Another unit", {}, "en") }
+  const parsed = control.parse(copied.canonicalText ?? copied.text)
   return parsed === null
-    ? { reason: "Not a value for this" }
+    ? { reason: message("Not a value for this", {}, "en") }
     : { value: parsed }
 }
 
@@ -135,11 +138,11 @@ export function valueMenuItems(
   const paste = copied === null ? null : pasteOutcome(control, copied)
   const { defaultValue } = control
   return [
-    { label: name ? `${name}: ${control.text}` : control.text },
+    { label: name ? message("{name}: {value}", { name, value: control.text }) : control.text },
     ...extra,
     ...(extra.length > 0 ? [contextSeparator] : []),
     {
-      title: "Reset to default",
+      ...dynamicTitle("Reset to default", {}),
       disabled:
         control.disabled ||
         defaultValue === undefined ||
@@ -149,7 +152,7 @@ export function valueMenuItems(
       run: control.reset,
     },
     {
-      title: "Type in value…",
+      ...dynamicTitle("Type in value…", {}),
       disabled: control.disabled || !control.editable,
       shortcut: "Enter",
       // The text field takes the focus, which the closing menu would take
@@ -159,16 +162,17 @@ export function valueMenuItems(
     },
     contextSeparator,
     {
-      title: "Copy value",
+      ...dynamicTitle("Copy value", {}),
       run: () =>
         copyValue({
           value: control.value,
           unitKind: control.unitKind,
           text: control.text,
+          ...(control.unitKind === PLAIN_NUMBER ? { canonicalText: String(control.value) } : {}),
         }),
     },
     {
-      title: copied === null ? "Paste value" : `Paste value (${copied.text})`,
+      ...(copied === null ? dynamicTitle("Paste value", {}) : dynamicTitle("Paste value ({value})", { value: copied.text })),
       disabled: control.disabled || paste === null || "reason" in paste,
       // A value in another unit says so, and stays out.
       reason: paste !== null && "reason" in paste ? paste.reason : undefined,

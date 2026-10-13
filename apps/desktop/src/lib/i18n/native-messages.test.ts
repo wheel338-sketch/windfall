@@ -14,7 +14,7 @@ describe("native coded message localization", () => {
     const codes = [...table![1].matchAll(/"([^"]+)"/g)].map((match) => match[1])
     expect(codes.length).toBeGreaterThan(30)
     expect(new Set(codes).size).toBe(codes.length)
-    expect(codes.sort()).toEqual(Object.keys(nativeEn).filter((code) => code.startsWith("midi.")).sort())
+    expect(codes.sort()).toEqual(Object.keys(nativeEn).filter((code) => !["native.messageUnknown", "native.messageInvalid"].includes(code)).sort())
     expect(Object.keys(nativeEs).sort()).toEqual(Object.keys(nativeEn).sort())
     for (const code of codes) for (const catalog of Object.values(catalogs)) {
       expect(Object.hasOwn(catalog, code), code).toBe(true)

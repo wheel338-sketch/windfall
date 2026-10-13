@@ -1,6 +1,6 @@
 import { localizeBackendText } from "@/lib/i18n"
 import { message as i18nMessage } from "@/lib/i18n"
-import { translatedText as t, useLanguageStore } from "@/lib/i18n"
+import { message, translatedText as t, useLanguageStore } from "@/lib/i18n"
 import { ControllerLinksPanel } from "@/features/controllers/links-panel"
 import { Input } from "@/components/ui/input"
 import { useEffect, useRef, useState } from "react"
@@ -144,7 +144,7 @@ export function MidiHardwareSettingsSection() {
         }
       } catch (failure) {
         if (ticket === epoch.current && request === operation.current)
-          setError(localizeBackendText(errorMessage(failure)))
+          setError(errorMessage(failure))
       } finally {
         loading = false
       }
@@ -174,7 +174,7 @@ export function MidiHardwareSettingsSection() {
         setState(result)
       }
     } catch (failure) {
-      if (ticket === epoch.current) setError(localizeBackendText(errorMessage(failure)))
+      if (ticket === epoch.current) setError(errorMessage(failure))
     } finally {
       working.current = false
       setBusy(false)
@@ -199,7 +199,7 @@ export function MidiHardwareSettingsSection() {
     try {
       const next = await backend.controllerSettingsSet({ ...controllers.settings, ...change })
       if (ticket === epoch.current) setControllers(next)
-    } catch (failure) { if (ticket === epoch.current) setError(localizeBackendText(errorMessage(failure))) }
+    } catch (failure) { if (ticket === epoch.current) setError(errorMessage(failure)) }
     finally { working.current = false; setBusy(false) }
   }
   const disabled = busy || !state || backend.kind !== "tauri"
@@ -308,7 +308,7 @@ export function MidiHardwareSettingsSection() {
           <Input id="midi-record-offset" type="number" min={-500} max={500} step={1} defaultValue={controllers?.settings.recordOffsetMs ?? 0} key={controllers?.settings.recordOffsetMs ?? 0} disabled={disabled || !controllers} onBlur={(event) => {
             const value = Number(event.target.value)
             if (event.target.value.trim() && Number.isFinite(value) && Math.abs(value) <= 500) void configureControllers({ recordOffsetMs: value })
-            else setError(t("Recording offset must be within -500 to 500 ms."))
+            else setError(message("Recording offset must be within -500 to 500 ms.", {}, "en"))
           }} />
         </Field>
         <Choice
@@ -364,7 +364,7 @@ export function MidiHardwareSettingsSection() {
             void backend
               .midiHardwarePanic()
               .then(releaseHardwareKeys)
-              .catch((failure: unknown) => setError(localizeBackendText(errorMessage(failure))))
+              .catch((failure: unknown) => setError(errorMessage(failure)))
           }}
         >{t("Panic MIDI")}</Button>
       </div>
@@ -379,7 +379,7 @@ export function MidiHardwareSettingsSection() {
             backend.kind === "mock" && !error ? "default" : "destructive"
           }
         >
-          <AlertDescription>{error ?? state?.error}</AlertDescription>
+          <AlertDescription>{localizeBackendText(error ?? state?.error ?? "")}</AlertDescription>
         </Alert>
       )}
       <ControllerLinksPanel />

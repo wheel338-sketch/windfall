@@ -1,6 +1,7 @@
 import { useMemo } from "react"
 
 import { cn } from "@/lib/utils"
+import { message, useTranslation } from "@/lib/i18n"
 
 import type { ParamDescriptor } from "./descriptors"
 import { paramGroups } from "./groups"
@@ -41,6 +42,7 @@ export function GenericParamEditor<Params extends object>({
   size = "md",
   className,
 }: GenericParamEditorProps<Params>) {
+  const t = useTranslation()
   const bind = useParamBinding({
     descriptor,
     params,
@@ -54,7 +56,7 @@ export function GenericParamEditor<Params extends object>({
   return (
     <div
       data-slot="param-editor"
-      aria-label={`${descriptor.name} settings`}
+      aria-label={message("{name} settings", { name: t(descriptor.name) })}
       role="group"
       className={cn(
         "grid grid-cols-[repeat(auto-fill,minmax(13.5rem,1fr))] items-start gap-2",

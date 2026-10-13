@@ -1,5 +1,6 @@
 import { localizeBackendText } from "@/lib/i18n"
 import { message as localizedMessage, translatedText as t, useLanguageStore } from "@/lib/i18n"
+import type { MessageKey } from "@/lib/i18n"
 import { useEffect, useRef, useState } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -21,7 +22,7 @@ export function UpdatesSection({ api = nativeUpdateApi }: { api?: UpdateApi }) {
   const [candidate, setCandidate] = useState<UpdateInfo | null>(null)
   const [progress, setProgress] = useState<UpdateProgress | null>(null)
   const [phase, setPhase] = useState<"idle" | "checking" | "available" | "downloading" | "verified" | "installing">("idle")
-  const [message, setMessage] = useState("")
+  const [status, setStatus] = useState<{ key: MessageKey; values?: Record<string, string | number> } | { source: string } | null>(null)
   const [error, setError] = useState("")
   const generation = useRef(0)
   const pending = useRef(false)
@@ -39,10 +40,10 @@ export function UpdatesSection({ api = nativeUpdateApi }: { api?: UpdateApi }) {
     try { await action() }
     catch (failure) {
       if (request === generation.current) {
-        setError(localizeBackendText(errorMessage(failure)))
+        setError(errorMessage(failure))
         if (shutdown.current !== null) {
           try { await api.cancel(shutdown.current) }
-          catch (rollback) { setError(localizeBackendText(errorMessage(rollback))) }
+          catch (rollback) { setError(errorMessage(rollback)) }
           shutdown.current = null; setUnsaved(null)
         }
         setPhase(candidate ? progress?.verified ? "verified" : "available" : "idle")
@@ -58,7 +59,7 @@ export function UpdatesSection({ api = nativeUpdateApi }: { api?: UpdateApi }) {
     }
     await api.install(token, decision, path)
     shutdown.current = null; setUnsaved(null)
-    setMessage(t("Installed. Restart Windfall to use the update.")); setPhase("idle"); setCandidate(null)
+    setStatus({ key: "Installed. Restart Windfall to use the update." }); setPhase("idle"); setCandidate(null)
   }
   async function cancel() {
     if (shutdown.current !== null) await api.cancel(shutdown.current)
@@ -73,7 +74,7 @@ export function UpdatesSection({ api = nativeUpdateApi }: { api?: UpdateApi }) {
         <Select items={channels} value={channel} disabled={busy} onValueChange={(value: UpdateChannel | null) => {
           if (value === null) return
           generation.current += 1
-          setChannel(value); setCandidate(null); setProgress(null); setMessage(""); setError(""); setPhase("idle")
+          setChannel(value); setCandidate(null); setProgress(null); setStatus(null); setError(""); setPhase("idle")
           try { localStorage.setItem(CHANNEL_KEY, value) } catch { /* Session choice still works. */ }
         }}>
           <SelectTrigger aria-label={t("Update channel")}><SelectValue /></SelectTrigger>
@@ -84,14 +85,14 @@ export function UpdatesSection({ api = nativeUpdateApi }: { api?: UpdateApi }) {
       <FieldDescription>{t("Updates never rewrite project files. A release declaring a different project format requires a separate manual upgrade. Save and stop before installing.")}</FieldDescription>
       <Button variant="outline" size="sm" disabled={busy} onClick={() => void work(async () => {
         const request = generation.current
-        setPhase("checking"); setCandidate(null); setProgress(null); setMessage("")
+        setPhase("checking"); setCandidate(null); setProgress(null); setStatus(null)
         const result = await api.check(channel)
         if (request !== generation.current) return
         setCandidate(result.update)
         setPhase(result.update ? "available" : "idle")
-        setMessage(result.configured ? result.update ? localizedMessage("Version {version} is available.", { version: result.update.version }) : t("You are up to date.") : result.reason ? localizeBackendText(result.reason) : t("The operator has not configured updates."))
+        setStatus(result.configured ? result.update ? { key: "Version {version} is available.", values: { version: result.update.version } } : { key: "You are up to date." } : result.reason ? { source: result.reason } : { key: "The operator has not configured updates." })
       })}>{t("Check for updates")}</Button>
-      {message && <p role="status">{message}</p>}
+      {status && <p role="status">{"key" in status ? localizedMessage(status.key, status.values) : localizeBackendText(status.source)}</p>}
       {candidate && <>
         <p className="max-h-32 overflow-auto whitespace-pre-wrap text-muted-foreground">{candidate.notes}</p>
         <Button variant="outline" size="sm" disabled={busy || phase === "verified"} onClick={() => void work(async () => {
@@ -104,7 +105,7 @@ export function UpdatesSection({ api = nativeUpdateApi }: { api?: UpdateApi }) {
             setProgress(next)
           })
           if (request !== generation.current) return
-          if (!verified) throw new Error(t("The package was not verified. Nothing was installed."))
+          if (!verified) throw new Error(localizedMessage("The package was not verified. Nothing was installed.", {}, "en"))
           setPhase("verified")
         })}>{t("Download and verify")}</Button>
         {progress && <p role="status">{progress.verified ? t("Signature verified. Ready to install.") : progress.total === null ? localizedMessage("Downloaded {downloaded} bytes.", { downloaded: progress.downloaded }) : localizedMessage("Downloaded {downloaded} of {total} bytes.", { downloaded: progress.downloaded, total: progress.total })}</p>}
@@ -118,7 +119,7 @@ export function UpdatesSection({ api = nativeUpdateApi }: { api?: UpdateApi }) {
         {(dirty || playing) && <FieldDescription>{t("Installation freezes edits, resolves unsaved work and stops audio before launching the installer.")}</FieldDescription>}
       </>}
       {busy && <p role="status">{phase === "checking" ? t("Checking…") : phase === "installing" ? t("Installing…") : t("Downloading…")}</p>}
-      {error && <FieldError role="alert">{error}</FieldError>}
+      {error && <FieldError role="alert">{localizeBackendText(error)}</FieldError>}
       <Dialog open={unsaved !== null} onOpenChange={(open) => { if (!open) void work(cancel) }}>
         <DialogContent>
           <DialogTitle>{t("Unsaved project")}</DialogTitle>

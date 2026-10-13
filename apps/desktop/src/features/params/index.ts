@@ -16,7 +16,7 @@ export {
   type ParamDescriptor,
 } from "./descriptors"
 export { clampParam, readParam, writeParam } from "./access"
-export { formatParam, paramIsBipolar, paramScale, parseParam } from "./format"
+export { formatParam, formatParamDisplay, paramIsBipolar, paramScale, paramUnitKind, parseParam, parseParamDisplay } from "./format"
 export {
   ParamControl,
   paramHint,

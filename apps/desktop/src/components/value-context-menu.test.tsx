@@ -74,6 +74,14 @@ const menu = () => screen.getByRole("menu")
 const item = (name: string | RegExp) =>
   within(menu()).getByRole("menuitem", { name })
 
+it("pastes a retained localized bare-number readout using its canonical numeric input", () => {
+  const parse = vi.fn((text: string) => Number(text))
+  expect(pasteOutcome({ unitKind: PLAIN_NUMBER, parse }, {
+    value: 1.25, unitKind: PLAIN_NUMBER, text: "1,25", canonicalText: "1.25",
+  })).toEqual({ value: 1.25 })
+  expect(parse).toHaveBeenCalledWith("1.25")
+})
+
 /** A right-click, which opens the menu a moment later. */
 async function rightClick(element: HTMLElement) {
   const notPrevented = fireEvent.contextMenu(element, {

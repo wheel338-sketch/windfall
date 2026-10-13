@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import { useTranslation } from "@/lib/i18n"
 
 /** Up to this many options are shown side by side; more go into a list. */
 export const SEGMENTED_MAX_CHOICES = 4
@@ -35,6 +36,7 @@ export function SegmentedChoice({
   icon,
   className,
 }: ChoiceProps) {
+  const t = useTranslation()
   const count = info.choices.length
 
   // Arrows move the choice, as they do in a group of radio buttons.
@@ -62,7 +64,7 @@ export function SegmentedChoice({
   return (
     <div
       role="radiogroup"
-      aria-label={info.name}
+      aria-label={t(info.name)}
       aria-disabled={disabled || undefined}
       data-slot="param-segments"
       onKeyDown={onKeyDown}
@@ -90,7 +92,7 @@ export function SegmentedChoice({
             )}
           >
             {icon?.(choice, index)}
-            <span className="truncate">{choice.label}</span>
+            <span className="truncate">{t(choice.label)}</span>
           </button>
         )
       })}
@@ -107,9 +109,10 @@ export function SelectChoice({
   icon,
   className,
 }: ChoiceProps) {
+  const t = useTranslation()
   const items = info.choices.map((choice, index) => ({
     value: index,
-    label: choice.label,
+    label: t(choice.label),
   }))
   const chosen = info.choices[value]
 
@@ -124,7 +127,7 @@ export function SelectChoice({
     >
       <SelectTrigger
         size="sm"
-        aria-label={info.name}
+        aria-label={t(info.name)}
         data-slot="param-select"
         className={cn(
           "h-[22px] w-full min-w-0 gap-1 rounded-[5px] py-0 pr-1 pl-1.5 text-[0.6875rem]",
@@ -139,7 +142,7 @@ export function SelectChoice({
           {info.choices.map((choice, index) => (
             <SelectItem key={choice.value} value={index}>
               {icon?.(choice, index)}
-              {choice.label}
+              {t(choice.label)}
             </SelectItem>
           ))}
         </SelectGroup>
