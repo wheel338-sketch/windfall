@@ -37,10 +37,10 @@
       "summary": "Records microphone, line or internal audio onto the timeline as editable clips.",
       "windfall_name": "Audio recording",
       "phase": 3,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "producer",
-      "notes": "Source includes synchronized mono/stereo and multitrack WAV capture, native-rate/drift correction, routed input monitoring, count-in, retained loop passes, take groups and comping. Printed takes use Direct output and external port assignments are implemented. Current QA distinguishes synthetic software checks from remaining physical capture, duplex latency/drift, device failure and platform acceptance. See docs/qa/2026-10-09-recording-mixer.md. QA 2026-10-13: SOFTWARE: Waiting on the real-device harness run covering actual input capture, dropout/device-loss handling and editable take alignment. No missing implementation was identified in the exercised software. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
+      "notes": "Source includes synchronized mono/stereo and multitrack WAV capture, native-rate/drift correction, routed input monitoring, count-in, retained loop passes, take groups and comping. Printed takes use Direct output and external port assignments are implemented. Current QA distinguishes synthetic software checks from remaining physical capture, duplex latency/drift, device failure and platform acceptance. See docs/qa/2026-10-09-recording-mixer.md. Software complete, QA 2026-10-13: the real-device harness passes on a real WASAPI driver on this machine (digital output with its loopback as input; no audible device or microphone used). Measured: 48 kHz and 44.1 kHz real-driver calibrated round trips; count-in; loop takes; multitrack; injected real-backend recovery; existing recording regressions. External checks outstanding: physical microphone/line capture and analogue round trip, independent ADC clock drift, listening, actual device unplug. Exact historical cable failure unconfirmed because its output is forbidden here. Evidence: docs/qa/2026-10-13-device-acceptance.md and docs/qa/device-evidence/2026-10-13/."
     },
     {
       "id": "core-audio-clips",
@@ -1453,10 +1453,10 @@
       "summary": "Chooses which sound card input feeds a track and which output it plays through.",
       "windfall_name": "Track audio I/O",
       "phase": 3,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Saved hardware input routes, standalone monitoring and mono/stereo external outputs are implemented. Physical device port/open-count checks, multitrack monitoring and external replacement/copy alignment remain acceptance gates. See docs/qa/2026-10-09-recording-mixer.md. QA 2026-10-13: SOFTWARE: Waiting on the real-device harness run covering physical input/output selection, routing, measured latency and loss/recovery. No missing implementation was identified in the exercised software. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
+      "notes": "Saved hardware input routes, standalone monitoring and mono/stereo external outputs are implemented. Physical device port/open-count checks, multitrack monitoring and external replacement/copy alignment remain acceptance gates. See docs/qa/2026-10-09-recording-mixer.md. Software complete, QA 2026-10-13: the real-device harness passes on a real WASAPI driver on this machine (digital output with its loopback as input; no audible device or microphone used). Measured: Isolated-port native input monitoring: zero drops/starvation; hardware output mono fold reaches port 2 only; real routing/stop checks. External checks outstanding: a physical multichannel interface, actual headphone/input latency and feedback/listening checks, other platforms. Evidence: docs/qa/2026-10-13-device-acceptance.md and docs/qa/device-evidence/2026-10-13/."
     },
     {
       "id": "win-mixer-record-arm",
@@ -1465,10 +1465,10 @@
       "summary": "Arms tracks so their audio is recorded to files.",
       "windfall_name": "Record arm",
       "phase": 3,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "producer",
-      "notes": "Saved arms and dry/post-effects/post-fader disk recording, shared multitrack keep, Direct printed playback and take associations are implemented. Native rendered-capture alignment/tail and hardware input acceptance remain open. See docs/qa/2026-10-09-recording-mixer.md. QA 2026-10-13: SOFTWARE: Waiting on the real-device harness run covering real armed-track input capture, placement, overlap and take alignment. No missing implementation was identified in the exercised software. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
+      "notes": "Saved arms and dry/post-effects/post-fader disk recording, shared multitrack keep, Direct printed playback and take associations are implemented. Native rendered-capture alignment/tail and hardware input acceptance remain open. See docs/qa/2026-10-09-recording-mixer.md. Software complete, QA 2026-10-13: the real-device harness passes on a real WASAPI driver on this machine (digital output with its loopback as input; no audible device or microphone used). Measured: Hardware loopback plus post-fader tap: equal 384,411-frame clips, 16/16 bursts, exact tap placement, two lanes/one group/one undo. External checks outstanding: independent second physical input and independent clocks, physical line/mic capture/listening. Steam Streaming Microphone was not substituted for an input carrying the stimulus; the passing scenario uses one loopback plus a mixer tap. Evidence: docs/qa/2026-10-13-device-acceptance.md and docs/qa/device-evidence/2026-10-13/."
     },
     {
       "id": "win-mixer-render-tracks",
@@ -3649,10 +3649,10 @@
       "summary": "Chooses the sound card driver and device and sets sample rate and buffer size.",
       "windfall_name": "Audio settings",
       "phase": 0,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": null,
-      "notes": "The plan uses cpal: WASAPI and ASIO on Windows, CoreAudio on macOS, ALSA, JACK and PipeWire on Linux. Device, sample rate and buffer through WASAPI, CoreAudio, ALSA and JACK. ASIO is behind a build feature that is off. QA 2026-10-13: SOFTWARE: Waiting on the real-device harness run covering actual driver/rate/buffer selection, callback timing, hotplug and recovery. No missing implementation was identified in the exercised software. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
+      "notes": "The plan uses cpal: WASAPI and ASIO on Windows, CoreAudio on macOS, ALSA, JACK and PipeWire on Linux. Device, sample rate and buffer through WASAPI, CoreAudio, ALSA and JACK. ASIO is behind a build feature that is off. Software complete, QA 2026-10-13: the real-device harness passes on a real WASAPI driver on this machine (digital output with its loopback as input; no audible device or microphone used). Measured: 52 real rate/buffer trials, requested versus delivered state/UI regression, output clock restart, invalid-config recovery, injected error reopen, 120 s zero-xrun release soak, ASIO compile/305 tests and enumeration. External checks outstanding: physical ASIO and multichannel devices, lower native buffers on a supporting backend/interface, manual unplug and other OS. Current CPAL exposes no exclusive/low-latency shared request; no inert setting was added. Evidence: docs/qa/2026-10-13-device-acceptance.md and docs/qa/device-evidence/2026-10-13/."
     },
     {
       "id": "wf-transport",
@@ -3901,10 +3901,10 @@
       "summary": "Plays metronome bars before recording starts.",
       "windfall_name": "Count-in",
       "phase": 3,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": null,
-      "notes": "Native meter/tempo count-in, pre-opened timestamped ADC capture, exact DAC-frame start, progress and zero-bar synchronized recording are implemented in source. Native-rate conversion, independent clock drift fitting, signed offsets and stop-tail draining are included. Artifacts and all QA deferred. See docs/METRONOME-COUNT-IN.md and docs/RECORDING-ALIGNMENT.md. QA 2026-10-13: SOFTWARE: Waiting on the real-device harness run covering audible count-in/metronome timing and measured recording start/latency. No missing implementation was identified in the exercised software. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
+      "notes": "Native meter/tempo count-in, pre-opened timestamped ADC capture, exact DAC-frame start, progress and zero-bar synchronized recording are implemented in source. Native-rate conversion, independent clock drift fitting, signed offsets and stop-tail draining are included. Artifacts and all QA deferred. See docs/METRONOME-COUNT-IN.md and docs/RECORDING-ALIGNMENT.md. Software complete, QA 2026-10-13: the real-device harness passes on a real WASAPI driver on this machine (digital output with its loopback as input; no audible device or microphone used). Measured: Real one-bar count-in: 2,011 ms delay, equal burst alignment within 0.005 ms, no retained click, trimmed pre-roll and restored transport/region. External checks outstanding: metronome/count-in listening and converter timing on a physical capture interface. Evidence: docs/qa/2026-10-13-device-acceptance.md and docs/qa/device-evidence/2026-10-13/."
     },
     {
       "id": "wf-loop-recording",
@@ -3913,10 +3913,10 @@
       "summary": "Records repeated passes over a looped section and keeps each pass as a take.",
       "windfall_name": "Loop recording",
       "phase": 3,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "producer",
-      "notes": "Loop pass selection, atomic kept-source attachment, saved take groups and synchronized comp editing are implemented. Capture-to-keep, pass boundaries and real device acceptance remain open; do not infer complete recording QA from the general suite. See docs/qa/2026-10-09-recording-mixer.md. QA 2026-10-13: SOFTWARE: Waiting on the real-device harness run covering continuous hardware capture through loop wraps, separate takes and gap/dropout behavior. No missing implementation was identified in the exercised software. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
+      "notes": "Loop pass selection, atomic kept-source attachment, saved take groups and synchronized comp editing are implemented. Capture-to-keep, pass boundaries and real device acceptance remain open; do not infer complete recording QA from the general suite. See docs/qa/2026-10-09-recording-mixer.md. Software complete, QA 2026-10-13: the real-device harness passes on a real WASAPI driver on this machine (digital output with its loopback as input; no audible device or microphone used). Measured: Three exact complete passes plus partial; 288,000-frame total; 0.015 ms pass-position spread; saved group, muting and one undo. External checks outstanding: physical long-loop recording/listening and independent input clocks. Evidence: docs/qa/2026-10-13-device-acceptance.md and docs/qa/device-evidence/2026-10-13/."
     },
     {
       "id": "wf-automation-recording",
