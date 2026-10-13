@@ -166,12 +166,12 @@ fn drumsynth_native_sampler_import_reports_limits_and_reopens_original_preset_wi
     let info = rig.session.sample_info(&source).unwrap();
     assert_eq!(
         (info.sample_rate, info.channels, info.frames),
-        (44100, 1, 4410)
+        (44100, 1, 6000)
     );
     assert!(
         info.source_warnings
             .iter()
-            .any(|w| w.contains("approximately"))
+            .any(|w| w.contains("reference model"))
     );
     assert!(
         info.source_warnings
@@ -182,8 +182,13 @@ fn drumsynth_native_sampler_import_reports_limits_and_reopens_original_preset_wi
     let result = rig.session.add_channel_from_file(&source, None).unwrap();
     let sample = SampleId(result.created[0]);
     let channel = ChannelId(result.created[1]);
+    let source_sample = SampleId(*result.created.last().unwrap());
     let imported = rig.project();
     assert!(rig.has_audio(sample));
+    assert_eq!(
+        rig.session.sample_info_by_id(sample).unwrap().sample_rate,
+        SAMPLE_RATE
+    );
     assert_eq!(
         rig.session.document_snapshot().history.cursor,
         before.history.cursor + 1
@@ -197,7 +202,8 @@ fn drumsynth_native_sampler_import_reports_limits_and_reopens_original_preset_wi
         .project_save(Some(&rig.file("preset-source.windfall")))
         .unwrap();
     let portable = rig.project();
-    let windfall_project::SamplePath::Project(relative) = &portable.sample(sample).unwrap().path
+    let windfall_project::SamplePath::Project(relative) =
+        &portable.sample(source_sample).unwrap().path
     else {
         panic!("original preset must be owned by the saved project");
     };
@@ -215,7 +221,10 @@ fn drumsynth_native_sampler_import_reports_limits_and_reopens_original_preset_wi
         let expected = 0.5
             * (1.0 - frame as f64 / 4410.0)
             * (std::f64::consts::TAU * 440.0 * (frame + 1) as f64 / 44100.0).sin();
-        assert!((f64::from(pcm.samples()[frame]) - expected).abs() < 1e-6);
+        assert_eq!(
+            pcm.samples()[frame],
+            (expected * 32768.0).trunc() as f32 / 32768.0
+        );
     }
 }
 
@@ -226,8 +235,10 @@ fn owned_preset_survives_original_deletion_first_save_move_history_and_fresh_reo
     fs::write(&source, DRUMSYNTH).unwrap();
     let added = rig.session.add_channel_from_file(&source, None).unwrap();
     let sample = SampleId(added.created[0]);
+    let source_sample = SampleId(*added.created.last().unwrap());
     let imported = rig.project();
-    let windfall_project::SamplePath::External(owned) = &imported.sample(sample).unwrap().path
+    let windfall_project::SamplePath::External(owned) =
+        &imported.sample(source_sample).unwrap().path
     else {
         panic!("unsaved owned source");
     };
@@ -239,7 +250,8 @@ fn owned_preset_survives_original_deletion_first_save_move_history_and_fresh_reo
         .project_save(Some(&rig.file("portable/preset.windfall")))
         .unwrap();
     let portable = rig.project();
-    let windfall_project::SamplePath::Project(relative) = &portable.sample(sample).unwrap().path
+    let windfall_project::SamplePath::Project(relative) =
+        &portable.sample(source_sample).unwrap().path
     else {
         panic!("portable source");
     };
@@ -260,9 +272,10 @@ fn owned_preset_survives_original_deletion_first_save_move_history_and_fresh_reo
     rig.session.project_new().unwrap();
     rig.session.project_open(&moved).unwrap();
     assert!(rig.has_audio(sample));
-    assert_eq!(rig.session.sample_info_by_id(sample).unwrap().frames, 4410);
+    assert_eq!(rig.session.sample_info_by_id(sample).unwrap().frames, 7200);
     let project = rig.project();
-    let windfall_project::SamplePath::Project(relative) = &project.sample(sample).unwrap().path
+    let windfall_project::SamplePath::Project(relative) =
+        &project.sample(source_sample).unwrap().path
     else {
         panic!("moved owned source");
     };
@@ -273,12 +286,82 @@ fn owned_preset_survives_original_deletion_first_save_move_history_and_fresh_reo
             .join(relative),
     )
     .unwrap();
+    let windfall_project::SamplePath::Project(wav_relative) = &project.sample(sample).unwrap().path
+    else {
+        panic!("rendered WAV must also be portable");
+    };
+    let wav = windfall_codec::decode_file(
+        std::path::Path::new(&moved)
+            .parent()
+            .unwrap()
+            .join(wav_relative),
+    )
+    .unwrap();
+    let reference = windfall_codec::DrumSynthPreset::parse(DRUMSYNTH)
+        .unwrap()
+        .render(
+            SAMPLE_RATE,
+            windfall_codec::MAX_DRUMSYNTH_FRAMES,
+            windfall_codec::DRUMSYNTH_SOURCE_SEED,
+        )
+        .unwrap();
+    assert_eq!(wav.sample_rate(), SAMPLE_RATE);
+    assert_eq!(wav.samples(), reference.audio.samples());
     for frame in [0, 100, 2205, 4409] {
         let expected = 0.5
             * (1.0 - frame as f64 / 4410.0)
             * (std::f64::consts::TAU * 440.0 * (frame + 1) as f64 / 44100.0).sin();
-        assert!((f64::from(pcm.samples()[frame]) - expected).abs() < 1e-6);
+        assert_eq!(
+            pcm.samples()[frame],
+            (expected * 32768.0).trunc() as f32 / 32768.0
+        );
     }
+}
+
+#[test]
+fn drumsynth_browser_add_and_drop_on_sampler_own_both_assets_in_one_undo_step() {
+    let rig = Rig::new();
+    let original_samples = rig.project().samples.len();
+    let source = rig.file("browser-drum.ds");
+    fs::write(&source, DRUMSYNTH).unwrap();
+    rig.session
+        .browser_add_root(&rig.folder.path().to_string_lossy())
+        .unwrap();
+    let token = rig.session.library_file(&source).unwrap();
+    let added = rig
+        .session
+        .browser_add_channel(&source, None, token)
+        .unwrap();
+    let channel = ChannelId(added.created[1]);
+    assert_eq!(rig.project().samples.len(), original_samples + 2);
+    assert_eq!(rig.session.document_snapshot().history.cursor, 1);
+    let before = rig.project();
+    let token = rig.session.library_file(&source).unwrap();
+    let replaced = rig
+        .session
+        .browser_replace_sample(channel, &source, token)
+        .unwrap();
+    let sample = SampleId(replaced.created[0]);
+    assert_eq!(
+        rig.session.sample_info_by_id(sample).unwrap().sample_rate,
+        SAMPLE_RATE
+    );
+    assert_eq!(rig.session.document_snapshot().history.cursor, 2);
+    let after = rig.project();
+    rig.session.undo().unwrap();
+    let mut undone = rig.project();
+    undone.next_id = before.next_id;
+    assert_eq!(undone, before);
+    rig.session.redo().unwrap();
+    assert_eq!(rig.project(), after);
+    fs::remove_file(source).unwrap();
+    let saved = rig
+        .session
+        .project_save(Some(&rig.file("browser-owned.windfall")))
+        .unwrap();
+    rig.session.project_new().unwrap();
+    rig.session.project_open(&saved).unwrap();
+    assert!(rig.has_audio(sample));
 }
 
 #[test]
@@ -308,7 +391,7 @@ fn drumsynth_source_changes_replacement_and_unsupported_synthesis_never_install_
     }
     let rig = Rig::new();
     for bytes in [
-        b"[General]\nVersion=DrumSynth v2.0\n[Overtones]\nOn=1\n".as_slice(),
+        b"[General]\nVersion=DrumSynth v2.0\n[Overtones]\nOn=1\nMethod=4\n".as_slice(),
         b"[General]\nVersion=DrumSynth v2.0\n[Tone]\nOn=1\nF1=NaN\n".as_slice(),
     ] {
         let file = rig.file("unsupported.ds");

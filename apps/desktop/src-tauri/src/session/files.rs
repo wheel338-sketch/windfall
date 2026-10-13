@@ -844,7 +844,7 @@ fn carry_samples(
     Ok(renamed)
 }
 
-/// The import worker owns these original texts before the first save. Adopt
+/// The import worker owns these texts and rendered WAVs before the first save. Adopt
 /// them into the portable project folder through the ordinary history relink.
 /// Arbitrary external files and unrelated app storage are never collected.
 fn carry_owned_presets(
@@ -869,7 +869,7 @@ fn carry_owned_presets(
         if source.parent() != Some(owned_folder)
             || !source
                 .extension()
-                .is_some_and(|e| e.eq_ignore_ascii_case("ds"))
+                .is_some_and(|e| e.eq_ignore_ascii_case("ds") || e.eq_ignore_ascii_case("wav"))
         {
             continue;
         }

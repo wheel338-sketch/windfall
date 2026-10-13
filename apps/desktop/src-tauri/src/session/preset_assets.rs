@@ -21,6 +21,8 @@ pub(super) fn read_original(path: &std::path::Path) -> Result<Vec<u8>, String> {
 }
 pub(super) struct OwnedPreset {
     pub path: PathBuf,
+    pub rendered: PathBuf,
+    pub rate: u32,
     pub original: PathBuf,
     pub original_audio: AudioBuffer,
     pub bytes: Vec<u8>,
@@ -30,6 +32,7 @@ impl Drop for OwnedPreset {
     fn drop(&mut self) {
         if !self.installed {
             let _ = fs::remove_file(&self.path);
+            let _ = fs::remove_file(&self.rendered);
         }
     }
 }
@@ -82,14 +85,33 @@ impl Session {
             }
         }
         let path = published.ok_or("Could not reserve an owned preset filename.")?;
+        // The sampler owns a rendered WAV at the current project engine rate.
+        // The original text is also registered as a project sample asset so
+        // ordinary save/save-as/archive carrying preserves both independently.
+        let rendered = path.with_extension("wav");
+        let rate = self.inner.audio.status().sample_rate;
         let owned = OwnedPreset {
             path: path.clone(),
+            rendered: rendered.clone(),
+            rate,
             original: import.file.clone(),
             original_audio: import.buffer.clone(),
             bytes,
             installed: false,
         };
-        import.file = path;
+        let audio = windfall_codec::DrumSynthPreset::parse(&owned.bytes)
+            .and_then(|preset| {
+                preset.render(
+                    rate,
+                    windfall_codec::MAX_DRUMSYNTH_FRAMES,
+                    windfall_codec::DRUMSYNTH_SOURCE_SEED,
+                )
+            })
+            .map_err(|e| e.to_string())?
+            .audio;
+        windfall_codec::write_wav(&rendered, &audio, windfall_codec::WavSampleFormat::Float32)
+            .map_err(|e| e.to_string())?;
+        import.file = rendered;
         import.buffer = self.inner.cache.decode(&import.file)?;
         Ok(Some(owned))
     }

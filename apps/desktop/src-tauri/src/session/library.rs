@@ -487,6 +487,25 @@ impl Session {
             // decode. Clip geometry and prepared banks use what will play.
             let source = state.pool.get(sample).unwrap_or(&import.buffer);
             let mut command = build(&state, path, sample, source);
+            if let Some(owned) = &owned_preset {
+                command = Command::Batch {
+                    label: Some("Import DrumSynth source and rendered sample".into()),
+                    commands: vec![
+                        command,
+                        Command::AddSample {
+                            name: format!(
+                                "{} (DrumSynth source)",
+                                crate::paths::stem(&owned.original)
+                            ),
+                            path: sample_path_for(
+                                &owned.path,
+                                state.project_dir(),
+                                &self.inner.factory_dir,
+                            ),
+                        },
+                    ],
+                };
+            }
             if held.is_none()
                 && let Some(regions) = &wav_regions
                 && !regions.is_empty()
@@ -530,6 +549,11 @@ impl Session {
             }
         }
         if let Some(owned) = &owned_preset {
+            if self.inner.audio.status().sample_rate != owned.rate {
+                return Err(
+                    "The project audio rate changed during preset rendering. Try again.".into(),
+                );
+            }
             let current = self.inner.cache.decode(&owned.original)?;
             if !self
                 .inner
@@ -566,6 +590,7 @@ impl Session {
         {
             owned.installed = true;
             self.own_derived(&owned.path);
+            self.own_derived(&owned.rendered);
         }
         result
     }

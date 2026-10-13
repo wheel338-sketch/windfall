@@ -343,7 +343,7 @@ fn drumsynth_info(audio: &AudioBuffer) -> AudioInfo {
         frames: Some(audio.frames() as u64),
         duration_secs: Some(audio.duration_secs()),
         format: "drumsynth".into(),
-        codec: "drumsynth-approximate".into(),
+        codec: "drumsynth".into(),
         bits_per_sample: None,
     }
 }
