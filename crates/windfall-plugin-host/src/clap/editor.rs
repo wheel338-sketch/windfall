@@ -12,10 +12,10 @@ use crate::gui::{EditorError, EditorInfo, EditorOptions};
 /// An open editor.
 pub(crate) struct Editor {
     gui: PluginGui,
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
     window: Option<embedded::Embedded>,
     info: EditorInfo,
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
     application: f64,
 }
 
@@ -35,6 +35,12 @@ impl Editor {
         let Some(api) = GuiApiType::default_for_current_platform() else {
             return Err(EditorError::UnsupportedPlatform);
         };
+        #[cfg(target_os = "macos")]
+        if !crate::gui::cocoa_ffi::is_main() {
+            return Err(EditorError::Failed(
+                "Cocoa editor requires the application main thread".into(),
+            ));
+        }
         let embedded = GuiConfiguration {
             api_type: api,
             is_floating: false,
@@ -51,7 +57,7 @@ impl Editor {
             )
         };
 
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
         if can_embed {
             let (window, info) = embedded::open(instance, gui, embedded, options)?;
             instance.access_shared_handler(|shared| {
@@ -99,9 +105,9 @@ impl Editor {
         });
         Ok(Self {
             gui,
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
             window: None,
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
             application: options.scale,
             info: EditorInfo {
                 window: None,
@@ -121,15 +127,23 @@ impl Editor {
         instance: &mut PluginInstance<WindfallHost>,
         application: f64,
     ) -> Result<EditorInfo, EditorError> {
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
         {
             let window = self.window.as_ref().ok_or(EditorError::UnsupportedScale)?;
             let factor =
                 crate::gui::scaling::content_scale(application, window.window.monitor_scale())?;
             let plugin = instance.plugin_handle();
+            #[cfg(not(target_os = "macos"))]
             self.gui
                 .set_scale(&plugin, factor)
                 .map_err(|_| EditorError::UnsupportedScale)?;
+            #[cfg(target_os = "macos")]
+            {
+                // CLAP Cocoa dimensions are points and set_scale must not be
+                // called. AppKit applies backing DPI; only application zoom is
+                // applied through the parent view's bounds transform.
+                let _ = factor;
+            }
             let size = self
                 .gui
                 .get_size(&plugin)
@@ -139,18 +153,20 @@ impl Editor {
                     "invalid scaled editor dimensions".into(),
                 ));
             }
+            #[cfg(target_os = "macos")]
+            window.window.set_application_scale(application)?;
             self.apply_requested_size(size.width, size.height);
             self.application = application;
             Ok(self.info)
         }
-        #[cfg(not(windows))]
+        #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
         {
             let _ = (instance, application);
             Err(EditorError::UnsupportedScale)
         }
     }
 
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
     pub fn poll_monitor_scale(
         &mut self,
         instance: &mut PluginInstance<WindfallHost>,
@@ -166,7 +182,7 @@ impl Editor {
 
     /// True once after the user asked to close the host's window.
     pub fn take_close_request(&self) -> bool {
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
         if let Some(window) = &self.window {
             return window.window.take_close_request();
         }
@@ -176,7 +192,10 @@ impl Editor {
     /// Gives the editor the size the plugin asked for. Returns the new size
     /// if it changed.
     pub fn apply_requested_size(&mut self, width: u32, height: u32) -> Option<(u32, u32)> {
-        #[cfg(windows)]
+        if !(1..=32768).contains(&width) || !(1..=32768).contains(&height) {
+            return None;
+        }
+        #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
         if let Some(window) = &self.window {
             window.window.set_client_size(width, height);
             window.size.set((width, height));
@@ -187,7 +206,7 @@ impl Editor {
     /// Picks up a size the user dragged the window to. Returns the new size
     /// if it changed.
     pub fn poll_size(&mut self) -> Option<(u32, u32)> {
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
         if let Some(window) = &self.window {
             let (width, height) = window.size.get();
             return self.note_size(width, height);
@@ -211,12 +230,26 @@ impl Editor {
             shared.editor_open.store(false, Ordering::Release);
         });
         let plugin = instance.plugin_handle();
-        let _ = self.gui.hide(&plugin);
-        self.gui.destroy(&plugin);
+        #[cfg(any(target_os = "macos", target_os = "linux"))]
+        {
+            let gui = self.gui;
+            crate::gui::lifecycle::close_plugin_then_parent(
+                || {
+                    let _ = gui.hide(&plugin);
+                },
+                || gui.destroy(&plugin),
+                || drop(self),
+            );
+        }
+        #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+        {
+            let _ = self.gui.hide(&plugin);
+            self.gui.destroy(&plugin);
+        }
     }
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos", target_os = "linux"))]
 mod embedded {
     //! The editor inside a host window. The window procedure has to ask
     //! the plugin about sizes while the user drags the frame, at a moment
@@ -227,13 +260,18 @@ mod embedded {
     use std::cell::Cell;
     use std::rc::Rc;
 
-    use clack_extensions::gui::{GuiConfiguration, GuiSize, PluginGui, Window};
+    #[cfg(windows)]
+    use clack_extensions::gui::Window;
+    use clack_extensions::gui::{GuiConfiguration, GuiSize, PluginGui};
     use clack_host::prelude::*;
     use clap_sys::ext::gui::{CLAP_EXT_GUI, clap_plugin_gui};
     use clap_sys::plugin::clap_plugin;
 
     use super::super::handlers::WindfallHost;
     use super::failed;
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    use crate::gui::native::{HostWindow, WindowClient};
+    #[cfg(windows)]
     use crate::gui::win32::{HostWindow, WindowClient, system_scale};
     use crate::gui::{EditorError, EditorInfo, EditorOptions};
 
@@ -265,6 +303,11 @@ mod embedded {
             // CLAP wants the call.
             unsafe {
                 if let Some(adjust_size) = (*self.gui).adjust_size {
+                    #[cfg(any(target_os = "macos", target_os = "linux"))]
+                    if !adjust_size(self.plugin, &mut width, &mut height) {
+                        return self.size.get();
+                    }
+                    #[cfg(windows)]
                     adjust_size(self.plugin, &mut width, &mut height);
                 }
             }
@@ -276,10 +319,19 @@ mod embedded {
             // SAFETY: as in `adjust_size`.
             unsafe {
                 if let Some(set_size) = (*self.gui).set_size {
+                    #[cfg(any(target_os = "macos", target_os = "linux"))]
+                    if !set_size(self.plugin, width, height) {
+                        return;
+                    }
+                    #[cfg(windows)]
                     set_size(self.plugin, width, height);
                 }
             }
             self.size.set((width, height));
+        }
+        #[cfg(any(target_os = "macos", target_os = "linux"))]
+        fn accepted_size(&self) -> (u32, u32) {
+            self.size.get()
         }
     }
 
@@ -305,6 +357,7 @@ mod embedded {
         gui.create(&plugin, configuration)
             .map_err(failed("the plugin could not create its editor"))?;
         // A plugin that refuses the scale reads it from the system itself.
+        #[cfg(windows)]
         if let Err(error) = gui.set_scale(&plugin, system_scale() * options.scale)
             && options.scale != 1.0
         {
@@ -312,6 +365,10 @@ mod embedded {
             return Err(failed("plugin refused editor scaling")(error));
         }
         let size = gui.get_size(&plugin).unwrap_or(FALLBACK_SIZE);
+        if !(1..=32768).contains(&size.width) || !(1..=32768).contains(&size.height) {
+            gui.destroy(&plugin);
+            return Err(EditorError::Failed("invalid editor dimensions".into()));
+        }
         let resizable = gui.can_resize(&plugin);
 
         let shared_size = Rc::new(Cell::new((size.width, size.height)));
@@ -343,14 +400,49 @@ mod embedded {
         }
         // SAFETY: the window outlives the plugin's editor: `Editor::close`
         // destroys the plugin's part before the window is dropped.
+        #[cfg(windows)]
         let parent = unsafe { Window::from_win32_hwnd(window.handle()) };
         // SAFETY: as above.
+        #[cfg(windows)]
         if let Err(error) = unsafe { gui.set_parent(&plugin, parent) } {
             gui.destroy(&plugin);
             return Err(failed("the plugin could not use the host's window")(error));
         }
-        // Some plugins report failure here and show themselves anyway.
+        #[cfg(any(target_os = "macos", target_os = "linux"))]
+        {
+            // Use the raw, pinned CLAP ABI rather than guessing a convenience
+            // constructor's argument type. x11 is an unsigned-long XID;
+            // cocoa is an NSView pointer. Neither is an NSWindow pointer.
+            let mut parent: clap_sys::ext::gui::clap_window = unsafe { std::mem::zeroed() };
+            #[cfg(target_os = "macos")]
+            {
+                parent.api = c"cocoa".as_ptr();
+                parent.specific.cocoa = window.handle();
+            }
+            #[cfg(target_os = "linux")]
+            {
+                parent.api = c"x11".as_ptr();
+                parent.specific.x11 = window.handle() as usize as _;
+            }
+            let accepted = unsafe {
+                (*raw_gui)
+                    .set_parent
+                    .is_some_and(|set| set(raw_plugin, &parent))
+            };
+            if !accepted {
+                gui.destroy(&plugin);
+                return Err(EditorError::Failed(
+                    "the plugin refused the host parent".into(),
+                ));
+            }
+        }
+        #[cfg(windows)]
         let _ = gui.show(&plugin);
+        #[cfg(any(target_os = "macos", target_os = "linux"))]
+        if let Err(error) = gui.show(&plugin) {
+            gui.destroy(&plugin);
+            return Err(failed("the plugin could not show its editor")(error));
+        }
         window.show(options.take_focus);
 
         let info = EditorInfo {

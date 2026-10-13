@@ -41,6 +41,8 @@ pub(super) struct Objects {
     separate: bool,
     connection: Option<Connection>,
     _context: ComPtr<IHostApplication>,
+    #[cfg(target_os = "linux")]
+    _gui_context: gui_context_linux::Owner,
     _module: Vst3Module,
 }
 // SAFETY: only IAudioProcessor is accessed on the single audio owner. The
@@ -87,7 +89,12 @@ fn utf16(text: &[u16]) -> String {
 impl VstInstance {
     pub fn new(module: Vst3Module, id: &str) -> Result<Self, PluginError> {
         let cid = parse_id(id).ok_or_else(|| PluginError::NotFound(id.into()))?;
+        #[cfg(target_os = "linux")]
+        let gui_context = gui_context_linux::Owner::new(&module)?;
+        #[cfg(target_os = "linux")]
+        let context = gui_context.context();
         let component = module.object::<IComponent>(&cid)?;
+        #[cfg(not(target_os = "linux"))]
         let context = ComWrapper::new(HostApplication)
             .to_com_ptr::<IHostApplication>()
             .expect("host");
@@ -153,6 +160,8 @@ impl VstInstance {
                 separate,
                 connection,
                 _context: context,
+                #[cfg(target_os = "linux")]
+                _gui_context: gui_context,
                 _module: module,
             }),
             layout,

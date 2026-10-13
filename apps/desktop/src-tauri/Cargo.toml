@@ -64,6 +64,10 @@ windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Syste
 # MIT OR Apache-2.0. Existing locked package; native resident-memory query.
 libc = "0.2.190"
 
+[target.'cfg(target_os = "linux")'.dependencies]
+# MIT OR Apache-2.0; exact package already locked and used by Tauri.
+raw-window-handle = "=0.6.2"
+
 [dev-dependencies]
 # MIT OR Apache-2.0. Enable the existing Tauri package's mock runtime for signed-update fixtures; no new package/version.
 tauri = { version = "2.12.1", features = ["test"] }

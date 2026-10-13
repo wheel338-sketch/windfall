@@ -1,37 +1,61 @@
-//! Native Windows IPlugView ownership; other platforms are explicit boundaries.
+//! Owner-thread IPlugView attachment, with HWND, NSView and XEmbed parents.
+#[cfg(target_os = "linux")]
+pub(super) mod run_loop;
+#[cfg(any(windows, target_os = "macos", target_os = "linux"))]
+fn platform() -> &'static std::ffi::CStr {
+    #[cfg(windows)]
+    {
+        c"HWND"
+    }
+    #[cfg(target_os = "macos")]
+    {
+        c"NSView"
+    }
+    #[cfg(target_os = "linux")]
+    {
+        c"X11EmbedWindowID"
+    }
+}
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+use crate::gui::native::{HostWindow, WindowClient};
 #[cfg(windows)]
 use crate::gui::win32::{HostWindow, WindowClient};
 use crate::{
     gui::{EditorError, EditorInfo, EditorOptions},
     instance::PluginNotification,
 };
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos", target_os = "linux"))]
 use std::{cell::Cell, rc::Rc};
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos", target_os = "linux"))]
 use vst3::Steinberg::Vst::IEditControllerTrait;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos", target_os = "linux"))]
 use vst3::{Class, ComWrapper, Steinberg::*};
 use vst3::{ComPtr, Steinberg::Vst::IEditController};
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos", target_os = "linux"))]
 struct Size {
     width: Cell<u32>,
     height: Cell<u32>,
     requested: Cell<bool>,
 }
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos", target_os = "linux"))]
 struct Frame {
     view: ComPtr<IPlugView>,
     size: Rc<Size>,
     main: usize,
     alive: Cell<bool>,
     resizing: Cell<bool>,
+    #[cfg(target_os = "linux")]
+    run_loop: run_loop::RunLoop,
 }
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos", target_os = "linux"))]
 impl Class for Frame {
+    #[cfg(not(target_os = "linux"))]
     type Interfaces = (IPlugFrame,);
+    #[cfg(target_os = "linux")]
+    type Interfaces = (IPlugFrame, vst3::Steinberg::Linux::IRunLoop);
 }
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos", target_os = "linux"))]
 #[allow(non_snake_case)]
 impl IPlugFrameTrait for Frame {
     unsafe fn resizeView(&self, view: *mut IPlugView, rect: *mut ViewRect) -> tresult {
@@ -58,19 +82,19 @@ impl IPlugFrameTrait for Frame {
         result
     }
 }
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos", target_os = "linux"))]
 fn dimensions(rect: &ViewRect) -> Option<(u32, u32)> {
     let width = rect.right.checked_sub(rect.left)?;
     let height = rect.bottom.checked_sub(rect.top)?;
     ((1..=32768).contains(&width) && (1..=32768).contains(&height))
         .then_some((width as u32, height as u32))
 }
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos", target_os = "linux"))]
 struct Client {
     view: ComPtr<IPlugView>,
     size: Rc<Size>,
 }
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos", target_os = "linux"))]
 impl WindowClient for Client {
     fn adjust_size(&self, width: u32, height: u32) -> (u32, u32) {
         let mut rect = ViewRect {
@@ -86,8 +110,11 @@ impl WindowClient for Client {
         dimensions(&rect).unwrap_or((self.size.width.get(), self.size.height.get()))
     }
     fn resized(&self, width: u32, height: u32) {
-        self.size.width.set(width);
-        self.size.height.set(height);
+        #[cfg(windows)]
+        {
+            self.size.width.set(width);
+            self.size.height.set(height);
+        }
         let mut rect = ViewRect {
             left: 0,
             top: 0,
@@ -96,27 +123,37 @@ impl WindowClient for Client {
         };
         // SAFETY: window procedure runs on the editor's owning thread.
         unsafe {
+            #[cfg(windows)]
             self.view.onSize(&mut rect);
+            #[cfg(any(target_os = "macos", target_os = "linux"))]
+            if self.view.onSize(&mut rect) == kResultOk {
+                self.size.width.set(width);
+                self.size.height.set(height);
+            }
         }
+    }
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    fn accepted_size(&self) -> (u32, u32) {
+        (self.size.width.get(), self.size.height.get())
     }
 }
 pub(super) struct Editor {
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
     view: ComPtr<IPlugView>,
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
     frame: ComWrapper<Frame>,
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
     window: HostWindow,
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
     size: Rc<Size>,
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
     resizable: bool,
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
     application: f64,
 }
 impl Editor {
     pub fn set_scale(&mut self, application: f64) -> Result<EditorInfo, EditorError> {
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
         {
             let factor =
                 crate::gui::scaling::content_scale(application, self.window.monitor_scale())?;
@@ -152,7 +189,7 @@ impl Editor {
             self.application = application;
             Ok(self.info())
         }
-        #[cfg(not(windows))]
+        #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
         {
             let _ = application;
             Err(EditorError::UnsupportedScale)
@@ -162,31 +199,40 @@ impl Editor {
         controller: &ComPtr<IEditController>,
         options: &EditorOptions,
     ) -> Result<Self, EditorError> {
-        #[cfg(not(windows))]
+        #[cfg(target_os = "macos")]
+        if !crate::gui::cocoa_ffi::is_main() {
+            return Err(EditorError::Failed(
+                "Cocoa editor requires the application main thread".into(),
+            ));
+        }
+        #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
         {
             let _ = (controller, options);
             Err(EditorError::UnsupportedPlatform)
         }
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
         {
             // SAFETY: live controller on its main thread; owned view reference.
             let view = unsafe { ComPtr::from_raw(controller.createView(c"editor".as_ptr())) }
                 .ok_or(EditorError::NoEditor)?;
             // SAFETY: static null-terminated SDK platform string.
-            if unsafe { view.isPlatformTypeSupported(c"HWND".as_ptr()) } != kResultOk {
+            if unsafe { view.isPlatformTypeSupported(platform().as_ptr()) } != kResultOk {
                 return Err(EditorError::UnsupportedPlatform);
             }
-            let scale = crate::gui::win32::system_scale() * options.scale;
-            if let Some(support) = view.cast::<IPlugViewContentScaleSupport>() {
-                if unsafe { support.setContentScaleFactor(scale as f32) } != kResultOk
-                    && options.scale != 1.0
-                {
-                    return Err(EditorError::Failed("VST3 editor refused scaling".into()));
+            #[cfg(windows)]
+            {
+                let scale = crate::gui::win32::system_scale() * options.scale;
+                if let Some(support) = view.cast::<IPlugViewContentScaleSupport>() {
+                    if unsafe { support.setContentScaleFactor(scale as f32) } != kResultOk
+                        && options.scale != 1.0
+                    {
+                        return Err(EditorError::Failed("VST3 editor refused scaling".into()));
+                    }
+                } else if options.scale != 1.0 {
+                    return Err(EditorError::Failed(
+                        "VST3 editor has no scale capability".into(),
+                    ));
                 }
-            } else if options.scale != 1.0 {
-                return Err(EditorError::Failed(
-                    "VST3 editor has no scale capability".into(),
-                ));
             }
             let mut rect = ViewRect {
                 left: 0,
@@ -230,14 +276,17 @@ impl Editor {
                 main: super::handlers::token(),
                 alive: Cell::new(true),
                 resizing: Cell::new(false),
+                #[cfg(target_os = "linux")]
+                run_loop: run_loop::RunLoop::new(),
             });
             let interface = frame.to_com_ptr::<IPlugFrame>().expect("frame");
             // SAFETY: all editor objects stay alive until removed/reset-frame.
             unsafe {
                 if view.setFrame(interface.as_ptr()) != kResultOk {
+                    view.setFrame(std::ptr::null_mut());
                     return Err(EditorError::Failed("editor refused its frame".into()));
                 }
-                if view.attached(window.handle(), c"HWND".as_ptr()) != kResultOk {
+                if view.attached(window.handle(), platform().as_ptr()) != kResultOk {
                     view.setFrame(std::ptr::null_mut());
                     return Err(EditorError::Failed("editor attach refused".into()));
                 }
@@ -264,7 +313,7 @@ impl Editor {
         }
     }
     pub fn info(&self) -> EditorInfo {
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
         {
             EditorInfo {
                 window: Some(self.window.handle() as usize),
@@ -273,13 +322,17 @@ impl Editor {
                 resizable: self.resizable,
             }
         }
-        #[cfg(not(windows))]
+        #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
         {
             unreachable!("no editor can be created on this platform")
         }
     }
     pub fn idle(&mut self, notify: &mut dyn FnMut(PluginNotification)) -> bool {
-        #[cfg(windows)]
+        #[cfg(any(target_os = "macos", target_os = "linux"))]
+        if self.window.take_close_request() {
+            return true;
+        }
+        #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
         {
             if let Some(monitor) = self.window.take_monitor_scale() {
                 let before = self.info();
@@ -308,14 +361,14 @@ impl Editor {
             }
             self.window.take_close_request()
         }
-        #[cfg(not(windows))]
+        #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
         {
             let _ = notify;
             false
         }
     }
 }
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos", target_os = "linux"))]
 impl Drop for Editor {
     fn drop(&mut self) {
         self.frame.alive.set(false);
@@ -324,5 +377,7 @@ impl Drop for Editor {
             self.view.removed();
             self.view.setFrame(std::ptr::null_mut());
         }
+        #[cfg(target_os = "linux")]
+        self.frame.run_loop.clear();
     }
 }

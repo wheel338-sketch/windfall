@@ -771,6 +771,8 @@ fn run(address: SocketAddr) -> io::Result<()> {
         offline: *offline,
         dirty: false,
     };
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    let mut editor_refusals = crate::gui::bridge_editor::Refusals::default();
     let ready = Message::Ready {
         note_instances,
         expression_masks,
@@ -819,6 +821,11 @@ fn run(address: SocketAddr) -> io::Result<()> {
                     return Ok(());
                 }
                 Message::Editor { open, options } => {
+                    #[cfg(any(target_os = "macos", target_os = "linux"))]
+                    let options = crate::gui::bridge_editor::helper_options(
+                        options,
+                        cfg!(target_os = "macos"),
+                    );
                     if native.offline {
                         response.body = Message::Error {
                             message: "render helpers cannot open editors".into(),
@@ -831,7 +838,29 @@ fn run(address: SocketAddr) -> io::Result<()> {
                         }
                     } else {
                         native.instance.close_editor();
+                        #[cfg(any(target_os = "macos", target_os = "linux"))]
+                        editor_refusals.clear();
                     }
+                }
+                #[cfg(any(target_os = "macos", target_os = "linux"))]
+                Message::EditorScale { application } => {
+                    if native.instance.editor().is_some() {
+                        match native.instance.set_editor_scale(application) {
+                            Ok(_) => editor_refusals.clear(),
+                            Err(error) => {
+                                response.body = Message::Error {
+                                    message: error.to_string(),
+                                }
+                            }
+                        }
+                    }
+                }
+                #[cfg(any(target_os = "macos", target_os = "linux"))]
+                Message::EditorStatus => {
+                    response.body = Message::EditorReport {
+                        open: native.instance.editor().is_some(),
+                        refused: editor_refusals.take(),
+                    };
                 }
                 Message::Capture {
                     epoch,
@@ -886,6 +915,15 @@ fn run(address: SocketAddr) -> io::Result<()> {
         let mut restart = false;
         native.instance.idle(&mut |notification| {
             restart |= matches!(notification, PluginNotification::RestartRequested | PluginNotification::ParamsRescanned | PluginNotification::LatencyChanged { .. });
+            #[cfg(any(target_os = "macos", target_os = "linux"))]
+            match &notification {
+                PluginNotification::EditorScaleRefused {
+                    application,
+                    monitor,
+                } => editor_refusals.record(*application, *monitor),
+                PluginNotification::EditorClosed => editor_refusals.clear(),
+                _ => {}
+            }
             if matches!(
                 notification,
                 PluginNotification::ParamChanged { .. }

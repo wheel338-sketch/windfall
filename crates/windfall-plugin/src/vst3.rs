@@ -617,6 +617,8 @@ impl IEditControllerTrait for Component {
         ComWrapper::new(View {
             state: Rc::clone(&self.state),
             panel: UnsafeCell::new(None),
+            #[cfg(target_os = "linux")]
+            frame: UnsafeCell::new(None),
         })
         .to_com_ptr::<IPlugView>()
         .unwrap()
@@ -626,6 +628,8 @@ impl IEditControllerTrait for Component {
 struct View {
     state: Rc<Publication>,
     panel: UnsafeCell<Option<crate::panel::Panel>>,
+    #[cfg(target_os = "linux")]
+    frame: UnsafeCell<Option<ComPtr<IPlugFrame>>>,
 }
 impl Class for View {
     type Interfaces = (IPlugView,);
@@ -644,6 +648,19 @@ impl IPlugViewTrait for View {
         }
         match crate::panel::Panel::open(parent, Rc::clone(&self.state)) {
             Ok(panel) => {
+                #[cfg(target_os = "linux")]
+                let mut panel = panel;
+                #[cfg(target_os = "linux")]
+                {
+                    let frame = unsafe {
+                        (&*self.frame.get())
+                            .as_ref()
+                            .map_or(ptr::null_mut(), |frame| frame.as_ptr())
+                    };
+                    if frame.is_null() || !unsafe { panel.set_frame(frame) } {
+                        return kResultFalse;
+                    }
+                }
                 unsafe {
                     *self.panel.get() = Some(panel);
                 }
@@ -687,7 +704,18 @@ impl IPlugViewTrait for View {
     unsafe fn onFocus(&self, _: TBool) -> tresult {
         kResultOk
     }
-    unsafe fn setFrame(&self, _: *mut IPlugFrame) -> tresult {
+    unsafe fn setFrame(&self, frame: *mut IPlugFrame) -> tresult {
+        #[cfg(target_os = "linux")]
+        unsafe {
+            if let Some(panel) = (&mut *self.panel.get()).as_mut()
+                && !panel.set_frame(frame)
+            {
+                return kResultFalse;
+            }
+            *self.frame.get() = ComRef::from_raw(frame).map(|reference| reference.to_com_ptr());
+        }
+        #[cfg(not(target_os = "linux"))]
+        let _ = frame;
         kResultOk
     }
     unsafe fn canResize(&self) -> tresult {

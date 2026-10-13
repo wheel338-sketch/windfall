@@ -4,6 +4,8 @@ mod bridge;
 mod capture_ack;
 mod capabilities;
 mod manager_workflows;
+#[cfg(target_os = "linux")]
+pub(crate) mod platform_parent;
 mod runtime;
 mod note_capabilities;
 pub use note_capabilities::NoteCapabilities;

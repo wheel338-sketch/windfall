@@ -519,7 +519,7 @@ impl InstanceBackend for ClapInstance {
             return;
         }
         let mut resized = None;
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
         if let Some((application, monitor, scaled)) = editor.poll_monitor_scale(&mut self.instance)
         {
             match scaled {

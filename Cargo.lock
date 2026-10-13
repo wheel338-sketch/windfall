@@ -5545,6 +5545,7 @@ dependencies = [
  "getrandom 0.3.4",
  "libc",
  "log",
+ "raw-window-handle",
  "reqwest",
  "same-file",
  "semver",

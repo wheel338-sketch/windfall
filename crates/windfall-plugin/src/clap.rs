@@ -182,6 +182,10 @@ unsafe extern "C" fn destroy(plugin: *const clap_plugin) {
         // CLAP requires deactivation before destruction. Refuse invalid lifecycle
         // rather than dropping live processors under another thread.
         if !instance.active.load(Ordering::Acquire) {
+            #[cfg(target_os = "linux")]
+            unsafe {
+                gui::destroy(plugin);
+            }
             unsafe {
                 drop(Box::from_raw((*plugin).plugin_data as *mut Instance));
             }

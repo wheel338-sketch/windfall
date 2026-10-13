@@ -1870,10 +1870,16 @@ async fn plugin_editor(
         .map(|handle| handle.0 as usize);
     #[cfg(target_os = "macos")]
     let parent = app
-        .get_webview_window("main")
+        .get_webview_window(window.label())
         .and_then(|window| window.ns_window().ok())
         .map(|window| window as usize);
-    #[cfg(not(any(windows, target_os = "macos")))]
+    #[cfg(target_os = "linux")]
+    let parent = {
+        let _ = app;
+        let owner = window.clone();
+        blocking(move || crate::plugins::platform_parent::linux_owner(owner)).await?
+    };
+    #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
     let parent = {
         let _ = app;
         None
