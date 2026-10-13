@@ -87,6 +87,66 @@ enum Request {
 }
 
 impl Engine {
+    /// Development memory sink. Runs the actual callback processor against a
+    /// wall clock without enumerating/opening any output or input device.
+    /// This is UI/software evidence only, never a hardware deadline result.
+    #[cfg(debug_assertions)]
+    pub fn software(settings: &AudioSettings) -> Engine {
+        let (mut processor, controller) = crate::Processor::new(48_000);
+        let status = Arc::new(Mutex::new(EngineStatus {
+            running: true,
+            host: "Software".into(),
+            device: Some("Memory sink (no audio device)".into()),
+            sample_rate: 48_000,
+            buffer_frames: 128,
+            output_channels: 2,
+            latency_ms: latency_ms(128, 48_000),
+            latency_frames: 0,
+            error: None,
+        }));
+        let (requests, inbox) = mpsc::channel();
+        let owner_status = status.clone();
+        let measurements = controller.shared().clone();
+        let thread = std::thread::Builder::new()
+            .name("windfall-software-audio".into())
+            .spawn(move || {
+                let period = Duration::from_secs_f64(128.0 / 48_000.0);
+                let mut next = Instant::now();
+                let mut running = true;
+                let mut output = [0.0; 256];
+                loop {
+                    match inbox.recv_timeout(next.saturating_duration_since(Instant::now())) {
+                        Ok(Request::Close) | Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                        Ok(Request::Suspend(done)) => {
+                            running = false;
+                            lock(&owner_status).running = false;
+                            let _ = done.send(Ok(()));
+                        }
+                        Ok(Request::Open(_, done)) => {
+                            running = true;
+                            lock(&owner_status).running = true;
+                            next = Instant::now();
+                            let _ = done.send(());
+                        }
+                        Err(mpsc::RecvTimeoutError::Timeout) => {
+                            if running {
+                                let began = Instant::now();
+                                processor.process(&mut output);
+                                measurements.record_buffer(128, began.elapsed(), 48_000);
+                            }
+                            next += period;
+                            // Do not turn prolonged suspension into a catch-up storm.
+                            if !running { next = Instant::now() + period; }
+                        }
+                    }
+                }
+            })
+            .ok();
+        let engine = Self { controller, status, requests: Mutex::new(requests), thread: Mutex::new(thread) };
+        engine.reconfigure(settings);
+        engine
+    }
+
     /// Opens the requested output, or the system default where the settings
     /// leave something out, and starts the stream.
     ///
@@ -187,6 +247,32 @@ impl Drop for Engine {
         if let Some(thread) = lock(&self.thread).take() {
             let _ = thread.join();
         }
+    }
+}
+
+#[cfg(all(test, debug_assertions))]
+mod software_tests {
+    use super::*;
+
+    #[test]
+    fn memory_sink_processes_real_callbacks_and_reopens_without_a_device() {
+        let settings = AudioSettings {
+            host: Some("deliberately nonexistent host".into()),
+            device: Some("deliberately nonexistent device".into()),
+            ..Default::default()
+        };
+        let engine = Engine::software(&settings);
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while engine.controller().playhead_output_frame() == 0 && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert!(engine.controller().playhead_output_frame() > 0);
+        assert_eq!(engine.status().host, "Software");
+        engine.suspend().unwrap();
+        assert!(!engine.status().running);
+        engine.reconfigure(&settings);
+        assert!(engine.status().running);
+        assert_eq!(engine.status().device.as_deref(), Some("Memory sink (no audio device)"));
     }
 }
 

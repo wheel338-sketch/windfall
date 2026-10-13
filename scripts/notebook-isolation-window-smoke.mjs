@@ -21,7 +21,7 @@ try {
 let logs = ""
 const child = spawn(executable, [], {
   windowsHide:true,
-  env:{ ...process.env, WINDFALL_ANALYZER_SMOKE:"0", WINDFALL_CONFIG_DIR:config,
+  env:{ ...process.env, WINDFALL_SOFTWARE_AUDIO:"1", WINDFALL_ANALYZER_SMOKE:"0", WINDFALL_CONFIG_DIR:config,
     WINDFALL_SILENT:"1", WINDFALL_OUTPUT_GAIN:"0",
     WEBVIEW2_USER_DATA_FOLDER:resolve(config, "webview"),
     WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:`--remote-debugging-address=127.0.0.1 --remote-debugging-port=${port}` },

@@ -66,10 +66,18 @@ pub fn start(app: &AppHandle) -> Result<Session, Box<dyn Error>> {
     // devices are listed first only if the remembered request names a
     // sample rate or a buffer size to check against them.
     let opening = Instant::now();
-    let engine = Arc::new(Engine::start(&openable(
+    #[cfg(debug_assertions)]
+    let software_audio = std::env::var("WINDFALL_SOFTWARE_AUDIO").is_ok_and(|value| value == "1");
+    #[cfg(not(debug_assertions))]
+    let software_audio = false;
+    #[cfg(debug_assertions)]
+    let software_engine = software_audio.then(|| Engine::software(&settings.settings().audio));
+    #[cfg(not(debug_assertions))]
+    let software_engine: Option<Engine> = None;
+    let engine = Arc::new(software_engine.unwrap_or_else(|| Engine::start(&openable(
         &settings.settings().audio,
         Engine::devices,
-    )));
+    ))));
     let opened_in = opening.elapsed();
     let controller = engine.controller();
     if std::env::var(SILENT_ENV).is_ok_and(|value| value == "1") {
@@ -110,7 +118,7 @@ pub fn start(app: &AppHandle) -> Result<Session, Box<dyn Error>> {
         settings,
     });
     log::info!("factory content: {}", session.factory_dir().display());
-    if let Err(error) = session.start_midi_hardware() {
+    if !software_audio && let Err(error) = session.start_midi_hardware() {
         log::warn!("MIDI: {error}");
     }
     match crate::plugins::PluginManager::new(&config_dir) {
