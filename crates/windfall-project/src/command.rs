@@ -1025,6 +1025,21 @@ pub enum Command {
         expected: SamplePath,
         path: SamplePath,
     },
+    /// Atomic native re-admission, preserving append-only saved addresses.
+    ReadmitPlugin {
+        target: crate::PluginTarget,
+        state: Vec<u8>,
+        parameters: Vec<crate::PluginParameter>,
+        auxiliary_inputs: Vec<crate::PluginAuxInput>,
+        outputs: Vec<crate::PluginAuxInput>,
+    },
+    /// One checked undoable edit to native bus routing.
+    SetPluginOutputRoute {
+        target: crate::PluginTarget,
+        output: u32,
+        track: Option<TrackId>,
+    },
+
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
