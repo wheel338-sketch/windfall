@@ -4,6 +4,7 @@ import { assistantEn, assistantEs } from "./assistant"
 import { audioEditorEn, audioEditorEs } from "./audio-editor"
 import { audioLoggerEn, audioLoggerEs } from "./audio-logger"
 import { automationEn, automationEs } from "./automation"
+import { backendEn, backendEs } from "./backend"
 import { backupEn, backupEs } from "./backup"
 import { benchEn, benchEs } from "./bench"
 import { browserEn, browserEs } from "./browser"
@@ -56,6 +57,7 @@ export const areaEn = {
   ...audioEditorEn,
   ...audioLoggerEn,
   ...automationEn,
+  ...backendEn,
   ...backupEn,
   ...benchEn,
   ...browserEn,
@@ -108,6 +110,7 @@ export const areaEs = {
   ...audioEditorEs,
   ...audioLoggerEs,
   ...automationEs,
+  ...backendEs,
   ...backupEs,
   ...benchEs,
   ...browserEs,
