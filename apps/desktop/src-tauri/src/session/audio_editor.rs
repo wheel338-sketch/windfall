@@ -3,6 +3,7 @@
 use super::{Session, State};
 mod classical_editor;
 mod script_editor;
+pub(super) mod wav_regions;
 use crate::sync::lock;
 use std::fs::{self, OpenOptions};
 use std::path::PathBuf;
@@ -73,13 +74,7 @@ fn map_region(
     region: &windfall_project::AudioRegion,
     map: impl Fn(u32) -> u32,
 ) -> windfall_project::AudioRegion {
-    let a = map(region.start_frame);
-    let b = map(region.end_frame);
-    windfall_project::AudioRegion {
-        name: region.name.clone(),
-        start_frame: a.min(b),
-        end_frame: a.max(b),
-    }
+    wav_regions::mapped(region, map)
 }
 fn region_transform(prepared: &Prepared) -> (f64, f64, f64, bool) {
     let ClipContent::Audio {
@@ -132,12 +127,19 @@ fn view_regions(prepared: &Prepared, state: &State) -> Vec<windfall_project::Aud
                     a.max(b) >= 0.0 && a.min(b) <= prepared.view.frames() as f64
                 })
                 .map(|r| {
-                    map_region(r, |frame| {
+                    let mut region = map_region(r, |frame| {
                         source_to_view(prepared, frame)
                             .round()
                             .clamp(0.0, prepared.view.frames() as f64)
                             as u32
-                    })
+                    });
+                    let a = source_to_view(prepared, r.start_frame);
+                    let b = source_to_view(prepared, r.end_frame);
+                    if a != b {
+                        let visible = a.max(b).min(prepared.view.frames() as f64) - a.min(b).max(0.0);
+                        wav_regions::crop_beats(&mut region, (visible / (b-a).abs()).clamp(0.0, 1.0));
+                    }
+                    region
                 })
                 .collect()
         })
@@ -157,10 +159,14 @@ fn edited_regions(
         AudioEditOperation::Trim | AudioEditOperation::Extract
     ) {
         regions.retain(|r| r.end_frame >= a && r.start_frame <= b);
-        for r in &mut regions {
-            r.start_frame = r.start_frame.clamp(a, b) - a;
-            r.end_frame = r.end_frame.clamp(a, b) - a;
-        }
+        regions = regions.iter().map(|r| {
+            let mut region = map_region(r, |f| f.clamp(a, b) - a);
+            if r.end_frame > r.start_frame {
+                let fraction = f64::from(region.end_frame-region.start_frame) / f64::from(r.end_frame-r.start_frame);
+                wav_regions::crop_beats(&mut region, fraction);
+            }
+            region
+        }).collect();
         return regions;
     }
     if request.operation == AudioEditOperation::Cut {
@@ -439,6 +445,7 @@ impl Session {
             .filter(|p| p.token == token)
             .ok_or("This audio editor has expired.")?;
         windfall_project::model::check_audio_regions(&regions)?;
+        wav_regions::write(&regions, prepared.view.frames() as u32)?;
         if regions
             .iter()
             .any(|r| r.end_frame as usize > prepared.view.frames())
@@ -707,8 +714,22 @@ impl Session {
             }
         }
         let mut owned = owned.ok_or("Could not reserve an audio edit file.")?;
-        windfall_codec::write_wav(&owned.0, &output, windfall_codec::WavSampleFormat::Float32)
-            .map_err(|e| e.to_string())?;
+        let trim_bounds =
+            if let AudioEditOperation::TrimSilence { threshold_db } = request.operation {
+                audio_edit::clean::silence_bounds(
+                    prepared.view.samples(), usize::from(prepared.view.channels()),
+                    request.start_frame as usize, request.end_frame as usize, threshold_db,
+                )?
+            } else { None };
+        let regions = edited_regions(&view_regions(prepared, &self.state()), request,
+            prepared.view.frames(), output.frames(), trim_bounds);
+        let metadata = wav_regions::write(&regions, output.frames() as u32)?;
+        let mut writer = windfall_codec::WavWriter::create_with_metadata(
+            &owned.0, output.sample_rate(), output.channels(), windfall_codec::WavSampleFormat::Float32,
+            &windfall_codec::AudioTags::default(), &metadata,
+        ).map_err(|e| e.to_string())?;
+        writer.write(output.samples()).map_err(|e| e.to_string())?;
+        writer.finalize().map_err(|e| e.to_string())?;
         // Populate ordinary sample cache off-lock too, so history can restore it
         // without decoding under state. WAV Float32 preserves the edit exactly.
         let decoded = self.inner.cache.decode(&owned.0)?;
@@ -735,25 +756,6 @@ impl Session {
             name: format!("{base} ({operation_label})"),
             path: SamplePath::External(crate::paths::display(&owned.0)),
         }];
-        let trim_bounds =
-            if let AudioEditOperation::TrimSilence { threshold_db } = request.operation {
-                audio_edit::clean::silence_bounds(
-                    prepared.view.samples(),
-                    usize::from(prepared.view.channels()),
-                    request.start_frame as usize,
-                    request.end_frame as usize,
-                    threshold_db,
-                )?
-            } else {
-                None
-            };
-        let regions = edited_regions(
-            &view_regions(prepared, &self.state()),
-            request,
-            prepared.view.frames(),
-            output.frames(),
-            trim_bounds,
-        );
         if !regions.is_empty() {
             commands.push(Command::SetSampleRegions {
                 sample,

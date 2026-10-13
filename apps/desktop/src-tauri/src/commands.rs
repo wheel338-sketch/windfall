@@ -868,6 +868,26 @@ async fn audio_editor_regions(
 }
 
 #[tauri::command]
+async fn audio_editor_save_wav(
+    session: State<'_, Session>, token: u32, start: u32, end: u32, path: String,
+    window: tauri::WebviewWindow, caller: crate::window_calls::WindowCaller,
+) -> Result<(), String> {
+    let _window_call = caller.enter(&window, "audio_editor_save_wav")?;
+    let session = session.inner().clone();
+    blocking(move || session.audio_editor_save_wav(token, start, end, path)).await
+}
+
+#[tauri::command]
+async fn audio_editor_import_timeline(
+    session: State<'_, Session>, token: u32,
+    window: tauri::WebviewWindow, caller: crate::window_calls::WindowCaller,
+) -> Result<DispatchResult, String> {
+    let _window_call = caller.enter(&window, "audio_editor_import_timeline")?;
+    let session = session.inner().clone();
+    blocking(move || session.audio_editor_import_timeline(token)).await
+}
+
+#[tauri::command]
 async fn audio_editor_transfer(
     session: State<'_, Session>,
     request: windfall_ipc::AudioEditTransferRequest,
@@ -2138,6 +2158,8 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         audio_analysis_send_midi,
         audio_analysis_cancel,
         audio_editor_regions,
+        audio_editor_save_wav,
+        audio_editor_import_timeline,
         audio_editor_transfer,
         slice_analyze,
         sample_playback_detect,

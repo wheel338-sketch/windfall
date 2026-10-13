@@ -448,12 +448,19 @@ pub struct AudioRegion {
     pub name: String,
     pub start_frame: u32,
     pub end_frame: u32,
+    /// RIFF cue notes, including versioned slice/beat/navigation attributes.
+    /// Kept on the document, so metadata edits share ordinary history/persistence.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<String>>", optional)]
+    pub notes: Vec<String>,
 }
 pub fn check_audio_regions(regions: &[AudioRegion]) -> Result<(), String> {
     if regions.len() > 256
         || regions
             .iter()
-            .any(|r| r.name.trim().is_empty() || r.name.len() > 256 || r.start_frame > r.end_frame)
+            .any(|r| r.name.trim().is_empty() || r.name.len() > 256 || r.name.contains('\0')
+                || r.start_frame > r.end_frame || r.notes.len() > 16
+                || r.notes.iter().any(|n| n.len() > 1024 || n.contains('\0')))
     {
         return Err("Use at most 256 named audio regions with ordered frame endpoints.".into());
     }
