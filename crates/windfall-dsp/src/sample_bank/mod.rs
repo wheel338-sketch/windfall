@@ -5,6 +5,7 @@ mod budget;
 mod effects;
 mod modulation;
 mod params;
+mod sf2_voice;
 pub mod soundfont;
 pub mod sources;
 pub use asset::*;
@@ -12,6 +13,15 @@ pub use budget::*;
 pub use modulation::*;
 use params::BankControls;
 pub use params::*;
+
+/// Inline MIDI controller event; no heap ownership crosses the callback seam.
+#[derive(Clone, Copy, Debug)]
+pub enum SoundFontMidi {
+    Controller { number: u8, value: u8 },
+    Pressure(u8),
+    PolyPressure {key:u8,value:u8},
+    PitchWheel(u16),
+}
 
 use crate::{Instrument, NoteExpression, NoteInstanceId, ParamSet};
 use std::sync::Arc;
@@ -42,6 +52,8 @@ struct Voice {
     mod_envelope: f32,
     mod_release: f32,
     lfo_phase: [f32; 2],
+    sf2: sf2_voice::State,
+    sf2_key_released: bool,
 }
 impl Default for Voice {
     fn default() -> Self {
@@ -70,6 +82,8 @@ impl Default for Voice {
             mod_envelope: 0.0,
             mod_release: 0.0,
             lfo_phase: [0.0; 2],
+            sf2: sf2_voice::State::default(),
+            sf2_key_released: false,
         }
     }
 }
@@ -97,6 +111,10 @@ struct Engine {
     voices: Box<[Voice]>,
     choked: Box<[Voice]>,
     effects: Option<Box<effects::BankEffects>>,
+    sf2_effects: Option<Box<sf2_voice::Sends>>,
+    sf2_controls: sf2_voice::Controls,
+    sf2_rpn: [u8; 2],
+    sf2_poly: [u8;128],
     rate: f32,
     level: f32,
     target_level: f32,
@@ -120,6 +138,10 @@ impl Default for Engine {
             banks: (0..BANK_VOICES * 2 + 1).map(|_| None).collect(),
             current_bank: 0,
             effects: None,
+            sf2_effects: None,
+            sf2_controls: sf2_voice::Controls::default(),
+            sf2_rpn: [127; 2],
+            sf2_poly: [0;128],
             sweep_bank: 0,
             choked: vec![Voice::default(); BANK_VOICES].into_boxed_slice(),
             voices: vec![Voice::default(); BANK_VOICES].into_boxed_slice(),
@@ -148,6 +170,10 @@ impl Engine {
             if !voice.active || !predicate(voice) {
                 continue;
             }
+            if voice.sf2.active && !quick && self.sf2_controls.cc[64]>=64 {
+                voice.sf2_key_released=true;
+                continue;
+            }
             let ms = if quick {
                 5.0
             } else {
@@ -167,6 +193,7 @@ impl Engine {
                 step
             };
             if !voice.releasing {
+                if quick {voice.sf2.choke();} else {voice.sf2.release();}
                 let modulation = self.banks[voice.bank]
                     .as_ref()
                     .expect("active voice bank")
@@ -233,12 +260,12 @@ impl Engine {
         let affected = |voice: &Voice| {
             voice.active
                 && (voice.id == id
-                    || chokes[self.banks[voice.bank]
+                    || ((!voice.sf2.active || voice.bank==self.current_bank) && chokes[self.banks[voice.bank]
                         .as_ref()
                         .expect("active voice bank")
                         .zones()[voice.zone]
                         .mapping
-                        .choke_group as usize])
+                        .choke_group as usize]))
         };
         let needed = self.voices.iter().filter(|v| affected(v)).count();
         if needed > self.choked.iter().filter(|v| !v.active).count() {
@@ -254,6 +281,7 @@ impl Engine {
                     .expect("reserved choke tail");
                 *slot = *voice;
                 slot.releasing = true;
+                slot.sf2.choke();
                 slot.release = slot.envelope / (self.rate * 0.001).max(1.0);
                 voice.active = false;
             }
@@ -298,6 +326,12 @@ impl Engine {
             };
             self.voices[slot].configure_pitch(map, zone.audio.sample_rate(), self.rate);
             self.voices[slot].configure_pan(map);
+            if let Some(region) = bank.sf2.get(index) {
+                let mut controls=self.sf2_controls;controls.poly_pressure=self.sf2_poly[key as usize];
+                self.voices[slot].sf2.start(region, key, midi_velocity, controls);
+                // SF2 velocity is expressed solely through its modulators.
+                self.voices[slot].velocity = zone.mapping.weight(key, midi_velocity);
+            }
         }
         for (group, count) in counts.iter().enumerate() {
             if *count > 0 {
@@ -315,6 +349,7 @@ impl Engine {
         let cutoff = (40.0 + self.brightness.powi(2) * 19960.0).min(self.rate * 0.45);
         let coefficient = 1.0 - (-std::f32::consts::TAU * cutoff / self.rate).exp();
         for (l, r) in left.iter_mut().zip(right.iter_mut()) {
+            let mut sends = [[0.0; 2]; 2];
             self.started = true;
             self.level += (self.target_level - self.level) * glide;
             self.tune += (self.target_tune - self.tune) * glide;
@@ -332,6 +367,23 @@ impl Engine {
                     .expect("active voice bank")
                     .zones()[voice.zone];
                 let map = zone.mapping;
+                if let Some(region) = self.banks[voice.bank].as_ref().expect("active bank").sf2.get(voice.zone) {
+                    let mut controls=self.sf2_controls;controls.poly_pressure=self.sf2_poly[voice.key as usize];
+                    let output = voice.sf2.tick(region, &zone.audio, self.rate, controls,
+                        voice.pitch - f32::from(voice.key) + self.tune, self.release_ms / 100.0,
+                        self.brightness, 0.0);
+                    voice.active = voice.sf2.active;
+                    voice.fade_in = (voice.fade_in + 1.0 / (self.rate * 0.001).max(1.0)).min(1.0);
+                    let gain = voice.velocity * voice.gain * self.level * voice.fade_in;
+                    for (channel,sample) in output.iter().enumerate() {
+                        let pan=self.note_law.gains_at(self.pan_clock,voice.pan);
+                        let value = *sample * gain * if channel==0 {pan.0} else {pan.1};
+                        if channel == 0 { *l += value; } else { *r += value; }
+                        sends[0][channel] += value * voice.sf2.chorus;
+                        sends[1][channel] += value * voice.sf2.reverb;
+                    }
+                    continue;
+                }
                 let looped = map.loop_mode == BankLoop::Continuous
                     || (map.loop_mode == BankLoop::UntilRelease && !voice.releasing);
                 if looped && voice.position >= f64::from(map.loop_end) {
@@ -443,6 +495,11 @@ impl Engine {
                 };
             }
             self.pan_clock = self.pan_clock.saturating_add(1);
+            if let Some(effects) = &mut self.sf2_effects {
+                let wet = effects.tick(sends);
+                *l += wet[0];
+                *r += wet[1];
+            }
         }
     }
 }
@@ -458,6 +515,9 @@ macro_rules! instrument {
                 let mut engine = Engine::default();
                 if $fx {
                     engine.effects = Some(Box::default());
+                }
+                if stringify!($name) == "SoundFont" {
+                    engine.sf2_effects = Some(Box::default());
                 }
                 Self {
                     engine,
@@ -496,6 +556,13 @@ macro_rules! instrument {
                 self.engine.current_bank = slot;
                 self.engine.voices.copy_from_slice(&previous.engine.voices);
                 self.engine.choked.copy_from_slice(&previous.engine.choked);
+                self.engine.sf2_controls=previous.engine.sf2_controls;
+                if let (Some(old),Some(new))=(previous.params.sf2_controls(),self.params.sf2_controls()) {
+                    self.engine.sf2_controls.apply_changes(old,new);
+                }
+                self.engine.sf2_rpn=previous.engine.sf2_rpn;
+                self.engine.sf2_poly=previous.engine.sf2_poly;
+                std::mem::swap(&mut self.engine.sf2_effects, &mut previous.engine.sf2_effects);
                 self.engine.sequence = previous.engine.sequence;
                 self.engine.legacy = previous.engine.legacy;
                 self.engine.level = previous.engine.level;
@@ -550,11 +617,17 @@ macro_rules! instrument {
                     effects.prepare(self.engine.rate, block);
                 }
                 self.reset();
+                if let Some(sends) = &mut self.engine.sf2_effects {
+                    sends.prepare(self.engine.rate);
+                }
             }
             fn reset(&mut self) {
                 self.engine.voices.fill(Voice::default());
                 self.engine.choked.fill(Voice::default());
                 self.engine.rr.fill(0);
+                self.engine.sf2_rpn=[127;2];
+                self.engine.sf2_poly.fill(0);
+                if let Some(controls)=self.params.sf2_controls() {self.engine.sf2_controls=controls;}
                 self.engine.started = false;
                 self.engine.sequence = 0;
                 self.engine.pan_clock = 0;
@@ -564,8 +637,12 @@ macro_rules! instrument {
                 if let Some(effects) = &mut self.engine.effects {
                     effects.reset();
                 }
+                if let Some(sends) = &mut self.engine.sf2_effects {
+                    sends.reset();
+                }
             }
             fn set_params(&mut self, params: &$params) {
+                let previous=self.params.sf2_controls();
                 self.params = params.sanitized();
                 if let (Some(effects), Some(params)) =
                     (&mut self.engine.effects, self.params.internal_effects())
@@ -576,6 +653,9 @@ macro_rules! instrument {
                 self.engine.target_tune = self.params.tune;
                 self.engine.release_ms = self.params.release_ms;
                 self.engine.brightness = self.params.brightness;
+                if let Some(controls) = self.params.sf2_controls() {
+                    self.engine.sf2_controls.apply_changes(previous.unwrap_or_default(),controls);
+                }
                 if !self.engine.started {
                     self.engine.level = self.params.level;
                     self.engine.tune = self.params.tune;
@@ -593,7 +673,9 @@ macro_rules! instrument {
                     .iter()
                     .filter(|voice| voice.active)
                     .map(|voice| {
-                        if voice.release > 0.0 {
+                        if voice.sf2.active {
+                            voice.sf2.choke_remaining(self.engine.rate)
+                        } else if voice.release > 0.0 {
                             (voice.envelope / voice.release).ceil() as usize
                         } else {
                             1
@@ -601,7 +683,7 @@ macro_rules! instrument {
                     })
                     .max()
                     .unwrap_or(0);
-                choke.saturating_add(
+                choke.saturating_add(self.engine.sf2_effects.as_ref().map_or(0, |sends| sends.tail_samples())).saturating_add(
                     self.engine
                         .effects
                         .as_ref()
@@ -741,6 +823,32 @@ instrument!(SoundFont, SoundFontParams, false);
 instrument!(PadBank, PadBankParams, false);
 instrument!(PianoKeys, PianoKeysParams, false);
 instrument!(TextVoice, TextVoiceParams, false);
+
+impl SoundFont {
+    pub fn midi(&mut self, message: SoundFontMidi) {
+        match message {
+            SoundFontMidi::Controller {number,value} if number<128 && value<128 => {
+                self.engine.sf2_controls.cc[number as usize]=value;
+                match number {
+                    101=>self.engine.sf2_rpn[0]=value,
+                    100=>self.engine.sf2_rpn[1]=value,
+                    6 if self.engine.sf2_rpn==[0,0]=>self.engine.sf2_controls.sensitivity=value as f32,
+                    38 if self.engine.sf2_rpn==[0,0]=>self.engine.sf2_controls.sensitivity=
+                        self.engine.sf2_controls.sensitivity.floor()+value.min(99) as f32/100.0,
+                    121=>self.engine.sf2_controls=sf2_voice::Controls::default(),
+                    64 if value<64=>self.engine.release(|v|v.sf2_key_released,false),
+                    120=>self.reset(),
+                    123=>self.all_notes_off(),
+                    _=>{},
+                }
+            }
+            SoundFontMidi::Pressure(value)=>self.engine.sf2_controls.pressure=value.min(127),
+            SoundFontMidi::PolyPressure{key,value} if key<128=>self.engine.sf2_poly[key as usize]=value.min(127),
+            SoundFontMidi::PitchWheel(value)=>self.engine.sf2_controls.wheel=value.min(16383),
+            _=>{},
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests;

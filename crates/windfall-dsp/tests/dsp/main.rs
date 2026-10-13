@@ -31,4 +31,5 @@ mod e1_cpu;
 mod p2_effect_budgets;
 mod p2_pitch_quality;
 mod sample_bank;
+mod sf2_fixture;
 mod sample_playback;
