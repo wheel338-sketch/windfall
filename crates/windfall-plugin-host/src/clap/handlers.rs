@@ -355,9 +355,10 @@ struct NativeNotePorts;
 unsafe impl clack_host::extensions::Extension for NativeNotePorts {
     const IDENTIFIERS: &'static [&'static std::ffi::CStr] =
         <HostNotePorts as clack_host::extensions::Extension>::IDENTIFIERS;
-    type ExtensionSide =
-        <HostNotePorts as clack_host::extensions::Extension>::ExtensionSide;
-    unsafe fn from_raw(_: clack_host::extensions::RawExtension<Self::ExtensionSide>) -> Self { Self }
+    type ExtensionSide = <HostNotePorts as clack_host::extensions::Extension>::ExtensionSide;
+    unsafe fn from_raw(_: clack_host::extensions::RawExtension<Self::ExtensionSide>) -> Self {
+        Self
+    }
 }
 // SAFETY: a single static reference to the exact C struct, with matching callbacks.
 unsafe impl clack_host::extensions::ExtensionImplementation<WindfallHost> for NativeNotePorts {
@@ -371,14 +372,25 @@ unsafe impl clack_host::extensions::ExtensionImplementation<WindfallHost> for Na
 }
 unsafe extern "C" fn native_note_dialects(host: *const clap_sys::host::clap_host) -> u32 {
     // SAFETY: the public dispatcher validates the CLAP host and owner access.
-    unsafe { clack_host::extensions::wrapper::HostWrapper::<WindfallHost>::handle_main_thread(host, |state| Ok(state.supported_dialects().bits())) }.unwrap_or(0)
+    unsafe {
+        clack_host::extensions::wrapper::HostWrapper::<WindfallHost>::handle_main_thread(
+            host,
+            |state| Ok(state.supported_dialects().bits()),
+        )
+    }
+    .unwrap_or(0)
 }
 unsafe extern "C" fn native_note_rescan(host: *const clap_sys::host::clap_host, flags: u32) {
     // SAFETY: the public dispatcher validates the CLAP host and owner access.
-    let _ = unsafe { clack_host::extensions::wrapper::HostWrapper::<WindfallHost>::handle_main_thread(host, |state| {
-        HostNotePortsImpl::rescan(state, NotePortRescanFlags::from_bits_truncate(flags));
-        Ok(())
-    }) };
+    let _ = unsafe {
+        clack_host::extensions::wrapper::HostWrapper::<WindfallHost>::handle_main_thread(
+            host,
+            |state| {
+                HostNotePortsImpl::rescan(state, NotePortRescanFlags::from_bits_truncate(flags));
+                Ok(())
+            },
+        )
+    };
 }
 
 impl HostHandlers for WindfallHost {

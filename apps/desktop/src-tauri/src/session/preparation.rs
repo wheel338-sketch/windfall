@@ -104,8 +104,8 @@ impl ProjectPreparation {
             else {
                 continue;
             };
-            let asset=asset.canonical(project);
-            let path=asset.soundfont_path(project).expect("SoundFont path");
+            let asset = asset.canonical(project);
+            let path = asset.soundfont_path(project).expect("SoundFont path");
             if pool.has_sample_instrument_asset(&asset) {
                 continue;
             }

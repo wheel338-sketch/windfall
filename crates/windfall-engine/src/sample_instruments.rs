@@ -30,10 +30,14 @@ pub(crate) fn asset(channel: &windfall_project::Channel) -> Option<SampleInstrum
 impl SamplePool {
     /// Control-side readiness retries retain the exact previously parsed SF2
     /// candidates. Their immutable owners already carry aggregate admission.
-    pub fn reuse_soundfont_candidates(&mut self, previous:&Self) {
-        let banks=Arc::make_mut(&mut self.sample_banks);
-        for held in previous.sample_banks.iter().filter(|held|matches!(held.asset,SampleInstrumentAsset::SoundFont{..})) {
-            banks.retain(|current|current.asset!=held.asset);
+    pub fn reuse_soundfont_candidates(&mut self, previous: &Self) {
+        let banks = Arc::make_mut(&mut self.sample_banks);
+        for held in previous
+            .sample_banks
+            .iter()
+            .filter(|held| matches!(held.asset, SampleInstrumentAsset::SoundFont { .. }))
+        {
+            banks.retain(|current| current.asset != held.asset);
             banks.push(held.clone());
         }
     }
@@ -75,7 +79,7 @@ impl SamplePool {
     ) -> Result<Self, String> {
         let mut ready: Vec<PreparedSampleBank> = Vec::new();
         for channel in &project.channels {
-            let Some(asset) = asset(channel).map(|a|a.canonical(project)) else {
+            let Some(asset) = asset(channel).map(|a| a.canonical(project)) else {
                 continue;
             };
             if !keep_going() {

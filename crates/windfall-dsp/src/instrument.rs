@@ -934,7 +934,9 @@ impl AnyInstrument {
     /// Inline raw controller ingress for the bank renderer; all storage was
     /// prepared with the processor. Other kinds keep their existing routing.
     pub fn soundfont_midi(&mut self, message: crate::sample_bank::SoundFontMidi) {
-        if let Self::SoundFont(unit)=self {unit.midi(message);}
+        if let Self::SoundFont(unit) = self {
+            unit.midi(message);
+        }
     }
 
     /// Worker-side asset installation before publication. Does not run on audio.

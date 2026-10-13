@@ -21,13 +21,13 @@ impl Audition for Destination {
     }
 
     fn message(&self, input: windfall_engine::midi_hardware::InputMessage) -> bool {
-        self.0
-            .upgrade()
-            .is_some_and(|session| {
-                let linked=session.controller_message(input);
-                if !linked {session.soundfont_hardware_message(input);}
-                linked
-            })
+        self.0.upgrade().is_some_and(|session| {
+            let linked = session.controller_message(input);
+            if !linked {
+                session.soundfont_hardware_message(input);
+            }
+            linked
+        })
     }
 
     fn idle(&self, now: std::time::Instant, playhead: &windfall_engine::Playhead) {
@@ -38,24 +38,54 @@ impl Audition for Destination {
 }
 
 impl Session {
-    pub(super) fn soundfont_hardware_message(&self,input:windfall_engine::midi_hardware::InputMessage) {
-        use windfall_engine::midi_hardware::MidiMessage;
+    pub(super) fn soundfont_hardware_message(
+        &self,
+        input: windfall_engine::midi_hardware::InputMessage,
+    ) {
         use windfall_dsp::sample_bank::SoundFontMidi;
-        if input.device!=0 {return;} // Additional ports keep explicit controller-link routing.
-        let (midi_channel,message)=match input.message {
-            MidiMessage::Controller {channel,number,value}=>(channel,SoundFontMidi::Controller{number,value}),
-            MidiMessage::ChannelPressure {channel,value}=>(channel,SoundFontMidi::Pressure(value)),
-            MidiMessage::PolyPressure {channel,key,value}=>(channel,SoundFontMidi::PolyPressure{key,value}),
-            MidiMessage::PitchBend {channel,value}=>(channel,SoundFontMidi::PitchWheel(value)),
-            _=>return,
+        use windfall_engine::midi_hardware::MidiMessage;
+        if input.device != 0 {
+            return;
+        } // Additional ports keep explicit controller-link routing.
+        let (midi_channel, message) = match input.message {
+            MidiMessage::Controller {
+                channel,
+                number,
+                value,
+            } => (channel, SoundFontMidi::Controller { number, value }),
+            MidiMessage::ChannelPressure { channel, value } => {
+                (channel, SoundFontMidi::Pressure(value))
+            }
+            MidiMessage::PolyPressure {
+                channel,
+                key,
+                value,
+            } => (channel, SoundFontMidi::PolyPressure { key, value }),
+            MidiMessage::PitchBend { channel, value } => {
+                (channel, SoundFontMidi::PitchWheel(value))
+            }
+            _ => return,
         };
-        if self.store().settings().midi_hardware.input_channel.is_some_and(|filter|filter!=midi_channel+1) {return;}
-        let state=self.state();let Some(target)=state.midi_target else {return;};
+        if self
+            .store()
+            .settings()
+            .midi_hardware
+            .input_channel
+            .is_some_and(|filter| filter != midi_channel + 1)
+        {
+            return;
+        }
+        let state = self.state();
+        let Some(target) = state.midi_target else {
+            return;
+        };
         if !state.document.project().channel(target).is_some_and(|c|
             matches!(c.source,windfall_project::ChannelSource::Instrument{params,..} if params.kind()==windfall_project::InstrumentKind::SoundFont)) {return;}
-        let epoch=self.controller().hardware_epoch();
-        if !self.controller().hardware_soundfont(epoch,target,message) {
-            self.emit(crate::events::Event::ProjectWarnings(vec!["SoundFont MIDI controller queue is full; movement was refused.".into()]));
+        let epoch = self.controller().hardware_epoch();
+        if !self.controller().hardware_soundfont(epoch, target, message) {
+            self.emit(crate::events::Event::ProjectWarnings(vec![
+                "SoundFont MIDI controller queue is full; movement was refused.".into(),
+            ]));
         }
     }
     pub fn start_midi_hardware(&self) -> Result<(), String> {

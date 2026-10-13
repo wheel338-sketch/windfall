@@ -547,7 +547,7 @@ impl Session {
                 }
                 return false;
             }
-            MidiMessage::ProgramChange { .. } | MidiMessage::PolyPressure{..} => return false,
+            MidiMessage::ProgramChange { .. } | MidiMessage::PolyPressure { .. } => return false,
             MidiMessage::NoteOn { channel, key, .. } => (
                 channel,
                 MidiControl::Note { key },

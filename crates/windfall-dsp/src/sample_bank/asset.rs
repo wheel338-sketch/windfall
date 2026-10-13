@@ -237,14 +237,28 @@ impl SampleBank {
     pub fn zones(&self) -> &[LoadedZone] {
         &self.zones
     }
-    pub(super) fn install_soundfont_regions(&mut self, regions: Box<[super::sf2_voice::Region]>) -> Result<(), &'static str> {
-        let metadata=std::mem::size_of_val(self.zones.as_ref())
-            +std::mem::size_of_val(regions.as_ref())
-            +regions.iter().map(|r|std::mem::size_of_val(r.modulators.as_ref())
-                +std::mem::size_of_val(r.programs.as_ref())+r.programs.iter().map(|p|p.bytes()).sum::<usize>()).sum::<usize>();
-        self.bytes=self.bytes.checked_add(metadata).ok_or("SoundFont storage size overflow")?;
-        if self.bytes>MAX_BANK_BYTES {return Err("SoundFont bank exceeds 256 MiB");}
-        self.sf2=regions;
+    pub(super) fn install_soundfont_regions(
+        &mut self,
+        regions: Box<[super::sf2_voice::Region]>,
+    ) -> Result<(), &'static str> {
+        let metadata = std::mem::size_of_val(self.zones.as_ref())
+            + std::mem::size_of_val(regions.as_ref())
+            + regions
+                .iter()
+                .map(|r| {
+                    std::mem::size_of_val(r.modulators.as_ref())
+                        + std::mem::size_of_val(r.programs.as_ref())
+                        + r.programs.iter().map(|p| p.bytes()).sum::<usize>()
+                })
+                .sum::<usize>();
+        self.bytes = self
+            .bytes
+            .checked_add(metadata)
+            .ok_or("SoundFont storage size overflow")?;
+        if self.bytes > MAX_BANK_BYTES {
+            return Err("SoundFont bank exceeds 256 MiB");
+        }
+        self.sf2 = regions;
         Ok(())
     }
     pub fn bytes(&self) -> usize {

@@ -2,5 +2,10 @@
 import type { ChannelScript } from "./ChannelScript";
 import type { ControllerScript } from "./ControllerScript";
 import type { ScriptAsset } from "./ScriptAsset";
+import type { ScriptParameterAddress } from "./ScriptParameterAddress";
 
-export type ScriptLibrary = { assets: Array<ScriptAsset>, channels: Array<ChannelScript>, controllers: Array<ControllerScript>, };
+export type ScriptLibrary = { 
+/**
+ * InstrumentParam 0x80000000+n. Removed bindings leave tombstones.
+ */
+parameterAddresses?: Array<ScriptParameterAddress>, assets: Array<ScriptAsset>, channels: Array<ChannelScript>, controllers: Array<ControllerScript>, };

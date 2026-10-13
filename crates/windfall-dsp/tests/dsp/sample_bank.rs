@@ -6,33 +6,64 @@ use windfall_dsp::{AnyInstrument, InstrumentKind, NoteExpression, NoteInstanceId
 
 #[test]
 fn sf2_real_stereo_24_bit_modulated_voice_controls_chokes_reset_and_handover_are_allocator_free() {
-    let bytes=super::sf2_fixture::bytes();
-    let budget=Arc::new(windfall_dsp::sample_bank::BankBudget::default());
-    let bank=Arc::new(windfall_dsp::sample_bank::soundfont::parse_soundfont_preset_budgeted(&bytes,0,0,&budget).unwrap());
-    assert_eq!(bank.zones()[0].audio.channels(),2);
-    let mut params=windfall_dsp::sample_bank::SoundFontParams::default();
-    let mut old=AnyInstrument::new(&windfall_dsp::InstrumentParams::SoundFont(params));
-    let mut new=AnyInstrument::new(&windfall_dsp::InstrumentParams::SoundFont(params));
-    old.prepare(48000.0,64);new.prepare(48000.0,64);
-    old.install_sample_bank(bank.clone());new.install_sample_bank(bank);
-    let mut left=[0.0;64];let mut right=[0.0;64];
-    let calls=allocator_calls(|| {
+    let bytes = super::sf2_fixture::bytes();
+    let budget = Arc::new(windfall_dsp::sample_bank::BankBudget::default());
+    let bank = Arc::new(
+        windfall_dsp::sample_bank::soundfont::parse_soundfont_preset_budgeted(
+            &bytes, 0, 0, &budget,
+        )
+        .unwrap(),
+    );
+    assert_eq!(bank.zones()[0].audio.channels(), 2);
+    let mut params = windfall_dsp::sample_bank::SoundFontParams::default();
+    let mut old = AnyInstrument::new(&windfall_dsp::InstrumentParams::SoundFont(params));
+    let mut new = AnyInstrument::new(&windfall_dsp::InstrumentParams::SoundFont(params));
+    old.prepare(48000.0, 64);
+    new.prepare(48000.0, 64);
+    old.install_sample_bank(bank.clone());
+    new.install_sample_bank(bank);
+    let mut left = [0.0; 64];
+    let mut right = [0.0; 64];
+    let calls = allocator_calls(|| {
         for i in 0..320 {
-            params.mod_wheel=i%128;params.pressure=(i*3)%128;params.pitch_wheel=(i*41)%16384;
-            params.controllers[0]=windfall_dsp::MidiOutController {number:20,value:i%128};
-            params.controllers[1]=windfall_dsp::MidiOutController {number:21,value:(i*7)%128};
+            params.mod_wheel = i % 128;
+            params.pressure = (i * 3) % 128;
+            params.pitch_wheel = (i * 41) % 16384;
+            params.controllers[0] = windfall_dsp::MidiOutController {
+                number: 20,
+                value: i % 128,
+            };
+            params.controllers[1] = windfall_dsp::MidiOutController {
+                number: 21,
+                value: (i * 7) % 128,
+            };
             old.set_params(&windfall_dsp::InstrumentParams::SoundFont(params));
-            old.soundfont_midi(windfall_dsp::sample_bank::SoundFontMidi::PitchWheel((i*41) as u16));
-            old.soundfont_midi(windfall_dsp::sample_bank::SoundFontMidi::PolyPressure{key:60,value:(i%128) as u8});
-            old.note_on_instance(NoteInstanceId(i as u64),60,0.75,0.0,NoteExpression::default());
-            old.process(&mut left,&mut right);
-            old.note_off_instance(NoteInstanceId(i as u64),60);
+            old.soundfont_midi(windfall_dsp::sample_bank::SoundFontMidi::PitchWheel(
+                (i * 41) as u16,
+            ));
+            old.soundfont_midi(windfall_dsp::sample_bank::SoundFontMidi::PolyPressure {
+                key: 60,
+                value: (i % 128) as u8,
+            });
+            old.note_on_instance(
+                NoteInstanceId(i as u64),
+                60,
+                0.75,
+                0.0,
+                NoteExpression::default(),
+            );
+            old.process(&mut left, &mut right);
+            old.note_off_instance(NoteInstanceId(i as u64), 60);
         }
         assert!(new.inherit_sample_bank_state(&mut old));
-        new.process(&mut left,&mut right);new.all_notes_off();new.process(&mut left,&mut right);new.reset();
+        new.process(&mut left, &mut right);
+        new.all_notes_off();
+        new.process(&mut left, &mut right);
+        new.reset();
     });
-    assert_eq!(calls,0);assert_eq!(new.active_voices(),0);
-    assert!(left.iter().all(|v|v.is_finite()));
+    assert_eq!(calls, 0);
+    assert_eq!(new.active_voices(), 0);
+    assert!(left.iter().all(|v| v.is_finite()));
 }
 
 #[test]

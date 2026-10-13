@@ -3,7 +3,9 @@ use crate::{ChorusParams, DelayParams, ReverbParams};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 pub(super) trait BankControls {
-    fn sf2_controls(&self) -> Option<super::sf2_voice::Controls> { None }
+    fn sf2_controls(&self) -> Option<super::sf2_voice::Controls> {
+        None
+    }
     fn internal_effects(&self) -> Option<(ChorusParams, DelayParams, ReverbParams)> {
         None
     }
@@ -114,22 +116,40 @@ pub struct SoundFontParams {
 }
 impl Default for SoundFontParams {
     fn default() -> Self {
-        Self { level:0.5, tune:0.0,release_ms:100.0,brightness:1.0,
-            mod_wheel:0,pressure:0,pitch_wheel:8192,wheel_sensitivity:2.0,
-            volume:127,pan:64,expression:127,reverb_send:0,chorus_send:0,
-            controllers:[crate::midi_out::MidiOutController::default();8] }
+        Self {
+            level: 0.5,
+            tune: 0.0,
+            release_ms: 100.0,
+            brightness: 1.0,
+            mod_wheel: 0,
+            pressure: 0,
+            pitch_wheel: 8192,
+            wheel_sensitivity: 2.0,
+            volume: 127,
+            pan: 64,
+            expression: 127,
+            reverb_send: 0,
+            chorus_send: 0,
+            controllers: [crate::midi_out::MidiOutController::default(); 8],
+        }
     }
 }
 impl BankControls for SoundFontParams {
-    fn sf2_controls(&self)->Option<super::sf2_voice::Controls> {
-        let mut c=super::sf2_voice::Controls::default();
-        c.cc[1]=self.mod_wheel as u8;c.cc[7]=self.volume as u8;
-        c.cc[10]=self.pan as u8;c.cc[11]=self.expression as u8;
-        c.cc[91]=self.reverb_send as u8;c.cc[93]=self.chorus_send as u8;
-        c.pressure=self.pressure as u8;c.wheel=self.pitch_wheel as u16;
-        c.sensitivity=self.wheel_sensitivity;
+    fn sf2_controls(&self) -> Option<super::sf2_voice::Controls> {
+        let mut c = super::sf2_voice::Controls::default();
+        c.cc[1] = self.mod_wheel as u8;
+        c.cc[7] = self.volume as u8;
+        c.cc[10] = self.pan as u8;
+        c.cc[11] = self.expression as u8;
+        c.cc[91] = self.reverb_send as u8;
+        c.cc[93] = self.chorus_send as u8;
+        c.pressure = self.pressure as u8;
+        c.wheel = self.pitch_wheel as u16;
+        c.sensitivity = self.wheel_sensitivity;
         for controller in self.controllers {
-            if (0..128).contains(&controller.number) { c.cc[controller.number as usize]=controller.value as u8; }
+            if (0..128).contains(&controller.number) {
+                c.cc[controller.number as usize] = controller.value as u8;
+            }
         }
         Some(c)
     }

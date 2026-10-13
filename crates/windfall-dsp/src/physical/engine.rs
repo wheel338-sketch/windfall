@@ -409,7 +409,9 @@ impl Engine {
                     sample = sample * settings.level * 0.25;
                     if self.retrigger_remaining > 0 {
                         let total = (self.sample_rate * 0.004).ceil().max(1.0);
-                        if self.retrigger_remaining as f32 == total { self.retrigger -= sample; }
+                        if self.retrigger_remaining as f32 == total {
+                            self.retrigger -= sample;
+                        }
                         sample += self.retrigger * self.retrigger_remaining as f32 / total;
                         self.retrigger_remaining -= 1;
                     }
@@ -420,8 +422,13 @@ impl Engine {
                 output.1 += sample * pan.1;
             }
         }
-        if self.model == Model::FingerBass { output } else {
-            (output.0 * settings.level * 0.25, output.1 * settings.level * 0.25)
+        if self.model == Model::FingerBass {
+            output
+        } else {
+            (
+                output.0 * settings.level * 0.25,
+                output.1 * settings.level * 0.25,
+            )
         }
     }
 

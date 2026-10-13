@@ -521,11 +521,17 @@ fn layer_kick_scalar_controls_round_trip_without_pcm_in_params() {
 fn soundfont_controller_descriptors_append_after_saved_controls_and_legacy_defaults() {
     use windfall_dsp::sample_bank::SoundFontParams;
     check::<SoundFontParams>();
-    let old:SoundFontParams=serde_json::from_str(r#"{"level":0.75,"tune":2,"releaseMs":80,"brightness":0.9}"#).unwrap();
-    assert_eq!(old.volume,127);assert_eq!(old.pan,64);assert_eq!(old.pitch_wheel,8192);
-    assert_eq!(old.wheel_sensitivity,2.0);
-    let descriptor=InstrumentKind::SoundFont.descriptors();
-    assert_eq!(descriptor.iter().take(4).map(|p|p.id).collect::<Vec<_>>(),["level","tune","releaseMs","brightness"]);
+    let old: SoundFontParams =
+        serde_json::from_str(r#"{"level":0.75,"tune":2,"releaseMs":80,"brightness":0.9}"#).unwrap();
+    assert_eq!(old.volume, 127);
+    assert_eq!(old.pan, 64);
+    assert_eq!(old.pitch_wheel, 8192);
+    assert_eq!(old.wheel_sensitivity, 2.0);
+    let descriptor = InstrumentKind::SoundFont.descriptors();
+    assert_eq!(
+        descriptor.iter().take(4).map(|p| p.id).collect::<Vec<_>>(),
+        ["level", "tune", "releaseMs", "brightness"]
+    );
 }
 
 #[test]

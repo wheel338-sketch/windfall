@@ -234,7 +234,9 @@ impl<const N: usize> Bank<N> {
         });
     }
     pub fn note_on(&mut self, key: u8, velocity: f32) {
-        for voice in &mut self.voices { voice.latest = false; }
+        for voice in &mut self.voices {
+            voice.latest = false;
+        }
         let key = key.min(127);
         let velocity = clean(velocity, 0.0, 1.0, 0.0);
         if velocity <= 0.0 {

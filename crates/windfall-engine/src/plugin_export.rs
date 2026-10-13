@@ -15,14 +15,19 @@ impl Processor {
         sample_rate: u32,
         output_channels: usize,
     ) -> Result<(Self, Controller), String> {
-        let prepared = Controller::try_prepare_project(project, samples).map_err(|e| e.to_string())?;
+        let prepared =
+            Controller::try_prepare_project(project, samples).map_err(|e| e.to_string())?;
         let controller = Controller::new();
         controller.set_prepared_project(project, prepared);
         if let Some(error) = controller.project_preparation_error() {
             return Err(error.to_string());
         }
-        let (mut processor, _, retirement) = controller.try_attach(sample_rate,
-            crate::project_preparation::AttachmentMode::Independent).map_err(|e| e.to_string())?;
+        let (mut processor, _, retirement) = controller
+            .try_attach(
+                sample_rate,
+                crate::project_preparation::AttachmentMode::Independent,
+            )
+            .map_err(|e| e.to_string())?;
         drop(retirement);
         processor.set_output_channels(output_channels);
         // Consume the numeric startup prefix before the external clock can

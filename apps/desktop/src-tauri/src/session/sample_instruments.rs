@@ -68,10 +68,13 @@ pub(super) fn read_soundfont(
     }
     Ok((bytes, reservation))
 }
-pub(super) fn is_soundfont_file(path:&Path)->bool {
-    let mut header=[0u8;12];
-    std::fs::File::open(path).and_then(|mut file|file.read_exact(&mut header)).is_ok()
-        && &header[..4]==b"RIFF" && &header[8..]==b"sfbk"
+pub(super) fn is_soundfont_file(path: &Path) -> bool {
+    let mut header = [0u8; 12];
+    std::fs::File::open(path)
+        .and_then(|mut file| file.read_exact(&mut header))
+        .is_ok()
+        && &header[..4] == b"RIFF"
+        && &header[8..] == b"sfbk"
 }
 
 struct RenderedFile(PathBuf);
@@ -184,83 +187,195 @@ impl Session {
         let (bytes, _workspace) = read_soundfont(&file, &budget)?;
         soundfont::presets(&bytes).map_err(|e| e.to_string())
     }
-    fn soundfont_file(&self, text:&str)->Result<PathBuf,String> {
+    fn soundfont_file(&self, text: &str) -> Result<PathBuf, String> {
         // The editor displays persisted project/factory paths after archive
         // reopen. Resolve that exact owned reference against its project root.
-        let state=self.state();let project=state.document.project();
-        for asset in project.channels.iter().filter_map(|c|c.sample_instrument.as_ref()) {
-            if let Some(path)=asset.soundfont_path(project) {
-                let (SamplePath::External(stored)|SamplePath::Project(stored)|SamplePath::Factory(stored))=path;
-                if stored==text {return windfall_project::file::resolve_sample_path(path,state.sample_dir.as_deref(),&self.inner.factory_dir)
-                    .ok_or_else(||"SoundFont source path cannot be resolved".into());}
+        let state = self.state();
+        let project = state.document.project();
+        for asset in project
+            .channels
+            .iter()
+            .filter_map(|c| c.sample_instrument.as_ref())
+        {
+            if let Some(path) = asset.soundfont_path(project) {
+                let (SamplePath::External(stored)
+                | SamplePath::Project(stored)
+                | SamplePath::Factory(stored)) = path;
+                if stored == text {
+                    return windfall_project::file::resolve_sample_path(
+                        path,
+                        state.sample_dir.as_deref(),
+                        &self.inner.factory_dir,
+                    )
+                    .ok_or_else(|| "SoundFont source path cannot be resolved".into());
+                }
             }
         }
         crate::paths::absolute(text)
     }
     /// Import the selected preset and attach its source identity in one history step.
-    pub fn soundfont_load(&self, channel:ChannelId, expected:Option<SampleInstrumentAsset>,
-        path:String, bank:u16, program:u16) -> Result<DispatchResult,String> {
-        let (generation,edits,replacements,budget)={
-            let _recording=self.recording_idle()?;let state=self.state();
-            let current=state.document.project().channel(channel).ok_or("Channel no longer exists")?;
-            if current.sample_instrument!=expected || !matches!(current.source,ChannelSource::Instrument{params,..} if params.kind()==InstrumentKind::SoundFont) {
+    pub fn soundfont_load(
+        &self,
+        channel: ChannelId,
+        expected: Option<SampleInstrumentAsset>,
+        path: String,
+        bank: u16,
+        program: u16,
+    ) -> Result<DispatchResult, String> {
+        let (generation, edits, replacements, budget) = {
+            let _recording = self.recording_idle()?;
+            let state = self.state();
+            let current = state
+                .document
+                .project()
+                .channel(channel)
+                .ok_or("Channel no longer exists")?;
+            if current.sample_instrument != expected
+                || !matches!(current.source,ChannelSource::Instrument{params,..} if params.kind()==InstrumentKind::SoundFont)
+            {
                 return Err("SoundFont selection changed; reload its editor".into());
             }
-            (state.generation,state.edits,state.replacements,state.pool.sample_bank_budget_handle())
+            (
+                state.generation,
+                state.edits,
+                state.replacements,
+                state.pool.sample_bank_budget_handle(),
+            )
         };
-        let file=self.soundfont_file(&path)?;
-        let (encoded,_lease)=read_soundfont(&file,&budget)?;
-        let (ticket,asset)={
-            let _recording=self.recording_idle()?;let state=self.state();
-            if (state.generation,state.edits,state.replacements)!=(generation,edits,replacements) {
+        let file = self.soundfont_file(&path)?;
+        let (encoded, _lease) = read_soundfont(&file, &budget)?;
+        let (ticket, asset) = {
+            let _recording = self.recording_idle()?;
+            let state = self.state();
+            if (state.generation, state.edits, state.replacements)
+                != (generation, edits, replacements)
+            {
                 return Err("Project changed while importing SoundFont".into());
             }
-            let project=state.document.project();
-            let existing=project.samples.iter().find(|s|
-                windfall_project::file::resolve_sample_path(&s.path,state.sample_dir.as_deref(),&self.inner.factory_dir)
-                    .is_some_and(|p|crate::paths::clean(&p)==crate::paths::clean(&file)));
-            let (source,path)=existing.map_or((SampleId(project.next_id),SamplePath::External(crate::paths::display(&file))),
-                |s|(s.id,s.path.clone()));
-            let asset=SampleInstrumentAsset::SoundFont {path:path.clone(),bank,program,source:Some(source)};
-            let command=Command::Batch {label:Some("Load SoundFont preset".into()),commands:vec![
-                Command::AddSample {name:crate::paths::stem(&file),path:path.clone()},
-                Command::RegisterSoundFontSource {sample:source,expected:path},
-                Command::SetSampleInstrumentAsset {channel,expected,asset:Some(asset.clone())}]};
-            (self.sample_edit_ticket(&state,command,None,Vec::new())?,asset)
+            let project = state.document.project();
+            let existing = project.samples.iter().find(|s| {
+                windfall_project::file::resolve_sample_path(
+                    &s.path,
+                    state.sample_dir.as_deref(),
+                    &self.inner.factory_dir,
+                )
+                .is_some_and(|p| crate::paths::clean(&p) == crate::paths::clean(&file))
+            });
+            let (source, path) = existing.map_or(
+                (
+                    SampleId(project.next_id),
+                    SamplePath::External(crate::paths::display(&file)),
+                ),
+                |s| (s.id, s.path.clone()),
+            );
+            let asset = SampleInstrumentAsset::SoundFont {
+                path: path.clone(),
+                bank,
+                program,
+                source: Some(source),
+            };
+            let command = Command::Batch {
+                label: Some("Load SoundFont preset".into()),
+                commands: vec![
+                    Command::AddSample {
+                        name: crate::paths::stem(&file),
+                        path: path.clone(),
+                    },
+                    Command::RegisterSoundFontSource {
+                        sample: source,
+                        expected: path,
+                    },
+                    Command::SetSampleInstrumentAsset {
+                        channel,
+                        expected,
+                        asset: Some(asset.clone()),
+                    },
+                ],
+            };
+            (
+                self.sample_edit_ticket(&state, command, None, Vec::new())?,
+                asset,
+            )
         };
-        let ticket=ticket.with_soundfont(asset,&encoded)?;
-        #[cfg(test)] self.pause("soundfont:prepared");
+        let ticket = ticket.with_soundfont(asset, &encoded)?;
+        #[cfg(test)]
+        self.pause("soundfont:prepared");
         self.finish_sample_edit(ticket)
     }
     /// Replacement validation includes every preset sharing this project-owned
     /// file ID. Malformed/missing presets never change paths, PCM or history.
-    pub fn soundfont_relink(&self, channel:ChannelId, expected:SampleInstrumentAsset,
-        expected_path:SamplePath, path:String) -> Result<DispatchResult,String> {
-        let (generation,edits,replacements,source,assets,budget)={
-            let _recording=self.recording_idle()?;let state=self.state();
-            let project=state.document.project();
-            if project.channel(channel).is_none_or(|c|c.sample_instrument.as_ref()!=Some(&expected)) {
+    pub fn soundfont_relink(
+        &self,
+        channel: ChannelId,
+        expected: SampleInstrumentAsset,
+        expected_path: SamplePath,
+        path: String,
+    ) -> Result<DispatchResult, String> {
+        let (generation, edits, replacements, source, assets, budget) = {
+            let _recording = self.recording_idle()?;
+            let state = self.state();
+            let project = state.document.project();
+            if project
+                .channel(channel)
+                .is_none_or(|c| c.sample_instrument.as_ref() != Some(&expected))
+            {
                 return Err("SoundFont selection changed; retry relinking".into());
             }
-            let source=expected.soundfont_source().ok_or("Reload this legacy bank to give it a project source identity")?;
-            if project.sample(source).is_none_or(|s|s.path!=expected_path) {return Err("SoundFont source path changed; retry relinking".into());}
-            let assets=project.channels.iter().filter_map(|c|c.sample_instrument.as_ref())
-                .filter(|a|a.soundfont_source()==Some(source)).cloned().collect::<Vec<_>>();
-            (state.generation,state.edits,state.replacements,source,assets,state.pool.sample_bank_budget_handle())
+            let source = expected
+                .soundfont_source()
+                .ok_or("Reload this legacy bank to give it a project source identity")?;
+            if project
+                .sample(source)
+                .is_none_or(|s| s.path != expected_path)
+            {
+                return Err("SoundFont source path changed; retry relinking".into());
+            }
+            let assets = project
+                .channels
+                .iter()
+                .filter_map(|c| c.sample_instrument.as_ref())
+                .filter(|a| a.soundfont_source() == Some(source))
+                .cloned()
+                .collect::<Vec<_>>();
+            (
+                state.generation,
+                state.edits,
+                state.replacements,
+                source,
+                assets,
+                state.pool.sample_bank_budget_handle(),
+            )
         };
-        let file=crate::paths::absolute(&path)?;
-        let (encoded,_lease)=read_soundfont(&file,&budget)?;
-        let new_path=SamplePath::External(crate::paths::display(&file));
-        let mut ticket={
-            let _recording=self.recording_idle()?;let state=self.state();
-            if (state.generation,state.edits,state.replacements)!=(generation,edits,replacements) {return Err("Project changed while relinking SoundFont".into());}
-            self.sample_edit_ticket(&state,Command::RelinkSamplePath {sample:source,expected:expected_path,path:new_path.clone()},None,Vec::new())?
+        let file = crate::paths::absolute(&path)?;
+        let (encoded, _lease) = read_soundfont(&file, &budget)?;
+        let new_path = SamplePath::External(crate::paths::display(&file));
+        let mut ticket = {
+            let _recording = self.recording_idle()?;
+            let state = self.state();
+            if (state.generation, state.edits, state.replacements)
+                != (generation, edits, replacements)
+            {
+                return Err("Project changed while relinking SoundFont".into());
+            }
+            self.sample_edit_ticket(
+                &state,
+                Command::RelinkSamplePath {
+                    sample: source,
+                    expected: expected_path,
+                    path: new_path.clone(),
+                },
+                None,
+                Vec::new(),
+            )?
         };
         for mut asset in assets {
-            if let SampleInstrumentAsset::SoundFont{path,..}=&mut asset {*path=new_path.clone();}
-            ticket=ticket.with_soundfont(asset,&encoded)?;
+            if let SampleInstrumentAsset::SoundFont { path, .. } = &mut asset {
+                *path = new_path.clone();
+            }
+            ticket = ticket.with_soundfont(asset, &encoded)?;
         }
-        #[cfg(test)] self.pause("soundfont-relink:prepared");
+        #[cfg(test)]
+        self.pause("soundfont-relink:prepared");
         self.finish_sample_edit(ticket)
     }
     /// General MIDI equivalent: keep the rack channel/notes/mixer assignment,
@@ -300,17 +415,34 @@ impl Session {
         };
         let file = crate::paths::absolute(&path)?;
         let (bytes, _workspace) = read_soundfont(&file, &budget)?;
-        let source_path=SamplePath::External(crate::paths::display(&file));
-        let source={let state=self.state();state.document.project().samples.iter().find(|s|s.path==source_path)
-            .map_or(SampleId(state.document.project().next_id),|s|s.id)};
+        let source_path = SamplePath::External(crate::paths::display(&file));
+        let source = {
+            let state = self.state();
+            state
+                .document
+                .project()
+                .samples
+                .iter()
+                .find(|s| s.path == source_path)
+                .map_or(SampleId(state.document.project().next_id), |s| s.id)
+        };
         let asset = SampleInstrumentAsset::SoundFont {
-            path: source_path.clone(), bank, program, source:Some(source),
+            path: source_path.clone(),
+            bank,
+            program,
+            source: Some(source),
         };
         let command = Command::Batch {
             label: Some("Use SoundFont General MIDI destination".into()),
             commands: vec![
-                Command::AddSample {name:crate::paths::stem(&file),path:source_path.clone()},
-                Command::RegisterSoundFontSource {sample:source,expected:source_path},
+                Command::AddSample {
+                    name: crate::paths::stem(&file),
+                    path: source_path.clone(),
+                },
+                Command::RegisterSoundFontSource {
+                    sample: source,
+                    expected: source_path,
+                },
                 Command::ApplyPluginPreset {
                     target: windfall_project::PluginTarget::Instrument { channel },
                     expected: preset,
@@ -361,8 +493,12 @@ impl Session {
             .flat_map(SampleInstrumentAsset::samples)
             .filter(|id| !state.pool.contains(*id))
             .collect();
-        if let Some(asset)=&current.sample_instrument {
-            if let Some(source)=asset.soundfont_source() && !state.pool.has_sample_instrument_asset(&asset.canonical(state.document.project())) {
+        if let Some(asset) = &current.sample_instrument {
+            if let Some(source) = asset.soundfont_source()
+                && !state
+                    .pool
+                    .has_sample_instrument_asset(&asset.canonical(state.document.project()))
+            {
                 missing.push(source);
             }
         }

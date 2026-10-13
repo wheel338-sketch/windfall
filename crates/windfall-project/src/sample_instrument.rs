@@ -40,18 +40,28 @@ pub enum SampleInstrumentAsset {
 }
 impl SampleInstrumentAsset {
     pub fn soundfont_source(&self) -> Option<SampleId> {
-        match self { Self::SoundFont { source, .. } => *source, _ => None }
+        match self {
+            Self::SoundFont { source, .. } => *source,
+            _ => None,
+        }
     }
     pub fn soundfont_path<'a>(&'a self, project: &'a Project) -> Option<&'a SamplePath> {
         match self {
-            Self::SoundFont { source, path, .. } => Some(source.and_then(|id|project.sample(id)).map_or(path,|s|&s.path)),
+            Self::SoundFont { source, path, .. } => Some(
+                source
+                    .and_then(|id| project.sample(id))
+                    .map_or(path, |s| &s.path),
+            ),
             _ => None,
         }
     }
     pub fn canonical(&self, project: &Project) -> Self {
-        let mut asset=self.clone();
-        if let Self::SoundFont { path, .. }=&mut asset {
-            *path=self.soundfont_path(project).expect("SoundFont path").clone();
+        let mut asset = self.clone();
+        if let Self::SoundFont { path, .. } = &mut asset {
+            *path = self
+                .soundfont_path(project)
+                .expect("SoundFont path")
+                .clone();
         }
         asset
     }
@@ -82,7 +92,10 @@ impl SampleInstrumentAsset {
                 }
                 for zone in zones {
                     zone.validate().map_err(str::to_owned)?;
-                    if project.sample(SampleId(zone.sample)).is_none_or(|source|source.soundfont) {
+                    if project
+                        .sample(SampleId(zone.sample))
+                        .is_none_or(|source| source.soundfont)
+                    {
                         return Err("zone sample reference does not exist".into());
                     }
                     if kind == InstrumentKind::PadBank
@@ -92,7 +105,12 @@ impl SampleInstrumentAsset {
                     }
                 }
             }
-            Self::SoundFont { path, program, source, .. } => {
+            Self::SoundFont {
+                path,
+                program,
+                source,
+                ..
+            } => {
                 if kind != InstrumentKind::SoundFont {
                     return Err("choose the SoundFont bank instrument".into());
                 }
@@ -102,7 +120,7 @@ impl SampleInstrumentAsset {
                 if *program > 127 {
                     return Err("SoundFont program must be within 0..127".into());
                 }
-                if source.is_some_and(|id|project.sample(id).is_none_or(|s|!s.soundfont)) {
+                if source.is_some_and(|id| project.sample(id).is_none_or(|s| !s.soundfont)) {
                     return Err("SoundFont source identity does not exist".into());
                 }
             }
@@ -147,25 +165,47 @@ impl SampleInstrumentAsset {
 }
 impl Project {
     pub fn is_soundfont_source(&self, id: SampleId) -> bool {
-        self.sample(id).is_some_and(|sample|sample.soundfont)
+        self.sample(id).is_some_and(|sample| sample.soundfont)
     }
     /// Legacy path-only banks acquire stable IDs on reading/exporting a private
     /// snapshot. Normal imports add the source and reference in one checked batch.
     pub fn own_soundfont_sources(&mut self) -> Result<(), String> {
         for index in 0..self.channels.len() {
-            let Some(SampleInstrumentAsset::SoundFont { path, source:None, .. })=
-                &self.channels[index].sample_instrument else {continue;};
-            let path=path.clone();
-            let id=if let Some(sample)=self.samples.iter().find(|s|s.path==path) {sample.id}
+            let Some(SampleInstrumentAsset::SoundFont {
+                path, source: None, ..
+            }) = &self.channels[index].sample_instrument
             else {
-                let id=SampleId(self.next_id);
-                self.next_id=self.next_id.checked_add(1).ok_or("Project source ID overflow")?;
-                self.samples.push(crate::SampleAsset { soundfont: false, id,name:"SoundFont bank".into(),path,
-                    processing:None,regions:Vec::new() });
+                continue;
+            };
+            let path = path.clone();
+            let id = if let Some(sample) = self.samples.iter().find(|s| s.path == path) {
+                sample.id
+            } else {
+                let id = SampleId(self.next_id);
+                self.next_id = self
+                    .next_id
+                    .checked_add(1)
+                    .ok_or("Project source ID overflow")?;
+                self.samples.push(crate::SampleAsset {
+                    soundfont: false,
+                    id,
+                    name: "SoundFont bank".into(),
+                    path,
+                    processing: None,
+                    regions: Vec::new(),
+                });
                 id
             };
-            self.samples.iter_mut().find(|s|s.id==id).expect("owned source").soundfont=true;
-            if let Some(SampleInstrumentAsset::SoundFont {source,..})=&mut self.channels[index].sample_instrument {*source=Some(id);}
+            self.samples
+                .iter_mut()
+                .find(|s| s.id == id)
+                .expect("owned source")
+                .soundfont = true;
+            if let Some(SampleInstrumentAsset::SoundFont { source, .. }) =
+                &mut self.channels[index].sample_instrument
+            {
+                *source = Some(id);
+            }
         }
         Ok(())
     }

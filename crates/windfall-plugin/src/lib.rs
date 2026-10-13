@@ -41,8 +41,14 @@ impl GuestEngine {
         }
         program.validate()?;
         let mut samples = program.sample_pool();
-        let provider = if program.project.plugins.is_empty() { None } else { Some(nested::Provider::new()?) };
-        if let Some(provider) = &provider { samples.set_plugin_factory(provider.clone()); }
+        let provider = if program.project.plugins.is_empty() {
+            None
+        } else {
+            Some(nested::Provider::new()?)
+        };
+        if let Some(provider) = &provider {
+            samples.set_plugin_factory(provider.clone());
+        }
         // Host clock wins. Retain the original document in state, but remove
         // internal clock/navigation drivers from the detached playback plan.
         let mut playback = program.project.clone();
@@ -53,8 +59,12 @@ impl GuestEngine {
         let (processor, controller) =
             Processor::prepare_plugin(&playback, &samples, sample_rate as u32, OUTPUT_CHANNELS)
                 .map_err(|error| error.to_string())?;
-        if let Some(error) = provider.as_ref().and_then(|p| p.error()) { return Err(error); }
-        if let Some(error) = controller.project_preparation_error() { return Err(error.to_string()); }
+        if let Some(error) = provider.as_ref().and_then(|p| p.error()) {
+            return Err(error);
+        }
+        if let Some(error) = controller.project_preparation_error() {
+            return Err(error.to_string());
+        }
         let latency = controller.latency_frames();
         Ok(Self {
             processor,

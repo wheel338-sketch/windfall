@@ -1,13 +1,13 @@
 //! Off-audio distributable bundle construction. Destination must be new; a
 //! staged directory is published only after binary, state and metadata succeed.
 use crate::Program;
-use windfall_plugin_host::export_runtime::{self, Stamp};
 use std::{
     fs,
     io::{Read, Write},
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
 };
+use windfall_plugin_host::export_runtime::{self, Stamp};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Platform {
@@ -48,15 +48,25 @@ impl Platform {
         matches!(self, Self::MacUniversal | Self::MacArm64 | Self::MacX64)
     }
     fn helper_name(self) -> &'static str {
-        if self == Self::WindowsX64 { "windfall-plugin-audio.exe" } else { "windfall-plugin-audio" }
+        if self == Self::WindowsX64 {
+            "windfall-plugin-audio.exe"
+        } else {
+            "windfall-plugin-audio"
+        }
     }
     fn stamp(self) -> Stamp {
-        Stamp { abi: export_runtime::ABI, version: env!("CARGO_PKG_VERSION").into(),
+        Stamp {
+            abi: export_runtime::ABI,
+            version: env!("CARGO_PKG_VERSION").into(),
             target: match self {
-                Self::WindowsX64 => "x86_64-windows", Self::LinuxX64 => "x86_64-linux",
-                Self::MacArm64 => "aarch64-macos", Self::MacX64 => "x86_64-macos",
+                Self::WindowsX64 => "x86_64-windows",
+                Self::LinuxX64 => "x86_64-linux",
+                Self::MacArm64 => "aarch64-macos",
+                Self::MacX64 => "x86_64-macos",
                 Self::MacUniversal => "universal-macos",
-            }.into() }
+            }
+            .into(),
+        }
     }
 }
 static SERIAL: AtomicU64 = AtomicU64::new(0);
@@ -70,58 +80,136 @@ pub fn export_bundle(
     // Preserve both slices' usable distribution stamp when the desktop exports.
     let platform = if platform.mac() {
         let mut magic = [0u8; 4];
-        fs::File::open(binary).and_then(|mut f| f.read_exact(&mut magic)).map_err(|e| format!("Windfall runtime is missing/unreadable: {e}"))?;
-        if matches!(magic, [0xca, 0xfe, 0xba, 0xbe] | [0xbe, 0xba, 0xfe, 0xca] | [0xca, 0xfe, 0xba, 0xbf] | [0xbf, 0xba, 0xfe, 0xca]) { Platform::MacUniversal } else { platform }
-    } else { platform };
+        fs::File::open(binary)
+            .and_then(|mut f| f.read_exact(&mut magic))
+            .map_err(|e| format!("Windfall runtime is missing/unreadable: {e}"))?;
+        if matches!(
+            magic,
+            [0xca, 0xfe, 0xba, 0xbe]
+                | [0xbe, 0xba, 0xfe, 0xca]
+                | [0xca, 0xfe, 0xba, 0xbf]
+                | [0xbf, 0xba, 0xfe, 0xca]
+        ) {
+            Platform::MacUniversal
+        } else {
+            platform
+        }
+    } else {
+        platform
+    };
     // Native probe verifies the actual exported C ABI before publishing bytes.
     let stamp = export_runtime::probe(binary, &platform.stamp())?;
     if platform == Platform::MacUniversal {
         let file = fs::File::open(binary).map_err(|e| e.to_string())?;
         let length = file.metadata().map_err(|e| e.to_string())?.len();
-        let mut header = Vec::new(); file.take(8 + 32 * 16).read_to_end(&mut header).map_err(|e| e.to_string())?;
+        let mut header = Vec::new();
+        file.take(8 + 32 * 16)
+            .read_to_end(&mut header)
+            .map_err(|e| e.to_string())?;
         validate_universal_header(&header, length)?;
     }
-    let manifest = if platform == Platform::MacUniversal { platform.stamp() } else { stamp };
+    let manifest = if platform == Platform::MacUniversal {
+        platform.stamp()
+    } else {
+        stamp
+    };
     export_validated(program, binary, destination, platform, &manifest, true)
 }
 fn validate_universal_header(header: &[u8], length: u64) -> Result<(), String> {
     let refusal = "A universal macOS export requires valid x86_64 and arm64 Mach-O slices";
-    let magic: [u8; 4] = header.get(..4).ok_or(refusal)?.try_into().map_err(|_| refusal)?;
+    let magic: [u8; 4] = header
+        .get(..4)
+        .ok_or(refusal)?
+        .try_into()
+        .map_err(|_| refusal)?;
     let (little, wide) = match magic {
-        [0xca, 0xfe, 0xba, 0xbe] => (false, false), [0xbe, 0xba, 0xfe, 0xca] => (true, false),
-        [0xca, 0xfe, 0xba, 0xbf] => (false, true), [0xbf, 0xba, 0xfe, 0xca] => (true, true),
+        [0xca, 0xfe, 0xba, 0xbe] => (false, false),
+        [0xbe, 0xba, 0xfe, 0xca] => (true, false),
+        [0xca, 0xfe, 0xba, 0xbf] => (false, true),
+        [0xbf, 0xba, 0xfe, 0xca] => (true, true),
         _ => return Err(refusal.into()),
     };
     let u32_at = |at: usize| -> Result<u32, String> {
-        let bytes: [u8; 4] = header.get(at..at+4).ok_or(refusal)?.try_into().map_err(|_| refusal)?;
-        Ok(if little { u32::from_le_bytes(bytes) } else { u32::from_be_bytes(bytes) })
+        let bytes: [u8; 4] = header
+            .get(at..at + 4)
+            .ok_or(refusal)?
+            .try_into()
+            .map_err(|_| refusal)?;
+        Ok(if little {
+            u32::from_le_bytes(bytes)
+        } else {
+            u32::from_be_bytes(bytes)
+        })
     };
     let u64_at = |at: usize| -> Result<u64, String> {
-        let bytes: [u8; 8] = header.get(at..at+8).ok_or(refusal)?.try_into().map_err(|_| refusal)?;
-        Ok(if little { u64::from_le_bytes(bytes) } else { u64::from_be_bytes(bytes) })
+        let bytes: [u8; 8] = header
+            .get(at..at + 8)
+            .ok_or(refusal)?
+            .try_into()
+            .map_err(|_| refusal)?;
+        Ok(if little {
+            u64::from_le_bytes(bytes)
+        } else {
+            u64::from_be_bytes(bytes)
+        })
     };
     let count = u32_at(4)? as usize;
-    if !(2..=16).contains(&count) { return Err(refusal.into()); }
+    if !(2..=16).contains(&count) {
+        return Err(refusal.into());
+    }
     let stride = if wide { 32 } else { 20 };
     let table_end = 8 + count * stride;
-    if header.len() < table_end { return Err(refusal.into()); }
-    let mut x64 = false; let mut arm = false;
+    if header.len() < table_end {
+        return Err(refusal.into());
+    }
+    let mut x64 = false;
+    let mut arm = false;
     let mut spans = Vec::new();
     for index in 0..count {
         let at = 8 + index * stride;
         let cpu = u32_at(at)?;
-        let offset = if wide { u64_at(at+8)? } else { u64::from(u32_at(at+8)?) };
-        let size = if wide { u64_at(at+16)? } else { u64::from(u32_at(at+12)?) };
+        let offset = if wide {
+            u64_at(at + 8)?
+        } else {
+            u64::from(u32_at(at + 8)?)
+        };
+        let size = if wide {
+            u64_at(at + 16)?
+        } else {
+            u64::from(u32_at(at + 12)?)
+        };
         let end = offset.checked_add(size).ok_or(refusal)?;
-        if offset < table_end as u64 || size == 0 || end > length || spans.iter().any(|&(start, stop)| offset < stop && start < end) { return Err(refusal.into()); }
+        if offset < table_end as u64
+            || size == 0
+            || end > length
+            || spans
+                .iter()
+                .any(|&(start, stop)| offset < stop && start < end)
+        {
+            return Err(refusal.into());
+        }
         spans.push((offset, end));
-        match cpu { 0x0100_0007 if !x64 => x64 = true, 0x0100_000c if !arm => arm = true,
-            0x0100_0007 | 0x0100_000c => return Err(refusal.into()), _ => {} }
+        match cpu {
+            0x0100_0007 if !x64 => x64 = true,
+            0x0100_000c if !arm => arm = true,
+            0x0100_0007 | 0x0100_000c => return Err(refusal.into()),
+            _ => {}
+        }
     }
-    if x64 && arm { Ok(()) } else { Err(refusal.into()) }
+    if x64 && arm {
+        Ok(())
+    } else {
+        Err(refusal.into())
+    }
 }
-fn export_validated(program: &Program, binary: &Path, destination: &Path,
-    platform: Platform, stamp: &Stamp, verify_copies: bool) -> Result<(), String> {
+fn export_validated(
+    program: &Program,
+    binary: &Path,
+    destination: &Path,
+    platform: Platform,
+    stamp: &Stamp,
+    verify_copies: bool,
+) -> Result<(), String> {
     let packet = program.encode()?;
     if destination.exists() {
         return Err("Plugin export destination already exists; choose a new folder".into());
@@ -149,22 +237,32 @@ fn export_validated(program: &Program, binary: &Path, destination: &Path,
                 fs::create_dir_all(parent).map_err(|e| e.to_string())?;
             }
             fs::copy(binary, &target).map_err(|e| e.to_string())?;
-            if verify_copies { export_runtime::probe(&target, stamp)?; }
+            if verify_copies {
+                export_runtime::probe(&target, stamp)?;
+            }
         }
         let resources = stage.join("Windfall.vst3/Contents/Resources");
         fs::create_dir_all(&resources).map_err(|e| e.to_string())?;
         let manifest = serde_json::to_vec(stamp).map_err(|e| e.to_string())?;
         write(&resources.join("windfall-runtime.json"), &manifest)?;
-        let helper = binary.parent().ok_or("Runtime has no directory")?.join(platform.helper_name());
+        let helper = binary
+            .parent()
+            .ok_or("Runtime has no directory")?
+            .join(platform.helper_name());
         if !program.project.plugins.is_empty() && !helper.is_file() {
-            return Err(format!("Nested CLAP/VST3 needs the distributed audio helper: {}", helper.display()));
+            return Err(format!(
+                "Nested CLAP/VST3 needs the distributed audio helper: {}",
+                helper.display()
+            ));
         }
         if helper.is_file() {
             // Helper remains next to each format's runtime, never next to a DAW executable.
             for relative in [platform.vst_binary(), platform.clap_binary()] {
                 let directory = stage.join(relative).parent().unwrap().to_owned();
                 let target = directory.join(platform.helper_name());
-                if !target.exists() { fs::copy(&helper, target).map_err(|e| e.to_string())?; }
+                if !target.exists() {
+                    fs::copy(&helper, target).map_err(|e| e.to_string())?;
+                }
             }
         }
         write(&resources.join("windfall-state.json"), &packet)?;
@@ -331,15 +429,26 @@ fn initial_program_at(binary: &Path, expected: &Stamp) -> Result<Program, String
     let Some(parent) = binary.parent() else {
         return Ok(Program::default());
     };
-    let bundled = parent.parent().is_some_and(|p| p.file_name().is_some_and(|n| n == "Contents"));
-    let resource = bundled.then(|| parent.parent().unwrap().join("Resources/windfall-state.json"));
-    let format_binary = binary.extension().is_some_and(|e| e == "clap" || e == "vst3");
+    let bundled = parent
+        .parent()
+        .is_some_and(|p| p.file_name().is_some_and(|n| n == "Contents"));
+    let resource = bundled.then(|| {
+        parent
+            .parent()
+            .unwrap()
+            .join("Resources/windfall-state.json")
+    });
+    let format_binary = binary
+        .extension()
+        .is_some_and(|e| e == "clap" || e == "vst3");
     for path in resource
         .into_iter()
         .chain([parent.join("windfall-state.json")])
     {
         let manifest = path.with_file_name("windfall-runtime.json");
-        if bundled || format_binary || manifest.exists() || path.exists() { validate_manifest(&manifest, expected)?; }
+        if bundled || format_binary || manifest.exists() || path.exists() {
+            validate_manifest(&manifest, expected)?;
+        }
         match fs::File::open(&path) {
             Ok(file) => {
                 let mut bytes = Vec::new();
@@ -349,27 +458,55 @@ fn initial_program_at(binary: &Path, expected: &Stamp) -> Result<Program, String
                 return Program::decode(&bytes);
             }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound && !manifest.exists() => {}
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Err(format!("Windfall bundle program is missing: {}", path.display())),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Err(format!(
+                    "Windfall bundle program is missing: {}",
+                    path.display()
+                ));
+            }
             Err(error) => return Err(error.to_string()),
         }
     }
     Ok(Program::default())
 }
 fn validate_manifest(path: &Path, expected: &Stamp) -> Result<(), String> {
-    let file = fs::File::open(path).map_err(|e| format!("Windfall bundle runtime stamp is missing/unreadable at {}: {e}", path.display()))?;
-    let mut bytes = Vec::new(); file.take(4097).read_to_end(&mut bytes).map_err(|e| e.to_string())?;
-    if bytes.len() > 4096 { return Err("Windfall bundle runtime stamp exceeds 4096 bytes".into()); }
-    let stamp: Stamp = serde_json::from_slice(&bytes).map_err(|e| format!("Windfall bundle runtime stamp is invalid: {e}"))?;
+    let file = fs::File::open(path).map_err(|e| {
+        format!(
+            "Windfall bundle runtime stamp is missing/unreadable at {}: {e}",
+            path.display()
+        )
+    })?;
+    let mut bytes = Vec::new();
+    file.take(4097)
+        .read_to_end(&mut bytes)
+        .map_err(|e| e.to_string())?;
+    if bytes.len() > 4096 {
+        return Err("Windfall bundle runtime stamp exceeds 4096 bytes".into());
+    }
+    let stamp: Stamp = serde_json::from_slice(&bytes)
+        .map_err(|e| format!("Windfall bundle runtime stamp is invalid: {e}"))?;
     stamp.validate(expected)
 }
 /// Bundle/application resources first, executable-adjacent distribution second.
 /// Explicit overrides are checked by the same probe; no CWD or PATH fallback.
-pub fn resolve_runtime(resource_directory: &Path, executable: &Path, override_path: Option<&Path>) -> Result<PathBuf, String> {
-    if let Some(path) = override_path { return export_runtime::resolve(&[path.to_owned()]); }
+pub fn resolve_runtime(
+    resource_directory: &Path,
+    executable: &Path,
+    override_path: Option<&Path>,
+) -> Result<PathBuf, String> {
+    if let Some(path) = override_path {
+        return export_runtime::resolve(&[path.to_owned()]);
+    }
     let name = export_runtime::filename();
-    export_runtime::resolve(&[resource_directory.join("plugin-runtime").join(&name),
-        executable.parent().ok_or("Application executable has no directory")?.join("plugin-runtime").join(&name),
-        executable.with_file_name(name)])
+    export_runtime::resolve(&[
+        resource_directory.join("plugin-runtime").join(&name),
+        executable
+            .parent()
+            .ok_or("Application executable has no directory")?
+            .join("plugin-runtime")
+            .join(&name),
+        executable.with_file_name(name),
+    ])
 }
 
 #[cfg(test)]
@@ -396,14 +533,30 @@ mod tests {
             let program = Program::default();
             // Layout construction is separate from the native ABI probe, which
             // the actual DLL integration test exercises. Inert bytes never pass export_bundle.
-            export_validated(&program, &root.join("runtime"), &destination, platform, &platform.stamp(), false).unwrap();
+            export_validated(
+                &program,
+                &root.join("runtime"),
+                &destination,
+                platform,
+                &platform.stamp(),
+                false,
+            )
+            .unwrap();
             assert_eq!(
                 fs::read(destination.join(platform.vst_binary())).unwrap(),
                 b"test runtime bytes"
             );
             assert!(destination.join(platform.clap_binary()).is_file());
             for relative in [platform.vst_binary(), platform.clap_binary()] {
-                assert_eq!(fs::read(destination.join(relative).with_file_name(platform.helper_name())).unwrap(), b"owned helper bytes");
+                assert_eq!(
+                    fs::read(
+                        destination
+                            .join(relative)
+                            .with_file_name(platform.helper_name())
+                    )
+                    .unwrap(),
+                    b"owned helper bytes"
+                );
             }
             let state =
                 fs::read(destination.join("Windfall.vst3/Contents/Resources/windfall-state.json"))
@@ -454,55 +607,98 @@ mod tests {
     }
     #[test]
     fn bundle_first_state_and_stamp_refuse_missing_malformed_abi_version_and_target() {
-        let root = std::env::temp_dir().join(format!("windfall-stamp-{}-{}", std::process::id(), SERIAL.fetch_add(1, Ordering::Relaxed)));
+        let root = std::env::temp_dir().join(format!(
+            "windfall-stamp-{}-{}",
+            std::process::id(),
+            SERIAL.fetch_add(1, Ordering::Relaxed)
+        ));
         let directory = root.join("Contents/x86_64-win");
         let resources = root.join("Contents/Resources");
-        fs::create_dir_all(&directory).unwrap(); fs::create_dir_all(&resources).unwrap();
+        fs::create_dir_all(&directory).unwrap();
+        fs::create_dir_all(&resources).unwrap();
         let state = resources.join("windfall-state.json");
         let manifest = resources.join("windfall-runtime.json");
         let binary = directory.join("Windfall.vst3");
         let expected = Platform::WindowsX64.stamp();
         fs::write(&state, Program::default().encode().unwrap()).unwrap();
-        assert!(initial_program_at(&binary, &expected).err().unwrap().contains("stamp is missing"));
+        assert!(
+            initial_program_at(&binary, &expected)
+                .err()
+                .unwrap()
+                .contains("stamp is missing")
+        );
         fs::write(&manifest, b"invalid").unwrap();
-        assert!(initial_program_at(&binary, &expected).err().unwrap().contains("stamp is invalid"));
+        assert!(
+            initial_program_at(&binary, &expected)
+                .err()
+                .unwrap()
+                .contains("stamp is invalid")
+        );
         for at in 0..3 {
             let mut bad = expected.clone();
-            match at { 0 => bad.abi += 1, 1 => bad.version.push_str("-bad"), _ => bad.target.push_str("-bad") }
+            match at {
+                0 => bad.abi += 1,
+                1 => bad.version.push_str("-bad"),
+                _ => bad.target.push_str("-bad"),
+            }
             fs::write(&manifest, serde_json::to_vec(&bad).unwrap()).unwrap();
-            assert!(initial_program_at(&binary, &expected).err().unwrap().contains("runtime mismatch"));
+            assert!(
+                initial_program_at(&binary, &expected)
+                    .err()
+                    .unwrap()
+                    .contains("runtime mismatch")
+            );
         }
         fs::write(&manifest, serde_json::to_vec(&expected).unwrap()).unwrap();
         fs::write(directory.join("windfall-state.json"), b"invalid fallback").unwrap();
         assert!(initial_program_at(&binary, &expected).is_ok());
         fs::remove_file(&state).unwrap();
-        assert!(initial_program_at(&binary, &expected).err().unwrap().contains("program is missing"));
+        assert!(
+            initial_program_at(&binary, &expected)
+                .err()
+                .unwrap()
+                .contains("program is missing")
+        );
         fs::remove_dir_all(root).unwrap();
     }
     #[test]
     fn automatic_lookup_reports_all_locations_and_never_uses_invalid_preferred_runtime() {
-        let root = std::env::temp_dir().join(format!("windfall-resolution-{}-{}", std::process::id(), SERIAL.fetch_add(1, Ordering::Relaxed)));
+        let root = std::env::temp_dir().join(format!(
+            "windfall-resolution-{}-{}",
+            std::process::id(),
+            SERIAL.fetch_add(1, Ordering::Relaxed)
+        ));
         fs::create_dir(&root).unwrap();
         let error = resolve_runtime(&root, &root.join("Windfall.exe"), None).unwrap_err();
-        assert!(error.contains("plugin-runtime")); assert!(error.contains(&export_runtime::filename()));
-        let override_path = root.join("not-a-runtime"); fs::write(&override_path, b"not native code").unwrap();
-        assert!(resolve_runtime(&root, &root.join("Windfall.exe"), Some(&override_path)).unwrap_err().contains("Cannot load Windfall runtime"));
+        assert!(error.contains("plugin-runtime"));
+        assert!(error.contains(&export_runtime::filename()));
+        let override_path = root.join("not-a-runtime");
+        fs::write(&override_path, b"not native code").unwrap();
+        assert!(
+            resolve_runtime(&root, &root.join("Windfall.exe"), Some(&override_path))
+                .unwrap_err()
+                .contains("Cannot load Windfall runtime")
+        );
         fs::remove_dir_all(root).unwrap();
     }
     #[test]
     fn universal_layout_requires_both_checked_nonoverlapping_architecture_slices() {
         let mut header = vec![0u8; 48];
-        header[..4].copy_from_slice(&[0xca,0xfe,0xba,0xbe]); header[4..8].copy_from_slice(&2u32.to_be_bytes());
+        header[..4].copy_from_slice(&[0xca, 0xfe, 0xba, 0xbe]);
+        header[4..8].copy_from_slice(&2u32.to_be_bytes());
         for (at, cpu, offset) in [(8, 0x0100_0007u32, 64u32), (28, 0x0100_000cu32, 96u32)] {
-            header[at..at+4].copy_from_slice(&cpu.to_be_bytes()); header[at+8..at+12].copy_from_slice(&offset.to_be_bytes());
-            header[at+12..at+16].copy_from_slice(&32u32.to_be_bytes());
+            header[at..at + 4].copy_from_slice(&cpu.to_be_bytes());
+            header[at + 8..at + 12].copy_from_slice(&offset.to_be_bytes());
+            header[at + 12..at + 16].copy_from_slice(&32u32.to_be_bytes());
         }
         assert!(validate_universal_header(&header, 128).is_ok());
         assert!(validate_universal_header(&header[..47], 128).is_err());
         assert!(validate_universal_header(&header, 127).is_err());
-        let mut bad = header.clone(); bad[28..32].copy_from_slice(&0x0100_0007u32.to_be_bytes());
+        let mut bad = header.clone();
+        bad[28..32].copy_from_slice(&0x0100_0007u32.to_be_bytes());
         assert!(validate_universal_header(&bad, 128).is_err());
-        bad = header; bad[36..40].copy_from_slice(&80u32.to_be_bytes());
+        bad = header;
+        bad[36..40].copy_from_slice(&80u32.to_be_bytes());
         assert!(validate_universal_header(&bad, 128).is_err());
     }
 }

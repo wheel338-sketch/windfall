@@ -300,15 +300,32 @@ impl Session {
         let mut bytes = 0u64;
         for sample in &project.samples {
             job.check().map_err(|e| e.to_string())?;
-            let source_path=windfall_project::file::resolve_sample_path(&sample.path,directory,&self.inner.factory_dir);
-            if project.is_soundfont_source(sample.id) || source_path.as_ref().is_some_and(|p|super::sample_instruments::is_soundfont_file(p)) {
-                let path=source_path
-                    .ok_or("SoundFont archive path cannot be resolved")?;
-                let (encoded,_lease)=super::sample_instruments::read_soundfont(&path,&decoded.pool.sample_bank_budget_handle())?;
-                windfall_dsp::sample_bank::soundfont::presets(&encoded).map_err(|e|e.to_string())?;
-                for asset in project.channels.iter().filter_map(|c|c.sample_instrument.as_ref())
-                    .filter(|a|a.soundfont_source()==Some(sample.id)) {
-                    decoded.pool.insert_soundfont(asset.canonical(project),&encoded)?;
+            let source_path = windfall_project::file::resolve_sample_path(
+                &sample.path,
+                directory,
+                &self.inner.factory_dir,
+            );
+            if project.is_soundfont_source(sample.id)
+                || source_path
+                    .as_ref()
+                    .is_some_and(|p| super::sample_instruments::is_soundfont_file(p))
+            {
+                let path = source_path.ok_or("SoundFont archive path cannot be resolved")?;
+                let (encoded, _lease) = super::sample_instruments::read_soundfont(
+                    &path,
+                    &decoded.pool.sample_bank_budget_handle(),
+                )?;
+                windfall_dsp::sample_bank::soundfont::presets(&encoded)
+                    .map_err(|e| e.to_string())?;
+                for asset in project
+                    .channels
+                    .iter()
+                    .filter_map(|c| c.sample_instrument.as_ref())
+                    .filter(|a| a.soundfont_source() == Some(sample.id))
+                {
+                    decoded
+                        .pool
+                        .insert_soundfont(asset.canonical(project), &encoded)?;
                 }
                 continue;
             }

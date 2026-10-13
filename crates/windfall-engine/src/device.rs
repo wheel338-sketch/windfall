@@ -136,13 +136,20 @@ impl Engine {
                             }
                             next += period;
                             // Do not turn prolonged suspension into a catch-up storm.
-                            if !running { next = Instant::now() + period; }
+                            if !running {
+                                next = Instant::now() + period;
+                            }
                         }
                     }
                 }
             })
             .ok();
-        let engine = Self { controller, status, requests: Mutex::new(requests), thread: Mutex::new(thread) };
+        let engine = Self {
+            controller,
+            status,
+            requests: Mutex::new(requests),
+            thread: Mutex::new(thread),
+        };
         engine.reconfigure(settings);
         engine
     }
@@ -272,7 +279,10 @@ mod software_tests {
         assert!(!engine.status().running);
         engine.reconfigure(&settings);
         assert!(engine.status().running);
-        assert_eq!(engine.status().device.as_deref(), Some("Memory sink (no audio device)"));
+        assert_eq!(
+            engine.status().device.as_deref(),
+            Some("Memory sink (no audio device)")
+        );
     }
 }
 

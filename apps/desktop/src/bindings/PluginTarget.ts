@@ -5,4 +5,4 @@ import type { EffectId } from "./EffectId";
 /**
  * The project object a plugin replaces.
  */
-export type PluginTarget = { "type": "instrument", channel: ChannelId, } | { "type": "effect", effect: EffectId, };
+export type PluginTarget = { "type": "instrument", channel: ChannelId, } | { "type": "effect", effect: EffectId, } | { "type": "rack", channel: ChannelId, path: [number, number, number, number], instrument: boolean, };

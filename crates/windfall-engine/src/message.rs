@@ -88,7 +88,11 @@ pub(crate) enum Message {
     /// Installs the audio logger's tap, or with `None` takes it away.
     SetAudioLogger(Option<Box<crate::audio_logger::LoggerTap>>),
     /// Inline raw MIDI controllers for the asset-backed SoundFont renderer.
-    HardwareSoundFont { epoch:u64,channel:ChannelId,message:windfall_dsp::sample_bank::SoundFontMidi },
+    HardwareSoundFont {
+        epoch: u64,
+        channel: ChannelId,
+        message: windfall_dsp::sample_bank::SoundFontMidi,
+    },
     /// Recording touch override; real parameter units, cleared at stop/disarm.
     AutomationTouch {
         target: windfall_project::AutomationTarget,

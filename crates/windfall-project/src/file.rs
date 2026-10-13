@@ -174,7 +174,9 @@ pub fn from_json(json: &str) -> Result<Project, LoadError> {
             .register_parameters(&crate::scripting::ScriptLibrary::default())
             .map_err(LoadError::Invalid)?;
     }
-    project.own_soundfont_sources().map_err(LoadError::Invalid)?;
+    project
+        .own_soundfont_sources()
+        .map_err(LoadError::Invalid)?;
     project.check().map_err(LoadError::Invalid)?;
     Ok(project)
 }

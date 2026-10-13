@@ -90,7 +90,10 @@ impl Vst3Module {
         {
             let owner = bundle_macos::MacModuleLease::load(_path)?;
             Ok(Self {
-                inner: std::rc::Rc::new(ModuleData { owner, path: _path.to_owned() }),
+                inner: std::rc::Rc::new(ModuleData {
+                    owner,
+                    path: _path.to_owned(),
+                }),
             })
         }
         #[cfg(not(target_os = "macos"))]

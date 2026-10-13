@@ -43,7 +43,9 @@ impl Program {
     /// Validate on the main thread before preparing or replacing state.
     pub fn validate(&self) -> Result<(), String> {
         self.project.check()?;
-        for binding in &self.project.plugins { crate::nested::validate(binding)?; }
+        for binding in &self.project.plugins {
+            crate::nested::validate(binding)?;
+        }
         for track in &self.project.mixer.tracks {
             if track.recording.is_some() {
                 return Err(

@@ -445,7 +445,9 @@ pub struct SampleAsset {
     #[ts(as = "Option<Vec<AudioRegion>>", optional)]
     pub regions: Vec<AudioRegion>,
 }
-fn sample_source_is_audio(soundfont:&bool)->bool { !*soundfont }
+fn sample_source_is_audio(soundfont: &bool) -> bool {
+    !*soundfont
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]

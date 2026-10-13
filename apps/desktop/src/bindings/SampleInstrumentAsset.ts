@@ -3,4 +3,8 @@ import type { SampleId } from "./SampleId";
 import type { SamplePath } from "./SamplePath";
 import type { SampleZone } from "./SampleZone";
 
-export type SampleInstrumentAsset = { "type": "zones", zones: Array<SampleZone>, } | { "type": "soundFont", path: SamplePath, bank: number, program: number, } | { "type": "piano", electric: boolean, version: number, } | { "type": "speech", text: string, pitch: number, duration: number, version: number, source?: SampleId, };
+export type SampleInstrumentAsset = { "type": "zones", zones: Array<SampleZone>, } | { "type": "soundFont", path: SamplePath, bank: number, program: number, 
+/**
+ * Project-owned file identity. `path` is a legacy fallback only.
+ */
+source?: SampleId, } | { "type": "piano", electric: boolean, version: number, } | { "type": "speech", text: string, pitch: number, duration: number, version: number, source?: SampleId, };

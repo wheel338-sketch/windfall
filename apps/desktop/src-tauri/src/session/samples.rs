@@ -41,7 +41,9 @@ pub(super) fn decode_all(
         decoded.warnings.push(format!("{} imported plugin states are retained; unsupported instruments stay silent and effects bypassed. Use the source FL project with a compatible host to recover those sounds.", project.retained_plugins.len()));
     }
     for sample in &project.samples {
-        if project.is_soundfont_source(sample.id) { continue; }
+        if project.is_soundfont_source(sample.id) {
+            continue;
+        }
         let bank_source = project
             .channels
             .iter()
@@ -131,7 +133,12 @@ impl Session {
         let project = document.project();
         let project_dir = sample_dir.as_deref();
 
-        let wanted: HashSet<SampleId> = project.samples.iter().filter(|s|!s.soundfont).map(|sample| sample.id).collect();
+        let wanted: HashSet<SampleId> = project
+            .samples
+            .iter()
+            .filter(|s| !s.soundfont)
+            .map(|sample| sample.id)
+            .collect();
         loaded.retain(|id| {
             let keep = wanted.contains(id);
             if !keep {
@@ -140,7 +147,7 @@ impl Session {
             keep
         });
         failed.retain(|id| wanted.contains(id));
-        loading.retain(|id|wanted.contains(id));
+        loading.retain(|id| wanted.contains(id));
 
         if let Some(prepared) = prepared {
             for (id, audio) in prepared.iter().filter(|(id, _)| wanted.contains(id)) {
@@ -159,7 +166,9 @@ impl Session {
         let mut warnings = Vec::new();
         let mut pending = Vec::new();
         for sample in &project.samples {
-            if project.is_soundfont_source(sample.id) { continue; }
+            if project.is_soundfont_source(sample.id) {
+                continue;
+            }
             let id = sample.id;
             if loaded.contains(&id) || loading.contains(&id) || failed.contains(&id) {
                 continue;
@@ -232,7 +241,9 @@ impl Session {
             let mut pending = Vec::new();
             let mut warnings = Vec::new();
             for sample in &document.project().samples {
-                if document.project().is_soundfont_source(sample.id) { continue; }
+                if document.project().is_soundfont_source(sample.id) {
+                    continue;
+                }
                 if !failed.contains(&sample.id) {
                     continue;
                 }
@@ -316,9 +327,10 @@ impl Session {
             let mut changed = false;
             for (id, file, result) in &results {
                 if project.sample(*id).is_some_and(|sample| {
-                    !sample.soundfont && locate(sample, directory.as_deref(), &self.inner.factory_dir)
-                        .ok()
-                        .is_some_and(|now| paths::same(&now, file))
+                    !sample.soundfont
+                        && locate(sample, directory.as_deref(), &self.inner.factory_dir)
+                            .ok()
+                            .is_some_and(|now| paths::same(&now, file))
                 }) && let Ok(buffer) = result
                 {
                     pool.insert(*id, buffer.clone());
@@ -368,9 +380,10 @@ impl Session {
                 }
                 for (id, file, result) in &results {
                     if state.document.project().sample(*id).is_none_or(|sample| {
-                        sample.soundfont || locate(sample, state.sample_dir.as_deref(), &self.inner.factory_dir)
-                            .ok()
-                            .is_none_or(|now| !paths::same(&now, file))
+                        sample.soundfont
+                            || locate(sample, state.sample_dir.as_deref(), &self.inner.factory_dir)
+                                .ok()
+                                .is_none_or(|now| !paths::same(&now, file))
                     }) {
                         state.loading.remove(id);
                         continue;
@@ -410,7 +423,12 @@ impl Session {
             }
             for (id, _, _) in &results {
                 state.loading.remove(id);
-                if state.document.project().sample(*id).is_some_and(|sample|!sample.soundfont) {
+                if state
+                    .document
+                    .project()
+                    .sample(*id)
+                    .is_some_and(|sample| !sample.soundfont)
+                {
                     state.failed.insert(*id);
                 }
             }

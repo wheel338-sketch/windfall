@@ -70,7 +70,9 @@ pub struct Key([u8; 32]);
 pub fn session_nonce() -> io::Result<u64> {
     let random = Key::generate()?;
     let nonce = u64::from_le_bytes(random.0[..8].try_into().expect("eight RNG bytes"));
-    if nonce == 0 { return Err(io::Error::other("bridge namespace RNG returned zero")); }
+    if nonce == 0 {
+        return Err(io::Error::other("bridge namespace RNG returned zero"));
+    }
     Ok(nonce)
 }
 impl Key {

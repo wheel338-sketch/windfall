@@ -444,8 +444,10 @@ impl Bank {
             b"INFO",
             &[(b"ifil", &[2, 0, 4, 0]), (b"INAM", b"Test\0")],
         ));
-        let mut samples=vec![(b"smpl",self.smpl.as_slice())];
-        if let Some(low)=&self.sm24 {samples.push((b"sm24",low));}
+        let mut samples = vec![(b"smpl", self.smpl.as_slice())];
+        if let Some(low) = &self.sm24 {
+            samples.push((b"sm24", low));
+        }
         data.extend(list(b"sdta", &samples));
         data.extend(list(
             b"pdta",

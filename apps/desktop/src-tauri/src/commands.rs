@@ -107,19 +107,37 @@ async fn sample_instrument_general_midi(
         .await
 }
 #[tauri::command]
-#[expect(clippy::too_many_arguments, reason = "Named Tauri wire arguments plus authenticated window context")]
-async fn soundfont_load(session:State<'_,Session>,channel:ChannelId,expected:Option<windfall_project::SampleInstrumentAsset>,
-    path:String,bank:u16,program:u16,window:tauri::WebviewWindow,caller:crate::window_calls::WindowCaller)->Result<DispatchResult,String> {
-    let _window_call=caller.enter(&window,"soundfont_load")?;
-    let session=session.inner().clone();
-    blocking(move||session.soundfont_load(channel,expected,path,bank,program)).await
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Named Tauri wire arguments plus authenticated window context"
+)]
+async fn soundfont_load(
+    session: State<'_, Session>,
+    channel: ChannelId,
+    expected: Option<windfall_project::SampleInstrumentAsset>,
+    path: String,
+    bank: u16,
+    program: u16,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
+) -> Result<DispatchResult, String> {
+    let _window_call = caller.enter(&window, "soundfont_load")?;
+    let session = session.inner().clone();
+    blocking(move || session.soundfont_load(channel, expected, path, bank, program)).await
 }
 #[tauri::command]
-async fn soundfont_relink(session:State<'_,Session>,channel:ChannelId,expected:windfall_project::SampleInstrumentAsset,
-    expected_path:windfall_project::SamplePath,path:String,window:tauri::WebviewWindow,caller:crate::window_calls::WindowCaller)->Result<DispatchResult,String> {
-    let _window_call=caller.enter(&window,"soundfont_relink")?;
-    let session=session.inner().clone();
-    blocking(move||session.soundfont_relink(channel,expected,expected_path,path)).await
+async fn soundfont_relink(
+    session: State<'_, Session>,
+    channel: ChannelId,
+    expected: windfall_project::SampleInstrumentAsset,
+    expected_path: windfall_project::SamplePath,
+    path: String,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
+) -> Result<DispatchResult, String> {
+    let _window_call = caller.enter(&window, "soundfont_relink")?;
+    let session = session.inner().clone();
+    blocking(move || session.soundfont_relink(channel, expected, expected_path, path)).await
 }
 #[tauri::command]
 async fn sample_instrument_save_bank(
@@ -1653,7 +1671,11 @@ async fn export_plugin_bundle(
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
     let _window_call = caller.enter(&window, "export_plugin_bundle")?;
-    let resources = window.app_handle().path().resource_dir().map_err(|e| e.to_string())?;
+    let resources = window
+        .app_handle()
+        .path()
+        .resource_dir()
+        .map_err(|e| e.to_string())?;
     let session = session.inner().clone();
     blocking(move || session.export_plugin_bundle(&destination, &runtime, &resources)).await
 }

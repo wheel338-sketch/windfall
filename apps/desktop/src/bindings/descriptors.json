@@ -34065,10 +34065,53 @@
     "soundFont": {
       "defaults": {
         "brightness": 1.0,
+        "chorusSend": 0,
+        "controllers": [
+          {
+            "number": -1,
+            "value": 0
+          },
+          {
+            "number": -1,
+            "value": 0
+          },
+          {
+            "number": -1,
+            "value": 0
+          },
+          {
+            "number": -1,
+            "value": 0
+          },
+          {
+            "number": -1,
+            "value": 0
+          },
+          {
+            "number": -1,
+            "value": 0
+          },
+          {
+            "number": -1,
+            "value": 0
+          },
+          {
+            "number": -1,
+            "value": 0
+          }
+        ],
+        "expression": 127,
         "level": 0.5,
+        "modWheel": 0,
+        "pan": 64,
+        "pitchWheel": 8192,
+        "pressure": 0,
         "releaseMs": 100.0,
+        "reverbSend": 0,
         "tune": 0.0,
-        "type": "soundFont"
+        "type": "soundFont",
+        "volume": 127,
+        "wheelSensitivity": 2.0
       },
       "name": "SoundFont bank",
       "params": [
@@ -34113,6 +34156,281 @@
           "max": 1.0,
           "min": 0.0,
           "name": "Brightness",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "modWheel",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Modulation wheel (CC1)",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "pressure",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Channel pressure",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 8192.0,
+          "id": "pitchWheel",
+          "kind": "integer",
+          "max": 16383.0,
+          "min": 0.0,
+          "name": "Pitch wheel",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 2.0,
+          "id": "wheelSensitivity",
+          "kind": "float",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Pitch wheel sensitivity",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 127.0,
+          "id": "volume",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Volume (CC7)",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 64.0,
+          "id": "pan",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Pan (CC10)",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 127.0,
+          "id": "expression",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Expression (CC11)",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "reverbSend",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Reverb send (CC91)",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "chorusSend",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Chorus send (CC93)",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": -1.0,
+          "id": "controllers.0.number",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -1.0,
+          "name": "Controller 1 number",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "controllers.0.value",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Controller 1 value",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": -1.0,
+          "id": "controllers.1.number",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -1.0,
+          "name": "Controller 2 number",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "controllers.1.value",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Controller 2 value",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": -1.0,
+          "id": "controllers.2.number",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -1.0,
+          "name": "Controller 3 number",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "controllers.2.value",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Controller 3 value",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": -1.0,
+          "id": "controllers.3.number",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -1.0,
+          "name": "Controller 4 number",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "controllers.3.value",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Controller 4 value",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": -1.0,
+          "id": "controllers.4.number",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -1.0,
+          "name": "Controller 5 number",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "controllers.4.value",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Controller 5 value",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": -1.0,
+          "id": "controllers.5.number",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -1.0,
+          "name": "Controller 6 number",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "controllers.5.value",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Controller 6 value",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": -1.0,
+          "id": "controllers.6.number",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -1.0,
+          "name": "Controller 7 number",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "controllers.6.value",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Controller 7 value",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": -1.0,
+          "id": "controllers.7.number",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -1.0,
+          "name": "Controller 8 number",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "controllers.7.value",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Controller 8 value",
           "scale": "linear",
           "unit": "none"
         }

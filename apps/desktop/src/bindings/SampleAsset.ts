@@ -8,7 +8,12 @@ import type { SamplePath } from "./SamplePath";
  * An audio file the project uses: as the sample of a sampler channel, as
  * the audio of a clip on the playlist, or both.
  */
-export type SampleAsset = { id: SampleId, name: string, path: SamplePath, processing?: AudioEditRecipe, 
+export type SampleAsset = { id: SampleId, name: string, path: SamplePath, 
+/**
+ * Raw SF2 file storage, including sources retained after changing presets.
+ * It is prepared as a bank, never submitted to the ordinary audio decoder.
+ */
+soundfont?: boolean, processing?: AudioEditRecipe, 
 /**
  * Named regions (or markers when start=end), in source frames.
  */

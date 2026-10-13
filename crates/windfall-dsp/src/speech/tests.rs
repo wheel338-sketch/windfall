@@ -323,7 +323,7 @@ fn speech_callbacks_have_zero_alloc_realloc_free() {
         path("param.rs"),
         path("blocks/math.rs"),
         path("note_expression.rs"),
-          path("note_pan.rs"),
+        path("note_pan.rs"),
         trait_source,
         path("speech/mod.rs"),
         path("speech/allocator_probe.rs")

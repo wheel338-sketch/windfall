@@ -1086,10 +1086,29 @@ impl Controller {
         })
     }
 
-    pub fn hardware_soundfont(&self,epoch:u64,channel:ChannelId,message:windfall_dsp::sample_bank::SoundFontMidi)->bool {
-        let mut state=self.lock();state.maintain();
-        if epoch!=self.hardware_epoch() || !state.backlog.is_empty() || state.plan.channel(channel).is_none() {return false;}
-        state.link.as_mut().is_some_and(|link|link.messages.push(Message::HardwareSoundFont{epoch,channel,message}).is_ok())
+    pub fn hardware_soundfont(
+        &self,
+        epoch: u64,
+        channel: ChannelId,
+        message: windfall_dsp::sample_bank::SoundFontMidi,
+    ) -> bool {
+        let mut state = self.lock();
+        state.maintain();
+        if epoch != self.hardware_epoch()
+            || !state.backlog.is_empty()
+            || state.plan.channel(channel).is_none()
+        {
+            return false;
+        }
+        state.link.as_mut().is_some_and(|link| {
+            link.messages
+                .push(Message::HardwareSoundFont {
+                    epoch,
+                    channel,
+                    message,
+                })
+                .is_ok()
+        })
     }
 
     /// Plays a sample once, straight into the master track, whether or not

@@ -292,7 +292,9 @@ pub(crate) struct ExternalEffect {
 impl ExternalEffect {
     #[cfg(feature = "plugin-export")]
     pub fn reset_plugin(&mut self) {
-        if let Some(unit) = &mut self.unit { unit.reset_hosted(); }
+        if let Some(unit) = &mut self.unit {
+            unit.reset_hosted();
+        }
         self.dry.reset_plugin();
         self.scratch.fill([0.0; 2]);
     }

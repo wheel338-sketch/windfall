@@ -778,7 +778,8 @@ fn piano_deadline(
     .enumerate()
     {
         let mut selected = [times[1][phase], times[2][phase], times[3][phase]];
-        let minimum = super::deadline_cpu::report("PianoKeys phase", &mut selected, times[0][phase]);
+        let minimum =
+            super::deadline_cpu::report("PianoKeys phase", &mut selected, times[0][phase]);
         let ratio = minimum.as_secs_f64() / seconds;
         eprintln!(
             "PianoKeys profile={profile} rate={rate} voices={voices} partition={partition:?} phase={phase} ratio={ratio:.5} budget={budget} release_budget={release_budget}"

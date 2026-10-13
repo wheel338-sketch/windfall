@@ -60,8 +60,11 @@ impl Publication {
     pub fn capture(&self) -> Result<Vec<u8>, String> {
         self.collect();
         let main = unsafe { &*self.main.get() };
-        if let Some(provider) = &main.provider { provider.capture(&main.committed)?.encode() }
-        else { main.committed.encode() }
+        if let Some(provider) = &main.provider {
+            provider.capture(&main.committed)?.encode()
+        } else {
+            main.committed.encode()
+        }
     }
     pub fn collect(&self) {
         if self.applied.swap(false, Ordering::Acquire) {
@@ -83,11 +86,22 @@ impl Publication {
     }
     pub fn hard_realtime(&self) -> bool {
         let main = unsafe { &*self.main.get() };
-        !main.committed.project.plugins.is_empty() || main.pending.as_ref().is_some_and(|p| !p.project.plugins.is_empty())
+        !main.committed.project.plugins.is_empty()
+            || main
+                .pending
+                .as_ref()
+                .is_some_and(|p| !p.project.plugins.is_empty())
     }
     pub fn set_offline(&self, offline: bool) -> Result<(), String> {
-        if offline && self.hard_realtime() { return Err("Nested CLAP/VST3 helpers require realtime host scheduling; use a realtime bounce".into()); }
-        unsafe { (&mut *self.main.get()).offline = offline; }
+        if offline && self.hard_realtime() {
+            return Err(
+                "Nested CLAP/VST3 helpers require realtime host scheduling; use a realtime bounce"
+                    .into(),
+            );
+        }
+        unsafe {
+            (&mut *self.main.get()).offline = offline;
+        }
         Ok(())
     }
     /// Shared by native editors on every platform. Host recall is not a user edit.
@@ -95,10 +109,14 @@ impl Publication {
         self.load_program(program, true)
     }
     pub fn set_notifier(&self, notify: Option<Notifier>) {
-        unsafe { *self.notify.get() = notify; }
+        unsafe {
+            *self.notify.get() = notify;
+        }
     }
     fn announce(&self, flags: u32) {
-        if let Some(notify) = unsafe { &*self.notify.get() } { notify(flags); }
+        if let Some(notify) = unsafe { &*self.notify.get() } {
+            notify(flags);
+        }
     }
     fn load_program(&self, program: Program, editor: bool) -> Result<(), String> {
         program.validate()?;
@@ -122,23 +140,34 @@ impl Publication {
         .map_err(|_| "Program preparation panicked; previous program retained".to_owned())?;
         let engine = Box::new(prepared?);
         let changed_latency = self.latency.load(Ordering::Acquire) != engine.latency();
-        self.requested_latency.store(engine.latency(), Ordering::Release);
-        self.restart_required.store(changed_latency, Ordering::Release);
+        self.requested_latency
+            .store(engine.latency(), Ordering::Release);
+        self.restart_required
+            .store(changed_latency, Ordering::Release);
         main.pending_provider = engine.provider.clone();
         main.pending = Some(program);
         self.pending.store(Box::into_raw(engine), Ordering::Release);
         // Latency-changing programs cannot cross a live boundary. They settle
         // on host deactivation/restart; old audio and CLAP latency stay valid
         // while the host delays its restart. VST3 can query the requested PDC.
-        self.announce(PARAMETERS | if editor { DIRTY } else { 0 }
-            | if changed_latency { LATENCY | RESTART } else { 0 });
+        self.announce(
+            PARAMETERS
+                | if editor { DIRTY } else { 0 }
+                | if changed_latency {
+                    LATENCY | RESTART
+                } else {
+                    0
+                },
+        );
         Ok(())
     }
     pub fn activate(&self, rate: f64) -> Result<u32, String> {
         self.collect();
         let engine = GuestEngine::activate(unsafe { &(&*self.main.get()).committed }, rate)?;
         let latency = engine.latency();
-        unsafe { (&mut *self.main.get()).provider = engine.provider.clone(); }
+        unsafe {
+            (&mut *self.main.get()).provider = engine.provider.clone();
+        }
         self.latency.store(latency, Ordering::Release);
         self.requested_latency.store(latency, Ordering::Release);
         self.restart_required.store(false, Ordering::Release);
@@ -175,7 +204,9 @@ impl Publication {
     pub fn latency(&self) -> u32 {
         self.latency.load(Ordering::Acquire)
     }
-    pub fn requested_latency(&self) -> u32 { self.requested_latency.load(Ordering::Acquire) }
+    pub fn requested_latency(&self) -> u32 {
+        self.requested_latency.load(Ordering::Acquire)
+    }
     pub fn needs_collection(&self) -> bool {
         self.applied.load(Ordering::Acquire)
     }
@@ -224,26 +255,53 @@ mod tests {
     fn nested_offline_mode_is_a_visible_refusal_and_retains_the_previous_program() {
         let mut program = crate::clap::tests::program();
         program.project.channels[0].source = windfall_project::ChannelSource::Instrument {
-            params: windfall_dsp::InstrumentParams::SubtractiveSynth(Default::default()), asset: None,
+            params: windfall_dsp::InstrumentParams::SubtractiveSynth(Default::default()),
+            asset: None,
         };
-        program.project.plugins.push(windfall_project::PluginBinding { capabilities: Default::default(),
-            target: windfall_project::PluginTarget::Instrument { channel: program.project.channels[0].id },
-            format: "clap".into(), path: "owned.clap".into(), id: "owned".into(), name: "Owned".into(),
-            state: vec![], parameters: vec![], wrapper: Default::default(), sidechain_input: None, auxiliary_inputs: vec![],
-        });
-        let state = Publication::default(); let previous = state.capture().unwrap();
+        program
+            .project
+            .plugins
+            .push(windfall_project::PluginBinding {
+                capabilities: Default::default(),
+                target: windfall_project::PluginTarget::Instrument {
+                    channel: program.project.channels[0].id,
+                },
+                format: "clap".into(),
+                path: "owned.clap".into(),
+                id: "owned".into(),
+                name: "Owned".into(),
+                state: vec![],
+                parameters: vec![],
+                wrapper: Default::default(),
+                sidechain_input: None,
+                auxiliary_inputs: vec![],
+            });
+        let state = Publication::default();
+        let previous = state.capture().unwrap();
         state.set_offline(true).unwrap();
-        assert!(state.load_editor(program.clone()).unwrap_err().contains("realtime host scheduling"));
+        assert!(
+            state
+                .load_editor(program.clone())
+                .unwrap_err()
+                .contains("realtime host scheduling")
+        );
         assert_eq!(state.capture().unwrap(), previous);
-        state.set_offline(false).unwrap(); state.load(program).unwrap();
+        state.set_offline(false).unwrap();
+        state.load(program).unwrap();
         assert!(state.hard_realtime());
-        assert!(state.set_offline(true).unwrap_err().contains("realtime bounce"));
+        assert!(
+            state
+                .set_offline(true)
+                .unwrap_err()
+                .contains("realtime bounce")
+        );
     }
     #[test]
     fn editor_load_announces_dirty_parameters_latency_restart_and_refusal_is_atomic() {
         let flags = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
         let state = Publication::default();
-        let out = flags.clone(); state.set_notifier(Some(Box::new(move |flag| out.borrow_mut().push(flag))));
+        let out = flags.clone();
+        state.set_notifier(Some(Box::new(move |flag| out.borrow_mut().push(flag))));
         state.load(Program::default()).unwrap();
         assert_eq!(&*flags.borrow(), &[PARAMETERS]);
         flags.borrow_mut().clear();
@@ -253,10 +311,15 @@ mod tests {
         state.activate(48_000.0).unwrap();
         let mut latency = Program::default();
         latency.project.next_id = 50;
-        latency.project.mixer.tracks[0].effects.push(windfall_project::EffectSlot {
-            id: windfall_project::EffectId(40), impulse: None, enabled: true, mix: 1.0,
-            params: windfall_dsp::EffectParams::Limiter(Default::default()),
-        });
+        latency.project.mixer.tracks[0]
+            .effects
+            .push(windfall_project::EffectSlot {
+                id: windfall_project::EffectId(40),
+                impulse: None,
+                enabled: true,
+                mix: 1.0,
+                params: windfall_dsp::EffectParams::Limiter(Default::default()),
+            });
         let expected = GuestEngine::activate(&latency, 48_000.0).unwrap().latency();
         assert!(expected > 0);
         state.load_editor(latency).unwrap();
@@ -265,15 +328,24 @@ mod tests {
         assert_eq!(state.requested_latency(), expected);
         assert!(state.load_editor(Program::default()).is_err());
         assert_eq!(flags.borrow().len(), 1);
-        unsafe { assert_eq!(state.audio().unwrap().latency(), 0); }
-        assert!(state.load(Program::default()).is_err(), "restart still owns the pending slot");
-        state.deactivate(); state.activate(48_000.0).unwrap();
+        unsafe {
+            assert_eq!(state.audio().unwrap().latency(), 0);
+        }
+        assert!(
+            state.load(Program::default()).is_err(),
+            "restart still owns the pending slot"
+        );
+        state.deactivate();
+        state.activate(48_000.0).unwrap();
         assert_eq!(state.latency(), expected);
-        state.collect(); flags.borrow_mut().clear();
+        state.collect();
+        flags.borrow_mut().clear();
         let old = state.capture().unwrap();
-        let mut invalid = Program::default(); invalid.project.settings.tempo_bpm = f64::NAN;
+        let mut invalid = Program::default();
+        invalid.project.settings.tempo_bpm = f64::NAN;
         assert!(state.load_editor(invalid).is_err());
-        assert!(flags.borrow().is_empty()); assert_eq!(state.capture().unwrap(), old);
+        assert!(flags.borrow().is_empty());
+        assert_eq!(state.capture().unwrap(), old);
         state.deactivate();
     }
     #[test]

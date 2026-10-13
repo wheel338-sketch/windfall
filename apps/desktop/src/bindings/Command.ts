@@ -54,7 +54,9 @@ import type { PatternPatch } from "./PatternPatch";
 import type { PatternTimelineEdit } from "./PatternTimelineEdit";
 import type { PlaylistTrackId } from "./PlaylistTrackId";
 import type { PlaylistTrackPatch } from "./PlaylistTrackPatch";
+import type { PluginAuxInput } from "./PluginAuxInput";
 import type { PluginBinding } from "./PluginBinding";
+import type { PluginParameter } from "./PluginParameter";
 import type { PluginPreset } from "./PluginPreset";
 import type { PluginPresetState } from "./PluginPresetState";
 import type { PluginTarget } from "./PluginTarget";
@@ -139,4 +141,4 @@ label?: string, commands: Array<Command>, } | { "type": "setConvolverImpulse", t
 /**
  * Optional stale-editor guard, checked before any edit.
  */
-expected?: RackGraph, } | { "type": "setScriptLibrary", library: ScriptLibrary, } | { "type": "setPluginWrapper", target: PluginTarget, options: PluginWrapperOptions, } | { "type": "insertReviewedNotes", expected: Pattern, channel: ChannelId, notes: Array<NoteInit>, remove: Array<NoteId>, extend: boolean, } | { "type": "setSampleInstrumentAsset", channel: ChannelId, expected: SampleInstrumentAsset | null, asset: SampleInstrumentAsset | null, } | { "type": "editSampleZones", channel: ChannelId, expected: Array<SampleZone>, zones: Array<SampleZone>, } | { "type": "setSampleProcessing", id: SampleId, processing: AudioEditRecipe | null, } | { "type": "setSampleRegions", sample: SampleId, expected: Array<AudioRegion>, regions: Array<AudioRegion>, } | { "type": "setStageMedia", media: StageMedia, } | { "type": "captureArrangementTimeline", id: number, } | { "type": "relinkSamplePath", sample: SampleId, expected: SamplePath, path: SamplePath, };
+expected?: RackGraph, } | { "type": "setScriptLibrary", library: ScriptLibrary, } | { "type": "setPluginWrapper", target: PluginTarget, options: PluginWrapperOptions, } | { "type": "insertReviewedNotes", expected: Pattern, channel: ChannelId, notes: Array<NoteInit>, remove: Array<NoteId>, extend: boolean, } | { "type": "setSampleInstrumentAsset", channel: ChannelId, expected: SampleInstrumentAsset | null, asset: SampleInstrumentAsset | null, } | { "type": "editSampleZones", channel: ChannelId, expected: Array<SampleZone>, zones: Array<SampleZone>, } | { "type": "setSampleProcessing", id: SampleId, processing: AudioEditRecipe | null, } | { "type": "setSampleRegions", sample: SampleId, expected: Array<AudioRegion>, regions: Array<AudioRegion>, } | { "type": "setStageMedia", media: StageMedia, } | { "type": "captureArrangementTimeline", id: number, } | { "type": "relinkSamplePath", sample: SampleId, expected: SamplePath, path: SamplePath, } | { "type": "readmitPlugin", target: PluginTarget, state: Array<number>, parameters: Array<PluginParameter>, auxiliaryInputs: Array<PluginAuxInput>, outputs: Array<PluginAuxInput>, } | { "type": "setPluginOutputRoute", target: PluginTarget, output: number, track: TrackId | null, } | { "type": "registerSoundFontSource", sample: SampleId, expected: SamplePath, };

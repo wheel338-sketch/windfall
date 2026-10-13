@@ -74,10 +74,10 @@ pub fn start(app: &AppHandle) -> Result<Session, Box<dyn Error>> {
     let software_engine = software_audio.then(|| Engine::software(&settings.settings().audio));
     #[cfg(not(debug_assertions))]
     let software_engine: Option<Engine> = None;
-    let engine = Arc::new(software_engine.unwrap_or_else(|| Engine::start(&openable(
-        &settings.settings().audio,
-        Engine::devices,
-    ))));
+    let engine =
+        Arc::new(software_engine.unwrap_or_else(|| {
+            Engine::start(&openable(&settings.settings().audio, Engine::devices))
+        }));
     let opened_in = opening.elapsed();
     let controller = engine.controller();
     if std::env::var(SILENT_ENV).is_ok_and(|value| value == "1") {

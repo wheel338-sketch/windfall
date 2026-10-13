@@ -443,7 +443,10 @@ impl InstanceBackend for ClapInstance {
             .extensions
             .latency
             .map_or(0, |latency| latency.get(&self.instance.plugin_handle()));
-        if self.reported_latency.is_some_and(|before| before != latency) {
+        if self
+            .reported_latency
+            .is_some_and(|before| before != latency)
+        {
             self.pending_latency = Some(latency);
         }
         self.reported_latency = Some(latency);
@@ -504,7 +507,9 @@ impl InstanceBackend for ClapInstance {
             }
         }
 
-        if let Some(samples) = self.pending_latency.take() { notify(PluginNotification::LatencyChanged { samples }); }
+        if let Some(samples) = self.pending_latency.take() {
+            notify(PluginNotification::LatencyChanged { samples });
+        }
         if flags & flag::LATENCY != 0
             && let (Some(latency), Some(active)) = (self.extensions.latency, active)
         {

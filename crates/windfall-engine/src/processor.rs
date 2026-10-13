@@ -651,7 +651,9 @@ impl Processor {
         }
         // A stale hardware note must not even release a stopped song's
         // automation hold. Discard it before any transport/tail side effects.
-        if let Message::HardwareNote { epoch, .. } | Message::HardwareSoundFont {epoch,..} = &message {
+        if let Message::HardwareNote { epoch, .. } | Message::HardwareSoundFont { epoch, .. } =
+            &message
+        {
             self.sync_hardware_epoch();
             if *epoch != self.hardware_epoch {
                 return;
@@ -678,7 +680,7 @@ impl Processor {
             | Message::SetRegion(_)
             | Message::NoteOff { .. }
             | Message::HardwareNote { .. }
-            | Message::HardwareSoundFont {..}
+            | Message::HardwareSoundFont { .. }
             | Message::StopPreview
             | Message::Performance(_)
             | Message::PerformanceRecordBegin(_)
@@ -944,10 +946,18 @@ impl Processor {
                     }
                 }
             }
-            Message::HardwareSoundFont {epoch,channel,message} => {
+            Message::HardwareSoundFont {
+                epoch,
+                channel,
+                message,
+            } => {
                 self.sync_hardware_epoch();
-                if epoch==self.hardware_epoch && let Some(index)=self.plan.channel(channel)
-                    && let Some(unit)=self.state.instrument(index) {unit.soundfont_midi(message);}
+                if epoch == self.hardware_epoch
+                    && let Some(index) = self.plan.channel(channel)
+                    && let Some(unit) = self.state.instrument(index)
+                {
+                    unit.soundfont_midi(message);
+                }
             }
             Message::Preview(sample) => self.preview(sample),
             Message::StopPreview => self.voices.fade_origin(Origin::Preview),
@@ -2912,12 +2922,16 @@ mod tests {
 
     #[test]
     fn stale_soundfont_midi_preserves_stopped_automation_hold() {
-        let (mut processor,controller)=Processor::new(48_000);
-        processor.hold=Some(Place::Song(960.0));let epoch=controller.hardware_epoch();
+        let (mut processor, controller) = Processor::new(48_000);
+        processor.hold = Some(Place::Song(960.0));
+        let epoch = controller.hardware_epoch();
         controller.panic_hardware();
-        processor.handle(Message::HardwareSoundFont {epoch,channel:ChannelId(123),
-            message:windfall_dsp::sample_bank::SoundFontMidi::PitchWheel(0)});
-        assert_eq!(processor.hold,Some(Place::Song(960.0)));
+        processor.handle(Message::HardwareSoundFont {
+            epoch,
+            channel: ChannelId(123),
+            message: windfall_dsp::sample_bank::SoundFontMidi::PitchWheel(0),
+        });
+        assert_eq!(processor.hold, Some(Place::Song(960.0)));
     }
 }
 

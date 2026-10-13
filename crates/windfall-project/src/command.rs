@@ -1040,7 +1040,10 @@ pub enum Command {
         track: Option<TrackId>,
     },
     /// Admits a raw bank file identity in the same transaction as its import.
-    RegisterSoundFontSource {sample:SampleId,expected:SamplePath},
+    RegisterSoundFontSource {
+        sample: SampleId,
+        expected: SamplePath,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]

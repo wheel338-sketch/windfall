@@ -122,7 +122,9 @@ impl EffectUnit {
     }
     #[cfg(feature = "plugin-export")]
     pub fn reset_plugin(&mut self) {
-        if let Some(external) = &mut self.external { external.reset_plugin(); }
+        if let Some(external) = &mut self.external {
+            external.reset_plugin();
+        }
         self.slot.reset();
     }
     /// Native instances and engine control producers retain the callback lane.
@@ -686,7 +688,9 @@ impl InstrumentUnit {
     }
     #[cfg(feature = "plugin-export")]
     pub fn reset_plugin(&mut self) {
-        if let Some(Some(external)) = &mut self.external { external.reset_hosted(); }
+        if let Some(Some(external)) = &mut self.external {
+            external.reset_hosted();
+        }
         self.instrument.reset();
         if let Some(rack) = &mut self.modular {
             rack.reset();

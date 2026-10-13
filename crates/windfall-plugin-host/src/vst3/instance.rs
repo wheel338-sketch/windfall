@@ -636,8 +636,11 @@ impl InstanceBackend for VstInstance {
             sample_rate,
             max_block,
             consumer,
-        ).map_err(|error| crate::export_runtime::last_error(&self.objects._module.path)
-            .map_or(error, PluginError::Activate))?;
+        )
+        .map_err(|error| {
+            crate::export_runtime::last_error(&self.objects._module.path)
+                .map_or(error, PluginError::Activate)
+        })?;
         // SAFETY: initialized processor queried off the audio thread.
         unsafe {
             shared.latency.store(
