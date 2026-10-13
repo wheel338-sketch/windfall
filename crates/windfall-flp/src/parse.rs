@@ -339,7 +339,8 @@ impl Parser {
             74 => return self.on_channel(|channel| channel.preamp = Some(value)),
             97 => return self.on_channel(|channel| channel.swing = Some(value)),
             89 => return self.on_channel(|channel| channel.time_shift = Some(value)),
-            83 => return self.on_channel(|channel| channel.pitch_range = Some(value)),
+            71 => return self.on_channel(|channel| channel.cutoff = Some(value)),
+            83 => return self.on_channel(|channel| channel.resonance = Some(value)),
             94 => {
                 let mut full = false;
                 let handled = self.on_channel(|channel| {
@@ -408,6 +409,7 @@ impl Parser {
                 });
             }
             135 => return self.on_channel(|channel| channel.root_note = Some(value)),
+            142 => return self.on_channel(|channel| channel.fine_tune = Some(value as i32)),
             143 => return self.on_channel(|channel| channel.sampler_flags = Some(value)),
             145 => return self.on_channel(|channel| channel.group = Some(value as i32)),
             147 => {
@@ -585,6 +587,9 @@ impl Parser {
                     channel.pan = Some(u32_at(data, 0));
                     channel.volume = Some(u32_at(data, 4));
                     channel.pitch = Some(u32_at(data, 8) as i32);
+                    channel.filter_mod_x = (data.len() >= 16).then(|| u32_at(data, 12));
+                    channel.filter_mod_y = (data.len() >= 20).then(|| u32_at(data, 16));
+                    channel.filter_type = (data.len() >= 24).then(|| u32_at(data, 20));
                 });
             }
             221 => {
@@ -1218,6 +1223,20 @@ fn channel_params(data: &[u8]) -> ChannelParams {
         Some(f64::from_le_bytes(bytes))
     };
     ChannelParams {
+        main_pitch: data.get(11).map(|b| *b != 0),
+        add_root: data.get(63).map(|b| *b != 0),
+        key_region: dword(68).zip(dword(72)),
+        remove_dc: data.get(9).map(|b| *b != 0),
+        normalize: data.get(80).map(|b| *b != 0),
+        inverted: data.get(81).map(|b| *b != 0),
+        declick_mode: data.get(83).copied(),
+        crossfade: dword(84),
+        trim: dword(88),
+        midi_channel_through: dword(112),
+        sample_offset: double(144),
+        stretch_formant: double(160).map(|v| (v - 0.5) * 24.0),
+        fix_trim: data.get(157).map(|b| *b != 0),
+        drum_stretch: [20, 24, 28, 32, 36].map(|at| dword(at).map(f32::from_bits)),
         arp_direction: dword(40),
         arp_range: dword(44),
         arp_chord: dword(48),

@@ -17,6 +17,19 @@ impl Builder<'_> {
     pub(super) fn automation_target(&self, target: ControlTarget) -> Option<AutomationTarget> {
         Some(match target {
             ControlTarget::Channel { channel, param } => {
+                if matches!(param, ChannelParam::ModX | ChannelParam::ModY) {
+                    let e = self.channel_filters.get(&channel)?;
+                    let link = e
+                        .links
+                        .iter()
+                        .find(|l| l.fl_param == if param == ChannelParam::ModX { 2 } else { 3 })?;
+                    let index = e.kind.descriptors().iter().position(|p| p.id == link.id)?;
+                    return Some(AutomationTarget::EffectParam {
+                        track: e.track,
+                        effect: e.id,
+                        param: index as u32,
+                    });
+                }
                 let ChannelRole::Plays(channel) = self.channels.get(&channel)? else {
                     return None;
                 };
@@ -77,13 +90,18 @@ impl Builder<'_> {
         })
     }
 
-    /// Event 223 stores source integers, not automation clips' normalized doubles.
+    /// Public event 223 values are normalized f32 bit words. Older native-unit
+    /// integer records remain accepted when their bits are not normal 0..1 floats.
     pub(super) fn recorded_value(
         &self,
         source: ControlTarget,
         target: &AutomationTarget,
         raw: i32,
     ) -> Option<f32> {
+        let value = f32::from_bits(raw as u32);
+        if value.is_normal() && (0.0..=1.0).contains(&value) {
+            return Some(self.automation_value(source, target, f64::from(value)));
+        }
         let actual = match source {
             ControlTarget::Channel {
                 param: ChannelParam::Volume,
@@ -93,6 +111,27 @@ impl Builder<'_> {
                 param: ChannelParam::Pan,
                 ..
             } => units::channel_pan(raw.max(0) as u32),
+            ControlTarget::Channel {
+                channel,
+                param: ChannelParam::ModX | ChannelParam::ModY,
+            } => {
+                let e = self.channel_filters.get(&channel)?;
+                let number = if matches!(
+                    source,
+                    ControlTarget::Channel {
+                        param: ChannelParam::ModX,
+                        ..
+                    }
+                ) {
+                    2
+                } else {
+                    3
+                };
+                e.links
+                    .iter()
+                    .find(|l| l.fl_param == number)?
+                    .value(f64::from(raw)) as f32
+            }
             ControlTarget::Insert {
                 param: InsertParam::Volume,
                 ..
@@ -118,7 +157,7 @@ impl Builder<'_> {
                     .links
                     .iter()
                     .find(|link| link.fl_param == param)?;
-                (link.convert)(f64::from(raw)) as f32
+                link.recorded(raw) as f32
             }
             _ => return None,
         };
@@ -151,6 +190,26 @@ impl Builder<'_> {
                 units::fader_gain((n * 16_000.0).round() as i32)
             }
             ControlTarget::Main(MainParam::Tempo) => (10.0 + 512.0 * n) as f32,
+            ControlTarget::Channel {
+                channel,
+                param: ChannelParam::ModX | ChannelParam::ModY,
+            } => {
+                let number = if matches!(
+                    source,
+                    ControlTarget::Channel {
+                        param: ChannelParam::ModX,
+                        ..
+                    }
+                ) {
+                    2
+                } else {
+                    3
+                };
+                self.channel_filters
+                    .get(&channel)
+                    .and_then(|e| e.links.iter().find(|l| l.fl_param == number))
+                    .map_or(n as f32, |l| l.value(n * 256.0) as f32)
+            }
             ControlTarget::SlotPlugin {
                 insert,
                 slot,
@@ -163,7 +222,7 @@ impl Builder<'_> {
                 else {
                     return n as f32;
                 };
-                (link.convert)(link.fl_range.0 + n * (link.fl_range.1 - link.fl_range.0)) as f32
+                link.value(link.fl_range.0 + n * (link.fl_range.1 - link.fl_range.0)) as f32
             }
             _ => return n as f32,
         };
@@ -192,7 +251,7 @@ impl Builder<'_> {
                     ReportSection::Automation,
                     Outcome::Dropped,
                     match source {
-                        ControlTarget::ChannelPlugin {channel,param} => format!("Instrument {} parameter {param}: no public automation-number mapping to its stand-in; kept in source events.", self.flp.channel(channel).and_then(|c| c.display_name()).unwrap_or("unnamed")),
+                        ControlTarget::ChannelPlugin {channel,param} => self.instrument_target_report(channel,param),
                         target => format!("Automation target {target:?} is unsupported or was not imported; kept in source events."),
                     },
                 );
@@ -508,5 +567,18 @@ impl Builder<'_> {
         }
         references.tracks = tracks;
         references
+    }
+}
+
+impl Builder<'_> {
+    pub(super) fn instrument_target_report(&self, channel: u16, param: u16) -> String {
+        let name = self
+            .flp
+            .channel(channel)
+            .and_then(|c| c.plugin.as_ref())
+            .map_or("unnamed", |p| p.internal_name.as_str());
+        format!(
+            "SCOPE: Instrument {name} parameter {param}: DawVert fl_studio.dset supplies no named automation numbers for the decoded 3x Osc/DX10/Plucked/BooBass/Fruit Kick/SimSynth/Slicer/Granulizer/BassDrum states; Sytrus/Harmless entries are anonymous param_N ranges. PyFLP plugin.py parsers and LMMS importer supply no semantic number-to-knob map. State offsets were not substituted for parameter numbers; source event retained."
+        )
     }
 }

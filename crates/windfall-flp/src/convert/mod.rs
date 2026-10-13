@@ -18,8 +18,10 @@ mod arrangements;
 mod channels;
 mod effects;
 mod mixer;
+mod native;
 mod patterns;
 mod playlist;
+mod slices;
 mod synth;
 mod timeline;
 mod voice;
@@ -41,6 +43,10 @@ use crate::plugin::PluginFormat;
 use crate::report::{ImportReport, Outcome, ReportSection};
 
 use effects::ParamLink;
+pub use slices::{
+    NativeSlice, SliceRequest, resolve_layer_samples, resolve_native_slices, resolve_normalization,
+    resolve_sample_trim,
+};
 
 /// The name of a project whose file has no title, when the caller gives
 /// none either.
@@ -100,6 +106,11 @@ pub struct Conversion {
     /// Samplers requesting loop points from the referenced audio file.
     /// The desktop resolves these only after decoding the exact sample.
     pub sampler_loops: Vec<(ChannelId, SampleId)>,
+    pub native_slices: Vec<SliceRequest>,
+    pub normalization: Vec<(ChannelId, SampleId)>,
+    pub sample_trim: Vec<(ChannelId, SampleId, f32)>,
+    pub sample_cues: Vec<(ChannelId, SampleId)>,
+    pub layer_samples: Vec<(ChannelId, SampleId)>,
 }
 
 /// A plugin the Windfall project could not hold.
@@ -218,6 +229,11 @@ struct Builder<'a> {
     report: ImportReport,
     plugins: Vec<PluginPlaceholder>,
     sampler_loops: Vec<(ChannelId, SampleId)>,
+    native_slices: Vec<SliceRequest>,
+    normalization: Vec<(ChannelId, SampleId)>,
+    sample_trim: Vec<(ChannelId, SampleId, f32)>,
+    sample_cues: Vec<(ChannelId, SampleId)>,
+    layer_samples: Vec<(ChannelId, SampleId)>,
     name: String,
     ppq: u16,
     version: Option<FlVersion>,
@@ -228,6 +244,7 @@ struct Builder<'a> {
     /// Mixer tracks by the number of the insert they came from.
     tracks: BTreeMap<u16, TrackId>,
     effects: BTreeMap<(u16, u16), ImportedEffect>,
+    channel_filters: BTreeMap<u16, ImportedEffect>,
     /// Sends that exist, by the inserts they connect.
     sends: BTreeSet<(u16, u16)>,
     channels: BTreeMap<u16, ChannelRole>,
@@ -264,6 +281,11 @@ impl<'a> Builder<'a> {
             report,
             plugins: Vec::new(),
             sampler_loops: Vec::new(),
+            native_slices: Vec::new(),
+            normalization: Vec::new(),
+            sample_trim: Vec::new(),
+            sample_cues: Vec::new(),
+            layer_samples: Vec::new(),
             name,
             ppq: flp.ppq(),
             version: flp.version(),
@@ -271,6 +293,7 @@ impl<'a> Builder<'a> {
             bar_ticks,
             tracks: BTreeMap::from([(0, TrackId::MASTER)]),
             effects: BTreeMap::new(),
+            channel_filters: BTreeMap::new(),
             sends: BTreeSet::new(),
             channels: BTreeMap::new(),
             note_fallbacks: BTreeMap::new(),
@@ -441,11 +464,11 @@ impl<'a> Builder<'a> {
             None => {}
         }
         if settings.main_pitch.is_some_and(|pitch| pitch != 0) {
-            self.report.count(section, Outcome::Dropped, 1);
+            self.report.count(section, Outcome::Approximated, 1);
             self.report.say(
                 section,
-                Outcome::Dropped,
-                "The project's main pitch has no equivalent and was left out.",
+                Outcome::Approximated,
+                "The project's main pitch is folded into sampler tuning and instrument note expression when the channel's public keyboard.main_pitch flag permits it; stand-in pitch bounds apply.",
             );
         }
         let filled = |text: &Option<String>| text.as_deref().is_some_and(|t| !t.trim().is_empty());
@@ -538,6 +561,15 @@ impl<'a> Builder<'a> {
     fn leftovers(&mut self) {
         let section = ReportSection::Other;
         let flp = self.flp;
+        for link in &flp.remote_controllers {
+            let source = link.source_channel().and_then(|id| flp.channel(id));
+            self.report.say(ReportSection::Automation,if source.is_some_and(|c|c.automation.is_some()){Outcome::Approximated}else{Outcome::Dropped},format!(
+                "Controller link source {:#010x} -> {:?}: {}. SCOPE: DawVert auto.py establishes source@2/location@8/flags@12/smoothing@16; PyFLP controller.py leaves source and trailing bytes unnamed. No serialized formula field or smoothing-unit conversion is established; raw flags={} and smoothing={} retained, no formula bytes or milliseconds invented.",
+                link.source,link.target(),if source.is_some_and(|c|c.automation.is_some()){"automation clip source mapped"}else{"source is not an imported automation clip; controller/MIDI source encoding lacks a public semantic layout"},link.flags,link.smoothing));
+        }
+        if flp.uninterpreted_counts.contains_key(&226) {
+            self.report.say(section,Outcome::Dropped,"SCOPE: MIDI controller event 226 remains opaque: PyFLP MIDIControllerEvent is only GreedyBytes; DawVert auto.py and LMMS importer establish no MIDI source-field layout or units.");
+        }
         for (&id, &count) in &flp.uninterpreted_counts {
             self.report.count(section, Outcome::Dropped, count);
             let what = crate::names::event_name(id).unwrap_or("unknown event");
@@ -556,6 +588,11 @@ impl<'a> Builder<'a> {
             mut report,
             plugins,
             sampler_loops,
+            native_slices,
+            normalization,
+            sample_trim,
+            sample_cues,
+            layer_samples,
             name,
             flp,
             ..
@@ -609,6 +646,11 @@ impl<'a> Builder<'a> {
                 report,
                 plugins,
                 sampler_loops,
+                native_slices,
+                normalization,
+                sample_trim,
+                sample_cues,
+                layer_samples,
             },
             // The commands keep a project valid, so this cannot happen.
             // If it ever does, an empty project is still better than one
@@ -631,6 +673,11 @@ impl<'a> Builder<'a> {
                     report,
                     plugins,
                     sampler_loops: Vec::new(),
+                    native_slices: Vec::new(),
+                    normalization: Vec::new(),
+                    sample_trim: Vec::new(),
+                    sample_cues: Vec::new(),
+                    layer_samples: Vec::new(),
                 }
             }
         }

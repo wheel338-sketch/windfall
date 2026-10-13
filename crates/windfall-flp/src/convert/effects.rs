@@ -10,14 +10,14 @@
 //! |---|---|---|
 //! | Fruity Parametric EQ 2, Fruity Parametric EQ | Parametric EQ | bands by kind, as far as Windfall's seven fixed bands go |
 //! | Fruity Compressor | Compressor | threshold, ratio, gain, attack, release, knee |
-//! | Fruity Limiter | Limiter | none: defaults |
+//! | Fruity Limiter | Limiter | public native limiter/compressor prefix |
 //! | Fruity Reeverb 2, Fruity Reeverb | Reverb | size, decay, diffusion, cuts, mix; damping by a rule of thumb |
 //! | Fruity Delay 2, Fruity Delay | Delay | time, feedback, ping-pong, mix |
-//! | Fruity Delay 3 | Delay | none: defaults |
+//! | Fruity Delay 3 | Delay | public native fields and normalized automation |
 //!
 //! The additional names in `DEFAULT_EFFECTS` select registered effects with
-//! sanitized defaults. Their settings are not decoded, and the import report
-//! says so. The full mapping is documented in `docs/integration/seams/flp-effects.md`.
+//! native state translators where the public sources define layouts; missing
+//! layouts receive named source-evidence reports and sanitized defaults. The full mapping is documented in `docs/integration/seams/flp-effects.md`.
 //!
 //! Decoded states are rows of 32-bit numbers. Their order comes from DawVert
 //! `data_main/datadef/fl_studio.ddef`, their ranges from DawVert
@@ -47,6 +47,34 @@ pub(crate) struct ParamLink {
     pub(crate) id: &'static str,
     /// From FL Studio's number to the setting's own unit.
     pub(crate) convert: fn(f64) -> f64,
+    /// A disclosed linear range fit when public sources give a knob range
+    /// but no acoustic transfer function. Never used for existing formulas.
+    pub(crate) destination_range: Option<(f64, f64)>,
+}
+
+impl ParamLink {
+    /// PyFLP ControllerEvent stores normalized f32; DawVert's importer uses
+    /// floatbyteint2float for plugin event lanes. Retain compatibility with
+    /// older native-unit fixtures/records whose small words are subnormal as
+    /// floats. Only a normal finite 0..1 float is treated as normalized.
+    pub(crate) fn recorded(self, raw: i32) -> f64 {
+        let normalized = f32::from_bits(raw as u32);
+        if (raw == 0 || normalized.is_normal()) && (0.0..=1.0).contains(&normalized) {
+            self.value(
+                self.fl_range.0 + f64::from(normalized) * (self.fl_range.1 - self.fl_range.0),
+            )
+        } else {
+            self.value(f64::from(raw))
+        }
+    }
+    pub(crate) fn value(self, raw: f64) -> f64 {
+        if let Some((min, max)) = self.destination_range {
+            let n = ((raw - self.fl_range.0) / (self.fl_range.1 - self.fl_range.0)).clamp(0.0, 1.0);
+            min + n * (max - min)
+        } else {
+            (self.convert)(raw)
+        }
+    }
 }
 
 /// An FL Studio effect as a Windfall effect.
@@ -62,6 +90,9 @@ pub(crate) struct Translated {
 /// Translates the effect FL Studio calls `internal_name`, or `None` when
 /// Windfall has nothing that stands for it.
 pub(crate) fn translate(internal_name: &str, state: &[u8], tempo_bpm: f64) -> Option<Translated> {
+    if let Some(translated) = super::native::effect(internal_name, state, tempo_bpm) {
+        return Some(translated);
+    }
     let numbers = Numbers(state);
     let name = internal_name.trim().to_ascii_lowercase();
     Some(match name.as_str() {
@@ -95,7 +126,7 @@ const SETTINGS_NOT_DECODED: &str =
 
 /// Import keys only: these names do not define Windfall processor names.
 /// Keep mappings limited to kinds registered in `windfall_dsp::EffectKind`.
-const DEFAULT_EFFECTS: &[(&str, EffectKind)] = &[
+pub(super) const DEFAULT_EFFECTS: &[(&str, EffectKind)] = &[
     ("Fruity Center", EffectKind::DcBlock),
     ("Fruity Mute 2", EffectKind::ChannelMute),
     ("Fruity Phase Inverter", EffectKind::Polarity),
@@ -185,12 +216,14 @@ fn balance(numbers: Numbers<'_>) -> Translated {
                 fl_range: (-128.0, 128.0),
                 id: "pan",
                 convert: |v| v / 128.0,
+                destination_range: None,
             },
             ParamLink {
                 fl_param: 1,
                 fl_range: (0.0, 320.0),
                 id: "gain",
                 convert: |v| v / 256.0,
+                destination_range: None,
             },
         ],
     }
@@ -273,12 +306,14 @@ fn equaliser(numbers: Numbers<'_>, newer: bool) -> Translated {
                     fl_range: (-1_800.0, 1_800.0),
                     id: id_gain,
                     convert: hundredths,
+                    destination_range: None,
                 });
                 links.push(ParamLink {
                     fl_param: 7 + band as u16,
                     fl_range: (0.0, 65_536.0),
                     id: id_frequency,
                     convert: eq_2_hz,
+                    destination_range: None,
                 });
             }
         };
@@ -398,30 +433,35 @@ fn compressor(numbers: Numbers<'_>) -> Translated {
                 fl_range: (-600.0, 0.0),
                 id: "thresholdDb",
                 convert: tenths,
+                destination_range: None,
             },
             ParamLink {
                 fl_param: 1,
                 fl_range: (0.0, 300.0),
                 id: "ratio",
                 convert: tenths,
+                destination_range: None,
             },
             ParamLink {
                 fl_param: 2,
                 fl_range: (0.0, 300.0),
                 id: "makeupDb",
                 convert: tenths,
+                destination_range: None,
             },
             ParamLink {
                 fl_param: 3,
                 fl_range: (0.0, 4_000.0),
                 id: "attackMs",
                 convert: tenths,
+                destination_range: None,
             },
             ParamLink {
                 fl_param: 4,
                 fl_range: (0.0, 4_000.0),
                 id: "releaseMs",
                 convert: |raw| raw,
+                destination_range: None,
             },
         ],
     }
@@ -489,36 +529,42 @@ fn reverb_2(numbers: Numbers<'_>) -> Translated {
                 fl_range: (0.0, 3_000.0),
                 id: "lowCutHz",
                 convert: |raw| raw,
+                destination_range: None,
             },
             ParamLink {
                 fl_param: 1,
                 fl_range: (0.0, 221.0),
                 id: "highCutHz",
                 convert: times_hundred,
+                destination_range: None,
             },
             ParamLink {
                 fl_param: 3,
                 fl_range: (0.0, 100.0),
                 id: "size",
                 convert: hundredths,
+                destination_range: None,
             },
             ParamLink {
                 fl_param: 4,
                 fl_range: (0.0, 100.0),
                 id: "diffusion",
                 convert: hundredths,
+                destination_range: None,
             },
             ParamLink {
                 fl_param: 5,
                 fl_range: (0.0, 200.0),
                 id: "decayS",
                 convert: tenths,
+                destination_range: None,
             },
             ParamLink {
                 fl_param: 11,
                 fl_range: (0.0, 160.0),
                 id: "earlyLevel",
                 convert: over_128,
+                destination_range: None,
             },
         ],
     }
@@ -634,6 +680,7 @@ fn delay_2(numbers: Numbers<'_>, tempo_bpm: f64) -> Translated {
             fl_range: (0.0, 127.0),
             id: "feedback",
             convert: squared_over_128,
+            destination_range: None,
         }],
     }
 }
@@ -1214,9 +1261,8 @@ mod tests {
         let threshold = translated.links[0];
         assert_eq!(threshold.id, "thresholdDb");
         let at = |value: f64| {
-            (threshold.convert)(
-                threshold.fl_range.0 + value * (threshold.fl_range.1 - threshold.fl_range.0),
-            )
+            threshold
+                .value(threshold.fl_range.0 + value * (threshold.fl_range.1 - threshold.fl_range.0))
         };
         assert_eq!(at(0.0), -60.0);
         assert_eq!(at(0.5), -30.0);

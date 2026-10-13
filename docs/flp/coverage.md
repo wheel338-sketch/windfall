@@ -76,10 +76,10 @@ for a multi-version real-project corpus.
 | Tempo/fine tempo, signature, text, master controls | Multiple sources; old denominator meaning from PyFLP | Tempo, signature and name imported via commands; unsupported metadata and main pitch reported; master volume folded into master gain |
 | Sampler controls, sample paths, cut groups, reverse, window/envelope | Multiple sources; envelope timing is a DawVert fit | External normalized references; variables resolve only from options; unresolved paths stay written; asymmetric groups, stretching, looping, LFOs and unsupported effects reported |
 | Generator/wrapper/layer | Wrapper records from PyFLP/DawVert; type 4 interpretation follows DawVert | Three-oscillator source synth maps approximately to subtractive synth; unsupported plugins are silent samplers with raw wrapper state in Conversion.plugins and Project.retainedPlugins; layers expand notes with cycle protection |
-| Notes/patterns/legacy steps | Modern 24-byte and historical 20-byte generated records; real 20.8.4 records | Exact ticks when representable; nearest-tick rounding otherwise; step-grid pattern lengths; fine pitch, release, modulation, slide duration and note-color MIDI channels mapped; source note-edit groups and exact slide chord targeting remain unsupported |
-| Mixer slots, mute/solo, routing/sends | Multiple implementations; generated controls and routing fixtures | Command-enforced cycles refused; 128 tracks, 10 effects per track; EQ/compressor/reverb/delay have partial parameter translations; limiter/delay 3 use defaults; unsupported effect states retained separately |
+| Notes/patterns/legacy steps | Modern 24-byte and historical 20-byte generated records; real 20.8.4 records | Exact ticks when representable; nearest-tick rounding otherwise; step-grid pattern lengths; fine pitch, release, modulation, slide duration and note-color MIDI channels mapped; source note-edit groups persist independently of color and drive grouped editor selection; same-color slides anchor the highest sounding pitch at onset and preserve note endings |
+| Mixer slots, mute/solo, routing/sends | Multiple implementations; generated controls and routing fixtures | Command-enforced cycles refused; 128 tracks, 10 effects per track; EQ/compressor/reverb/delay have partial parameter translations; limiter/delay 3 and the defined native layouts have disclosed stand-in translations; unsupported effect states retained separately |
 | Playlist tracks/clips/audio | 32-byte and generated 60-byte records; real 20.8.4 | Pattern position/length/offset/mute imported; audio references, reverse, pitch, approximate fades/gain imported; track name/mute/color imported; source relative height fitted to 48 CSS pixels per unit and clamped to 18..160; channel offsets disputed and reported |
-| Automation points/links | PyFLP/DawVert/FLParser layouts; generated link tests | Channel volume/pan, track volume/pan, existing send gain, effect mix, understood effect parameters and tempo; tension fitted/approximate, hold mode supported; unsupported targets/controllers/formulas/smoothing reported; instrument-parameter links currently unsupported |
+| Automation points/links | PyFLP/DawVert/FLParser layouts; generated link tests | Channel volume/pan, track volume/pan, existing send gain, effect mix, understood effect parameters and tempo; tension fitted/approximate, hold mode supported; unsupported targets/controllers/formulas/smoothing reported; instrument targets lacking public semantic numbering receive device/parameter-specific SCOPE evidence; offsets are never substituted for numbers |
 | Markers and extra arrangements | Generated layouts | Selected named markers and meter changes mapped; independent clip/track layouts mapped through AddArrangementLayout; alternate timeline markers/meters remain omitted because the project timeline is shared |
 
 Automation and channel clip offsets remain a disputed area: open implementations
@@ -246,3 +246,117 @@ export paths must be injected as documented in the round-six record. The initial
 missing-environment failure is retained separately; assertions and opt-in test
 annotations were unchanged. This passing gate verifies the implemented subset;
 the full FLP row remains **not done** with the software omissions listed above.
+
+
+## 2026-10-13 round-six edit-only continuation (written, not built or tested)
+
+Continues base `0b72d3f2`, after the builder's 174-test stopping point. The
+historical passing gates above do **not** validate these edits. Complete test
+names and required integration work are in
+[the FLP hand-off](../qa/2026-10-13-r6-flp.md). Full pins, licences and exact
+source files for every adopted layout/formula are in
+[NOTICE.md](../../crates/windfall-flp/NOTICE.md#round-six-native-state-continuation-2026-10-13).
+
+All active DawVert definitions were enumerated, including nested definitions.
+FL Slayer, FL Keys, Big Clock, Filter, Spectroman, Wasp/Wasp XT, Formula Controller,
+Razer Chroma and Kepler have no entry in the current instrument/effect stand-in
+tables or this coverage table and are outside the requested stand-in set.
+Their layouts are not misclassified as absent. Existing 3x Osc, Balance,
+EQ/compressor/reverb/delay/send translators remain in place. The remaining
+intersections are listed individually below. Each scalar is decoded/reported;
+fields without a corresponding stand-in control receive a named explanation.
+Opaque source state is retained alongside every translated patch.
+
+For a range-only field, scaling is explicitly linear:
+`destination_min + clamp((raw-source_min)/(source_max-source_min),0,1) *
+(destination_max-destination_min)`, followed by ordinary descriptor sanitization.
+The source ranges and exact destination descriptor IDs are in `convert/native.rs`;
+reports print the raw value, destination value, rule and range. This is a disclosed
+stand-in fit, not a recovered acoustic transfer function. Enum order, automation
+numbering and physical units are never inferred from byte positions. Float fields
+with no published unit use an explicitly reported identity/bounded stand-in fit.
+
+| Native device with a public layout | Translation and independent synthetic evidence in `round6_native.rs` |
+|---|---|
+| Plucked! | decay/color -> Pluck decaySeconds/brightness via source 0..256/0..128 ranges; 128 -> 6.05 seconds; normalize/gate/widen have no equivalent Pluck descriptors |
+| BooBass | Both 12/16-byte forms -> Finger Bass body/damping/tone, /65535; full bass -> body 1; version is metadata |
+| Fruit Kick / Fruity Kick | min cents -> C4 frequency fit, max/min difference -> pitch drop; volume/frequency decay and click range fits; midpoint decay -> 755 ms |
+| Fruity DX10 | Operator envelopes 5000*n^6/^2/^3, levels/sustain n^2, ratio 2*floor(n^2*40), fine n^4*180 cents folded by 2^(cents/1200), octave ratios and inactive branches; FanIn stand-in; vibrato=n/5.5, rate=n*127 clamped 20 Hz |
+| SimSynth | MIDI cutoff 100+(cut-.5)*40+(kb-.5)*10 -> Hz, emphasis*.8; 4*v^3-second independent SVF ADSR, env*6.4 octaves; documented LFO fit; enabled oscillator levels weight shared pitch modulation; every float/flag named in report |
+| Fruity Granulizer | grain-size/density/spray/start range fits; event-196 sample reference attaches to GrainCloud playback asset; midpoint grain size -> 125.5 ms |
+| BassDrum | SSLF float array, level/pitch/duration/click/sample ratio fits; fixed filename -> prepared Layer Kick PCM asset (mono/int16, max 32,768 frames, faded truncation); synthetic PCM equality and JSON reopen |
+| Fruity Slicer | Header and variable strings/keys/names/reverse/starts; frame starts use public channels/2; pitch/100, disclosed 0..128 -> 0..100ms attack/release; sparse custom-key holes are silent; 100 of 200 stereo frames -> .5 |
+| Slicex | Two u16 versions and named master controls, filename/embedded-WAV length; PCM8/16/24/32 and float32 WAV, cue-frame boundaries, mono fallback up to 4,194,304 frames; external WAV cues use existing codec and keep labels; synthetic stereo downmix, boundaries, filename and JSON equality |
+| Fruity Center | 4/8-byte enable forms -> actual DC-block slot enable |
+| Fruity Mute 2 | Public mute/channel rule -> actual left/right mute values; source gains are inverted to match target mute semantics |
+| Fruity Phase Inverter | Source 0..1024 state fitted to binary inversion of both sides (>512); no guessed left/right mask |
+| Fruity Stereo Shaper | Signed four-way matrix /12800 -> StereoMatrix; 6400 -> .5 |
+| Fruity Soft Clipper | Threshold range -> ceilingDb; postgain has no matching stand-in control |
+| Fruity Fast Dist | Pre/threshold/post -> drive/shape/output range fits; midpoint drive -> 18 dB |
+| Fruity Fast LP | `(100*(.2+n)^1.5)^2*925/2048`, Q=1+6*n; normalized float 0/.5/1 -> 36.1328125/1549.1943359375/7804.6875 Hz |
+| Fruity Free Filter | Published seven-response selector and frequency/Q/gain fits; explicit dataset numbering with converter type/700 and freq/1024 ranges; dataset disagreement and ambiguous zero selector reported; half gain -> 9 dB |
+| Fruity Bass Boost | Frequency/gain range fits; half gain -> 9 dB |
+| Fruity Blood Overdrive | 32/36-byte forms, preband/color/preamp/x100/postfilter/postgain; midpoint preband -> 2100 Hz |
+| Fruity Chorus | Three LFO rate/delay/depth/stereo range fits; midpoint delay -> 15.5 ms |
+| Fruity Flanger | rate=5*n^7, delay=20*n^2.58495, feedback/100 and polarity; half rate -> .0390625 Hz |
+| Fruity Phaser | Sweep/depth/stereo/feedback/mix range fits; half sweep -> 2.5 Hz |
+| Fruity Flangus | Order/depth/rate/delay/spread/mix -> StackedFlanger; half speed -> 2.5 Hz |
+| Fruity 7 Band EQ | All seven signed gains /100; -600 -> -6 dB |
+| Fruity Stereo Enhancer | Pan/128, width=1-stereo/96, phase offset range fit and inversion choice; -64 -> -.5 balance |
+| Soundgoodizer | 8/12-byte amount -> OneKnob; 500 -> .5; source mode has no target mode descriptor |
+| Transient Processor | Attack/release/drive fits and actual slot enable; 120/160 -> attack .5 on target -1..1 range |
+| Frequency Shifter | Source frequency seventh-power fit, public range selector and mix; half full-range -> 156.25 Hz |
+| Spreader | Spread/separation fits, byte tails and actual enable; half spread -> .5 |
+| Fruity PanOMatic | Pan/128-1, gain/256, shape/depth/rate fits; 64 -> -.5 pan; no independent amplitude-LFO selector in target |
+| Fruity Limiter | All public limiter/compressor/noise words, mirrored words and byte tails; target limiter/compressor/gate controls, disclosed range fits; midpoint ceiling -> -12 dB |
+| Fruity Delay 3 | Public 27-word state and time/mix/feedback/modulation/damping fits; tempo sync uses source /192 quarters to ms; feedback midpoint -> .475 |
+| Fruity Delay Bank | All eight 64-byte banks and eight 32-byte extras decoded; EchoBank control matrix/enable/filters/modes/times and global /128 gains; first-unit half input -> 1 |
+| Multiband Delay | Explicitly unfinished public prefix, all eight arrays of delay/vol/pan decoded; sixteen target bands use first bank; 120 float -> 120 ms; other banks are named target-capability limits |
+| Pitcher | SSLF floats and key bytes, speed/tuning/harmony fits; reference=415.3+raw*50.9, .5 -> 440.75 Hz |
+| Vintage Chorus | Public state and mode/rate/delay/wet/stereo fits; half rate -> 2.5 Hz |
+| Vintage Phaser | Public state and rate/min/max/feedback/stereo/mix fits; half rate -> 2.5 Hz |
+| Fruity Multiband Compressor | Three threshold/ratio/makeup/time blocks plus crossovers; 500/65536 -> low ratio 1.75531 |
+| Tuner | Reference=400+raw/75; 3000 -> 440 Hz; display/reactivity metadata named |
+| Pitch Shifter | Explicitly NOT_FINISHED named word/byte prefix including display_speed/on/mono; pitch/formant /100; -700 -> -7 semitones; raw 256-byte section has no public semantic schema and stays opaque |
+| Fruity Vocoder | Bounded band count/float array and named tail, envelope/wet/color fits; half attack -> 50.05 ms |
+| Fruity Waveshaper | Public aligned header and bounded point records -> 33 knots, tension via disclosed exponential fit, instant via hold; independently computed linear/bent/held values and hostile-count fixture |
+| Effector | Commented 13-field candidate prefix decoded as typed fields; wet/X/Y and bypass fit; XY/mix=.25/.75/.5 fixture; model ordering/modulation units/public numbering not established and named as SCOPE |
+
+### Controls, editing and timeline continuation
+
+| Item | Current translation / fixture evidence |
+|---|---|
+| Native parameter automation | Explicit named dataset `num` only, descriptor ID lookup preserves saved append-only addresses; automation clips and recorded event 223 use same physical mapping. Public normal f32 words 0..1 decoded; non-normal small native integer compatibility retained. No field offset is used as a number. |
+| Instrument parameter automation | Device/parameter-specific reports for both clips and recorded targets. SCOPE: decoded generators have no named `num` in the dataset; Sytrus/Harmless param_N ranges do not establish knob meanings. PyFLP parsers and LMMS supply no semantic numbering; original source events remain. |
+| Pitch range / channel filter | Wrapper MIDI record1 bytes8..12 -> existing bend-range map, send flag retained; **event83 is resonance**. Modern event219 filter /256, legacy cutoff /1024 and resonance /640; documented cutoff/Q formulas on a private bus, with Mod X/Y clip/recorded automation. |
+| Remaining keyboard/sample fields | Event142 signed fine tune, main-pitch participation, inclusive playable region, add-root key offset, group display names, sample offset and loop crossfade; normalization and silence threshold resolve against decoded PCM; swap/DC/polarity become private effects. Synthetic PCM gives gain2 and window .4..0.8; JSON/history retain the result. |
+| Shift / gate / LFO | Published shift0/1024 endpoints -> 0/960 ticks; gate450/1446 -> 3 source ticks/four quarters, 1447 off; full_porta bypass. Public LFO32950 sixteen-step anchor -> BPM/240 Hz, including volume. SCOPE: no interior nonlinear curves in checked sources; every non-anchor value receives a named evidence warning. |
+| Channel fields without units/kernel | MIDI-through, declick and legacy trim are individually named; DawVert float drum-stretch tone/over/noise/band/time lacks DSP units; formant offset is decoded but target has only preserve-formants boolean. SCOPE warnings distinguish serialization knowledge from missing operation/units. |
+| Note edit groups | Additive/default-empty Project.noteEditGroups, append-only checked command/undo/patch; live grouped selection/move/resize independent of MIDI color, dead IDs inert; byte-stream + history/JSON and UI movement fixtures. |
+| Slide targeting/timing | Highest sounding same-color pitch at onset anchors chord transposition, including a slide already in progress; note endings unchanged. Instrument and sampler fixed-buffer numerical tests and independent note-stream fixture. See public Piano roll manual attribution in NOTICE. |
+| Controller links | Source/location/flags/smoothing decoded at public offsets; automation clip sources translated. SCOPE per link: formula serialization and smoothing time units absent from DawVert auto.py/PyFLP controller.py/LMMS. MIDI event226 is GreedyBytes without a semantic source layout. No formula or milliseconds invented. |
+| Start / punch | Append-only Start/Punch marker variants persist, undo and edit through existing timeline UI. Start anchors default song play, explicit seeks/selected regions win; paired punch defines actual bounded desktop recording region and restores prior transport. Native PCM/desktop capture and handwritten mock-transport fixtures. |
+| Song loop / pauses / edges | Positive song-loop extent uses the active arrangement's clips; pause after preceding song loop keeps its label without transport stop; unpaired punch/empty loop produce named warnings without fabricated endpoints; suffix punch and ordinary playback through punch tested. |
+
+### Source-scope evidence and validation status
+
+SCOPE is a source limit, not a claim of unimplemented documented layouts.
+Native devices without a usable layout are reported individually by device name:
+DawVert definitions/converters, PyFLP plugin parsers and LMMS were checked. The
+anonymous Sytrus/Harmless dataset controls do not repair their missing byte layout.
+Slicex second-deck/custom region state after the public WAV payload, unknown SSLF
+sections and unfinished-definition tails remain opaque with specific evidence.
+Unsupported stand-in topology/controls are named separately from format absence;
+none is silently replaced with a claimed exact match.
+
+Source bounds and audio budgets may refuse oversized patches, sample layers,
+unsupported compressed WAV, more than 128 slices or unavailable references;
+review warnings identify those limits. Imported source bytes remain bounded by
+the existing source/archive budgets. No new dependencies were added. New source
+modules are registered in convert/mod.rs; Cargo automatically discovers
+`tests/round6_native.rs`; native slide and existing engine/desktop/frontend test
+modules are registered already. Only single-file rustfmt checks and git diff
+whitespace checks were performed. Integration must regenerate bindings and
+WASM/simulator artifacts and run the existing strict gates before this row can
+be accepted. No previous test or tolerance was weakened; event83's fixture now
+asserts the correct resonance identity supported by all three public sources.

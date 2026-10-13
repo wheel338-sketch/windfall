@@ -3,7 +3,8 @@
 //! The three-oscillator synth FL Studio writes as "3x Osc" becomes
 //! Windfall's subtractive synth, with its numeric settings carried over.
 //! The names in `DEFAULT_INSTRUMENTS` select registered instruments with
-//! sanitized defaults; their patch settings are not decoded. Other names
+//! public native states through `native`; devices lacking layouts use sanitized
+//! defaults with named source-evidence reports. Other names
 //! remain silent placeholders. The mappings and limits are documented in
 //! `docs/integration/seams/flp-instruments.md`.
 //!
@@ -28,7 +29,7 @@ const PATCH_SETTINGS_NOT_DECODED: &str =
 
 /// Import keys only: these are FL Studio's internal names, not Windfall names.
 /// Each kind is registered and is the stand-in documented in the DSP seams.
-const DEFAULT_INSTRUMENTS: &[(&str, InstrumentKind)] = &[
+pub(super) const DEFAULT_INSTRUMENTS: &[(&str, InstrumentKind)] = &[
     ("Fruity DX10", InstrumentKind::FourOp),
     ("Sytrus", InstrumentKind::MatrixFm),
     ("Toxic Biohazard", InstrumentKind::RingHybrid),
@@ -42,6 +43,7 @@ const DEFAULT_INSTRUMENTS: &[(&str, InstrumentKind)] = &[
     ("BooBass", InstrumentKind::FingerBass),
     ("Sakura", InstrumentKind::AcousticString),
     ("Fruity Kick", InstrumentKind::Kick),
+    ("Fruit Kick", InstrumentKind::Kick),
     ("BassDrum", InstrumentKind::LayerKick),
     ("Drumaxx", InstrumentKind::DrumRack),
     ("Drumpad", InstrumentKind::Membrane),
@@ -72,6 +74,14 @@ pub(crate) struct Translated {
 /// nothing that stands for it.
 pub(crate) fn translate(channel: &Channel) -> Option<Translated> {
     let plugin = channel.plugin.as_ref()?;
+    if let Some(params) = super::native::instrument(&plugin.internal_name, &plugin.state) {
+        return Some(Translated {
+            params,
+            notes: vec![
+                "public native state mapped to the stand-in; documented ranges use disclosed linear fits where no physical units are established; original state retained",
+            ],
+        });
+    }
     let name = plugin.internal_name.trim();
     if name.eq_ignore_ascii_case(THREE_OSC) {
         return Some(three_osc(Numbers(&plugin.state), channel));
@@ -150,16 +160,16 @@ fn simsynth(state: &[u8]) -> Translated {
         }
         if value(i * 7 + 4).is_some_and(|v| v != 0.5) {
             notes.push(match i {
-                0 => "osc1_lfo: oscillator pitch LFO not translated",
-                1 => "osc2_lfo: oscillator pitch LFO not translated",
-                _ => "osc3_lfo: oscillator pitch LFO not translated",
+                0 => "osc1_lfo: folded into the shared channel pitch LFO",
+                1 => "osc2_lfo: folded into the shared channel pitch LFO",
+                _ => "osc3_lfo: folded into the shared channel pitch LFO",
             });
         }
         if value(i * 7 + 5).is_some_and(|v| v != 0.5) {
             notes.push(match i {
-                0 => "osc1_env: oscillator pitch envelope not translated",
-                1 => "osc2_env: oscillator pitch envelope not translated",
-                _ => "osc3_env: oscillator pitch envelope not translated",
+                0 => "osc1_env: folded into the shared channel pitch envelope",
+                1 => "osc2_env: folded into the shared channel pitch envelope",
+                _ => "osc3_env: folded into the shared channel pitch envelope",
             });
         }
         for (offset, name) in [
@@ -188,32 +198,30 @@ fn simsynth(state: &[u8]) -> Translated {
     if let Some(v) = value(39) {
         params.gain = v as f32;
     }
-    // Separate cutoff and amplitude envelopes cannot both be represented by
-    // this stand-in's one shared envelope. Keep individually named omissions.
-    for (index, name) in [
-        (21, "lfo_del"),
-        (22, "lfo_rate"),
-        (24, "lfo_shape"),
-        (26, "svf_cut"),
-        (27, "svf_emph"),
-        (28, "svf_env"),
-        (29, "svf_lfo"),
-        (30, "svf_kb"),
-        (32, "svf_high"),
-        (33, "svf_band"),
-        (41, "svf_att"),
-        (42, "svf_dec"),
-        (43, "svf_sus"),
-        (44, "svf_rel"),
-    ] {
+    // DawVert n_flstudio_foss.py maps cutoff to MIDI-note units:
+    // 100+(cut-.5)*40+(kb-.5)*10, resonance to emph*.8.
+    // Convert the MIDI cutoff to Hz; independent filter ADSR/LFO is installed
+    // in channel voice settings rather than overwriting the amplitude ADSR.
+    if let Some(cut) = value(26) {
+        let midi = 100.0 + (cut - 0.5) * 40.0 + (value(30).unwrap_or(0.5) - 0.5) * 10.0;
+        params.cutoff_hz = (440.0 * 2.0_f64.powf((midi - 69.0) / 12.0)) as f32;
+    }
+    if let Some(emph) = value(27) {
+        params.resonance = (emph * 0.8) as f32;
+    }
+    params.envelope_amount = 0.0;
+    if word(14) == Some(0) {
+        params.cutoff_hz = 18000.0;
+        params.resonance = 0.0;
+    }
+    notes.push("svf_cut/svf_kb converted from DawVert MIDI cutoff fit to Hz; svf_emph*0.8; independent svf ADSR and LFO use channel modulation");
+    for (index, name) in [(21, "lfo_del"), (32, "svf_high"), (33, "svf_band")] {
         if value(index).is_some() {
             notes.push(name);
         }
     }
     for (index, name) in [
-        (12, "lfo_on"),
         (13, "lfo_retrigger"),
-        (14, "svf_on"),
         (16, "lfo_trackamp"),
         (18, "chorus_on"),
     ] {

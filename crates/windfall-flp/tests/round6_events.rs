@@ -69,7 +69,8 @@ fn raw_channel_parameter_offsets_map_arp_and_report_unexpressible_fields() {
         e.data(215, &record);
         e.word(83, 12);
         let read = parse(&bytes(&e)).unwrap();
-        assert_eq!(read.channels[0].pitch_range, Some(12));
+        assert_eq!(read.channels[0].resonance, Some(12));
+        assert_eq!(read.channels[0].pitch_range, None);
         let result = import(&bytes(&e), &ConvertOptions::default()).unwrap();
         let arp = result.project.channels[0].voice.arpeggiator;
         assert_eq!(arp.mode, mode);
