@@ -62,7 +62,7 @@ fn fixture(tempo: Tempo) -> (Rig, PlaylistTrackId, TrackId) {
         dispatch(&rig, Command::SetInternalControllerSettings { settings: vec![InternalControllerSettings {
             controller: source.0, sync_beats: Some(0.25), ..Default::default()
         }] });
-        let link = |output, min, max| ControllerLink {
+        let link = |output, min: f32, max: f32| ControllerLink {
             source: ControlSource::Internal { controller: source.0, output },
             target: LinkTarget::Param { target: AutomationTarget::Tempo },
             map: ControlMap { min: (min - 10.0) / 512.0, max: (max - 10.0) / 512.0,
@@ -84,7 +84,7 @@ fn fixture(tempo: Tempo) -> (Rig, PlaylistTrackId, TrackId) {
         windfall_codec::write_wav(&carrier, &AudioBuffer::from_interleaved(SAMPLE_RATE, 1, data), windfall_codec::WavSampleFormat::Float32).unwrap();
         let added = rig.session.add_audio_clip_from_file(&carrier, ClipPlace { start: 0, track: None, mixer_track: None }).unwrap();
         let clip = ClipId(*added.created.last().unwrap());
-        dispatch(&rig, Command::UpdateClips { clips: vec![ClipUpdate { id: clip, patch: ClipPatch { length: Some(3840), ..Default::default() } }] });
+    dispatch(&rig, Command::UpdateClips { updates: vec![ClipUpdate { id: clip, patch: ClipPatch { length: Some(3840), ..Default::default() } }] });
     }
     // Exercise the saved native project path before any export.
     let save = rig.file("clock.windfall");
