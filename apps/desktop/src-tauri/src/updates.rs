@@ -82,9 +82,9 @@ pub(crate) fn validate_redirect(url: &url::Url, previous: usize) -> Result<(), &
     if previous > MAX_UPDATE_REDIRECTS {
         return Err("The update server exceeded the redirect limit.");
     }
-    if url.scheme() != "https" || !url.username().is_empty() || url.password().is_some() {
-        return Err("Update redirects must use HTTPS without credentials.");
-    }
+    // Redirects retain the stricter remote HTTPS rule, even from loopback.
+    validate_endpoint(url)?;
+    if url.scheme() != "https" { return Err("Update redirects must use HTTPS without credentials."); }
     Ok(())
 }
 
@@ -141,7 +141,47 @@ fn policy(
     }
     Ok(())
 }
-fn operator_configuration(channel: UpdateChannel) -> Result<(&'static str, url::Url), String> {
+const ENDPOINT_CAP: usize = 8192;
+
+// Keep this list aligned with the pinned updater's Updater::check, including
+// bundle_type (documented on its Rust API). Expand before parsing/fetching.
+fn expand_endpoint(template: &str, version: &str, target: &str, arch: &str, bundle: &str) -> Result<url::Url, String> {
+    if template.len() > ENDPOINT_CAP {
+        return Err("Update endpoint exceeds its URL length budget".into());
+    }
+    let version = semver::Version::parse(version).map_err(|_| "Invalid installed version")?.to_string().replace('+', "%2B");
+    let mut expanded = template.to_owned();
+    for (name, value) in [("current_version", version.as_str()), ("target", target), ("arch", arch), ("bundle_type", bundle)] {
+        expanded = expanded.replace(&format!("{{{{{name}}}}}"), value);
+        // Url-encoded templates are also accepted by the pinned updater.
+        expanded = expanded.replace(&format!("%7B%7B{name}%7D%7D"), value);
+        expanded = expanded.replace(&format!("%7b%7b{name}%7d%7d"), value);
+    }
+    let lower = expanded.to_ascii_lowercase();
+    if expanded.contains(['{', '}']) || lower.contains("%7b") || lower.contains("%7d") {
+        return Err("Unknown or malformed update endpoint placeholder".into());
+    }
+    let endpoint = url::Url::parse(&expanded).map_err(|_| "Invalid update endpoint")?;
+    validate_endpoint(&endpoint).map_err(str::to_owned)?;
+    Ok(endpoint)
+}
+
+pub(crate) fn validate_endpoint(endpoint: &url::Url) -> Result<(), &'static str> {
+    let loopback = match endpoint.host() {
+        Some(url::Host::Ipv4(ip)) => ip.is_loopback(),
+        Some(url::Host::Ipv6(ip)) => ip.is_loopback(),
+        _ => false,
+    };
+    if endpoint.as_str().len() > ENDPOINT_CAP || endpoint.host().is_none()
+        || (endpoint.scheme() != "https" && !(endpoint.scheme() == "http" && loopback))
+        || !endpoint.username().is_empty() || endpoint.password().is_some()
+    {
+        return Err("Update URL must use HTTPS (or literal loopback HTTP), have no credentials and fit its length budget");
+    }
+    Ok(())
+}
+
+fn operator_configuration(app: &AppHandle, channel: UpdateChannel) -> Result<(&'static str, url::Url), String> {
     let key = option_env!("WINDFALL_UPDATE_PUBLIC_KEY")
         .filter(|key| !key.trim().is_empty())
         .ok_or("Operator must provide WINDFALL_UPDATE_PUBLIC_KEY at build time.")?;
@@ -151,13 +191,19 @@ fn operator_configuration(channel: UpdateChannel) -> Result<(&'static str, url::
     }
     .filter(|endpoint| !endpoint.trim().is_empty())
     .ok_or("Operator must provide the selected channel's HTTPS update endpoint at build time.")?;
-    let endpoint = url::Url::parse(endpoint).map_err(|_| "Invalid update endpoint.")?;
-    if endpoint.scheme() != "https"
-        || !endpoint.username().is_empty()
-        || endpoint.password().is_some()
-    {
-        return Err("Update endpoint must use HTTPS without credentials.".into());
-    }
+    let platform = tauri_plugin_updater::target().ok_or("Unsupported update platform")?;
+    let (target, arch) = platform.split_once('-').ok_or("Invalid update platform")?;
+    use tauri::utils::config::BundleType;
+    let bundle = match tauri::utils::platform::bundle_type() {
+        Some(BundleType::Deb) => "deb",
+        Some(BundleType::Rpm) => "rpm",
+        Some(BundleType::AppImage) => "appimage",
+        Some(BundleType::Msi) => "msi",
+        Some(BundleType::Nsis) => "nsis",
+        Some(BundleType::App) => "app",
+        _ => "unknown",
+    };
+    let endpoint = expand_endpoint(endpoint, &app.package_info().version.to_string(), target, arch, bundle)?;
     Ok((key, endpoint))
 }
 
@@ -177,7 +223,7 @@ pub async fn update_check(
         return Err("Resolve the pending installation decision first".into());
     }
     *lock(&state.pending) = None;
-    let (key, endpoint) = match operator_configuration(channel) {
+    let (key, endpoint) = match operator_configuration(&app, channel) {
         Ok(config) => config,
         Err(reason) => {
             return Ok(CheckResult {
@@ -466,6 +512,54 @@ pub async fn update_install(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn endpoint_templates_expand_every_documented_placeholder_and_encode_version_build_metadata() {
+        for (placeholder, expected) in [
+            ("current_version", "1.2.3-beta.1%2Bbuild.7"),
+            ("target", "darwin"), ("arch", "aarch64"), ("bundle_type", "app"),
+        ] {
+            for variable in [format!("{{{{{placeholder}}}}}"), format!("%7B%7B{placeholder}%7D%7D")] {
+                let template = format!("https://updates.invalid/{variable}?value={variable}");
+                assert_eq!(expand_endpoint(&template, "1.2.3-beta.1+build.7", "darwin", "aarch64", "app").unwrap().as_str(), format!("https://updates.invalid/{expected}?value={expected}"));
+            }
+        }
+        for (target, arch, bundle) in [("windows", "i686", "msi"), ("windows", "x86_64", "nsis"), ("linux", "armv7", "deb"), ("linux", "riscv64", "rpm"), ("linux", "aarch64", "appimage"), ("darwin", "aarch64", "app"), ("windows", "x86_64", "unknown")] {
+            assert_eq!(expand_endpoint("https://updates.invalid/{{target}}/{{arch}}/{{bundle_type}}/{{current_version}}", "1.0.0", target, arch, bundle).unwrap().path(), format!("/{target}/{arch}/{bundle}/1.0.0"));
+        }
+    }
+    #[test]
+    fn endpoint_templates_refuse_unknown_placeholders_credentials_remote_http_and_length_overflow() {
+        for template in ["https://updates.invalid/{{version}}", "https://updates.invalid/{{platform}}", "https://updates.invalid/%7B%7Bunknown%7D%7D", "https://updates.invalid/{{arch}", "https://user:secret@updates.invalid/{{target}}", "http://updates.invalid/{{arch}}", "http://localhost/{{arch}}", "file:///{{target}}"] {
+            assert!(expand_endpoint(template, "1.2.3", "windows", "x86_64", "nsis").is_err(), "{template}");
+        }
+        for template in ["http://127.0.0.1/{{target}}", "http://[::1]/{{target}}"] {
+            assert!(expand_endpoint(template, "1.2.3", "windows", "x86_64", "nsis").is_ok());
+        }
+        assert!(expand_endpoint(&format!("https://updates.invalid/{}", "a".repeat(ENDPOINT_CAP)), "1.2.3", "windows", "x86_64", "nsis").is_err());
+        assert!(expand_endpoint(&format!("https://updates.invalid/{}{{{{arch}}}}", "a".repeat(ENDPOINT_CAP - 40)), "1.2.3", "windows", &"a".repeat(80), "nsis").is_err());
+    }
+    #[test]
+    fn bounded_streaming_manifest_fetch_requests_the_expanded_endpoint() {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let template = format!("http://{}/{{{{target}}}}/{{{{arch}}}}/{{{{bundle_type}}}}?v={{{{current_version}}}}", listener.local_addr().unwrap());
+        let endpoint = expand_endpoint(&template, "1.2.3+build.1", "windows", "x86_64", "nsis").unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+            let mut request = Vec::new();
+            let mut byte = [0];
+            while !request.ends_with(b"\r\n\r\n") { stream.read_exact(&mut byte).unwrap(); request.push(byte[0]); assert!(request.len() < 8192); }
+            stream.write_all(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n3\r\nabc\r\n2\r\nde\r\n0\r\n\r\n").unwrap();
+            String::from_utf8(request).unwrap()
+        });
+        tauri::async_runtime::block_on(async {
+            let mut received = 0;
+            assert_eq!(crate::update_transfer::fetch(endpoint, crate::update_transfer::MANIFEST_CAP, |bytes, _| { assert!(bytes <= crate::update_transfer::MANIFEST_CAP as u64); received = bytes; }).await.unwrap().unwrap(), b"abcde");
+            assert_eq!(received, 5);
+        });
+        assert!(server.join().unwrap().starts_with("GET /windows/x86_64/nsis?v=1.2.3%2Bbuild.1 HTTP/1.1\r\n"));
+    }
     fn signer(args: &[&std::ffi::OsStr]) {
         let cli = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../node_modules/@tauri-apps/cli/tauri.js");
