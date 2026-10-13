@@ -193,6 +193,10 @@ function select(slot: Slot, wanted: AnalyzerSelection | null) {
   const request = slot.request
   clear(slot)
   if (wanted === null) {
+    // An empty owner must release its native capture too. Keeping the
+    // subscription alive retains the prior source and exhausts capacity.
+    slot.stop?.()
+    slot.stop = null
     tell(slot, null)
     return
   }
@@ -200,6 +204,7 @@ function select(slot: Slot, wanted: AnalyzerSelection | null) {
     tell(slot, localStatus(slot, "unavailable", "desktopRequired"))
     return
   }
+  start(slot)
   tell(slot, localStatus(slot, "preparing"))
   void (async () => {
     try {

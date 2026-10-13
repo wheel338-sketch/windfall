@@ -9,7 +9,7 @@ import { announceProjectReplaced } from "@/lib/store/replaced"
 import { settle, startTestApp } from "@/test/harness"
 
 import { registerAnalyzerActions } from "./actions"
-import { resetAnalyzerFeed } from "./feed"
+import { analyzerFrame, resetAnalyzerFeed, useAnalyzerSelection } from "./feed"
 import { ScopePanel } from "./scope-panel"
 import { closeScope, useScopeStore } from "./scope-store"
 import type {
@@ -175,6 +175,27 @@ afterEach(() => {
 })
 
 describe("the signal scope", () => {
+  it("releases an empty mounted selection and admits a fresh capture on reactivation", async () => {
+    function Owner({ enabled }: { enabled: boolean }) {
+      useAnalyzerSelection("scope", enabled ? { source: { type: "mixOutput" }, want: { scope: true, spectrum: false, vector: false, envelope: false } } : null)
+      return null
+    }
+    const view = render(<Owner enabled />)
+    await waitFor(() => expect(backend.analyzerSelect).toHaveBeenCalledTimes(1))
+    const oldRequest = lastSelection().request
+    await deliver(frame(oldRequest, 1, "1", [level(0.8), level(0.8)]))
+    expect(analyzerFrame("scope")).not.toBeNull()
+    view.rerender(<Owner enabled={false} />)
+    expect(stopped).toHaveBeenCalledTimes(1)
+    expect(analyzerFrame("scope")).toBeNull()
+    view.rerender(<Owner enabled />)
+    await waitFor(() => expect(backend.analyzerSelect).toHaveBeenCalledTimes(2))
+    expect(backend.analyzerSubscribe).toHaveBeenCalledTimes(2)
+    await deliver(frame(oldRequest, 2, "1", [level(0.9), level(0.9)]))
+    expect(analyzerFrame("scope")).toBeNull()
+    await deliver(frame(lastSelection().request, 1, "2", [level(0.6), level(0.6)]))
+    expect(analyzerFrame("scope")?.levels[0].peak).toBe(0.6)
+  })
   it("opens from its action on the mix output and is live only once a frame has arrived", async () => {
     await open()
     expect(screen.getByRole("dialog", { name: "Signal scope" })).toBeVisible()

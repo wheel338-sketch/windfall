@@ -81,6 +81,13 @@ try {
       if (found) return found
       await delay(50)
     }
+    // Preserve the failed assertion and collect the actual mounted/native
+    // state, so a missing editor is distinguishable from missing DSP data.
+    try {
+      report.timeoutDisplay = await call("read")
+      report.timeoutDom = await evaluate("document.body.innerText.slice(0, 24000)")
+      report.timeoutMixer = await evaluate("window.__TAURI_INTERNALS__.invoke('window_document_snapshot').then(owned => owned.snapshot.project.mixer)")
+    } catch { /* Diagnostics cannot replace the original timeout. */ }
     throw new Error(`Timed out waiting for ${what}`)
   }
   await until(() => evaluate("Boolean(window.__windfallAnalyzerSmoke)"), "the explicitly enabled native smoke bridge")
