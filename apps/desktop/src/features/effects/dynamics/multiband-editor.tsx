@@ -3,7 +3,7 @@ import type {
   MultibandMaximizerParams,
 } from "@/bindings"
 import {
-  formatParam,
+  formatParamDisplay,
   ParamControl,
   ParamGroup,
   ParamRow,
@@ -42,33 +42,33 @@ function BandGroup({
         <ParamControl
           {...bind(`${band}.thresholdDb`)}
           label="Threshold"
-          description={`The level above which ${what} are turned down, measured in this band alone`}
+          description={message("The level above which {what} are turned down, measured in this band alone", { what })}
         />
         <ParamControl
           {...bind(`${band}.ratio`)}
           label="Ratio"
-          description={`How hard ${what} are turned down over the threshold`}
+          description={message("How hard {what} are turned down over the threshold", { what })}
         />
         <ParamControl
           {...bind(`${band}.attackMs`)}
           label="Attack"
-          description={`How quickly the gain of ${what} drops`}
+          description={message("How quickly the gain of {what} drops", { what })}
         />
         <ParamControl
           {...bind(`${band}.releaseMs`)}
           label="Release"
-          description={`How quickly the gain of ${what} recovers`}
+          description={message("How quickly the gain of {what} recovers", { what })}
         />
         <ParamControl
           {...bind(`${band}.makeupDb`)}
           label="Makeup"
-          description={`Gain added to ${what} after compression`}
+          description={message("Gain added to {what} after compression", { what })}
         />
         {ceiling && (
           <ParamControl
             {...bind(`${band}CeilingDb`)}
             label="Ceiling"
-            description={`No sample of ${what} gets past this level before the bands are added up`}
+            description={message("No sample of {what} gets past this level before the bands are added up", { what })}
           />
         )}
       </ParamRow>
@@ -78,11 +78,11 @@ function BandGroup({
 
 /** What the display says for assistive technology. */
 function splitLabel(bind: ParamBinder): string {
-  const low = formatParam(
+  const low = formatParamDisplay(
     bind.info("lowCrossoverHz"),
     bind.value("lowCrossoverHz")
   )
-  const high = formatParam(
+  const high = formatParamDisplay(
     bind.info("highCrossoverHz"),
     bind.value("highCrossoverHz")
   )

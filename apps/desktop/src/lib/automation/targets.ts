@@ -282,24 +282,24 @@ export function describeTarget(
     case "trackPan":
       return message("{track} → pan", { track: track(target.track) })
     case "trackParam":
-      return `${track(target.track)} · ${TRACK_PROCESSING_INFO[target.param]?.name ?? "Track setting"}`
+      return message("{owner} · {parameter}", { owner: track(target.track), parameter: t(TRACK_PROCESSING_INFO[target.param]?.name ?? "Track setting") })
     case "sendGain":
       return message("{track} → send to {track2}", { track: track(target.track), track2: track(target.target) })
     case "sidechainGain":
       return message("{track} → sidechain to {track2}", { track: track(target.track), track2: track(target.target) })
     case "effectParam": {
       const info = targetState(project, target)?.info
-      return `${effectLabel(project, target.effect)} · ${info?.name ?? "setting"}`
+      return message("{owner} · {parameter}", { owner: effectLabel(project, target.effect), parameter: t(info?.name ?? "setting") })
     }
     case "effectMix":
       return message("{effect} · Mix", { effect: effectLabel(project, target.effect) })
     case "instrumentParam": {
       if (target.param >= SCRIPT_PARAMETER_BASE) {
         const found = scriptParameter(project, target.channel, target.param)
-        return `${channel(target.channel)} script: ${found?.info.name ?? "removed parameter"}`
+        return message("{channel} script: {parameter}", { channel: channel(target.channel), parameter: found?.info.name ?? t("removed parameter") })
       }
       const info = targetState(project, target)?.info
-      return `${channel(target.channel)} · ${info?.name ?? "setting"}`
+      return message("{owner} · {parameter}", { owner: channel(target.channel), parameter: t(info?.name ?? "setting") })
     }
     case "tempo":
       return t("Tempo")

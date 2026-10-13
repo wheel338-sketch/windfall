@@ -30,7 +30,7 @@ export function ExternalOutputPanel({ track }: { track: TrackId }) {
   }
   const patch = (patch: Partial<ExternalOutputRoute>) => { if (route) void change({ ...route, ...patch }) }
   const disabled = recording || busy
-  const label = route ? `Out ${route.left + 1}${route.right === null ? " mono" : ` / ${route.right + 1}`}` : track === 0 ? t("Default device output") : t("No hardware output")
+  const label = route ? route.right === null ? message("Out {left} mono", { left: plainNumber(route.left + 1) }) : message("Out {left} / {right}", { left: plainNumber(route.left + 1), right: plainNumber(route.right + 1) }) : track === 0 ? t("Default device output") : t("No hardware output")
   return <div className="shrink-0 border-b p-1.5"><Popover>
     <PopoverTrigger render={<Button variant="outline" size="sm" className={`w-full justify-start truncate ${unavailable ? "text-destructive" : ""}`}>{label}</Button>} />
     <PopoverContent align="start" className="w-80"><FieldGroup>

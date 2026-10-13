@@ -46,7 +46,7 @@ function AssistantForm() {
   return <div className="flex flex-col gap-4">
     <FieldGroup><Field>
       <FieldLabel htmlFor="assistant-request">{t("Ask about Windfall or request an edit")}</FieldLabel>
-      <Textarea id="assistant-request" maxLength={4096} value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Set tempo 120; create pattern Verse; add channel Bass" />
+      <Textarea id="assistant-request" maxLength={4096} value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t("Set tempo 120; create pattern Verse; add channel Bass")} />
     </Field></FieldGroup>
     <div className="flex gap-2">
       <Button disabled={busy || !prompt.trim()} onClick={() => void ask()}>{t("Ask offline assistant")}</Button>

@@ -41,13 +41,13 @@ export function ZoneModulationEditor({ zone, index, commit }: {
   ] as const
   return <FieldGroup>
     <FieldDescription>{t("Modulation group")}{" "}{zone.modulationGroup ?? 0}{t(". Group 0 is independent; other groups share routes. Envelope and two sine LFOs can each drive pitch, filter and amplitude.")}</FieldDescription>
-    {fields.map(([key,label,min,max])=><Control key={key} label={`${prefix} ${label}`} value={mod[key]}
+    {fields.map(([key,label,min,max])=><Control key={key} label={message("{name} {label}", { name: prefix, label: t(label) })} value={mod[key]}
       min={min} max={max} commit={value=>commit({...mod,[key]:value})} />)}
     {mod.lfos.map((lfo, lfoIndex)=>{
       const controls = [["rateHz","rate Hz",0,100],["delayMs","delay ms",0,100000],["phase","phase cycles",0,1],
         ["pitchCents","to pitch cents",-12000,12000],["filterCents","to filter cents",-12000,12000],["amplitude","to amplitude",-1,1]] as const
       return <div key={lfoIndex} className="flex flex-col gap-1">
-        {controls.map(([key,label,min,max])=><Control key={key} label={`${prefix} LFO ${lfoIndex+1} ${label}`} value={lfo[key]}
+        {controls.map(([key,label,min,max])=><Control key={key} label={message("{name} LFO {index} {label}", { name: prefix, index: plainNumber(lfoIndex+1), label: t(label) })} value={lfo[key]}
           min={min} max={max} commit={value=>{
             const lfos: ZoneModulation["lfos"]=[mod.lfos[0],mod.lfos[1]]
             lfos[lfoIndex]={...lfo,[key]:value}

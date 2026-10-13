@@ -3,7 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ParamControl, ParamGroup, ParamRow } from "@/features/params"
 import type { EditorProps } from "../editor-props"
 import { PatternEditor } from "./pattern-editor"
-import { translatedText as t } from "@/lib/i18n"
+import { message, plainNumber, translatedText as t } from "@/lib/i18n"
 
 const UNITS = Array.from({ length: 8 }, (_, index) => index)
 
@@ -21,7 +21,7 @@ export function FilterBankEditor({ bind }: EditorProps<FilterBankParams>) {
         </TabsList>
         {UNITS.map((unit) => (
           <TabsContent key={unit} value={String(unit)} className="flex flex-col gap-2">
-            <ParamGroup title={`Unit ${unit + 1} filter`}>
+            <ParamGroup title={message("Unit {unit} filter", { unit: plainNumber(unit + 1) })}>
               <ParamControl {...bind(`slots.${unit}.mode`)} choiceStyle="select" layout="inline" />
               <ParamRow columns={2}>
                 <ParamControl {...bind(`slots.${unit}.frequencyHz`)} label="Frequency" />

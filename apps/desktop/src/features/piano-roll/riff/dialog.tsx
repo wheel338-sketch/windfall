@@ -888,7 +888,7 @@ function RiffForm({ request }: { request: RiffRequest }) {
                 {!current
                   ? t("The project or piano-roll channel changed. Close and reopen the generator.")
                   : error
-                    ? `${errorLabel ? `${errorLabel}: ` : ""}${error.message}`
+                    ? errorLabel ? message("{name}: {value}", { name: errorLabel, value: error.message }) : error.message
                     : failure}
               </AlertDescription>
             </Alert>

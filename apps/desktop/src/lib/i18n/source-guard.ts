@@ -319,11 +319,28 @@ export function localizationViolations(
       if (ts.isVariableDeclaration(declaration) && declaration.initializer && translatedFragment(declaration.initializer, seen)) return true
     return !!ts.forEachChild(node, (child) => translatedFragment(child, seen))
   }
-  const proseLiteral = (node: ts.Node): boolean =>
-    (ts.isStringLiteralLike(node) && !!node.text.trim() && !invariantReason(node.text.trim())) ||
-    !!ts.forEachChild(node, proseLiteral)
+  /** A literal whose declared type is one of a closed set of codes is a value, not a caption. */
+  const codeValue = (node: ts.Node): boolean => {
+    if (!ts.isStringLiteral(node)) return false
+    const type = checker.getContextualType(node)
+    if (!type?.isUnion()) return false
+    const members = type.types.filter((member) => !(member.flags & (ts.TypeFlags.Null | ts.TypeFlags.Undefined)))
+    return members.length > 1 && members.every((member) => member.isStringLiteral())
+  }
+  // Text that is an operand of the sum. A string passed to a call inside it,
+  // as in value("size") + 3, is an argument of arithmetic and not a phrase.
+  const proseLiteral = (node: ts.Node): boolean => {
+    const prose = (text: string) => !!text.trim() && !invariantReason(text.trim())
+    if (ts.isStringLiteralLike(node)) return prose(node.text)
+    if (ts.isTemplateExpression(node)) return prose(node.head.text + node.templateSpans.map((span) => span.literal.text).join(""))
+    if (ts.isParenthesizedExpression(node)) return proseLiteral(node.expression)
+    if (ts.isConditionalExpression(node)) return proseLiteral(node.whenTrue) || proseLiteral(node.whenFalse)
+    if (ts.isBinaryExpression(node) && [ts.SyntaxKind.PlusToken, ts.SyntaxKind.QuestionQuestionToken, ts.SyntaxKind.BarBarToken].includes(node.operatorToken.kind))
+      return proseLiteral(node.left) || proseLiteral(node.right)
+    return false
+  }
   const inspect = (node: ts.Node, context: string) => {
-    if (ts.isStringLiteralLike(node)) { literal(node, node.text, context); return }
+    if (ts.isStringLiteralLike(node)) { if (!codeValue(node)) literal(node, node.text, context); return }
     if (ts.isTemplateExpression(node)) {
       // A semantic phrase needs one parameterized key, not translated pieces.
       const text = node.head.text + node.templateSpans.map((span) => span.literal.text).join("")
@@ -358,7 +375,8 @@ export function localizationViolations(
       // its property names are: LABELS[kind] is a caption as much as a.label.
       const values = tableValues(node.expression)
       if (values) { for (const value of values) visible(value, context); return }
-      ts.forEachChild(node, (child) => visible(child, context))
+      // Otherwise what is read is shown; the key or index it is read by is not.
+      visible(node.expression, context)
       return
     }
     if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node) || ts.isJsxFragment(node)) {
@@ -458,8 +476,9 @@ export function localizationViolations(
 
   const walk = (node: ts.Node) => {
     if (ts.isJsxText(node)) {
-      const keycap = ts.isJsxElement(node.parent) && node.parent.openingElement.tagName.getText() === "kbd"
-      literal(node, node.text, keycap ? "keyboard shortcut" : "JSX text")
+      const tag = ts.isJsxElement(node.parent) ? node.parent.openingElement.tagName.getText() : undefined
+      // A <code> element holds literal syntax, such as a search expression to type.
+      if (tag !== "code") literal(node, node.text, tag === "kbd" ? "keyboard shortcut" : "JSX text")
     }
     if (ts.isJsxExpression(node) && node.expression && !ts.isJsxAttribute(node.parent))
       visible(node.expression, "JSX expression")

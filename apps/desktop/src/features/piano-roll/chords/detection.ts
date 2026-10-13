@@ -413,7 +413,7 @@ export function detectChord(keys: readonly number[]): ChordDetection {
       kind: "interval",
       label: power
         ? message("{bassName} power chord", { bassName })
-        : `${bassName}–${PITCH_NAMES[other]} ${INTERVAL_NAMES[interval]}`,
+        : message("{low}–{high} {interval}", { low: bassName, high: PITCH_NAMES[other], interval: t(INTERVAL_NAMES[interval]) }),
       symbol: power ? `${bassName}5` : `${bassName}–${PITCH_NAMES[other]}`,
       root: bass,
       bass,
@@ -482,7 +482,9 @@ export function detectChord(keys: readonly number[]): ChordDetection {
     .filter(({ interval }) => bits & (1 << interval))
   return {
     kind: triad ? "triad" : "chord",
-    label: `${rootName} ${template.name}${root === bass ? "" : ` / ${bassName}`}`,
+    label: root === bass
+      ? message("{root} {quality}", { root: rootName, quality: t(template.name) })
+      : message("{root} {quality} / {bass}", { root: rootName, quality: t(template.name), bass: bassName }),
     symbol: `${rootName}${template.suffix}${root === bass ? "" : `/${bassName}`}`,
     root,
     bass,

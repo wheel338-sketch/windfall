@@ -152,7 +152,7 @@ export async function deleteAutomation(id: AutomationId): Promise<void> {
   if (count > 0) {
     const choice = await askConfirm({
       title: message("Delete {automationName}?", { automationName: automation.name }),
-      description: `Its ${count === 1 ? "clip" : message("{count} clips", { count: plainNumber(count) })} on the playlist will be deleted with it. Undo brings them back.`,
+      description: message("Its {shown} clips on the playlist will be deleted with it. Undo brings them back.", { count, shown: plainNumber(count) }),
       choices: [
         { id: "delete", label: t("Delete automation"), variant: "destructive" },
       ],

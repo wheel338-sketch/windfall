@@ -227,9 +227,10 @@ function SheetExportForm({ request }: { request: SheetRequest }) {
               <Alert>
                 <AlertDescription>
                   {quantised > 0 &&
-                    `${quantised === 1 ? "1 note was" : message("{quantised} notes were", { quantised: plainNumber(quantised) })} moved to the nearest writable position. `}
+                    message("{shown} notes were moved to the nearest writable position.", { count: quantised, shown: plainNumber(quantised) })}
+                  {quantised > 0 && simplified > 0 ? " " : null}
                   {simplified > 0 &&
-                    `${simplified === 1 ? "1 note was" : message("{simplified} notes were", { simplified: plainNumber(simplified) })} merged or shortened to fit two voices per staff.`}
+                    message("{shown} notes were merged or shortened to fit two voices per staff.", { count: simplified, shown: plainNumber(simplified) })}
                 </AlertDescription>
               </Alert>
             )}

@@ -2,7 +2,7 @@ import type { NoteInit } from "@/bindings"
 
 import { MAX_PATTERN_TICKS } from "./edit-math"
 import { SCALES } from "./scales"
-import { translatedText as t } from "@/lib/i18n"
+import { message, translatedText as t } from "@/lib/i18n"
 
 export type Stamp = {
   id: string
@@ -98,7 +98,11 @@ export const CHORD_STAMPS: readonly Stamp[] = [
 export const SCALE_STAMPS: readonly Stamp[] = SCALES.flatMap((scale) =>
   (["ascending", "descending"] as const).map((layout) => ({
     id: `${scale.id}-${layout}`,
-    label: `${scale.label} scale ${layout}`,
+    get label() {
+      return layout === "ascending"
+        ? message("{scale} scale ascending", { scale: scale.label })
+        : message("{scale} scale descending", { scale: scale.label })
+    },
     intervals: [...scale.intervals, 12],
     layout,
   }))

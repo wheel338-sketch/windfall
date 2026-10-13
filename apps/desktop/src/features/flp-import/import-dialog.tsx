@@ -33,7 +33,7 @@ function Review({ preview }: { preview: FlpImportPreview }) {
   return (
     <section aria-label={t("Import report")} className="flex flex-col gap-3">
       <p>
-        {preview.name} · FL Studio{" "}
+        {message("{name} · FL Studio", { name: preview.name })}{" "}
         {preview.report.flVersion ?? t("unknown version")}
       </p>
       <p>

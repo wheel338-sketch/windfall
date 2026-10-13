@@ -140,18 +140,27 @@ const MAC_MODIFIERS: Record<Modifier, string> = {
   get Meta() { return t("⌘") },
 }
 
+/** What the modifier keys are called on a keyboard in the interface language. */
+const MODIFIER_NAMES: Record<Modifier, string> = {
+  get Ctrl() { return message("key.ctrl") },
+  get Alt() { return message("key.alt") },
+  get Shift() { return message("key.shift") },
+  get Meta() { return message("key.win") },
+}
+
 /** A shortcut the way the platform writes it: `Ctrl+Shift+Z` or `⇧⌘Z`. */
 export function formatShortcut(shortcut: string, isMac: boolean): string {
   const parts = normalizeShortcut(shortcut, isMac).split("+")
   const key = parts.pop() ?? ""
-  const label = KEY_LABELS[key] ?? key
+  // A key name with no entry of its own, such as a letter, is shown as it is.
+  const label = t(KEY_LABELS[key] ?? key)
   if (isMac) {
     const symbols = parts
       .map((part) => MAC_MODIFIERS[part as Modifier])
       .join("")
-    return label.length > 1 && symbols ? `${symbols} ${label}` : symbols + label
+    return [symbols, label].join(label.length > 1 && symbols ? " " : "")
   }
-  return [...parts.map((part) => (part === "Meta" ? "Win" : part)), label].join(
+  return [...parts.map((part) => MODIFIER_NAMES[part as Modifier]), label].join(
     "+"
   )
 }

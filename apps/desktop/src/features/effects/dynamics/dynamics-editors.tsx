@@ -6,7 +6,7 @@ import type {
   TransientShaperParams,
 } from "@/bindings"
 import {
-  formatParam,
+  formatParamDisplay,
   ParamControl,
   ParamGroup,
   ParamRow,
@@ -156,9 +156,9 @@ export function BassHarmonicsEditor({
       </ParamRow>
       <p data-slot="bass-harmonics-range" className={NOTE}>
         {t("Notes below")}{" "}
-        <span className={READOUT}>{formatParam(info, cutoff)}</span>{" "}{t("gain an octave above them, up to")}{" "}
+        <span className={READOUT}>{formatParamDisplay(info, cutoff)}</span>{" "}{t("gain an octave above them, up to")}{" "}
         <span className={READOUT}>
-          {formatParam({ ...info, max: info.max * 2 }, cutoff * 2)}
+          {formatParamDisplay({ ...info, max: info.max * 2 }, cutoff * 2)}
         </span>
         {t(", where small speakers can play them. Delays this track by")}{" "}
         <span className={READOUT}>

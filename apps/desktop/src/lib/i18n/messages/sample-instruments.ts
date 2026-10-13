@@ -118,6 +118,7 @@ export const sampleInstrumentsEn = {
   "Zone {index} velocity fade": "Zone {index} velocity fade",
   "in": "in",
   "layers": "layers",
+  "{name} LFO {index} {label}": "{name} LFO {index} {label}",
 } as const
 
 export const sampleInstrumentsEs = {
@@ -238,4 +239,5 @@ export const sampleInstrumentsEs = {
   "Zone {index} velocity fade": "Fundido por velocidad de la zona {index}",
   "in": "en",
   "layers": "capas",
+  "{name} LFO {index} {label}": "{name}, LFO {index}: {label}",
 } satisfies Record<keyof typeof sampleInstrumentsEn, Message>

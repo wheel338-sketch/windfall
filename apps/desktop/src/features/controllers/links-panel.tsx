@@ -45,18 +45,22 @@ export const globalChoices: { value: string; label: string; target: LinkTarget }
   { value: "tempo", get label() { return t("Tempo") }, target: { type: "slot", slot: { type: "tempo" } } },
   ...Object.entries(actionLabels).map(([action, label]) => ({ value: `action:${action}`, label, target: { type: "action", action: action as ControlAction } as LinkTarget })),
   ...(["mixerVolume", "mixerPan", "channelVolume", "channelPan"] as const).flatMap((type) => Array.from({ length: 8 }, (_, index) => ({
-    value: `${type}:${index}`, label: `${type.startsWith("mixer") ? "Mixer strip" : "Channel"} ${index + 1} ${type.endsWith("Volume") ? "volume" : "pan"}`, target: { type: "slot", slot: { type, index } } as LinkTarget,
+    value: `${type}:${index}`, get label() { return slotName({ type, index }) }, target: { type: "slot", slot: { type, index } } as LinkTarget,
   }))),
 ]
 function slotName(slot: SlotTarget): string {
   if (slot.type === "masterVolume") return t("Master volume")
   if (slot.type === "tempo") return t("Tempo")
-  return `${slot.type.startsWith("mixer") ? "Mixer strip" : "Channel"} ${slot.index + 1} ${slot.type.endsWith("Volume") ? "volume" : "pan"}`
+  const index = plainNumber(slot.index + 1)
+  return slot.type === "mixerVolume" ? message("Mixer strip {index} volume", { index })
+    : slot.type === "mixerPan" ? message("Mixer strip {index} pan", { index })
+    : slot.type === "channelVolume" ? message("Channel {index} volume", { index })
+    : message("Channel {index} pan", { index })
 }
 function sourceName(source: ControllerLink["source"]): string {
   if (source.type !== "midi") return t("Internal controller")
   const control = source.control.type === "cc" ? `CC ${source.control.number}` : source.control.type === "note" ? message("Key {key}", { key: plainNumber(source.control.key) }) : source.control.type === "pitchBend" ? t("Pitch wheel") : t("Pressure")
-  return `${source.device ?? "Any MIDI device"} · ${source.channel ? message("Channel {channel}", { channel: plainNumber(source.channel) }) : "All channels"} · ${control}`
+  return message("{device} · {channel} · {control}", { device: source.device ?? t("Any MIDI device"), channel: source.channel ? message("Channel {channel}", { channel: plainNumber(source.channel) }) : t("All channels"), control })
 }
 
 type Draft = { link: ControllerLink; links: ControllerLink[]; index: number; global: boolean; revision: number; generation: number }

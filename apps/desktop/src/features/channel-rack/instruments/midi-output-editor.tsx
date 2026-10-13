@@ -33,7 +33,7 @@ export function MidiOutputEditor({ channel }: { channel: InstrumentChannel }) {
     <ControllerChoice<string> label={t("MIDI destination")} value={String(destination)} choices={[{ value: "-1", label: t("Disconnected") }, { value: "0", label: t("Hardware output") }, ...plugins]} change={(value) => route({ pluginDestination: Number(value) })} />
     {destination === 0 && <><ControllerChoice<string> label={t("MIDI output port")} value={String(port)} choices={Array.from({ length: 8 }, (_, index) => {
       const id = ids[index]
-      return { value: String(index), label: `${index === 0 ? "Main output" : message("Output slot {index}", { index: plainNumber(index) })}: ${hardware?.outputs.find((output) => output.id === id)?.name ?? "not connected"}` }
+      return { value: String(index), label: message("{slot}: {output}", { slot: index === 0 ? t("Main output") : message("Output slot {index}", { index: plainNumber(index) }), output: hardware?.outputs.find((output) => output.id === id)?.name ?? t("not connected") }) }
     })} change={(value) => route({ outputPort: Number(value) })} /><FieldDescription>{t("Configure output slots in MIDI settings. Missing ports stay disconnected.")}</FieldDescription></>}
     <ParamGroup title="MIDI channel and messages"><ParamRow>{instrumentDescriptor("midiOut").params.slice(0, 21).map((info) => <ParamControl key={info.id} {...bind(info.id)} label={info.name} />)}</ParamRow></ParamGroup>
   </div>

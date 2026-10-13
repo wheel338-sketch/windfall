@@ -450,7 +450,7 @@ export async function deleteTrack(id: PlaylistTrackId): Promise<void> {
   if (count > 0) {
     const choice = await askConfirm({
       title: message("Delete {trackName}?", { trackName: track.name }),
-      description: message("Its {count} {plural} will be deleted with it. Undo brings them back.", { count: plainNumber(count), plural: plural(count, "clip") }),
+      description: message("Its {shown} clips will be deleted with it. Undo brings them back.", { count, shown: plainNumber(count) }),
       choices: [
         { id: "delete", label: t("Delete track"), variant: "destructive" },
       ],

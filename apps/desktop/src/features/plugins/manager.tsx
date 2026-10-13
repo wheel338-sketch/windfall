@@ -145,7 +145,7 @@ export function PluginManager() {
                 </p>
                 <p className="text-muted-foreground">
                   {entry.instrument ? t("Instrument") : t("Effect")}
-                  {entry.error ? ` · ${entry.error && localizeBackendText(entry.error)}` : ""}
+                  {entry.error ? " · " : ""}{entry.error ? localizeBackendText(entry.error) : ""}
                 </p>
               </div>
               <Button

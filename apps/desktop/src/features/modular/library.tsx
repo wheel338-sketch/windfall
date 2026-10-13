@@ -85,6 +85,6 @@ export function RackLibrary({ channel, root }: { channel: Channel; root: RackGra
     <div className="flex flex-wrap gap-2">{RACK_EXAMPLES.map((name) => <Button key={name} variant="outline" disabled={busy} onClick={() => void action(async (guard) => {
       if (channel.source.type !== "instrument") throw new Error(t("An example rack requires an instrument channel"))
       await apply(exampleRack(name, channel.source.params), guard)
-    })}>{name}</Button>)}</div>
+    })}>{t(name)}</Button>)}</div>
   </section>
 }

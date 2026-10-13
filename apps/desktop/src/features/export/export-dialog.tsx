@@ -75,9 +75,9 @@ type Draft = Omit<ExportOptions, "patternLoops" | "tailSecs"> & {
   tailSecs: string
 }
 
-const NO_PATH = "Choose where to save the file."
-const BAD_LOOPS = `Enter a whole number from 1 to ${MAX_PATTERN_LOOPS}.`
-const BAD_TAIL = `Enter a number of seconds from 0 to ${MAX_TAIL_SECS}.`
+const NO_PATH = () => t("Choose where to save the file.")
+const BAD_LOOPS = () => message("Enter a whole number from 1 to {max}.", { max: plainNumber(MAX_PATTERN_LOOPS) })
+const BAD_TAIL = () => message("Enter a number of seconds from 0 to {max}.", { max: plainNumber(MAX_TAIL_SECS) })
 
 function ExportForm({ onDone }: { onDone(): void }) {
   const [mixerRequest] = useState(() => useMixerRender.getState().request)
@@ -139,9 +139,9 @@ function ExportForm({ onDone }: { onDone(): void }) {
     draft.mode === "song"
       ? (parsePatternLoops(draft.patternLoops) ?? 1)
       : parsePatternLoops(draft.patternLoops)
-  const pathError = pathAsked && path === "" ? NO_PATH : null
-  const loopsError = patternLoops === null ? BAD_LOOPS : null
-  const tailError = tailSecs === null ? BAD_TAIL : null
+  const pathError = pathAsked && path === "" ? NO_PATH() : null
+  const loopsError = patternLoops === null ? BAD_LOOPS() : null
+  const tailError = tailSecs === null ? BAD_TAIL() : null
   const stemsError =
     draft.stems?.tracks?.length === 0 && !draft.stems.includeMix
       ? t("Choose at least one track or include the full mix.")

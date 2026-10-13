@@ -33,7 +33,9 @@ export function NoteCharacter({ channel }: { channel: ChannelId | null }) {
       element.querySelector(`[data-limb="${name}"]`)?.setAttribute("transform", `rotate(${angle})`)
     }
     const title = element.ownerSVGElement?.querySelector("title")
-    if (title) title.textContent = `Moss: ${pose.name}${note ? message(", note {key}", { key: plainNumber(note.key) }) : ""}`
+    if (title) title.textContent = note
+      ? message("Moss: {pose}, note {key}", { pose: pose.name, key: plainNumber(note.key) })
+      : message("Moss: {pose}", { pose: pose.name })
   })
   return (
     <svg viewBox="0 0 200 200" role="img" aria-label={t("Moss note character")} className="h-52 w-full text-primary">

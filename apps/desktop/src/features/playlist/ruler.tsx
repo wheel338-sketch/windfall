@@ -207,7 +207,7 @@ export function Ruler({ metrics }: { metrics: GridMetrics }) {
   const lastSeek = useRef<number | null>(null)
   const hint = useHint(
     mode === "song"
-      ? `Click or drag to move the playhead. ${MODIFIER_HINTS.free}`
+      ? message("Click or drag to move the playhead. {free}", { free: MODIFIER_HINTS.free })
       : t("Click to set where the song starts. The transport is looping the pattern, so the song is not playing")
   )
 

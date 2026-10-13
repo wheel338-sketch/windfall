@@ -1,4 +1,4 @@
-import { dynamicTitle } from "@/lib/i18n"
+import { dynamicTitle, message, plainNumber } from "@/lib/i18n"
 import type { EffectKind } from "@/bindings"
 import { EFFECT_KINDS } from "@/features/params"
 import type { Action, AppState } from "@/lib/actions"
@@ -22,7 +22,7 @@ import {
 import { useEffectsUi } from "./effects-ui"
 
 const SECTION = "Mixer"
-const FULL = `Holds ${MAX_EFFECT_SLOTS} at most`
+const full = () => message("Holds {max} at most", { max: plainNumber(MAX_EFFECT_SLOTS) })
 
 export const addEffectActionId = (kind: EffectKind) => `mixer.addEffect.${kind}`
 export const replaceEffectActionId = (kind: EffectKind) =>
@@ -138,7 +138,7 @@ export const EFFECT_ACTIONS: Action[] = [
       return track !== undefined && !isFull(track.effects.length)
     },
     whyDisabled: (state) =>
-      isFull(selectedTrack(state)?.effects.length) ? FULL : undefined,
+      isFull(selectedTrack(state)?.effects.length) ? full() : undefined,
     run: async () => {
       const track = useUiStore.getState().selectedTrack
       if (track !== null) await addEffect(track, kind)
@@ -175,7 +175,7 @@ export const EFFECT_ACTIONS: Action[] = [
       return found !== undefined && !isFull(found.track.effects.length)
     },
     whyDisabled: (state) =>
-      isFull(target(state)?.track.effects.length) ? FULL : undefined,
+      isFull(target(state)?.track.effects.length) ? full() : undefined,
     run: onTarget(duplicateEffect),
   },
   {

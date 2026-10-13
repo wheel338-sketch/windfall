@@ -85,7 +85,7 @@ export function VideoPlayer({ placement }: { placement: VideoPlacement }) {
     element.style.visibility = clock?.playing && target !== null ? "visible" : "hidden"
     const result = follower.current.follow(element, clock, target)
     if (readout.current) {
-      readout.current.textContent = `Drift ${(result.drift * 1000).toFixed(1)} ms · ${result.correction} · driver latency ${clock ? clock.deviceLatencyFrames === null ? "unknown" : message("{deviceLatencyFrames} frames", { deviceLatencyFrames: plainNumber(clock.deviceLatencyFrames) }) : "unavailable"}`
+      readout.current.textContent = message("Drift {drift} ms · {correction} · driver latency {latency}", { drift: (result.drift * 1000).toFixed(1), correction: result.correction, latency: clock ? clock.deviceLatencyFrames === null ? t("unknown") : message("{deviceLatencyFrames} frames", { deviceLatencyFrames: plainNumber(clock.deviceLatencyFrames) }) : t("unavailable") })
       readout.current.dataset.correction = result.correction
     }
     if (clock?.playing && ["seek", "rate", "locked"].includes(result.correction) && element.paused && !playPending.current && !playingError) {

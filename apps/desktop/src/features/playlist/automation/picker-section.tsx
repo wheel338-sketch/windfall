@@ -30,9 +30,14 @@ const AutomationRow = memo(function AutomationRow({
   const where =
     clips === 0
       ? t("It has no clip yet, so it does nothing")
-      : `${clips === 1 ? "One clip shows" : message("{clips} clips show", { clips: plainNumber(clips) })} it, and an edit to one changes them all`
+      : message("{shown} clips show it, and an edit to one changes them all", { count: clips, shown: plainNumber(clips) })
   const hint = useHint(
-    `${automation.name} moves ${target}. ${where}. ${selected ? "Draw and Paint place more clips of it" : "Click to place clips of it"}. Double-click to rename, right-click for more`
+    message(
+      selected
+        ? "{name} moves {target}. {where}. Draw and Paint place more clips of it. Double-click to rename, right-click for more"
+        : "{name} moves {target}. {where}. Click to place clips of it. Double-click to rename, right-click for more",
+      { name: automation.name, target, where }
+    )
   )
 
   return (

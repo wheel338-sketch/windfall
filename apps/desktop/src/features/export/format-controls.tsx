@@ -12,7 +12,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { formatSampleRate } from "@/lib/time"
 
 import { Choice, type Option } from "./choice"
-import { translatedText as t } from "@/lib/i18n"
+import { message, plainNumber, translatedText as t } from "@/lib/i18n"
 
 type Settings = Pick<
   ExportOptions,
@@ -177,7 +177,7 @@ export function FormatControls({
               value={settings.oggQuality ?? 6}
               options={Array.from({ length: 12 }, (_, index) => ({
                 value: index - 1,
-                label: `${index - 1}${index === 0 ? " (smallest)" : index === 11 ? " (highest)" : ""}`,
+                label: index === 0 ? message("{value} (smallest)", { value: plainNumber(index - 1) }) : index === 11 ? message("{value} (highest)", { value: plainNumber(index - 1) }) : String(index - 1),
               }))}
               disabled={disabled}
               onChange={(value) => set("oggQuality", value)}
@@ -230,7 +230,7 @@ export function FormatControls({
                   value={mp3.rate.quality}
                   options={Array.from({ length: 10 }, (_, value) => ({
                     value,
-                    label: `${value}${value === 0 ? " (highest)" : value === 9 ? " (smallest)" : ""}`,
+                    label: value === 0 ? message("{value} (highest)", { value: plainNumber(value) }) : value === 9 ? message("{value} (smallest)", { value: plainNumber(value) }) : String(value),
                   }))}
                   disabled={disabled}
                   onChange={(quality) =>

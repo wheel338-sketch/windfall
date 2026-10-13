@@ -18,7 +18,7 @@ import { translatedText as t, message, plainNumber, dynamicTitle } from "@/lib/i
 function used(clips: number): string {
   return clips === 0
     ? t("not on the timeline yet")
-    : `on the timeline ${clips === 1 ? "once" : message("{clips} times", { clips: plainNumber(clips) })}`
+    : message("on the timeline {shown} times", { count: clips, shown: plainNumber(clips) })
 }
 
 /** Puts a clip of the sample at the song position, on a new track. */

@@ -3,7 +3,7 @@ import type {
   MasteringOptions,
   MasteringReview,
 } from "@/bindings"
-import { translatedText as t, message } from "@/lib/i18n"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 /*
  * Mastering on export: the form's side of `windfall_dsp::mastering`. The
@@ -231,5 +231,5 @@ export function reviewSummary(review: MasteringReview): string {
       ? `up to ${review.limitingDb.toFixed(1)} dB of limiting`
       : "no limiting"
   )
-  return `${parts.join(", ")}, in ${review.passes} passes.`
+  return message("{parts}, in {passes} passes.", { parts: parts.join(", "), passes: plainNumber(review.passes) })
 }

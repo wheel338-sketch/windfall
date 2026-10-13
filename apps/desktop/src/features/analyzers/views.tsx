@@ -374,7 +374,7 @@ export function PeakMeter({ slot, floorDb }: ViewProps & { floorDb: number }) {
           className="flex flex-col gap-1"
         >
           <div className="flex items-baseline justify-between font-readout tabular-nums">
-            <span className="text-xs text-display-dim">{name}</span>
+            <span className="text-xs text-display-dim">{t(name)}</span>
             <span
               data-part="readout"
               className="text-base text-display-foreground"

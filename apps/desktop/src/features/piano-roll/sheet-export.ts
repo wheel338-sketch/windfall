@@ -109,7 +109,8 @@ export function printSheet(
     .forEach((node) => node.remove())
   const style = document.createElement("style")
   style.setAttribute(PRINT_ATTRIBUTE, "style")
-  style.textContent = [
+  // A print stylesheet, not a caption.
+  style.append([
     `@page { size: ${PAPERS[paper].css} portrait; margin: 0; }`,
     `div[${PRINT_ATTRIBUTE}] { display: none; }`,
     "@media print {",
@@ -119,7 +120,7 @@ export function printSheet(
     `  div[${PRINT_ATTRIBUTE}] > div:last-child { break-after: auto; page-break-after: auto; }`,
     `  div[${PRINT_ATTRIBUTE}] svg { display: block; width: 100%; height: auto; }`,
     "}",
-  ].join("\n")
+  ].join("\n"))
   const sheets = document.createElement("div")
   sheets.setAttribute(PRINT_ATTRIBUTE, "pages")
   for (const page of pages) {

@@ -64,7 +64,7 @@ export function graphFraction(note: Note, property: GraphProperty, lengthRange: 
 
 export function graphReadout(property: GraphProperty, value: number): string {
   if (property === "velocity" || property === "release" || property === "modulationX" || property === "modulationY") return `${Math.round(value * 100)}%`
-  if (property === "pan") return value === 0 ? t("Center") : `${Math.round(Math.abs(value) * 100)}% ${value < 0 ? "left" : "right"}`
+  if (property === "pan") return value === 0 ? t("Center") : message(value < 0 ? "{percent}% left" : "{percent}% right", { percent: plainNumber(Math.round(Math.abs(value) * 100)) })
   if (property === "key") return `MIDI ${Math.round(value)}`
   if (property === "finePitchCents") return message("{value}{value2} cents", { value: value > 0 ? t("+") : "", value2: plainNumber(Math.round(value)) })
   return message("{value} ticks", { value: plainNumber(Math.round(value)) })

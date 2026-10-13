@@ -245,15 +245,17 @@ export function describeLength(
 ): string {
   if (timeline?.meters.length) {
     const position = musicalPosition(lengthSteps * TICKS_PER_STEP, signature, timeline.meters)
-    if (position.beat === 1 && position.tick === 0) return `${position.bar - 1} ${position.bar === 2 ? "bar" : "bars"}`
-    return `ends at ${position.bar}.${position.beat}${position.tick ? message(" + {tick} ticks", { tick: plainNumber(position.tick) }) : ""}`
+    if (position.beat === 1 && position.tick === 0) return message("{shown} bars", { count: position.bar - 1, shown: plainNumber(position.bar - 1) })
+    return position.tick
+      ? message("ends at {bar}.{beat} + {tick} ticks", { bar: plainNumber(position.bar), beat: plainNumber(position.beat), tick: plainNumber(position.tick) })
+      : message("ends at {bar}.{beat}", { bar: plainNumber(position.bar), beat: plainNumber(position.beat) })
   }
   const bar = stepsPerBar(signature)
   const bars = Math.floor(lengthSteps / bar)
   const rest = lengthSteps % bar
-  const stepsText = `${rest} ${rest === 1 ? "step" : "steps"}`
+  const stepsText = message("{shown} steps", { count: rest, shown: plainNumber(rest) })
   if (bars === 0) return stepsText
-  const barsText = `${bars} ${bars === 1 ? "bar" : "bars"}`
+  const barsText = message("{shown} bars", { count: bars, shown: plainNumber(bars) })
   return rest === 0 ? barsText : message("{barsText} and {stepsText}", { barsText, stepsText })
 }
 

@@ -91,7 +91,7 @@ function CompEditor({ sources, group }: { sources: Clip[], group: AudioTakeGroup
         <table className="w-full text-sm"><thead className="bg-muted text-left"><tr><th className="p-2">{t("From beat")}</th><th className="p-2">{t("To beat")}</th><th className="p-2">{t("Source take")}</th><th className="p-2">{t("Edit")}</th></tr></thead><tbody>{segments.map((segment, index) => {
           const items = options.map((clip, ordinal) => {
             const sampleId = clip.content.type === "audio" ? clip.content.sample : null
-            return { value: clip.id, label: group ? message("Pass {pass}", { pass: plainNumber((commonPasses.find((take) => take.clip === clip.id)?.pass ?? 0) + 1) }) : `${ordinal + 1}. ${samples.find((sample) => sample.id === sampleId)?.name ?? "Audio"}` }
+            return { value: clip.id, label: group ? message("Pass {pass}", { pass: plainNumber((commonPasses.find((take) => take.clip === clip.id)?.pass ?? 0) + 1) }) : message("{index}. {title}", { index: ordinal + 1, title: samples.find((sample) => sample.id === sampleId)?.name ?? t("Audio") }) }
           })
           return <tr key={index} className="border-t">
             {(["start", "end"] as const).map((edge) => <td key={edge} className="p-1"><Input aria-label={message("Range {index} {edge} beat", { index: plainNumber(index + 1), edge })} className="w-24" type="number" min={0} step={0.25} value={segment[edge] / PPQ} disabled={busy} onChange={(event) => { const value = Number(event.target.value); if (Number.isFinite(value)) patch(index, { [edge]: Math.max(0, Math.round(value * PPQ)) }) }} /></td>)}

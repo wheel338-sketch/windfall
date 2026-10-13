@@ -4,7 +4,7 @@ import type { EffectParams } from "@/bindings"
 import { formatMs, ToggleLed } from "@/components/audio"
 import { Button } from "@/components/ui/button"
 import {
-  formatParam,
+  formatParamDisplay,
   ParamControl,
   ParamGroup,
   ParamRow,
@@ -59,7 +59,7 @@ function UnitTile({ unit, selected, routing, bind, onSelect }: UnitTileProps) {
   const synced = bind.value(unitParam(unit, "sync")) >= 0.5
   const division = bind.info(unitParam(unit, "division"))
   const time = synced
-    ? formatParam(division, bind.value(unitParam(unit, "division")))
+    ? formatParamDisplay(division, bind.value(unitParam(unit, "division")))
     : formatMs(bind.value(unitParam(unit, "timeMs")))
   const takesInput = routing.inputGain !== 0
   const plays = routing.outputGain !== 0
@@ -176,7 +176,7 @@ function UnitChain({ selected, onSelect, bind }: UnitChainProps) {
                 {...bind(unitParam(unit, "nextSend"))}
                 size="sm"
                 label={null}
-                description={`How much of unit ${unit + 1} goes on into unit ${unit + 2}. Below zero it goes in inverted. At zero the two are side by side`}
+                description={message("How much of unit {unit} goes on into unit {next}. Below zero it goes in inverted. At zero the two are side by side", { unit: plainNumber(unit + 1), next: plainNumber(unit + 2) })}
               />
               <span
                 aria-hidden
@@ -271,7 +271,7 @@ function UnitPanel({ unit, bind }: UnitPanelProps) {
       className="grid grid-cols-[repeat(auto-fit,minmax(11.5rem,1fr))] items-start gap-2"
     >
       <ParamGroup
-        title={`Unit ${number} time`}
+        title={message("Unit {number} time", { number: plainNumber(number) })}
         aside={
           <ParamControl
             {...bind(id("sync"))}

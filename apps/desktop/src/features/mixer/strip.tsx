@@ -210,13 +210,10 @@ function Routing({ track, sendRows }: { track: StripTrack; sendRows: number }) {
 
 function stripLabel(track: StripTrack, index: number, audible: Audibility) {
   const place = track.id === MASTER_TRACK ? t("master track") : message("track {index}", { index: plainNumber(index) })
-  const state =
-    audible === "muted"
-      ? t(", muted")
-      : audible === "silenced"
-        ? t(", silenced by solo")
-        : ""
-  return `${track.name}, ${place}${state}`
+  return message(
+    audible === "muted" ? "{name}, {place}, muted" : audible === "silenced" ? "{name}, {place}, silenced by solo" : "{name}, {place}",
+    { name: track.name, place }
+  )
 }
 
 const LEVEL_LAYOUT: Record<StripMode, LevelLayout> = {

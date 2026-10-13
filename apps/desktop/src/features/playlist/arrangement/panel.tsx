@@ -597,7 +597,7 @@ export function ArrangementPanel({
                   {group.clips
                     .map(
                       (id) =>
-                        `${id} (${clips.find((clip) => clip.id === id)?.name ?? "Missing clip"})`
+                        message("{id} ({name})", { id: String(id), name: clips.find((clip) => clip.id === id)?.name ?? t("Missing clip") })
                     )
                     .join(", ")}
                 </FieldDescription>

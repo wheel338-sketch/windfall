@@ -33,6 +33,8 @@ export const exportEn = {
   "Each file is the song with only that track's pattern and audio clips placed, heard through its mixer tracks, buses and the master. Automation plays in every file. Compressors, limiters and sidechains react to each track alone, so the files add up to the mix only where the path is linear.": "Each file is the song with only that track's pattern and audio clips placed, heard through its mixer tracks, buses and the master. Automation plays in every file. Compressors, limiters and sidechains react to each track alone, so the files add up to the mix only where the path is linear.",
   "Each stem contains": "Each stem contains",
   "Enter a new destination folder.": "Enter a new destination folder.",
+  "Enter a number of seconds from 0 to {max}.": "Enter a number of seconds from 0 to {max}.",
+  "Enter a whole number from 1 to {max}.": "Enter a whole number from 1 to {max}.",
   "Export as a plugin": "Export as a plugin",
   "Export cancelled": "Export cancelled",
   "Export each playlist track to its own file": "Export each playlist track to its own file",
@@ -108,9 +110,12 @@ export const exportEn = {
   "Windfall plugin runtime file": "Windfall plugin runtime file",
   "silent": "silent",
   "{count} files": "{count} files",
+  "{parts}, in {passes} passes.": "{parts}, in {passes} passes.",
   "{short} LU over the target of {target}.": "{short} LU over the target of {target}.",
   "{short} LU under the target of {target}: this mix cannot be that loud under a ceiling of {ceiling} without being crushed. Lower the target or raise the ceiling.": "{short} LU under the target of {target}: this mix cannot be that loud under a ceiling of {ceiling} without being crushed. Lower the target or raise the ceiling.",
   "{signed} dB of gain": "{signed} dB of gain",
+  "{value} (highest)": "{value} (highest)",
+  "{value} (smallest)": "{value} (smallest)",
 } as const
 
 export const exportEs = {
@@ -146,6 +151,8 @@ export const exportEs = {
   "Each file is the song with only that track's pattern and audio clips placed, heard through its mixer tracks, buses and the master. Automation plays in every file. Compressors, limiters and sidechains react to each track alone, so the files add up to the mix only where the path is linear.": "Cada archivo es la canción con solo los clips de patrón y de audio de esa pista, oídos a través de sus pistas del mezclador, los buses y la pista maestra. La automatización suena en todos los archivos. Los compresores, los limitadores y las cadenas laterales reaccionan a cada pista por separado, así que los archivos solo suman la mezcla allí donde la ruta es lineal.",
   "Each stem contains": "Cada stem contiene",
   "Enter a new destination folder.": "Introduce una carpeta de destino nueva.",
+  "Enter a number of seconds from 0 to {max}.": "Introduce un número de segundos de 0 a {max}.",
+  "Enter a whole number from 1 to {max}.": "Introduce un número entero de 1 a {max}.",
   "Export as a plugin": "Exportar como plugin",
   "Export cancelled": "Exportación cancelada",
   "Export each playlist track to its own file": "Exportar cada pista de la lista de reproducción a su propio archivo",
@@ -221,7 +228,10 @@ export const exportEs = {
   "Windfall plugin runtime file": "Archivo del entorno de ejecución de plugins de Windfall",
   "silent": "silencio",
   "{count} files": "{count} archivos",
+  "{parts}, in {passes} passes.": "{parts}, en {passes} pasadas.",
   "{short} LU over the target of {target}.": "{short} LU por encima del objetivo de {target}.",
   "{short} LU under the target of {target}: this mix cannot be that loud under a ceiling of {ceiling} without being crushed. Lower the target or raise the ceiling.": "{short} LU por debajo del objetivo de {target}: esta mezcla no puede sonar tan fuerte bajo un techo de {ceiling} sin quedar aplastada. Baja el objetivo o sube el techo.",
   "{signed} dB of gain": "{signed} dB de ganancia",
+  "{value} (highest)": "{value} (la más alta)",
+  "{value} (smallest)": "{value} (el más pequeño)",
 } satisfies Record<keyof typeof exportEn, Message>

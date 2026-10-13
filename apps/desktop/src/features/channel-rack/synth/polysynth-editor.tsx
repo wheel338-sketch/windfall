@@ -85,7 +85,7 @@ export function PolysynthEditor({ channel, params }: { channel: ChannelId; param
     {params.type === "packSynth" && <PackBrowser bind={bind} />}
     {params.type === "matrixSynth" && (["fm", "ring"] as const).map((matrix) => <ParamGroup key={matrix} title={matrix === "fm" ? "FM routing matrix" : "Ring routing matrix"}>
       <p className="text-muted-foreground">{t("Rows receive modulation from the operators shown above each column.")}</p>
-      <div className="overflow-auto"><table aria-label={message("{matrix} operator routing", { matrix: matrix.toUpperCase() })}>
+      <div className="overflow-auto"><table aria-label={matrix === "fm" ? t("FM operator routing") : t("Ring operator routing")}>
         <thead><tr><th scope="col">{t("Destination / Source")}</th>{Array.from({ length: 6 }, (_, source) => <th key={source} scope="col">Op {source + 1}</th>)}</tr></thead>
         <tbody>{Array.from({ length: 6 }, (_, destination) => <tr key={destination}><th scope="row">Op {destination + 1}</th>
           {Array.from({ length: 6 }, (_, source) => <td key={source}><ParamControl size="sm" {...bind(`${matrix}.${destination}.${source}`)} /></td>)}

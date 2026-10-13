@@ -37,7 +37,7 @@ export function ScaleHighlightControl() {
   const label =
     choice.scale === "off"
       ? t("Off")
-      : `${PITCH_CLASSES[choice.root]} ${scale.label}`
+      : message("{root} {scale}", { root: PITCH_CLASSES[choice.root], scale: scale.label })
 
   return (
     <DropdownMenu>

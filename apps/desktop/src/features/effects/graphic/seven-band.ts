@@ -1,3 +1,4 @@
+import { translatedText as t } from "@/lib/i18n"
 import { formatDb, formatHz } from "@/components/audio"
 
 import { IDENTITY, peak, type Section } from "../response/curve"
@@ -40,7 +41,7 @@ export function describeBands(
   const moved = frequenciesHz
     .map((hz, index) => ({ hz, gain: gainsDb[index] ?? 0 }))
     .filter((band) => band.gain !== 0)
-  if (moved.length === 0) return "flat"
+  if (moved.length === 0) return t("flat")
   return moved
     .map((band) => `${formatHz(band.hz)} ${formatDb(band.gain, 1)}`)
     .join(", ")

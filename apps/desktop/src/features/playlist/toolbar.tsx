@@ -188,7 +188,9 @@ function StepToggle() {
   const step = usePlaylistStore((state) => state.step)
   const shortcut = useShortcutLabel("playlist.step")
   const hint = useHint(
-    `Step${shortcut ? ` (${shortcut})` : ""}: drag across an automation curve to write held points on the snap grid`
+    shortcut
+      ? message("Step ({shortcut}): drag across an automation curve to write held points on the snap grid", { shortcut })
+      : t("Step: drag across an automation curve to write held points on the snap grid")
   )
   return (
     <Button

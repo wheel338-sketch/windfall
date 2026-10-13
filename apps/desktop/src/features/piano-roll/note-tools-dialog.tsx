@@ -538,7 +538,7 @@ function ToolForm({ request }: { request: ToolRequest }) {
                   items={[
                     { value: "remove", label: t("Remove") },
                     { value: "add", label: t("Add") },
-                    { value: "shift", label: "Shift" },
+                    { value: "shift", label: t("Shift") },
                   ]}
                 />
                 <NumberField

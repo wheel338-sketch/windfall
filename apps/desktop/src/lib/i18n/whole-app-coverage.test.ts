@@ -87,7 +87,7 @@ describe("whole application localization admission", () => {
     `, hasKey)).toEqual([])
     expect(localizationViolations("fixture.ts", 'import { message } from "@/lib/i18n"; toast.error(message("missing.fixture.key"))', hasKey))
       .toEqual([expect.objectContaining({ text: "missing.fixture.key" })])
-    for (const reason of [...Object.values(invariantLiterals), ...invariantPatterns.map((entry) => entry.reason), ...Object.values(sameAsEnglish)])
+    for (const reason of [...Object.values(invariantLiterals), ...invariantPatterns.map(([, reason]) => reason), ...Object.values(sameAsEnglish)])
       expect(reason.trim().length).toBeGreaterThan(10)
     expect(localizationViolations("fixture.tsx", 'function t(value: string) { return value }; const view = <span>{t("Raw caption")}</span>', hasKey))
       .toEqual([expect.objectContaining({ text: "Raw caption" })])
@@ -114,6 +114,23 @@ describe("whole application localization admission", () => {
       const view = (kind: "meter" | "scope") => <span title={NAMES[kind]}>{NAMES[kind]}</span>;
     `, hasKey)
     expect(failures.map(({ text }) => text).sort()).toEqual(["Oscilloscope", "Peak meter"])
+  })
+  it("leaves closed code values and literal syntax samples alone, and nothing else", () => {
+    const failures = localizationViolations("fixture.tsx", `
+      type Reason = "desktopRequired" | "stale";
+      type Status = { reason: Reason | null; label: string };
+      const status: Status = { reason: "desktopRequired", label: "Open caption" };
+      const view = <p>Type <code>kick OR snare</code> to search</p>;
+    `, hasKey)
+    expect(failures.map(({ text }) => text).sort()).toEqual(["Open caption", "Type", "to search"])
+  })
+  it("tells arithmetic from a concatenated phrase", () => {
+    const failures = localizationViolations("fixture.tsx", `
+      const first = value("preDelayMs") + 3.7 * (0.6 + value("size"));
+      const view = <p>{first}<span>{"Delay: " + first}</span></p>;
+    `, hasKey)
+    expect(failures.map(({ context }) => context)).toContain("concatenated display phrase")
+    expect(failures.some(({ text }) => text.includes("3.7"))).toBe(false)
   })
   it("rejects semantic string parameters and concatenations of translated fragments", () => {
     const failures = localizationViolations("fixture.tsx", `

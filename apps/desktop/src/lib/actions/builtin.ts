@@ -76,7 +76,7 @@ export function deviceInfo(status: EngineStatus): string {
   }
   const plugins =
     status.latencyFrames > 0 ? message(", plus {latencyFrames} samples", { latencyFrames: plainNumber(status.latencyFrames) }) : ""
-  return `${status.host} ${status.device ?? "default device"}, ${formatSampleRate(status.sampleRate)}, ${status.bufferFrames} samples, ${status.latencyMs.toFixed(1)} ms${plugins}`
+  return message("{host} {device}, {rate}, {buffer} samples, {latency} ms{plugins}", { host: status.host, device: status.device ?? t("default device"), rate: formatSampleRate(status.sampleRate), buffer: plainNumber(status.bufferFrames), latency: status.latencyMs.toFixed(1), plugins })
 }
 
 async function copyDeviceInfo() {

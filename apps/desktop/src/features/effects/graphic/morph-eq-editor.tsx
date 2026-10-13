@@ -155,7 +155,7 @@ export function MorphEqEditor({ params, bind }: EditorProps<MorphEqParams>) {
             key={curveGainId(curve, band)}
             binding={bind(curveGainId(curve, band))}
             label={MORPH_CURVE_LABELS[band]}
-            description={`Boost or cut around this frequency in curve ${name}`}
+            description={message("Boost or cut around this frequency in curve {name}", { name })}
           />
         ))}
       </div>

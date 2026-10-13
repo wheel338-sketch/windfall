@@ -7,6 +7,7 @@ export const videoEn = {
   "AVI has no bounded supported picture stream": "AVI has no bounded supported picture stream",
   "AVI picture decoder unavailable: choose uncompressed RGB AVI or a webview-supported file": "AVI picture decoder unavailable: choose uncompressed RGB AVI or a webview-supported file",
   "Choose a local video and set its start, duration and source offset.": "Choose a local video and set its start, duration and source offset.",
+  "Drift {drift} ms · {correction} · driver latency {latency}": "Drift {drift} ms · {correction} · driver latency {latency}",
   "Edit timeline video {index} at tick {startTick}": "Edit timeline video {index} at tick {startTick}",
   "Frame {index} | source {target} s | audio presentation clock": "Frame {index} | source {target} s | audio presentation clock",
   "Invalid AVI frame or pixel surface": "Invalid AVI frame or pixel surface",
@@ -34,6 +35,7 @@ export const videoEn = {
   "Video {index} source offset seconds": "Video {index} source offset seconds",
   "Video {index} start tick": "Video {index} start tick",
   "Waiting for the audio presentation clock": "Waiting for the audio presentation clock",
+  "unknown": "unknown",
   "{deviceLatencyFrames} frames": "{deviceLatencyFrames} frames",
 } as const
 
@@ -44,6 +46,7 @@ export const videoEs = {
   "AVI has no bounded supported picture stream": "El AVI no tiene ningún flujo de imagen compatible y acotado",
   "AVI picture decoder unavailable: choose uncompressed RGB AVI or a webview-supported file": "Decodificador de imagen AVI no disponible: elige un AVI RGB sin comprimir o un archivo compatible con el webview",
   "Choose a local video and set its start, duration and source offset.": "Elige un vídeo local y define su inicio, su duración y su desplazamiento en la fuente.",
+  "Drift {drift} ms · {correction} · driver latency {latency}": "Deriva {drift} ms · {correction} · latencia del controlador {latency}",
   "Edit timeline video {index} at tick {startTick}": "Editar el vídeo {index} de la línea de tiempo en el tick {startTick}",
   "Frame {index} | source {target} s | audio presentation clock": "Fotograma {index} | fuente {target} s | reloj de presentación de audio",
   "Invalid AVI frame or pixel surface": "Fotograma o superficie de píxeles AVI no válidos",
@@ -71,5 +74,6 @@ export const videoEs = {
   "Video {index} source offset seconds": "Desplazamiento en la fuente del vídeo {index} (segundos)",
   "Video {index} start tick": "Tick de inicio del vídeo {index}",
   "Waiting for the audio presentation clock": "Esperando al reloj de presentación de audio",
+  "unknown": "desconocida",
   "{deviceLatencyFrames} frames": "{deviceLatencyFrames} fotogramas",
 } satisfies Record<keyof typeof videoEn, Message>

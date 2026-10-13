@@ -672,10 +672,9 @@ const ACTIONS: Action[] = [
 
   ...SNAP_OPTIONS.map((option): Action => ({
     id: `pianoRoll.snap.${option.id}`,
-    title:
-      option.id === "none"
-        ? "Turn snap off"
-        : `Snap to ${option.label.toLowerCase()}`,
+    ...(option.id === "none"
+      ? dynamicTitle("Turn snap off", {})
+      : dynamicTitle("Snap to {value0}", { value0: option.label.toLowerCase() })),
     section: SECTION,
     keywords: "grid magnet",
     checked: () => roll().snap === option.id,

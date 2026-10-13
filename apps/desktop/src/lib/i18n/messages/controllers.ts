@@ -2,7 +2,10 @@ import type { Message } from "../types"
 
 export const controllersEn = {
   "Add a controller in a mixer effect slot or add a Dashboard channel": "Add a controller in a mixer effect slot or add a Dashboard channel",
+  "Any MIDI device": "Any MIDI device",
   "Apply controller link": "Apply controller link",
+  "Channel {index} pan": "Channel {index} pan",
+  "Channel {index} volume": "Channel {index} volume",
   "Clear note log": "Clear note log",
   "Controller link was refused. Check the mapping and try again.": "Controller link was refused. Check the mapping and try again.",
   "Controller mode": "Controller mode",
@@ -30,6 +33,8 @@ export const controllersEn = {
   "MIDI record": "MIDI record",
   "MIDI recording status": "MIDI recording status",
   "Master volume": "Master volume",
+  "Mixer strip {index} pan": "Mixer strip {index} pan",
+  "Mixer strip {index} volume": "Mixer strip {index} volume",
   "Move a control on screen first": "Move a control on screen first",
   "Move a hardware control to link it": "Move a hardware control to link it",
   "Move controls on screen, then move the hardware controls in the same order.": "Move controls on screen, then move the hardware controls in the same order.",
@@ -72,12 +77,16 @@ export const controllersEn = {
   "Toggle song loop": "Toggle song loop",
   "Undo takes the notes out again. The log keeps them.": "Undo takes the notes out again. The log keeps them.",
   "linked.": "linked.",
+  "{device} · {channel} · {control}": "{device} · {channel} · {control}",
   "{pending} notes captured": "{pending} notes captured",
 } as const
 
 export const controllersEs = {
   "Add a controller in a mixer effect slot or add a Dashboard channel": "Añade un controlador en una ranura de efectos del mezclador o añade un canal Dashboard",
+  "Any MIDI device": "Cualquier dispositivo MIDI",
   "Apply controller link": "Aplicar enlace de controlador",
+  "Channel {index} pan": "Panorama del canal {index}",
+  "Channel {index} volume": "Volumen del canal {index}",
   "Clear note log": "Borrar registro de notas",
   "Controller link was refused. Check the mapping and try again.": "Se rechazó el enlace de controlador. Revisa la asignación e inténtalo de nuevo.",
   "Controller mode": "Modo del controlador",
@@ -105,6 +114,8 @@ export const controllersEs = {
   "MIDI record": "Grabación MIDI",
   "MIDI recording status": "Estado de la grabación MIDI",
   "Master volume": "Volumen maestro",
+  "Mixer strip {index} pan": "Panorama del canal {index} del mezclador",
+  "Mixer strip {index} volume": "Volumen del canal {index} del mezclador",
   "Move a control on screen first": "Mueve antes un control en pantalla",
   "Move a hardware control to link it": "Mueve un control del hardware para enlazarlo",
   "Move controls on screen, then move the hardware controls in the same order.": "Mueve controles en pantalla y después mueve los controles del hardware en el mismo orden.",
@@ -147,5 +158,6 @@ export const controllersEs = {
   "Toggle song loop": "Toggle song loop",
   "Undo takes the notes out again. The log keeps them.": "Deshacer vuelve a quitar las notas. El registro las conserva.",
   "linked.": "enlazados.",
+  "{device} · {channel} · {control}": "{device} · {channel} · {control}",
   "{pending} notes captured": "{pending} notas capturadas",
 } satisfies Record<keyof typeof controllersEn, Message>

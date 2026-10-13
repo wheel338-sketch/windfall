@@ -111,7 +111,7 @@ function RackBankEditor({ asset, soundFont, apply }: { asset: RackNodeAsset | nu
           if (revision !== useProjectStore.getState().revision) throw new Error(t("Project changed during SoundFont import; choose the file again"))
           return update({ type: "soundFont", name: file.name, bank, program, bytes: Array.from(new Uint8Array(bytes)) })
         }).catch((cause: unknown) => { if (ticket === request.current && generation === getProjectGeneration()) setError(cause instanceof Error ? cause.message : String(cause)) })
-      }} /><FieldDescription>{asset?.type === "soundFont" ? `${asset.name}: ${asset.bytes ? "embedded in rack presets" : "missing; choose a replacement file"}` : t("SoundFont bytes and the selected preset travel with the rack")}</FieldDescription></Field>
+      }} /><FieldDescription>{asset?.type === "soundFont" ? message(asset.bytes ? "{name}: embedded in rack presets" : "{name}: missing; choose a replacement file", { name: asset.name }) : t("SoundFont bytes and the selected preset travel with the rack")}</FieldDescription></Field>
     </>}
     <Button variant="outline" disabled={!asset} onClick={() => { ++request.current; void update(null) }}>{t("Clear rack bank")}</Button>
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}

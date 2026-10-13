@@ -28,6 +28,7 @@ export const internalControllersEn = {
   "Formula was refused. Check its syntax and bounds.": "Formula was refused. Check its syntax and bounds.",
   "Installed:": "Installed:",
   "Keyboard control source": "Keyboard control source",
+  "MIDI CC {output} (-1 disables)": "MIDI CC {output} (-1 disables)",
   "Mapping formula (x)": "Mapping formula (x)",
   "Master": "Master",
   "Note envelope source": "Note envelope source",
@@ -49,6 +50,7 @@ export const internalControllersEn = {
   "calibration": "calibration",
   "effect parameter {param}": "effect parameter {param}",
   "parameter {param}": "parameter {param}",
+  "{owner} · {target}": "{owner} · {target}",
   "· output": "· output",
 } as const
 
@@ -80,6 +82,7 @@ export const internalControllersEs = {
   "Formula was refused. Check its syntax and bounds.": "Se rechazó la fórmula. Comprueba su sintaxis y sus límites.",
   "Installed:": "Instalada:",
   "Keyboard control source": "Fuente de control por teclado",
+  "MIDI CC {output} (-1 disables)": "CC MIDI {output} (-1 lo desactiva)",
   "Mapping formula (x)": "Fórmula de asignación (x)",
   "Master": "Maestra",
   "Note envelope source": "Fuente de envolvente de nota",
@@ -101,5 +104,6 @@ export const internalControllersEs = {
   "calibration": "calibración",
   "effect parameter {param}": "parámetro de efecto {param}",
   "parameter {param}": "parámetro {param}",
+  "{owner} · {target}": "{owner} · {target}",
   "· output": "· salida",
 } satisfies Record<keyof typeof internalControllersEn, Message>

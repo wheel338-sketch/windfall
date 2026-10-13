@@ -1,7 +1,7 @@
 import type { DelayParams, NoteDivision } from "@/bindings"
 import { formatMs } from "@/components/audio"
 import {
-  formatParam,
+  formatParamDisplay,
   ParamControl,
   ParamGroup,
   ParamRow,
@@ -82,7 +82,7 @@ export function DelayEditor({ bind }: EditorProps<DelayParams>) {
             </span>
             <span className="block font-readout text-[11px] text-foreground">
               {synced
-                ? formatParam(division, bind.value("division"))
+                ? formatParamDisplay(division, bind.value("division"))
                 : formatMs(timeMs)}
             </span>
             {equivalent}

@@ -143,6 +143,7 @@ export const sharedEn = {
   "ticks": "ticks",
   "to": "to",
   "{channelName} steps": "{channelName} steps",
+  "{index}. {title}": "{index}. {title}",
 } as const
 
 export const sharedEs = {
@@ -288,4 +289,5 @@ export const sharedEs = {
   "ticks": "ticks",
   "to": "a",
   "{channelName} steps": "Pasos de {channelName}",
+  "{index}. {title}": "{index}. {title}",
 } satisfies Record<keyof typeof sharedEn, Message>

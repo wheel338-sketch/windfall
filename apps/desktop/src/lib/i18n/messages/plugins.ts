@@ -15,6 +15,7 @@ export const pluginsEn = {
   "This plugin is unavailable": "This plugin is unavailable",
   "Unknown built-in effect": "Unknown built-in effect",
   "Unknown built-in instrument": "Unknown built-in instrument",
+  "{input} · {layout}": "{input} · {layout}",
 } as const
 
 export const pluginsEs = {
@@ -32,4 +33,5 @@ export const pluginsEs = {
   "This plugin is unavailable": "Este plugin no está disponible",
   "Unknown built-in effect": "Efecto integrado desconocido",
   "Unknown built-in instrument": "Instrumento integrado desconocido",
+  "{input} · {layout}": "{input} · {layout}",
 } satisfies Record<keyof typeof pluginsEn, Message>

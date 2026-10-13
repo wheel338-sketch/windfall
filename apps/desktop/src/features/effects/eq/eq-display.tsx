@@ -13,7 +13,7 @@ import {
 } from "react"
 
 import type { EqParams } from "@/bindings"
-import { formatParam, type ParamBinder } from "@/features/params"
+import { formatParamDisplay, type ParamBinder } from "@/features/params"
 import { useHint } from "@/lib/store"
 import { clamp } from "@/lib/units"
 import { cn } from "@/lib/utils"
@@ -114,9 +114,9 @@ function tracePath(
 
 function describe(bind: ParamBinder, spec: BandSpec, params: EqParams) {
   const point = bandPoint(params, spec.id)
-  const parts = [formatParam(bind.info(spec.frequency), point.frequencyHz)]
-  if (spec.gain) parts.push(formatParam(bind.info(spec.gain), point.gainDb))
-  parts.push(`Q ${formatParam(bind.info(spec.q), point.q)}`)
+  const parts = [formatParamDisplay(bind.info(spec.frequency), point.frequencyHz)]
+  if (spec.gain) parts.push(formatParamDisplay(bind.info(spec.gain), point.gainDb))
+  parts.push(`Q ${formatParamDisplay(bind.info(spec.q), point.q)}`)
   return parts
 }
 

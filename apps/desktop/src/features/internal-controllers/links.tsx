@@ -27,7 +27,7 @@ export function SourceLinks({ controller }: { controller: number }) {
       <div className="grid grid-cols-3 gap-2">
         {(["min", "max", "smoothingMs"] as const).map((field) => <Field key={field}>
           <FieldLabel>{field === "smoothingMs" ? t("Smoothing (ms)") : field === "min" ? t("Range start") : t("Range end")}</FieldLabel>
-          <Input aria-label={field} type="number" min={0} max={field === "smoothingMs" ? 5000 : 1} step={field === "smoothingMs" ? 1 : 0.01} defaultValue={link.map[field]} key={link.map[field]} onBlur={(event) => { const value = Number(event.currentTarget.value); if (Number.isFinite(value)) change(link, { [field]: value }); }} />
+          <Input aria-label={field === "smoothingMs" ? t("Smoothing (ms)") : field === "min" ? t("Range start") : t("Range end")} type="number" min={0} max={field === "smoothingMs" ? 5000 : 1} step={field === "smoothingMs" ? 1 : 0.01} defaultValue={link.map[field]} key={link.map[field]} onBlur={(event) => { const value = Number(event.currentTarget.value); if (Number.isFinite(value)) change(link, { [field]: value }); }} />
         </Field>)}
       </div>
       <Field><FieldLabel>{t("Mapping formula (x)")}</FieldLabel><Input aria-label={t("Mapping formula")} defaultValue={link.map.formula ?? ""} key={link.map.formula ?? ""} onBlur={(e) => change(link, { formula: e.currentTarget.value || undefined })} /></Field>

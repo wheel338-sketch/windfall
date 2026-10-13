@@ -27,7 +27,7 @@ export function ScaleControls() {
   const id = usePianoRollStore((state) => state.scaleId)
   const highlight = usePianoRollStore((state) => state.highlightScale)
   const snap = usePianoRollStore((state) => state.snapToScale)
-  const label = `${ROOT_NAMES[root]} ${scaleDefinition(id).label}`
+  const label = message("{root} {scale}", { root: ROOT_NAMES[root], scale: scaleDefinition(id).label })
 
   return (
     <DropdownMenu>

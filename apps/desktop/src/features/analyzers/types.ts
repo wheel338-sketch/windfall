@@ -249,7 +249,7 @@ export function unavailableAnalyzer(): AnalyzerBackend {
     analyzerCapability: () =>
       Promise.resolve({
         native: false,
-        reason: "desktopRequired",
+        reason: "desktopRequired" satisfies AnalyzerReason,
         captures: 0,
         subscriptions: 0,
         fftSize: 0,

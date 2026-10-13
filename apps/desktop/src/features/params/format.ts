@@ -83,6 +83,11 @@ export function formatParam(info: ParamInfo, value: number): string {
   if (info.kind === "choice") {
     return info.choices[clampParam(info, value)]?.label ?? ""
   }
+  return formatQuantity(info, value)
+}
+
+/** The readout of a setting that is a number with a unit. */
+function formatQuantity(info: ParamInfo, value: number): string {
   // A range that goes below zero is an offset, so its readout shows "+".
   const offset = info.min < 0
   switch (info.unit) {
@@ -115,9 +120,8 @@ export function formatParam(info: ParamInfo, value: number): string {
 
 /** Localized readout; `formatParam` remains the canonical interoperability spelling. */
 export function formatParamDisplay(info: ParamInfo, value: number, language = useLanguageStore.getState().language): string {
-  const canonical = formatParam(info, value)
-  if (info.kind === "toggle" || info.kind === "choice") return translatedText(canonical, language)
-  return canonical.replace(/\d+(?:\.\d+)?/g, (number) => {
+  if (info.kind === "toggle" || info.kind === "choice") return translatedText(formatParam(info, value), language)
+  return formatQuantity(info, value).replace(/\d+(?:\.\d+)?/g, (number) => {
     const digits = number.split(".")[1]?.length ?? 0
     return formatNumber(Number(number), { useGrouping: false, minimumFractionDigits: digits, maximumFractionDigits: digits }, language)
   })

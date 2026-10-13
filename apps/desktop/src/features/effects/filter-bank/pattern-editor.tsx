@@ -54,7 +54,7 @@ export function PatternEditor({ bind, unit, kind }: {
           {kind === "gate" ? t("Open gate") : t("Center cutoff")}
         </Button>
       </div>
-      <svg role="img" aria-label={`${label}: ${values.map((v) => v.toFixed(2)).join(", ")}`}
+      <svg role="img" aria-label={message("{name}: {value}", { name: label, value: values.map((v) => plainNumber(Number(v.toFixed(2)))).join(", ") })}
         data-slot={`${kind}-pattern`} viewBox="0 0 320 100"
         className="h-24 w-full touch-none rounded-md border bg-chassis text-foreground"
         onPointerDown={(event) => {

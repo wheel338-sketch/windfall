@@ -7,7 +7,7 @@ import {
 
 import { ToggleLed } from "@/components/audio"
 import { ContextActions } from "@/components/context-actions"
-import { formatParam, type ParamBinder } from "@/features/params"
+import { formatParamDisplay, type ParamBinder } from "@/features/params"
 import { useHint } from "@/lib/store/hint"
 import { cn } from "@/lib/utils"
 
@@ -109,7 +109,7 @@ function Bar({ band, lane, bind, bipolar }: BarProps) {
       aria-valuemin={info.min}
       aria-valuemax={info.max}
       aria-valuenow={value}
-      aria-valuetext={formatParam(info, value)}
+      aria-valuetext={formatParamDisplay(info, value)}
       aria-disabled={binding.disabled || undefined}
       data-slot="band-bar"
       data-param={id}
@@ -200,9 +200,9 @@ export function BandPlot({ lane, bind }: BandPlotProps) {
           aria-hidden
           className="flex w-12 shrink-0 flex-col justify-between text-right font-readout text-[9px] leading-none text-muted-foreground"
         >
-          <span>{formatParam(first, first.max)}</span>
-          {bipolar ? <span>{formatParam(first, 0)}</span> : null}
-          <span>{formatParam(first, first.min)}</span>
+          <span>{formatParamDisplay(first, first.max)}</span>
+          {bipolar ? <span>{formatParamDisplay(first, 0)}</span> : null}
+          <span>{formatParamDisplay(first, first.min)}</span>
         </div>
         <div
           ref={plot}

@@ -55,7 +55,7 @@ import {
   type NotePreviewTarget,
 } from "./note-preview-target"
 import { rackNoteView, useRackStore } from "./rack-store"
-import { translatedText as t, message, plainNumber } from "@/lib/i18n"
+import { actionTitle, translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 const ROW_ACTION_IDS = [...NOTE_VIEW_ACTION_IDS, OPEN_NOTE_PREVIEW_ACTION]
 
@@ -209,7 +209,12 @@ const NotePreview = memo(function NotePreview({
     next?.focus({ preventScroll: true })
   }
 
-  const description = `${geometry.count} ${geometry.count === 1 ? "note" : "notes"} in the pattern${geometry.outside ? message("; {outside} outside the preview", { outside: plainNumber(geometry.outside) }) : ""}${geometry.dense ? "; dense notes are combined in the thumbnail" : ""}`
+  const description = [
+    message("{shown} notes in the pattern", { count: geometry.count, shown: plainNumber(geometry.count) }),
+    geometry.outside ? message("{outside} outside the preview", { outside: plainNumber(geometry.outside) }) : "",
+    geometry.dense ? t("dense notes are combined in the thumbnail") : "",
+  ].filter(Boolean).join("; ")
+  const openTitle = openAction ? actionTitle(openAction.id, openAction.title) : ""
   return (
     // Keep the existing channel-name arrow-navigation hook, without step buttons.
     <div
@@ -227,8 +232,8 @@ const NotePreview = memo(function NotePreview({
           style={{ backgroundColor: "var(--wf-step-off)" }}
           tabIndex={0}
           data-slot="rack-note-preview"
-          aria-label={message("{name} note preview. {openActionTitle}", { name, openActionTitle: openAction?.title ?? "" })}
-          title={`${description}. ${openAction?.title ?? ""}${openShortcut ? ` (${openShortcut})` : ""}`}
+          aria-label={message("{name} note preview. {openActionTitle}", { name, openActionTitle: openTitle })}
+          title={message("{description}. {action}", { description, action: openShortcut ? message("{help} ({shortcut})", { help: openTitle, shortcut: openShortcut }) : openTitle })}
           onKeyDown={onKeyDown}
           onPointerDown={(event) => {
             pressed.current = event.button === 0 ? target : null

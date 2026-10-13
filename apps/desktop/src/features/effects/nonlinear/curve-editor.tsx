@@ -100,7 +100,7 @@ export function CurveEditor({
         {(["x", "y", "tension"] as const).map((axis) => (
           <Field key={axis}>
             <FieldLabel htmlFor={`${label}-${axis}`}>{axis === "x" ? translatedText("Position") : axis === "y" ? translatedText("Value") : translatedText("Bend")}</FieldLabel>
-            <Input id={`${label}-${axis}`} aria-label={`${label} ${axis}`} type="number" min={axis === "tension" ? -1 : 0} max={1} step={0.01} value={point?.[axis] ?? 0} onChange={(event) => {
+            <Input id={`${label}-${axis}`} aria-label={message("{name} {label}", { name: label, label: translatedText(axis) })} type="number" min={axis === "tension" ? -1 : 0} max={1} step={0.01} value={point?.[axis] ?? 0} onChange={(event) => {
               const value = Number(event.target.value)
               if (!Number.isFinite(value)) return
               const next = [...shown]

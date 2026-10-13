@@ -40,6 +40,7 @@ export const flpImportEn = {
   "placeholders ·": "placeholders ·",
   "retained plugin states": "retained plugin states",
   "unknown version": "unknown version",
+  "{name} · FL Studio": "{name} · FL Studio",
 } as const
 
 export const flpImportEs = {
@@ -82,4 +83,5 @@ export const flpImportEs = {
   "placeholders ·": "sustitutos ·",
   "retained plugin states": "estados de plugin conservados",
   "unknown version": "versión desconocida",
+  "{name} · FL Studio": "{name} · FL Studio",
 } satisfies Record<keyof typeof flpImportEn, Message>

@@ -43,12 +43,12 @@ export function useControllerConfig(controller: number) {
 }
 export function targetTitle(project: Project, target: AutomationTarget): string {
   if ("channel" in target) {
-    const name = project.channels.find((c) => c.id === target.channel)?.name ?? "Channel"
-    return `${name} · ${target.type === "instrumentParam" ? message("parameter {param}", { param: plainNumber(target.param + 1) }) : target.type === "channelVolume" ? "Volume" : "Pan"}`
+    const name = project.channels.find((c) => c.id === target.channel)?.name ?? translatedText("Channel")
+    return message("{owner} · {target}", { owner: name, target: target.type === "instrumentParam" ? message("parameter {param}", { param: plainNumber(target.param + 1) }) : target.type === "channelVolume" ? translatedText("Volume") : translatedText("Pan") })
   }
   if ("track" in target) {
     const name = project.mixer.tracks.find((t) => t.id === target.track)?.name || translatedText("Master")
-    return `${name} · ${target.type === "effectParam" ? message("effect parameter {param}", { param: plainNumber(target.param + 1) }) : target.type === "trackVolume" ? "Volume" : target.type === "trackPan" ? "Pan" : target.type}`
+    return message("{owner} · {target}", { owner: name, target: target.type === "effectParam" ? message("effect parameter {param}", { param: plainNumber(target.param + 1) }) : target.type === "trackVolume" ? translatedText("Volume") : target.type === "trackPan" ? translatedText("Pan") : target.type })
   }
   return translatedText("Tempo")
 }
