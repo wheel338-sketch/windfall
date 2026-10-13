@@ -1,6 +1,6 @@
 import { Tick02Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { useActionTitle } from "@/lib/i18n"
+import { useActionTitle, useTranslation } from "@/lib/i18n"
 
 import {
   DropdownMenuItem,
@@ -37,6 +37,7 @@ export function MenuTick({ checked }: { checked: boolean }) {
  * shortcut, on/off tick and disabled state all come from the registry.
  */
 export function ActionMenuItem({ action, state, inset }: ActionMenuItemProps) {
+  const t = useTranslation()
   const title = useActionTitle(action.id, action.title)
   const shortcut = shortcutLabel(action.id)
   const checkable = action.checked !== undefined
@@ -58,7 +59,7 @@ export function ActionMenuItem({ action, state, inset }: ActionMenuItemProps) {
         <DropdownMenuShortcut
           className={enabled ? "pl-6" : "pl-6 tracking-normal"}
         >
-          {note}
+          {enabled ? note : t(note)}
         </DropdownMenuShortcut>
       )}
     </DropdownMenuItem>

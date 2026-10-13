@@ -18,6 +18,7 @@ import {
 } from "@/components/audio"
 
 import { clampParam } from "./access"
+import { formatNumber, locales, translatedText, useLanguageStore, type Language } from "@/lib/i18n"
 
 const MINUS = "−"
 const INFINITY_TEXT = "∞"
@@ -110,6 +111,40 @@ export function formatParam(info: ParamInfo, value: number): string {
     case "none":
       return plain(info, value)
   }
+}
+
+/** Localized readout; `formatParam` remains the canonical interoperability spelling. */
+export function formatParamDisplay(info: ParamInfo, value: number, language = useLanguageStore.getState().language): string {
+  const canonical = formatParam(info, value)
+  if (info.kind === "toggle" || info.kind === "choice") return translatedText(canonical, language)
+  return canonical.replace(/\d+(?:\.\d+)?/g, (number) => {
+    const digits = number.split(".")[1]?.length ?? 0
+    return formatNumber(Number(number), { useGrouping: false, minimumFractionDigits: digits, maximumFractionDigits: digits }, language)
+  })
+}
+
+/** Accept the displayed locale and the existing canonical technical input. */
+export function parseParamDisplay(info: ParamInfo, text: string, language: Language = useLanguageStore.getState().language): number | null {
+  const word = text.trim().toLowerCase()
+  if (info.kind === "toggle") {
+    if (word === translatedText("On", language).toLowerCase()) return 1
+    if (word === translatedText("Off", language).toLowerCase()) return 0
+  }
+  if (info.kind === "choice") {
+    const index = info.choices.findIndex((choice) => translatedText(choice.label, language).toLowerCase() === word)
+    if (index >= 0) return index
+  }
+  const parts = new Intl.NumberFormat(locales[language]).formatToParts(12345.6)
+  const decimal = parts.find((part) => part.type === "decimal")?.value ?? "."
+  const group = parts.find((part) => part.type === "group")?.value
+  let canonical = text
+  // Canonical decimal dots stay usable in every locale. A grouping separator
+  // is removed only when the text explicitly includes the locale's decimal.
+  if (decimal !== "." && canonical.includes(decimal)) {
+    if (group) canonical = canonical.replaceAll(group, "")
+    canonical = canonical.replaceAll(decimal, ".")
+  }
+  return parseParam(info, canonical)
 }
 
 const ON = /^(on|yes|true|1)$/

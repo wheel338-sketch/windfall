@@ -1,7 +1,11 @@
 import { inspectorEs } from "./inspector-messages"
+import { nativeEs } from "./native-messages"
+import { controlEs } from "./control-messages"
 import type { Catalog } from "./types"
 
 export const es = {
+  ...controlEs,
+  ...nativeEs,
   ...inspectorEs,
   "Unsupported preset source": "Archivo de preset no compatible",
   "Render preset as sample": "Renderizar preset como muestra",

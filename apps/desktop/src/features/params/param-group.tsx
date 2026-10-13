@@ -1,6 +1,7 @@
 import type { ComponentProps, CSSProperties, ReactNode } from "react"
 
 import { cn } from "@/lib/utils"
+import { useTranslation } from "@/lib/i18n"
 
 type ParamGroupProps = Omit<ComponentProps<"section">, "title"> & {
   title: string
@@ -20,10 +21,11 @@ export function ParamGroup({
   children,
   ...props
 }: ParamGroupProps) {
+  const t = useTranslation()
   return (
     <section
       data-slot="param-group"
-      aria-label={title}
+      aria-label={t(title)}
       className={cn(
         "flex min-w-0 flex-col rounded-md border border-border/80 bg-chassis/50",
         className
@@ -32,7 +34,7 @@ export function ParamGroup({
     >
       <div className="flex h-6 shrink-0 items-center justify-between gap-2 pr-1.5 pl-2">
         <h4 className="truncate text-[0.6875rem] font-medium text-foreground/80">
-          {title}
+          {t(title)}
         </h4>
         {aside}
       </div>

@@ -1,4 +1,4 @@
-import { render, renderHook, screen, waitFor } from "@testing-library/react"
+import { act, render, renderHook, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -13,6 +13,7 @@ import { usePromptStore } from "@/lib/store/prompts"
 import { projectDisplayName } from "@/lib/store/selectors"
 import { useUiStore } from "@/lib/store/ui"
 import { settle, startTestApp } from "@/test/harness"
+import { setLanguage } from "@/lib/i18n"
 
 import { TitleBar } from "./title-bar"
 import { useWindowTitle } from "./use-app-boot"
@@ -27,11 +28,27 @@ let stop: () => void
 beforeEach(async () => {
   ;({ backend, stop } = await startTestApp())
 })
-afterEach(() => stop())
+afterEach(() => { stop(); setLanguage("en") })
 
 const project = () => useProjectStore.getState().project
 
 describe("the project's name", () => {
+  it("retranslates a detached native title immediately and preserves authored project names", async () => {
+    const setTitle = vi.spyOn(backend, "setWindowTitle")
+    const panel = renderHook(() => useWindowTitle("Mixer"))
+    await waitFor(() => expect(setTitle).toHaveBeenLastCalledWith("Mixer - Windfall"))
+    const before = project()
+    act(() => setLanguage("es"))
+    await waitFor(() => expect(setTitle).toHaveBeenLastCalledWith("Mezclador - Windfall"))
+    expect(project()).toBe(before)
+    panel.unmount()
+    useProjectStore.setState({ path: "/projects/Save.windfall" })
+    renderHook(() => useWindowTitle())
+    await waitFor(() => expect(setTitle).toHaveBeenLastCalledWith("Save - Windfall"))
+    act(() => setLanguage("en"))
+    await waitFor(() => expect(setTitle).toHaveBeenLastCalledWith("Save - Windfall"))
+    expect(project()).toBe(before)
+  })
   it("is the file's name once the project has a file", () => {
     const named = (path: string | null, name = "Demo beat") =>
       projectDisplayName({

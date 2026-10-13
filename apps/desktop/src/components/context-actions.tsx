@@ -24,12 +24,16 @@ import {
 } from "@/lib/actions"
 import { reportError } from "@/lib/errors"
 import { isTextField } from "@/lib/text-field-menu"
+import { actionTitle, message, useTranslation } from "@/lib/i18n"
+import type { DynamicActionMessage } from "@/lib/i18n/action-messages"
 
 import { MenuTick } from "./action-menu-item"
 
 /** An entry that is not in the registry because it acts on the thing clicked. */
 export type InlineAction = {
   title: string
+  /** Retained dynamic titles render from their key in the current language. */
+  titleMessage?: DynamicActionMessage
   run(): void | Promise<unknown>
   disabled?: boolean
   /**
@@ -55,9 +59,9 @@ export type ContextItem =
   | string
   | InlineAction
   | { separator: true }
-  | { label: string }
+  | { label: string; labelMessage?: DynamicActionMessage }
   /** A submenu with entries of its own. */
-  | { submenu: string; items: ContextItem[] }
+  | { submenu: string; submenuMessage?: DynamicActionMessage; items: ContextItem[] }
   /**
    * Entries worked out when the menu opens, for a list that is handed over
    * once and has to follow the project: what there is to show for the
@@ -143,7 +147,7 @@ export function ContextActions({ items, children }: ContextActionsProps) {
 
 function runInline(item: InlineAction) {
   new Promise((resolve) => resolve(item.run())).catch((error: unknown) =>
-    reportError(error, item.title)
+    reportError(error, item.titleMessage ?? item.title)
   )
 }
 
@@ -165,6 +169,7 @@ type ContextItemsProps = {
 // Rendered only while the menu is open, so reading the whole app state here
 // costs nothing the rest of the time.
 function ContextItems({ items: given, defer }: ContextItemsProps) {
+  const t = useTranslation()
   const actions = useActions()
   const state = useAppState()
   const items = expanded(typeof given === "function" ? given() : given)
@@ -195,10 +200,10 @@ function ContextItems({ items: given, defer }: ContextItemsProps) {
           onClick={() => void runAction(item)}
         >
           {hasToggles && <MenuTick checked={checked} />}
-          {action.title}
+          {actionTitle(action.id, action.title)}
           {reason ? (
             <ContextMenuShortcut className="tracking-normal">
-              {reason}
+              {t(reason)}
             </ContextMenuShortcut>
           ) : (
             shortcut && <ContextMenuShortcut>{shortcut}</ContextMenuShortcut>
@@ -213,7 +218,7 @@ function ContextItems({ items: given, defer }: ContextItemsProps) {
         <ContextMenuSub key={index}>
           <ContextMenuSubTrigger>
             {hasToggles && <MenuTick checked={false} />}
-            {item.submenu}
+            {item.submenuMessage ? message(item.submenuMessage.key, item.submenuMessage.values) : item.submenu}
           </ContextMenuSubTrigger>
           <ContextMenuSubContent className="min-w-40">
             <ContextItems items={item.items} defer={defer} />
@@ -224,7 +229,7 @@ function ContextItems({ items: given, defer }: ContextItemsProps) {
     if ("label" in item) {
       return (
         <ContextMenuGroup key={index}>
-          <ContextMenuLabel>{item.label}</ContextMenuLabel>
+          <ContextMenuLabel>{item.labelMessage ? message(item.labelMessage.key, item.labelMessage.values) : item.label}</ContextMenuLabel>
         </ContextMenuGroup>
       )
     }
@@ -242,10 +247,10 @@ function ContextItems({ items: given, defer }: ContextItemsProps) {
         }}
       >
         {hasToggles && <MenuTick checked={item.checked ?? false} />}
-        {item.title}
+        {item.titleMessage ? message(item.titleMessage.key, item.titleMessage.values) : item.title}
         {item.disabled && item.reason ? (
           <ContextMenuShortcut className="tracking-normal">
-            {item.reason}
+            {t(item.reason)}
           </ContextMenuShortcut>
         ) : (
           item.shortcut && (

@@ -1,6 +1,7 @@
 import { create } from "zustand"
 import { en } from "./en"
 import { es } from "./es"
+import { nativeEn } from "./native-messages"
 import { actionMessages, dynamicActionMessage } from "./action-messages"
 import type { Catalog, Language, MessageKey } from "./types"
 export type { Language, MessageKey } from "./types"
@@ -70,6 +71,8 @@ export function dynamicTitle(key: MessageKey, values: Record<string, string | nu
 }
 
 export function localizeBackendText(text: string): string {
+  const native = nativeMessage(text)
+  if (native !== null) return native
   if (Object.hasOwn(en, text)) return translatedText(text)
   const prefixes = [
     ["Installation failed. Keep the current installation and retry. ", "Installation failed. Keep the current installation and retry. {detail}"],
@@ -78,4 +81,32 @@ export function localizeBackendText(text: string): string {
   ] as const
   for (const [prefix,key] of prefixes) if (text.startsWith(prefix)) return message(key,{detail:text.slice(prefix.length)})
   return useLanguageStore.getState().language === "en" ? text : message("Native diagnostic: {detail}", { detail: text })
+}
+
+const NATIVE_MESSAGE_PREFIX = "windfall-message:"
+
+/** Decode only the reserved native envelope, leaving authored text untouched. */
+export function nativeMessage(text: string, language = useLanguageStore.getState().language): string | null {
+  if (!text.startsWith(NATIVE_MESSAGE_PREFIX)) return null
+  try {
+    const value: unknown = JSON.parse(text.slice(NATIVE_MESSAGE_PREFIX.length))
+    if (!value || typeof value !== "object" || !("code" in value) ||
+      typeof value.code !== "string" || !("params" in value) ||
+      !value.params || typeof value.params !== "object" || Array.isArray(value.params))
+      return message("native.messageInvalid", {}, language)
+    if (!Object.hasOwn(nativeEn, value.code)) return message("native.messageUnknown", { code: value.code }, language)
+    const params: Record<string, string | number> = {}
+    for (const [key, parameter] of Object.entries(value.params)) {
+      if (typeof parameter !== "string" && (typeof parameter !== "number" || !Number.isFinite(parameter)))
+        return message("native.messageInvalid", {}, language)
+      params[key] = parameter
+    }
+    const entry = en[value.code as MessageKey]
+    const source = typeof entry === "string" ? entry : entry.other
+    const required = [...source.matchAll(/\{(\w+)\}/g)].map((match) => match[1])
+    if (required.some((key) => !Object.hasOwn(params, key)) ||
+      (Object.hasOwn(params, "count") && typeof params.count !== "number"))
+      return message("native.messageInvalid", {}, language)
+    return message(value.code as MessageKey, params, language)
+  } catch { return message("native.messageInvalid", {}, language) }
 }

@@ -32,7 +32,7 @@ async function prepare() {
     patterns: 1,
     clips: 1,
     length: 3840,
-    adjustments: ["Markers are not imported."],
+    adjustments: ['windfall-message:{"code":"midi.import.markersNotImported","params":{"count":2}}'],
   })
   open("midiImport")
   const user = userEvent.setup()
@@ -51,9 +51,25 @@ describe("MIDI dialogs", () => {
     expect(screen.getByRole("checkbox", { name: "Importar el primer compás" })).toBeVisible()
     expect(screen.getByText("Se añadirán 1 canal, 1 patrón, 1 clip y 1 nota.")).toBeVisible()
     expect(screen.getByText("Lead")).toBeVisible()
+    expect(screen.getByText("No se han importado 2 marcadores")).toBeVisible()
     expect(screen.getByRole("button", { name: "Importar" })).toBeEnabled()
     act(() => setLanguage("en"))
     expect(screen.getByText("1 channel, 1 pattern, 1 clip and 1 note will be added.")).toBeVisible()
+    expect(screen.getByText("2 markers not imported")).toBeVisible()
+  })
+  it("retranslates a retained native failure while the failed review stays open", async () => {
+    const before = useProjectStore.getState().project
+    vi.spyOn(app.backend, "pickMidiFile").mockResolvedValue("broken.mid")
+    vi.spyOn(app.backend, "midiPreview").mockRejectedValue('windfall-message:{"code":"midi.preview.expired","params":{}}')
+    open("midiImport")
+    await userEvent.setup().click(screen.getByRole("button", { name: "Choose MIDI file…" }))
+    expect(await screen.findByRole("alert")).toHaveTextContent("This MIDI preview has expired. Review the file again.")
+    act(() => setLanguage("es"))
+    expect(screen.getByRole("alert")).toHaveTextContent("Esta revisión MIDI ha caducado. Vuelve a revisar el archivo.")
+    expect(screen.getByRole("button", { name: "Importar" })).toBeDisabled()
+    expect(useProjectStore.getState().project).toBe(before)
+    act(() => setLanguage("en"))
+    expect(screen.getByRole("alert")).toHaveTextContent("This MIDI preview has expired. Review the file again.")
   })
   it("localizes MIDI validation diagnostics and retains the failed review without document edits", async () => {
     act(() => setLanguage("es"))
@@ -112,7 +128,7 @@ describe("MIDI dialogs", () => {
   })
   it("shows the append behavior and reports unsupported content before import", async () => {
     await prepare()
-    expect(screen.getByText("Markers are not imported.")).toBeVisible()
+    expect(screen.getByText("2 markers not imported")).toBeVisible()
     expect(screen.getByRole("button", { name: "Import" })).toBeEnabled()
     expect(screen.getByText(/Append notes and arrangement/)).toBeVisible()
   })

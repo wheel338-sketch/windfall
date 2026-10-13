@@ -140,6 +140,7 @@ export function AppShell() {
  */
 export function PanelWindow({ panel }: { panel: PanelId }) {
   useAppBoot({ guardClose: false })
+  useWindowTitle(PANELS[panel].title)
   useDetachedScope(panel)
   const { title, component: Panel } = PANELS[panel]
 

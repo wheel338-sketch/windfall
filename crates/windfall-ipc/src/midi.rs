@@ -81,7 +81,7 @@ impl MidiImportPreview {
             clips: plan.clips.len() as u32,
             notes: plan.note_count() as u32,
             length: plan.length,
-            adjustments: plan.adjustments.iter().map(ToString::to_string).collect(),
+            adjustments: plan.adjustments.iter().map(crate::midi_adjustment_message).collect(),
         }
     }
 }
@@ -121,10 +121,9 @@ impl MidiExpressionExport {
             MidiExpressionMode::Mpe => windfall_midi::ExpressionOptions::mpe(),
         };
         if self.bend_range > windfall_midi::expression::MAX_BEND_RANGE {
-            return Err(format!(
-                "The pitch-bend range must be between 1 and {} semitones.",
-                windfall_midi::expression::MAX_BEND_RANGE
-            ));
+            return Err(crate::ui_message("midi.export.bendRange", serde_json::json!({
+                "max": windfall_midi::expression::MAX_BEND_RANGE
+            })));
         }
         if self.bend_range != 0 {
             options.bend_range = self.bend_range;
@@ -188,10 +187,7 @@ impl MidiExportOptions {
             960 => windfall_midi::Resolution::Ppq960,
             ppq if (1..=0x7fff).contains(&ppq) => windfall_midi::Resolution::Ppq(ppq),
             _ => {
-                return Err(
-                    "MIDI resolution must be 1 to 32767 PPQ, or 0 for the project timebase."
-                        .to_owned(),
-                );
+                return Err(crate::ui_message("midi.export.resolution", serde_json::json!({})));
             }
         };
         let options = windfall_midi::ExportOptions {
@@ -205,7 +201,7 @@ impl MidiExportOptions {
             }
             PlayMode::Song => windfall_midi::export_song_reported(project, &options),
         }
-        .map_err(|error| error.to_string())?;
+        .map_err(crate::midi_export_error)?;
         let bytes = windfall_midi::write(
             &exported.song,
             &windfall_midi::WriteOptions {
@@ -218,7 +214,7 @@ impl MidiExportOptions {
                 running_status: self.running_status,
             },
         );
-        Ok((bytes, exported.report.lines()))
+        Ok((bytes, crate::midi_export_messages(&exported.report)))
     }
 }
 

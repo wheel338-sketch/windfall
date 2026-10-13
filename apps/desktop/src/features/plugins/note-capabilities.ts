@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react"
 import type { PluginTarget } from "@/bindings"
-import { localizeBackendText } from "@/lib/i18n"
+import { localizeBackendText, useLanguageStore } from "@/lib/i18n"
 import { backend, errorMessage } from "@/lib/ipc"
 import type { PluginNoteCapabilities } from "@/lib/ipc/backend"
 import { useProjectStore } from "@/lib/store/project"
 import { getProjectGeneration } from "@/lib/store/replaced"
 
 export function useNativeNoteCapabilities(target: PluginTarget | undefined) {
+  useLanguageStore((state) => state.language)
   const revision = useProjectStore((state) => state.revision)
   const channel = target?.type === "instrument" ? target.channel : undefined
   const previous = useRef<{ channel?: number; generation?: number; capabilities?: PluginNoteCapabilities }>({})
@@ -29,14 +30,14 @@ export function useNativeNoteCapabilities(target: PluginTarget | undefined) {
           setResult((result) => ({ channel, generation, capabilities, changed: changed || (result.channel === channel && result.generation === generation && result.changed) }))
         }
       } catch (error) {
-        if (live && generation === getProjectGeneration()) setResult({ channel, generation, error: localizeBackendText(errorMessage(error)) })
+        if (live && generation === getProjectGeneration()) setResult({ channel, generation, error: errorMessage(error) })
       } finally { pending = false }
     }
     void refresh()
     const timer = setInterval(() => void refresh(), 500)
     return () => { live = false; clearInterval(timer) }
   }, [channel, revision])
-  return result.channel === channel && result.generation === getProjectGeneration() ? result : {}
+  return result.channel === channel && result.generation === getProjectGeneration() ? { ...result, error: result.error ? localizeBackendText(result.error) : undefined } : {}
 }
 export function panLawSupported(capabilities: PluginNoteCapabilities | undefined, midiChannel = 0) {
   return Number.isInteger(midiChannel) && midiChannel >= 0 && midiChannel < 16 && capabilities?.projectPanLaw === true && expressionSupported(capabilities, midiChannel, true, true)

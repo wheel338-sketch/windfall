@@ -1,5 +1,9 @@
 import { inspectorEn } from "./inspector-messages"
+import { nativeEn } from "./native-messages"
+import { controlEn } from "./control-messages"
 export const en = {
+  ...controlEn,
+  ...nativeEn,
   ...inspectorEn,
   "Unsupported preset source": "Unsupported preset source",
   "Render preset as sample": "Render preset as sample",

@@ -3,14 +3,16 @@ import type { ReactNode } from "react"
 import { Fader } from "@/components/audio"
 import { ValueContextItems } from "@/components/value-context-menu"
 import {
-  formatParam,
+  formatParamDisplay,
   paramHint,
   paramScale,
-  parseParam,
+  paramUnitKind,
+  parseParamDisplay,
   type ParamBinding,
 } from "@/features/params"
 import { useHint } from "@/lib/store/hint"
 import { cn } from "@/lib/utils"
+import { useTranslation } from "@/lib/i18n"
 
 type ParamFaderProps = {
   /** What `bind(id)` gives for the setting. */
@@ -36,6 +38,7 @@ export function ParamFader({
   orientation = "vertical",
   className,
 }: ParamFaderProps) {
+  const t = useTranslation()
   const { info, value, contextItems } = binding
   const hint = useHint(paramHint(info, value, description))
   const fader = (
@@ -44,14 +47,15 @@ export function ParamFader({
       orientation={orientation}
       size="sm"
       ticks={false}
-      aria-label={info.name}
+      aria-label={t(info.name)}
       showValue
       min={info.min}
       max={info.max}
       scale={paramScale(info)}
       defaultValue={info.default}
-      format={(next) => formatParam(info, next)}
-      parse={(typed) => parseParam(info, typed)}
+      format={(next) => formatParamDisplay(info, next)}
+      parse={(typed) => parseParamDisplay(info, typed)}
+      unitKind={paramUnitKind(info)}
       value={value}
       onValueChange={binding.onValueChange}
       onGestureStart={binding.onGestureStart}
@@ -75,7 +79,7 @@ export function ParamFader({
       )}
       {label === null ? null : (
         <span className="max-w-full truncate leading-none text-muted-foreground">
-          {label ?? info.name}
+          {label === undefined ? t(info.name) : typeof label === "string" ? t(label) : label}
         </span>
       )}
     </div>

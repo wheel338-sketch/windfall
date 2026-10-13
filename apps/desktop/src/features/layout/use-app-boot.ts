@@ -1,7 +1,7 @@
 import { useEffect } from "react"
 
 import { watchAutomatedEdits } from "@/features/automation/notice"
-import { connectLanguage } from "@/lib/i18n"
+import { connectLanguage, message, translatedText, useLanguageStore } from "@/lib/i18n"
 import { connectNativeEditorScale } from "@/features/plugins/editor-scale"
 import { installKeymap } from "@/lib/actions"
 import { syncRecentActions } from "@/lib/actions/builtin"
@@ -17,6 +17,7 @@ import { useDirty, useProjectName } from "@/lib/store/selectors"
 import { installWebviewGuard } from "@/lib/webview-guard"
 
 import { registerAllActions } from "./register-actions"
+import { useProjectStore } from "@/lib/store/project"
 
 type BootOptions = {
   /** The main window asks before closing with unsaved edits. */
@@ -51,15 +52,19 @@ export function useAppBoot({ guardClose }: BootOptions) {
 }
 
 /** Puts the project name in the window title, with a mark for unsaved edits. */
-export function useWindowTitle() {
+export function useWindowTitle(panelTitle?: string) {
   const name = useProjectName()
   const dirty = useDirty()
+  const language = useLanguageStore((state) => state.language)
+  const unnamed = useProjectStore((state) => state.path === null && !state.project.settings.name)
 
   useEffect(() => {
-    const title = `${name}${dirty ? "*" : ""} - Windfall`
+    const title = panelTitle
+      ? message("{panel} - Windfall", { panel: translatedText(panelTitle, language) }, language)
+      : message("{name}{mark} - Windfall", { name: unnamed ? translatedText("Untitled", language) : name, mark: dirty ? "*" : "" }, language)
     // Not something the user did or can fix, so it is logged, not shown.
     backend.setWindowTitle(title).catch((error: unknown) => {
       console.warn("Could not set the window title:", errorMessage(error))
     })
-  }, [name, dirty])
+  }, [name, dirty, unnamed, panelTitle, language])
 }
