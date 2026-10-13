@@ -124,14 +124,14 @@ impl<P: ParamSet> Controls<P> {
     /// The settings for this sample, and whether they differ from the ones
     /// of the sample before.
     #[inline]
-    pub fn tick(&mut self) -> (P, bool) {
+    pub fn tick(&mut self) -> (&P, bool) {
         self.started = true;
         let changed = self.changed || self.moving;
         self.changed = false;
         if self.moving {
             self.moving = self.current.approach(&self.target, self.coefficient);
         }
-        (self.current, changed)
+        (&self.current, changed)
     }
 }
 

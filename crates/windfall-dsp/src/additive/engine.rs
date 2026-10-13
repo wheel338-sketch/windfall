@@ -56,9 +56,9 @@ const AUDIO_LIMIT: f32 = 1.0e3;
 
 /// Coefficients of a seventh-order odd polynomial for `sin` on the first
 /// quarter cycle, fitted for the smallest worst-case error.
-const SINE_C3: f32 = -0.166_656_8;
-const SINE_C5: f32 = 0.008_312_37;
-const SINE_C7: f32 = -0.000_184_92;
+pub(super) const SINE_C3: f32 = -0.166_656_8;
+pub(super) const SINE_C5: f32 = 0.008_312_37;
+pub(super) const SINE_C7: f32 = -0.000_184_92;
 
 /// A sine of `turns` cycles, where `turns` runs from 0 to 1.
 ///

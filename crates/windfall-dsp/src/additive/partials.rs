@@ -165,7 +165,31 @@ impl Tone for PartialTone {
             // cycle per sample, so one subtraction always brings the phase
             // back round.
             let mut phase = self.phases[index];
-            for sample in out.iter_mut() {
+            #[cfg(target_arch = "x86_64")]
+            let remainder = {
+                let (groups, remainder) = out.as_chunks_mut::<4>();
+                for samples in groups {
+                    let mut phases = [0.0; 4];
+                    let mut levels = [0.0; 4];
+                    // Preserve the original f32 recurrences, including wrap
+                    // and level rounding, before evaluating four independent
+                    // output positions in SIMD. Partial reduction order stays.
+                    for lane in 0..4 {
+                        phases[lane] = phase;
+                        levels[lane] = level;
+                        level += level_step;
+                        phase += step_per_sample;
+                        if phase >= 1.0 {
+                            phase -= 1.0;
+                        }
+                    }
+                    add_four(samples, &phases, &levels);
+                }
+                remainder
+            };
+            #[cfg(not(target_arch = "x86_64"))]
+            let remainder = &mut *out;
+            for sample in remainder {
                 *sample += sine_turns(phase) * level;
                 level += level_step;
                 phase += step_per_sample;
@@ -174,6 +198,113 @@ impl Tone for PartialTone {
                 }
             }
             self.phases[index] = phase;
+        }
+    }
+}
+
+/// Four independent time positions, with the scalar sine's exact arithmetic.
+#[cfg(target_arch = "x86_64")]
+#[inline(always)]
+fn add_four(out: &mut [f32], phases: &[f32; 4], levels: &[f32; 4]) {
+    use super::engine::{SINE_C3, SINE_C5, SINE_C7};
+    use std::arch::x86_64::*;
+    // SAFETY: SSE2 is baseline on x86_64. Inputs contain four initialized
+    // values and the caller supplies exactly four writable output positions.
+    unsafe {
+        let half = _mm_set1_ps(0.5);
+        let phase = _mm_loadu_ps(phases.as_ptr());
+        let first = _mm_cmplt_ps(phase, half);
+        let mut quarter = _mm_or_ps(
+            _mm_and_ps(first, phase),
+            _mm_andnot_ps(first, _mm_sub_ps(phase, half)),
+        );
+        let sign = _mm_or_ps(
+            _mm_and_ps(first, _mm_set1_ps(1.0)),
+            _mm_andnot_ps(first, _mm_set1_ps(-1.0)),
+        );
+        let mirror = _mm_cmpgt_ps(quarter, _mm_set1_ps(0.25));
+        quarter = _mm_or_ps(
+            _mm_and_ps(mirror, _mm_sub_ps(half, quarter)),
+            _mm_andnot_ps(mirror, quarter),
+        );
+        let y = _mm_mul_ps(_mm_set1_ps(std::f32::consts::TAU), quarter);
+        let square = _mm_mul_ps(y, y);
+        let inner = _mm_add_ps(
+            _mm_set1_ps(SINE_C5),
+            _mm_mul_ps(square, _mm_set1_ps(SINE_C7)),
+        );
+        let inner = _mm_add_ps(_mm_set1_ps(SINE_C3), _mm_mul_ps(square, inner));
+        let polynomial = _mm_add_ps(_mm_set1_ps(1.0), _mm_mul_ps(square, inner));
+        let sine = _mm_mul_ps(_mm_mul_ps(sign, y), polynomial);
+        let sample = _mm_mul_ps(sine, _mm_loadu_ps(levels.as_ptr()));
+        _mm_storeu_ps(
+            out.as_mut_ptr(),
+            _mm_add_ps(_mm_loadu_ps(out.as_ptr()), sample),
+        );
+    }
+}
+
+#[cfg(all(test, target_arch = "x86_64"))]
+mod vector_tests {
+    use super::*;
+    #[test]
+    fn packed_time_positions_preserve_scalar_polynomial_and_addition_bits() {
+        let cases = [
+            0.0, -0.0, 0.001, 0.24999999, 0.25, 0.49999997, 0.5, 0.75, 0.99999994, 1.0,
+        ];
+        for start in 0..cases.len() {
+            let phases = std::array::from_fn(|lane| cases[(start + lane) % cases.len()]);
+            let levels = [0.7, -0.3, 0.0, 1.4];
+            let mut actual = [-0.0, 0.3, -0.1, 0.0];
+            let mut expected = actual;
+            for lane in 0..4 {
+                expected[lane] += sine_turns(phases[lane]) * levels[lane];
+            }
+            add_four(&mut actual, &phases, &levels);
+            assert_eq!(actual.map(f32::to_bits), expected.map(f32::to_bits));
+        }
+    }
+    #[test]
+    fn packed_partial_render_preserves_ordered_pcm_and_phase_bits_across_partitions() {
+        let setup = PartialSetup {
+            ratios: std::array::from_fn(|i| 1.0 + i as f32 * 0.61),
+            gains: std::array::from_fn(|i| 0.4 + i as f32 * 0.03),
+            steps: std::array::from_fn(|i| (i as f32 % 7.0 - 3.0) * 0.001),
+            phases: std::array::from_fn(|i| i as f32 * 0.013),
+        };
+        let mut actual = PartialTone {
+            phases: setup.phases,
+        };
+        let mut reference = actual;
+        for frames in [1, 7, 64, 3, 128] {
+            let increment = 277.0 / 48000.0;
+            let mut found = vec![0.1; frames];
+            let mut expected = found.clone();
+            for index in 0..MAX_PARTIALS {
+                let step = increment * setup.ratios[index];
+                let fade = nyquist_fade(step);
+                let delta = setup.steps[index] * fade;
+                let mut level = setup.gains[index] * fade;
+                let mut phase = reference.phases[index];
+                for sample in &mut expected {
+                    *sample += sine_turns(phase) * level;
+                    level += delta;
+                    phase += step;
+                    if phase >= 1.0 {
+                        phase -= 1.0;
+                    }
+                }
+                reference.phases[index] = phase;
+            }
+            actual.render(&setup, increment, 0, &mut found);
+            assert_eq!(
+                found.iter().map(|x| x.to_bits()).collect::<Vec<_>>(),
+                expected.iter().map(|x| x.to_bits()).collect::<Vec<_>>()
+            );
+            assert_eq!(
+                actual.phases.map(f32::to_bits),
+                reference.phases.map(f32::to_bits)
+            );
         }
     }
 }

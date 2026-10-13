@@ -376,6 +376,9 @@ impl<P: Patch> Instrument for Runtime<P> {
         let envelopes_may_change = self.envelope_configuration.is_none_or(|(amp, filter)| {
             amp != target_frame.amp || filter != target_frame.filter_env
         });
+        // Tail bounds depend only on the target patch and prepared line lengths.
+        // Avoid repeating decay logarithms for every rendered sample.
+        let held_tail = self.tail_samples();
         for (left, right) in left.iter_mut().zip(right) {
             let (p, changed) = self.controls.tick();
             let configure = changed
@@ -386,7 +389,7 @@ impl<P: Patch> Instrument for Runtime<P> {
                     .is_none_or(|previous| p.configuration_changed(previous));
             if configure {
                 self.operator_graph = p.operator_graph();
-                self.configuration = Some(p);
+                self.configuration = Some(*p);
             }
             let f = p.frame();
             let amp_changed = envelopes_may_change
@@ -484,7 +487,7 @@ impl<P: Patch> Instrument for Runtime<P> {
                 sum.1 += out.1;
             }
             if sounding {
-                self.tail = self.tail_samples();
+                self.tail = held_tail;
                 self.effects_clean = false;
             }
             if !sounding && self.tail == 0 {

@@ -32,7 +32,11 @@
 - Strict Clippy repaired to zero: `cargo clippy --offline --workspace --all-targets -- -D warnings`, PASS, exit 0, 14.66s (`target/round4-clippy-repair2.log`). Supported autofixes plus callback/parser type aliases, array chunks, equivalent pattern/ramp matching and four narrowly justified named Tauri wire-argument expectations; no broad suppression/assertion/tolerance removal. Initial strict failure and autofix logs retained. Clippy's autofix rejected its own streamed-test array-comparison conversion and left the original unchanged; corrected dereference manually. First manual repair needed typed byte-array dereferences; failed log retained. Ordinary product/test suites still unexecuted at this checkpoint.
 - Native fixture build PASS (`target/round4-fixture-build.log`, 1.69s); current desktop helper/export runtime build PASS (`target/round4-native-helper-build.log`, 2m38s). Test wrapper now exports explicit main-checkout prebuilt `WINDFALL_BRIDGE_FIXTURE`, `WINDFALL_DESKTOP_BRIDGE_HELPER`, `WINDFALL_EXPORT_FIXTURE`, preventing nested Cargo in native fixture gates. Full workspace suite started with native media capture bootstrap directory `target/r4-media`; no model/device opt-ins enabled. Result pending.
 
-## Final gates
+## Execution and repair history
+
+Post-scheduler full workspace execution completes **4540/8/38**, exit 101 (`target/round4-scheduler-workspace-tests.log`, 180 result blocks): only eight ordinary-profile instrument deadline cases fail; numerical, ownership and all parallel PCM/heap tests pass. Isolated unchanged deadlines also fail **13/8/0** (`target/round4-scheduler-dsp-deadlines-isolate.log`, 113.92 s). Machine inventory identifies Intel i9-14900F, 24 physical/32 logical cores; no other active Windfall/compiler process was found. Core placement is a possible timing factor, not a proven excuse or admission result. No affinity/priority/profile/budget/workload changes are used to force DSP acceptance.
+
+Real DSP repair: additive partial banks evaluate four **time positions** in SSE2 while retaining each original f32 phase/level recurrence, polynomial operation order and partial reduction order; scalar fallback/remainders preserved. Two exact-bit stage/partition references **2/0/0**, exit 0 (`target/round4-additive-vector-exact-tests.log`). Complete ordinary dense instrument gate then **21/0/0**, exit 0 (`target/round4-additive-vector-deadlines.log`, 81.36 s), all capacities/limits/tail/signal/allocator/repeatability checks retained. Additional polyphonic cleanup borrows large patch graphs rather than copying each sample and hoists invariant tail decay logarithms per buffer; regression pending. The full workspace and final release/artifact gates must be refreshed after these new DSP changes.
 
 Threads unpinned release repair **1/0/0**, exit 0 (`target/round4-threads-unpinned-release.log`, 12.85 s), unchanged workload/floor. All five paired speedups **3.286/2.421/3.664/2.058/3.041x**, best **3.664x** versus prior **0.616x**. Serial trials 1.556–1.573 s; parallel 0.427–0.761 s. Only OS placement policy changes; task partition, completion/late-output barrier, sum order, maximum counts and assertions unchanged. Final workspace PCM/heap regression and packaged app rebuild required after this source change.
 
@@ -104,7 +108,7 @@ The ordinary dense Matrix workload also fails unchanged 0.75x gate at 1.3125x. C
 
 Overseer supplied a real pack/runtime and moved the opt-in end-to-end stem harness into this run. It must execute serially **after ordinary gates pass**; not yet run. Nothing in `target/stem-pack` will be committed. Supplied manifest: UMX-HQ 1.0.1 / openunmix 1.3.0, MIT weights from Zenodo 3370489, `model.onnx` 160,591,400 bytes, SHA-256 `33d5228ef954527a82212d75a0a208336181d0d81044bc17a163f09f91cd28aa`; CPU opset17 input `[1,2,262144]`, output `[1,4,2,262144]`, segment/overlap/context 131072/65536/65536. `runtime.json` reports ONNX Runtime 1.22.1, runtime DLL 14,854,688 bytes, SHA-256 `c7151fd9844ad7c7d18525f1177e9ef62d91e4a6ac3583d0be700554a2b2b1d6`, wheel SHA-256 `6a64291d57ea966a245f749eb970f4fa05a64d26672e05a83fdb5db6b7d62f87`. These are supplied provenance fields; actual native harness and local hash verification remain pending.
 
-Partial gate results below; unlisted gates remain unexecuted. Inherited builder results are context only, not acceptance evidence for this integrated tree.
+Historical intermediate gate results below; final admission is listed separately at the end. Inherited builder results are context only, not acceptance evidence for this integrated tree.
 
 | Command | Result/counts | Exit | Log |
 | --- | --- | --- | --- |
@@ -135,28 +139,28 @@ Workload correction candidate: six distinct ratios/detunes/levels/key scales/fee
 
 Before/after maximum held CPU shares (worst variant per instrument). The first column is **inherited** builder evidence from `target/round4-builder-final-instruments.log`, not a test run by this integrator. Both corrected-workload columns were measured here, and every limit remains 0.75x. Tail and allocator gates are recorded separately in the same raw logs.
 
-| Instrument test | Inherited builder workload | First corrected workload | Corrected workload after DSP optimization |
-| --- | ---: | ---: | ---: |
-| `autogun` | 0.2742x | 0.2679x | 0.2667x |
-| `bassdrum` | 0.0138x | 0.0154x | 0.0151x |
-| `beepmap` | 0.4524x | 0.4540x | 0.4590x |
-| `boobass` | 0.0009x | 0.0009x | 0.0009x |
-| `drumaxx` | 0.1132x | 0.1128x | 0.1132x |
-| `drumpad` | 0.0063x | 0.0077x | 0.0077x |
-| `drumsynth_live` | 0.0124x | 0.0122x | 0.0125x |
-| `flex` | 0.3239x | 0.3407x | 0.3276x |
-| `gms` | 0.5492x | 0.5653x | 0.5655x |
-| `harmless` | 0.4431x | 0.5839x | 0.5803x |
-| `harmor` | 0.4531x | 0.4626x | 0.4615x |
-| `kepler` | 0.3482x | 0.3512x | 0.3482x |
-| `kepler_exo` | 0.4048x | 0.4189x | 0.4166x |
-| `minisynth` | 0.0667x | 0.0768x | 0.0670x |
-| `morphine` | 0.4454x | 0.4504x | 0.4540x |
-| `ogun` | 0.4751x | 0.4777x | 0.4845x |
-| `poizone` | 0.2622x | 0.2806x | 0.2822x |
-| `sawer` | 0.3589x | 0.3701x | 0.3517x |
-| `sytrus` | 0.4975x | 1.2084x | 0.7409x |
-| `toxic_biohazard` | 0.4893x | 1.1185x | 0.4913x |
+| Instrument test | Inherited builder workload | First corrected workload | After invariant hoisting | Final exact SIMD optimization |
+| --- | ---: | ---: | ---: | ---: |
+| `autogun` | 0.2742x | 0.2679x | 0.2667x | 0.2745x |
+| `bassdrum` | 0.0138x | 0.0154x | 0.0151x | 0.0155x |
+| `beepmap` | 0.4524x | 0.4540x | 0.4590x | 0.4663x |
+| `boobass` | 0.0009x | 0.0009x | 0.0009x | 0.0009x |
+| `drumaxx` | 0.1132x | 0.1128x | 0.1132x | 0.1128x |
+| `drumpad` | 0.0063x | 0.0077x | 0.0077x | 0.0077x |
+| `drumsynth_live` | 0.0124x | 0.0122x | 0.0125x | 0.0126x |
+| `flex` | 0.3239x | 0.3407x | 0.3276x | 0.3016x |
+| `gms` | 0.5492x | 0.5653x | 0.5655x | 0.5288x |
+| `harmless` | 0.4431x | 0.5839x | 0.5803x | 0.5827x |
+| `harmor` | 0.4531x | 0.4626x | 0.4615x | 0.4654x |
+| `kepler` | 0.3482x | 0.3512x | 0.3482x | 0.3089x |
+| `kepler_exo` | 0.4048x | 0.4189x | 0.4166x | 0.3983x |
+| `minisynth` | 0.0667x | 0.0768x | 0.0670x | 0.0651x |
+| `morphine` | 0.4454x | 0.4504x | 0.4540x | 0.4577x |
+| `ogun` | 0.4751x | 0.4777x | 0.4845x | 0.4867x |
+| `poizone` | 0.2622x | 0.2806x | 0.2822x | 0.2830x |
+| `sawer` | 0.3589x | 0.3701x | 0.3517x | 0.2983x |
+| `sytrus` | 0.4975x | 1.2084x | 0.7409x | 0.5785x |
+| `toxic_biohazard` | 0.4893x | 1.1185x | 0.4913x | 0.5249x |
 
 ## macOS cross-check
 
@@ -173,3 +177,7 @@ Before/after maximum held CPU shares (worst variant per instrument). The first c
 ## Row acceptance
 
 Pending integration and actual evidence. Tracker files remain unchanged.
+
+Additional DSP regression: `cargo test --offline -p windfall-dsp --lib -- --test-threads=1` **703/0/0**, exit 0, 83.71 s (`target/round4-dsp-vector-borrow-units.log`), including both exact-bit additive references and all existing polysynth PCM/state/partition/heap cases. Isolated ordinary deadline invocation initially selected the wrong top-level test target and exited 101 before any test (`target/round4-borrow-tail-deadlines.log`); correct `--test dsp instrument_deadlines` execution **14/7/0**, exit101,112.67s (`target/round4-borrow-tail-deadlines-repair1.log`). Maximum workloads, profiles, CPU affinity, process priority and limits are unchanged. Full current gates are in progress; timing admission is not yet established for this checkpoint.
+
+Local SHA-256 verification matches supplied model manifest and all six runtime/VC DLL entries (`target/round4-stem-runtime-hashes.log`; model/runtime hashes above). Supplied EXPORT.md documents official UMX-HQ 1.0.1 MIT-licensed weights (Zenodo 3370489), openunmix 1.3.0 and an opset17 waveform wrapper with upstream soft-mask/zero-Wiener-iteration mode, fixed STFT geometry and equal masks for unclaimed bins. Provided Python quality is context only; native harness remains pending until ordinary gates pass. No pack/runtime file is committed.
