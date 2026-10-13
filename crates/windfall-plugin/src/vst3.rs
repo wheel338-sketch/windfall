@@ -82,8 +82,10 @@ impl IPluginFactoryTrait for Factory {
             return kNoInterface;
         }
         let requested = unsafe { ptr::read_unaligned(iid.cast::<[u8; 16]>()) };
-        let Ok(program) = crate::package::initial_program() else {
-            return kResultFalse;
+        crate::runtime::error("");
+        let program = match crate::package::initial_program() {
+            Ok(program) => program,
+            Err(error) => { crate::runtime::error(error); return kResultFalse; }
         };
         let component = ComWrapper::new(Component {
             state: Rc::new(Publication::new(program)),
@@ -92,7 +94,7 @@ impl IPluginFactoryTrait for Factory {
             processing: AtomicBool::new(false),
             setup: UnsafeCell::new((48_000.0, 0)),
             latency: AtomicU32::new(0),
-            handler: UnsafeCell::new(None),
+            handler: Rc::new(UnsafeCell::new(None)),
         });
         if requested == IComponent::IID {
             unsafe {
@@ -151,6 +153,7 @@ impl IPluginFactory2Trait for Factory {
         kResultOk
     }
 }
+type HandlerSlot = Rc<UnsafeCell<Option<ComPtr<IComponentHandler>>>>;
 struct Component {
     state: Rc<Publication>,
     initialized: AtomicBool,
@@ -158,7 +161,7 @@ struct Component {
     processing: AtomicBool,
     setup: UnsafeCell<(f64, u32)>,
     latency: AtomicU32,
-    handler: UnsafeCell<Option<ComPtr<IComponentHandler>>>,
+    handler: HandlerSlot,
 }
 impl Class for Component {
     type Interfaces = (IComponent, IAudioProcessor, IEditController);
@@ -261,8 +264,10 @@ impl IComponentTrait for Component {
         }
         let prepared =
             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.state.activate(rate)));
-        let Ok(Ok(latency)) = prepared else {
-            return kResultFalse;
+        let latency = match prepared {
+            Ok(Ok(latency)) => latency,
+            Ok(Err(error)) => { crate::runtime::error(error); return kResultFalse; }
+            Err(_) => { crate::runtime::error("Windfall program preparation panicked"); return kResultFalse; }
         };
         self.latency.store(latency, Ordering::Release);
         self.active.store(true, Ordering::Release);
@@ -271,7 +276,7 @@ impl IComponentTrait for Component {
     unsafe fn setState(&self, stream: *mut IBStream) -> tresult {
         match unsafe { read_program(stream) }.and_then(|program| self.state.load(program)) {
             Ok(()) => kResultOk,
-            Err(_) => kResultFalse,
+            Err(error) => { crate::runtime::error(error); kResultFalse },
         }
     }
     unsafe fn getState(&self, stream: *mut IBStream) -> tresult {
@@ -312,9 +317,8 @@ unsafe fn write_program(state: &Publication, stream: *mut IBStream) -> tresult {
     let Some(stream) = (unsafe { ComRef::from_raw(stream) }) else {
         return kInvalidArgument;
     };
-    let Ok(mut bytes) = state.capture() else {
-        return kResultFalse;
-    };
+    let mut bytes = match state.capture() { Ok(bytes) => bytes,
+        Err(error) => { crate::runtime::error(error); return kResultFalse; } };
     let mut length = (bytes.len() as u32).to_le_bytes();
     for data in [&mut length[..], &mut bytes[..]] {
         let mut offset = 0;
@@ -371,7 +375,7 @@ impl IAudioProcessorTrait for Component {
         if size == 0 { kResultOk } else { kResultFalse }
     }
     unsafe fn getLatencySamples(&self) -> u32 {
-        self.state.latency()
+        self.state.requested_latency()
     }
     unsafe fn setupProcessing(&self, setup: *mut ProcessSetup) -> tresult {
         let Some(setup) = (unsafe { setup.as_ref() }) else {
@@ -386,6 +390,9 @@ impl IAudioProcessorTrait for Component {
             || setup.sampleRate.fract() != 0.0
         {
             return kInvalidArgument;
+        }
+        if let Err(error) = self.state.set_offline(setup.processMode == 2) {
+            crate::runtime::error(error); return kResultFalse;
         }
         unsafe {
             *self.setup.get() = (setup.sampleRate, setup.maxSamplesPerBlock as u32);
@@ -608,6 +615,21 @@ impl IEditControllerTrait for Component {
         unsafe {
             *self.handler.get() = ComRef::from_raw(handler).map(|h| h.to_com_ptr());
         }
+        let handler = Rc::clone(&self.handler);
+        self.state.set_notifier(Some(Box::new(move |flags| {
+            if let Some(handler) = unsafe { &*handler.get() } {
+                if flags & crate::publication::DIRTY != 0
+                    && let Some(dirty) = handler.cast::<IComponentHandler2>() {
+                    unsafe { dirty.setDirty(1); }
+                }
+                let mut restart = 0;
+                // VST3 SDK RestartFlags: parameter values=4, latency=8, reload=1.
+                if flags & crate::publication::PARAMETERS != 0 { restart |= 4; }
+                if flags & crate::publication::LATENCY != 0 { restart |= 8; }
+                if flags & crate::publication::RESTART != 0 { restart |= 1; }
+                if restart != 0 { unsafe { handler.restartComponent(restart); } }
+            }
+        })));
         kResultOk
     }
     unsafe fn createView(&self, name: FIDString) -> *mut IPlugView {

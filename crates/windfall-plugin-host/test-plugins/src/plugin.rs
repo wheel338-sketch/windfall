@@ -217,12 +217,9 @@ unsafe extern "C" fn init(plugin: *const clap_plugin) -> bool {
     // SAFETY: the host passes the plugin it was given.
     let plugin = unsafe { Plugin::from_raw(plugin) };
     match plugin.kind {
-        Kind::BridgeIdleHang => {
-            if let Some(callback) = unsafe { (*plugin.host).request_callback } {
-                unsafe { callback(plugin.host) };
-            }
-            true
-        }
+        // This fixture tests an idle hang after healthy audio admission;
+        // initial metadata refresh now legitimately services owner callbacks.
+        Kind::BridgeIdleHang => true,
         Kind::InitFail => false,
         Kind::InitHang => loop {
             std::thread::sleep(std::time::Duration::from_secs(1));
@@ -466,6 +463,13 @@ unsafe fn process_bridge_delayed(
     audio: &mut Audio,
     block: &clap_process,
 ) -> clap_process_status {
+    if plugin.kind == Kind::BridgeIdleHang && audio.blocks == 1
+        && let Some(callback) = unsafe { (*plugin.host).request_callback }
+    {
+        // Request on the first actual audio block, so startup is healthy and
+        // the existing watchdog test measures the intended running-owner fault.
+        unsafe { callback(plugin.host); }
+    }
     let channels = unsafe {
         [
             channel(block.audio_inputs, block.audio_inputs_count, 0, 0),

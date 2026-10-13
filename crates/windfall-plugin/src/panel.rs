@@ -65,7 +65,7 @@ fn load_reader(state: &Publication, reader: impl std::io::Read) -> Result<(), St
         .take(crate::MAX_STATE_BYTES as u64 + 1)
         .read_to_end(&mut bytes)
         .map_err(|e| e.to_string())?;
-    state.load(crate::Program::decode(&bytes)?)
+    state.load_editor(crate::Program::decode(&bytes)?)
 }
 #[cfg(test)]
 mod tests {

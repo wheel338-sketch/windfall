@@ -29,3 +29,12 @@ it("submits trimmed destinations, reports native failures and permits retry", as
   await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("VST3 and CLAP bundles saved"))
   expect(screen.queryByText("Runtime is missing")).not.toBeInTheDocument()
 })
+it("automatically resolves the distributed runtime when the override is empty", async () => {
+  Object.defineProperty(window, "__TAURI_INTERNALS__", { value: {}, configurable: true })
+  render(<PluginExportControls />)
+  await userEvent.type(screen.getByLabelText("New destination folder"), " C:/exports/automatic ")
+  invoke.mockResolvedValueOnce(undefined)
+  await userEvent.click(screen.getByRole("button", { name: "Export plugin bundles" }))
+  await waitFor(() => expect(invoke).toHaveBeenCalledWith("C:/exports/automatic", ""))
+  expect(await screen.findByRole("status")).toHaveTextContent("VST3 and CLAP bundles saved")
+})

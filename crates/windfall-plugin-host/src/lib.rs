@@ -91,6 +91,7 @@
 pub mod au_model;
 pub mod bridge;
 pub mod containment;
+pub mod export_runtime;
 pub mod gui;
 pub mod ownership;
 pub mod paths;

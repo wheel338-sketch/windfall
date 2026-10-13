@@ -88,7 +88,8 @@ impl Region {
         self.config = config;
         Ok(())
     }
-    pub(super) fn timeline_epoch(&self) -> Result<u64, ProtocolError> {
+    /// Current authenticated timeline epoch; a bounded atomic read with no IO.
+    pub fn timeline_epoch(&self) -> Result<u64, ProtocolError> {
         let epoch = u32::from_le(self.storage.words()[TIMELINE_EPOCH].load(Ordering::Acquire));
         if epoch == 0 || self.helper_failed() {
             return Err(ProtocolError::Sequence);

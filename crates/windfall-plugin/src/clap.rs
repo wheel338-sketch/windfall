@@ -117,8 +117,10 @@ unsafe extern "C" fn create(
     {
         return ptr::null();
     }
-    let Ok(program) = crate::package::initial_program() else {
-        return ptr::null();
+    crate::runtime::error("");
+    let program = match crate::package::initial_program() {
+        Ok(program) => program,
+        Err(error) => { report(host, &error); return ptr::null(); }
     };
     let plugin = Box::new(Instance {
         clap: clap_plugin {
@@ -144,6 +146,20 @@ unsafe extern "C" fn create(
         latency: AtomicU32::new(0),
     });
     let raw = Box::into_raw(plugin);
+    unsafe { (*raw).state.set_notifier(Some(Box::new(move |flags| {
+        // Main-thread editor/state preparation only. The host outlives its plugin.
+        if let Some(get) = (*host).get_extension {
+        if flags & crate::publication::DIRTY != 0 {
+            if let Some(state) = get(host, CLAP_EXT_STATE.as_ptr()).cast::<clap_sys::ext::state::clap_host_state>().as_ref()
+                && let Some(mark) = state.mark_dirty { mark(host); }
+        }
+        if flags & crate::publication::PARAMETERS != 0 {
+            if let Some(params) = get(host, clap_sys::ext::params::CLAP_EXT_PARAMS.as_ptr()).cast::<clap_sys::ext::params::clap_host_params>().as_ref()
+                && let Some(rescan) = params.rescan { rescan(host, clap_sys::ext::params::CLAP_PARAM_RESCAN_VALUES); }
+        }
+        }
+        if flags & crate::publication::RESTART != 0 && let Some(restart) = (*host).request_restart { restart(host); }
+    }))); }
     unsafe {
         (*raw).clap.plugin_data = raw.cast();
         &raw const (*raw).clap
@@ -177,6 +193,13 @@ pub static clap_entry: clap_plugin_entry = clap_plugin_entry {
 unsafe extern "C" fn init(plugin: *const clap_plugin) -> bool {
     unsafe { Instance::get(plugin) }.is_some()
 }
+fn report(host: *const clap_host, message: &str) {
+    crate::runtime::error(message);
+    let Ok(message) = std::ffi::CString::new(message) else { return; };
+    if let Some(get) = unsafe { (*host).get_extension }
+        && let Some(log) = unsafe { get(host, clap_sys::ext::log::CLAP_EXT_LOG.as_ptr()).cast::<clap_sys::ext::log::clap_host_log>().as_ref() }
+        && let Some(log) = log.log { unsafe { log(host, clap_sys::ext::log::CLAP_LOG_ERROR, message.as_ptr()); } }
+}
 unsafe extern "C" fn destroy(plugin: *const clap_plugin) {
     if let Some(instance) = unsafe { Instance::get(plugin) } {
         // CLAP requires deactivation before destruction. Refuse invalid lifecycle
@@ -203,10 +226,17 @@ unsafe extern "C" fn activate(plugin: *const clap_plugin, rate: f64, min: u32, m
     let prepared = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         instance.state.activate(rate)
     }));
-    let Ok(Ok(latency)) = prepared else {
-        return false;
+    let latency = match prepared {
+        Ok(Ok(latency)) => latency,
+        Ok(Err(error)) => { report(instance.host, &error); return false; }
+        Err(_) => { report(instance.host, "Windfall program preparation panicked"); return false; }
     };
     instance.latency.store(latency, Ordering::Release);
+    // CLAP latency.changed is permitted while inactive, not after an active
+    // audio-boundary swap. Active loads requested restart during preparation.
+    if let Some(get) = unsafe { (*instance.host).get_extension }
+        && let Some(ext) = unsafe { get(instance.host, CLAP_EXT_LATENCY.as_ptr()).cast::<clap_sys::ext::latency::clap_host_latency>().as_ref() }
+        && let Some(changed) = ext.changed { unsafe { changed(instance.host); } }
     instance.max_frames.store(max, Ordering::Release);
     instance.active.store(true, Ordering::Release);
     true
@@ -246,21 +276,6 @@ unsafe extern "C" fn reset(plugin: *const clap_plugin) {
 unsafe extern "C" fn on_main_thread(plugin: *const clap_plugin) {
     if let Some(instance) = unsafe { Instance::get(plugin) } {
         instance.state.collect();
-        let latency = instance.state.latency();
-        if instance.latency.swap(latency, Ordering::AcqRel) != latency
-            && let Some(extension) = unsafe { (*instance.host).get_extension }
-        {
-            let host_latency = unsafe {
-                extension(instance.host, CLAP_EXT_LATENCY.as_ptr())
-                    .cast::<clap_sys::ext::latency::clap_host_latency>()
-                    .as_ref()
-            };
-            if let Some(changed) = host_latency.and_then(|latency| latency.changed) {
-                unsafe {
-                    changed(instance.host);
-                }
-            }
-        }
     }
 }
 
@@ -563,9 +578,8 @@ unsafe extern "C" fn save(plugin: *const clap_plugin, stream: *const clap_ostrea
     let Some(write) = stream_ref.write else {
         return false;
     };
-    let Ok(bytes) = instance.state.capture() else {
-        return false;
-    };
+    let bytes = match instance.state.capture() { Ok(bytes) => bytes,
+        Err(error) => { report(instance.host, &error); return false; } };
     let mut offset = 0;
     while offset < bytes.len() {
         let left = &bytes[offset..];
@@ -602,14 +616,28 @@ unsafe extern "C" fn load(plugin: *const clap_plugin, stream: *const clap_istrea
         }
         bytes.extend_from_slice(&chunk[..count as usize]);
     }
-    let Ok(program) = Program::decode(&bytes) else {
-        return false;
-    };
-    instance.state.load(program).is_ok()
+    match Program::decode(&bytes).and_then(|program| instance.state.load(program)) {
+        Ok(()) => true,
+        Err(error) => { report(instance.host, &error); false }
+    }
 }
 static STATE: clap_plugin_state = clap_plugin_state {
     save: Some(save),
     load: Some(load),
+};
+unsafe extern "C" fn hard_realtime(plugin: *const clap_plugin) -> bool {
+    unsafe { Instance::get(plugin) }.is_some_and(|p| p.state.hard_realtime())
+}
+unsafe extern "C" fn render_mode(plugin: *const clap_plugin, mode: i32) -> bool {
+    let Some(instance) = (unsafe { Instance::get(plugin) }) else { return false; };
+    if !(0..=1).contains(&mode) || instance.active.load(Ordering::Acquire) { return false; }
+    match instance.state.set_offline(mode == 1) {
+        Ok(()) => true,
+        Err(error) => { report(instance.host, &error); false }
+    }
+}
+static RENDER: clap_sys::ext::render::clap_plugin_render = clap_sys::ext::render::clap_plugin_render {
+    has_hard_realtime_requirement: Some(hard_realtime), set: Some(render_mode),
 };
 unsafe extern "C" fn extension(_: *const clap_plugin, id: *const c_char) -> *const c_void {
     if id.is_null() {
@@ -624,6 +652,8 @@ unsafe extern "C" fn extension(_: *const clap_plugin, id: *const c_char) -> *con
         (&raw const LATENCY).cast()
     } else if id == CLAP_EXT_STATE {
         (&raw const STATE).cast()
+    } else if id == clap_sys::ext::render::CLAP_EXT_RENDER {
+        (&raw const RENDER).cast()
     } else {
         gui::extension(id)
     }
@@ -631,4 +661,4 @@ unsafe extern "C" fn extension(_: *const clap_plugin, id: *const c_char) -> *con
 
 mod gui;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

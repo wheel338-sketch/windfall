@@ -142,9 +142,10 @@ impl PluginModule {
             .find(|descriptor| descriptor.id == id)
             .ok_or_else(|| PluginError::NotFound(id.to_owned()))?;
         let backend = match &self.inner {
-            ModuleInner::Clap(module) => module.create(id, &self.info, Arc::clone(&self.log))?,
-            ModuleInner::Vst3(module) => module.create(id)?,
-        };
+            ModuleInner::Clap(module) => module.create(id, &self.info, Arc::clone(&self.log)),
+            ModuleInner::Vst3(module) => module.create(id),
+        }.map_err(|error| crate::export_runtime::last_error(&self.path)
+            .map_or(error, PluginError::Load))?;
         Ok(PluginInstance::new(descriptor, backend))
     }
 
