@@ -1,5 +1,40 @@
 # Windows audio-plugin process bridge
 
+## Round-six project expression transport (source, awaiting integrator gates)
+
+Mapping ABI10 and Hello4 supersede the older wire descriptions below. Helpers
+with Hello1/2/3 are refused before Load disclosure. Startup errors identify the
+required Hello4 / ABI10 contract; there is no silent downgrade.
+
+Each slot carries the project law at its first input frame in metadata word56,
+and a bounded, strictly ordered list of (frame, law) changes, counted in word57.
+The law codes are 0 for native semantics without project opt-in, then 1 Balance,
+2 ConstantPower, 3 Compromise and 4 Linear. Law records have their own prepared
+512-entry reserve; changes at the same frame coalesce. Note snapshots now use
+25 words: the legacy nine-word controls, a typed-expression presence word and
+mask, then seven explicit IEEE754 f64 values (Volume, Pan, Tuning, Vibrato,
+Expression, Brightness, Pressure). Absent typed payloads require zero reserved
+words. Invalid channels, masks, values, law codes and event ordering refuse.
+The slot is 602,432 bytes and mapping is 2,409,984 bytes, including its 256-byte
+header. No Rust layout or pointer crosses the boundary.
+
+The desktop bridge sends mapped, uncompensated note intent. A prepared helper
+owner bank applies the project law once and uses the same NoteRamp as desktop
+in-process hosting: five milliseconds on the input frame clock, including pan,
+volume and expression-map edits. Only control changes evaluate law gains; the
+frame loop uses cached arithmetic. Native Pan/Volume compensation currently
+requires both masks and native instance support on the actual note channel.
+Control snapshot recovery uses preallocated native recovery events instead of
+deactivation/re-activation on the block path. Parameter uncertainty uses bounded
+inline storage instead of allocating/freeing BTreeSet nodes.
+
+This is a partial source implementation. Native support and visible capability
+changes do not supply independent per-note host fallback audio. The adapter
+still exposes summed plugin outputs; completing mixed native/host routes and
+click-bounded capability loss/return needs separately prepared voice audio and
+state/owner migration. Those are SOFTWARE work, not external checks. The
+authored tests and remaining scope are in `docs/qa/2026-10-13-r6-pan-bridge.md`.
+
 Design proposal for N4, based on `71a0b76f`. Implementation and measured results
 will be recorded below as they become available. This document does not close
 the bridge or native editor parity rows.

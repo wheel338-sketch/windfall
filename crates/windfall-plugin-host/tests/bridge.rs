@@ -548,7 +548,7 @@ fn auth_impostor_client_process() {
     let mut wrong = std::net::TcpStream::connect(&endpoint).unwrap();
     let mut hello = [0u8; 40];
     hello[..4].copy_from_slice(b"WFAH");
-    hello[4..8].copy_from_slice(&3u32.to_le_bytes());
+    hello[4..8].copy_from_slice(&4u32.to_le_bytes());
     wrong.write_all(&hello).unwrap();
     let mut old = std::net::TcpStream::connect(&endpoint).unwrap();
     hello[4..8].copy_from_slice(&2u32.to_le_bytes());
@@ -1547,7 +1547,7 @@ fn vst3_capture_does_not_relabel_dsp_proof_after_a_reset_without_processing() {
 fn previous_authenticated_helper_hellos_are_closed_before_any_load_metadata() {
     use std::process::{Command, Stdio};
     use windfall_plugin_host::bridge::auth;
-    for version in [1, 2] {
+    for version in [1, 2, 3] {
         let key = auth::Key::generate().unwrap();
         let listener = std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
         listener.set_nonblocking(true).unwrap();
@@ -2167,6 +2167,7 @@ fn native_clap_instance_expression_audio_matches_reference_after_bridge_latency(
         modulation_y: 0.5,
     };
     let a = NoteSnapshot {
+        expression: None,
         id: windfall_plugin_host::FIRST_NOTE_INSTANCE_ID,
         key: 69,
         channel: 2,
@@ -2174,6 +2175,7 @@ fn native_clap_instance_expression_audio_matches_reference_after_bridge_latency(
         controls,
     };
     let b = NoteSnapshot {
+        expression: None,
         id: a.id + 1,
         controls: PluginNoteControls {
             pan: 0.5,
@@ -2290,6 +2292,7 @@ fn vst3_expression_identity_and_controls_replay_after_helper_timeline_reset() {
     assert!(audio.supports_note_pitch());
     assert_eq!(audio.latency(), 128);
     let a = NoteSnapshot {
+        expression: None,
         id: FIRST_NOTE_INSTANCE_ID,
         key: 69,
         channel: 2,
@@ -2303,6 +2306,7 @@ fn vst3_expression_identity_and_controls_replay_after_helper_timeline_reset() {
         },
     };
     let b = NoteSnapshot {
+        expression: None,
         id: a.id + 1,
         velocity: 0.25,
         controls: PluginNoteControls {

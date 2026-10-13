@@ -26,7 +26,7 @@ fn cid(index: i32) -> TUID {
 }
 /// How many classes the factory offers. New ones are appended, so the
 /// positions and ids of the earlier ones do not move.
-const CLASSES: i32 = 26;
+const CLASSES: i32 = 27;
 /// The auxiliary input buses of the multi-detector class, after its main
 /// stereo bus: their names and speaker arrangements (left; left and right;
 /// left, right and both surrounds).
@@ -93,6 +93,7 @@ impl IPluginFactoryTrait for Factory {
                         "VST3 Note Expression Probe",
                         "VST3 MIDI Mapping Instrument",
                         "VST3 Dynamic Capabilities",
+                        "VST3 Project Expression Probe",
                     ][index as usize],
                 ),
             });
@@ -124,8 +125,10 @@ impl IPluginFactoryTrait for Factory {
                 instrument: class == cid(2)
                     || class == cid(12)
                     || class == cid(23)
-                    || class == cid(24),
-                expression_probe: class == cid(23),
+                    || class == cid(24)
+                    || class == cid(26),
+                expression_probe: class == cid(23) || class == cid(26),
+                project_expression_probe: class == cid(26),
                 midi_mapping: class == cid(24),
                 midi_bend: std::array::from_fn(|_| {
                     std::sync::atomic::AtomicU64::new(0.5_f64.to_bits())
@@ -223,10 +226,11 @@ impl IPluginFactory2Trait for Factory {
                         "VST3 Note Expression Probe",
                         "VST3 MIDI Mapping Instrument",
                         "VST3 Dynamic Capabilities",
+                        "VST3 Project Expression Probe",
                     ][index as usize],
                 ),
                 classFlags: 0,
-                subCategories: chars(if index == 2 || index == 12 || index == 23 || index == 24 {
+                subCategories: chars(if index == 2 || index == 12 || index == 23 || index == 24 || index == 26 {
                     "Instrument|Synth"
                 } else {
                     "Fx|Tools"
@@ -250,6 +254,7 @@ struct Component {
     absurd: bool,
     instrument: bool,
     expression_probe: bool,
+    project_expression_probe: bool,
     midi_mapping: bool,
     midi_bend: [std::sync::atomic::AtomicU64; 16],
     bridge_note_probe: bool,

@@ -74,6 +74,8 @@ pub mod multiband;
 mod note_expression;
 mod note_pan;
 pub use note_pan::NotePan;
+// The hosted expression transport uses the same laws as built-in voices.
+pub use windfall_core::PanLaw as ProjectPanLaw;
 pub mod notemap;
 mod param;
 pub mod performance;
