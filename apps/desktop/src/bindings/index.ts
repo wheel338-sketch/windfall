@@ -354,6 +354,7 @@ export type { NoteCurvePoint } from "./NoteCurvePoint";
 export type { NoteDivision } from "./NoteDivision";
 export type { NoteEchoSettings } from "./NoteEchoSettings";
 export type { NoteEdge } from "./NoteEdge";
+export type { NoteEditGroup } from "./NoteEditGroup";
 export type { NoteEnvelope } from "./NoteEnvelope";
 export type { NoteEnvelopeParams } from "./NoteEnvelopeParams";
 export type { NoteExpression } from "./NoteExpression";

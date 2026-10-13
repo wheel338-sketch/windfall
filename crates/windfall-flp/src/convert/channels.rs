@@ -233,7 +233,7 @@ impl Builder<'_> {
                 .is_some_and(|shift| shift != 0 && shift != 1024)
             {
                 outcome = Outcome::Approximated;
-                self.report.say(ReportSection::Channels, Outcome::Dropped, format!("SCOPE: Channel {} nonlinear time shift={:?}: PyFLP Time.shift provides endpoints 0/1024 but no curve; DawVert channel.py stores the word and mi_flp.py supplies no shift conversion; LMMS FlpImport.cpp only logs it. Interior tick values cannot be derived from endpoints; source word retained.",channel.iid,channel.time_shift));
+                self.report.say(ReportSection::Channels, Outcome::Dropped, format!("SCOPE: Nonlinear channel time shift unsupported for Channel {}: nonlinear time shift={:?}; PyFLP Time.shift provides endpoints 0/1024 but no curve; DawVert channel.py stores the word and mi_flp.py supplies no shift conversion; LMMS FlpImport.cpp only logs it. Interior tick values cannot be derived from endpoints; source word retained.",channel.iid,channel.time_shift));
             }
             if channel.time_shift == Some(1024) {
                 self.report.say(ReportSection::Channels,Outcome::Approximated,format!("Channel {} time shift public 1024 endpoint (1:00) mapped to one quarter note; intermediate nonlinear curve is not inferred.",channel.iid));

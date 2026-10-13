@@ -3,6 +3,7 @@ import type { Automation } from "./Automation";
 import type { Channel } from "./Channel";
 import type { HistoryView } from "./HistoryView";
 import type { Mixer } from "./Mixer";
+import type { NoteEditGroup } from "./NoteEditGroup";
 import type { Notebook } from "./Notebook";
 import type { Pattern } from "./Pattern";
 import type { PatternId } from "./PatternId";
@@ -15,7 +16,7 @@ import type { SampleAsset } from "./SampleAsset";
  * The changed sections of a project. A section that is absent did not
  * change. The UI keeps a copy of the project and merges patches into it.
  */
-export type ProjectPatch = { 
+export type ProjectPatch = { noteEditGroups?: Array<NoteEditGroup>, 
 /**
  * Counts up by one for every patch the document produces. A UI that
  * sees a gap has missed a patch and must fetch the whole project again.

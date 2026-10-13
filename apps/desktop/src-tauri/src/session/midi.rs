@@ -22,10 +22,9 @@ impl Session {
     ) -> Result<MidiImportPreview, String> {
         let (generation, ticket) = {
             let mut state = self.state();
-            state.midi_ticket = state
-                .midi_ticket
-                .checked_add(1)
-                .ok_or_else(|| windfall_ipc::ui_message("midi.preview.tokensExhausted", serde_json::json!({})))?;
+            state.midi_ticket = state.midi_ticket.checked_add(1).ok_or_else(|| {
+                windfall_ipc::ui_message("midi.preview.tokensExhausted", serde_json::json!({}))
+            })?;
             state.midi_import = None;
             (state.generation, state.midi_ticket)
         };
@@ -39,7 +38,10 @@ impl Session {
             return Err(PROJECT_REPLACED.to_owned());
         }
         if state.midi_ticket != ticket {
-            return Err(windfall_ipc::ui_message("midi.preview.replaced", serde_json::json!({})));
+            return Err(windfall_ipc::ui_message(
+                "midi.preview.replaced",
+                serde_json::json!({}),
+            ));
         }
         let mut trial = state.document.clone();
         trial
@@ -65,7 +67,9 @@ impl Session {
                 .midi_import
                 .as_ref()
                 .filter(|p| p.token == token)
-                .ok_or_else(|| windfall_ipc::ui_message("midi.preview.expired", serde_json::json!({})))?;
+                .ok_or_else(|| {
+                    windfall_ipc::ui_message("midi.preview.expired", serde_json::json!({}))
+                })?;
             if reviewed.generation != state.generation {
                 return Err(PROJECT_REPLACED.to_owned());
             }
@@ -83,7 +87,10 @@ impl Session {
             let _recording = self.recording_idle()?;
             let mut state = self.state();
             if state.midi_import.as_ref().is_none_or(|p| p.token != token) {
-                return Err(windfall_ipc::ui_message("midi.preview.expired", serde_json::json!({})));
+                return Err(windfall_ipc::ui_message(
+                    "midi.preview.expired",
+                    serde_json::json!({}),
+                ));
             }
             let result = prepared.commit(&mut state, &mut retirement)?;
             state.midi_import = None;
@@ -112,7 +119,12 @@ impl Session {
                 path.set_extension("mid");
             }
             Some(ext) if ext.eq_ignore_ascii_case("mid") || ext.eq_ignore_ascii_case("midi") => {}
-            _ => return Err(windfall_ipc::ui_message("midi.export.extension", serde_json::json!({}))),
+            _ => {
+                return Err(windfall_ipc::ui_message(
+                    "midi.export.extension",
+                    serde_json::json!({}),
+                ));
+            }
         }
         let project = self.state().document.project().clone();
         let bytes = options.bytes(&project)?;

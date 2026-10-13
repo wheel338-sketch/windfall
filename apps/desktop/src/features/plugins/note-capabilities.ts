@@ -6,7 +6,7 @@ import type { PluginNoteCapabilities } from "@/lib/ipc/backend"
 import { useProjectStore } from "@/lib/store/project"
 import { getProjectGeneration } from "@/lib/store/replaced"
 
-export function useNativeNoteCapabilities(target: PluginTarget | undefined) {
+export function useNativeNoteCapabilities(target: PluginTarget | undefined): { channel?: number; generation?: number; capabilities?: PluginNoteCapabilities; changed?: boolean; error?: string } {
   useLanguageStore((state) => state.language)
   const revision = useProjectStore((state) => state.revision)
   const channel = target?.type === "instrument" ? target.channel : undefined

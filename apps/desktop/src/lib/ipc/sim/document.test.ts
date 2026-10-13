@@ -984,6 +984,7 @@ const EVERY_COMMAND: { [Type in Command["type"]]: (ids: Ids) => Command } = {
   registerSoundFontSource: (ids) => ({type:"registerSoundFontSource",sample:ids.spareSample,expected:ids.project.samples.find(s=>s.id===ids.spareSample)!.path}),
   captureArrangementTimeline: (ids) => ({ type: "captureArrangementTimeline", id: ids.project.playlist.arrangementBook!.active! }),
   registerPresetRender: (ids) => ({ type: "registerPresetRender", recipe: { sample: ids.sample, source: ids.presetSource, settings: { note: 60, velocity: 0.8, lengthSecs: 1, tailSecs: 3, stereo: true } } }),
+  setNoteEditGroups: (ids) => ({ type: "setNoteEditGroups", groups: [{ pattern: ids.pattern, channel: ids.channel, group: 1, notes: [ids.note] }] }),
 }
 
 /** A project as the document reports it, apart from the id counter. */

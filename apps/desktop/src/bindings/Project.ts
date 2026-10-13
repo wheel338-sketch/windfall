@@ -2,6 +2,7 @@
 import type { Automation } from "./Automation";
 import type { Channel } from "./Channel";
 import type { Mixer } from "./Mixer";
+import type { NoteEditGroup } from "./NoteEditGroup";
 import type { Notebook } from "./Notebook";
 import type { Pattern } from "./Pattern";
 import type { Playlist } from "./Playlist";
@@ -48,4 +49,9 @@ retainedPlugins?: Array<RetainedPluginState>,
 /**
  * Import provenance and uninterpreted controls; descriptive, never executed.
  */
-retainedSourceData?: Array<RetainedSourceData>, };
+retainedSourceData?: Array<RetainedSourceData>, 
+/**
+ * Deleted note references are inert; ordinary deletion/undo preserves
+ * imported editor group identity without changing sound or MIDI color.
+ */
+noteEditGroups?: Array<NoteEditGroup>, };

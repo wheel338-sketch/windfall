@@ -63,7 +63,7 @@ describe("whole application localization admission", () => {
     const texts = localizationViolations("fixture.tsx", source, hasKey).map(({ text }) => text)
     for (const expected of ["Nothing here yet", "Sine wave", "Choose a source", "Many channels", "One channel", "Device failed", "Export failed", "Try another folder", "Loading audio", "Audio ready", "Audio failed", "New command", "A source is required", "Canvas status", "Canvas tooltip", "Canvas caption", "Editor settings", "Static caption", "A parameter hint", "Cutoff", "More help", "Channels:"])
       expect(texts, expected).toContain(expected)
-    expect(texts.some((text) => text.includes('"Items: " + count'))).toBe(true)
+    expect(texts.some((text) => text.includes('"Items: " + count')), JSON.stringify(texts)).toBe(true)
     expect(texts).not.toContain("technical.id")
     // An unbound tag name must not impersonate a trusted app control.
     expect(texts).toContain("Cutoff")

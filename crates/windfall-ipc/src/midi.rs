@@ -81,7 +81,11 @@ impl MidiImportPreview {
             clips: plan.clips.len() as u32,
             notes: plan.note_count() as u32,
             length: plan.length,
-            adjustments: plan.adjustments.iter().map(crate::midi_adjustment_message).collect(),
+            adjustments: plan
+                .adjustments
+                .iter()
+                .map(crate::midi_adjustment_message)
+                .collect(),
         }
     }
 }
@@ -121,9 +125,12 @@ impl MidiExpressionExport {
             MidiExpressionMode::Mpe => windfall_midi::ExpressionOptions::mpe(),
         };
         if self.bend_range > windfall_midi::expression::MAX_BEND_RANGE {
-            return Err(crate::ui_message("midi.export.bendRange", serde_json::json!({
-                "max": windfall_midi::expression::MAX_BEND_RANGE
-            })));
+            return Err(crate::ui_message(
+                "midi.export.bendRange",
+                serde_json::json!({
+                    "max": windfall_midi::expression::MAX_BEND_RANGE
+                }),
+            ));
         }
         if self.bend_range != 0 {
             options.bend_range = self.bend_range;
@@ -187,7 +194,10 @@ impl MidiExportOptions {
             960 => windfall_midi::Resolution::Ppq960,
             ppq if (1..=0x7fff).contains(&ppq) => windfall_midi::Resolution::Ppq(ppq),
             _ => {
-                return Err(crate::ui_message("midi.export.resolution", serde_json::json!({})));
+                return Err(crate::ui_message(
+                    "midi.export.resolution",
+                    serde_json::json!({}),
+                ));
             }
         };
         let options = windfall_midi::ExportOptions {

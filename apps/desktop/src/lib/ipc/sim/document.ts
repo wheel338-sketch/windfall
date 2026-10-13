@@ -183,6 +183,7 @@ export class SimDocument {
     this.mirror = {
       ...project,
       plugins: patch.plugins ?? project.plugins,
+      noteEditGroups: patch.noteEditGroups ?? project.noteEditGroups,
       settings: patch.settings ?? project.settings,
       notebook: patch.notebook ?? project.notebook,
       samples: patch.samples ?? project.samples,
@@ -193,6 +194,7 @@ export class SimDocument {
       patterns: mergePatterns(project.patterns, patch),
     }
     if (!this.mirror.plugins?.length) delete this.mirror.plugins
+    if (!this.mirror.noteEditGroups?.length) delete this.mirror.noteEditGroups
     if (!this.mirror.notebook?.pages.length) delete this.mirror.notebook
     this.dirty = patch.dirty
     return patch

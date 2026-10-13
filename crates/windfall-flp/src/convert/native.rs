@@ -841,8 +841,8 @@ fn effect_layout(name: &str, size: usize) -> Option<(EffectKind, Layout)> {
                             offset: 8 + bank * 192 + row * 64 + band * 4,
                             scalar: Scalar::Float,
                             name: format!("bank_{}/{n}.{band}", bank + 1),
-                            target: if bank == 0 {
-                                format!("bands.{band}.{}", ["delayMs", "level", "pan"][row])
+                            target: if bank == 0 && band < 3 {
+                                format!("{}.{band}", ["timeMs", "level", "pan"][row])
                             } else {
                                 String::new()
                             },
@@ -1183,7 +1183,7 @@ pub(super) fn reports(name: &str, state: &[u8]) -> Vec<String> {
             "{name}: a documented field is nonfinite or outside the public source range; state retained, safe defaults used."
         )];
     }
-    let mut reports:Vec<String>=l.fields.iter().filter(|f|!matches!(f.name.as_str(),"version"|"reserved")).map(|f| {
+    let mut reports:Vec<String>=l.fields.iter().filter(|f|!matches!(f.name.as_str(),"version"|"reserved") && !(key == "multiband delay" && f.target.is_empty())).map(|f| {
         match f.read(bytes) {
             None=>format!("{name}.{}: truncated/nonfinite public field; safe default retained.",f.name),
             Some(v)=>match descriptors.iter().find(|p|p.id==f.target) {
@@ -1196,6 +1196,25 @@ pub(super) fn reports(name: &str, state: &[u8]) -> Vec<String> {
             },
         }
     }).collect();
+    if key == "multiband delay" {
+        // Keep all 375 unrepresentable controls visible within the bounded report.
+        // One line per bank/row retains each source name and value, rather than
+        // exhausting the category's 200-line budget before reaching later banks.
+        for bank in 1..=8 {
+            for row in ["delay", "vol", "pan"] {
+                let prefix = format!("bank_{bank}/{row}.");
+                let fields = l
+                    .fields
+                    .iter()
+                    .filter(|f| f.target.is_empty() && f.name.starts_with(&prefix))
+                    .map(|f| format!("{}={:?}", f.name, f.read(bytes)))
+                    .collect::<Vec<_>>();
+                if !fields.is_empty() {
+                    reports.push(format!("{name}: decoded public fields {}; no corresponding stand-in controls (state retained).", fields.join(", ")));
+                }
+            }
+        }
+    }
     if key == "fruity free filter" {
         reports.push(format!("{name}: DawVert dataset numbers/ranges and universal converter disagree on frequency/type ranges; explicit dataset numbering is retained, but converter type/700 and freq/1024 ranges supply the seven named responses and Hz. The converter's negative index at type=0 is treated as lowpass safe fallback; source range disagreement is an approximation, not established acoustic parity."));
     }

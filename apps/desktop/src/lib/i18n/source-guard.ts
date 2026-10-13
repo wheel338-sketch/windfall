@@ -93,7 +93,7 @@ export function applicationLocalizationViolations(sources: Readonly<Record<strin
   for (const [path, tree] of trees) {
     const file = originalFiles.get(path) ?? path
     for (const failure of localizationViolations(file, tree.text, hasKey, { tree, checker, originalFiles }))
-      failures.set(`${failure.file}:${failure.line}:${failure.column}`, failure)
+      failures.set(`${failure.file}:${failure.line}:${failure.column}:${failure.text}`, failure)
   }
   return [...failures.values()]
 }
@@ -220,7 +220,7 @@ export function localizationViolations(
     const location = owner.getLineAndCharacterOfPosition(node.getStart(owner))
     const filename = originalFiles.get(owner.fileName) ?? file
     // Imported helper failures belong to their source location.
-    const identity = `${filename}:${node.getStart(owner)}`
+    const identity = `${filename}:${node.getStart(owner)}:${node.getEnd()}`
     violations.set(identity, {
       file: filename, line: location.line + 1, column: location.character + 1, text, context,
     })
@@ -391,7 +391,7 @@ export function localizationViolations(
       }
       if (ts.isJsxExpression(node.initializer)) {
         if (node.initializer.expression) visible(node.initializer.expression, translated ? "control catalog key" : node.name.getText())
-      } else literal(node.initializer, node.initializer.text, node.name.getText())
+      } else if (ts.isStringLiteral(node.initializer)) literal(node.initializer, node.initializer.text, node.name.getText())
     }
     if (ts.isPropertyAssignment(node) && displayProperties.has(propertyName(node.name))) {
       visible(node.initializer, propertyName(node.name))
@@ -415,7 +415,7 @@ export function localizationViolations(
     if (ts.isCallExpression(node)) {
       const full = node.expression.getText()
       const name = ts.isPropertyAccessExpression(node.expression) ? node.expression.name.text : full
-      const positions = displayCalls[full] ?? displayCalls[name]
+      const positions = Object.hasOwn(displayCalls, full) ? displayCalls[full] : Object.hasOwn(displayCalls, name) ? displayCalls[name] : undefined
       if (positions) node.arguments.forEach((arg, index) => {
         if (positions === "all" || positions.includes(index)) visible(arg, full)
       })

@@ -672,7 +672,7 @@ export const inspectorEs = {
   "Snap off": "Sin ajuste",
   "MIDI channels": {"one": "{count} canal", "other": "{count} canales"},
   "MIDI patterns": {"one": "{count} patrón", "other": "{count} patrones"},
-  "MIDI clips": {"one": "{count} clip", "other": "{count} clips"},
+  "MIDI clips": {"one": "{count} fragmento MIDI", "other": "{count} fragmentos MIDI"},
   "MIDI notes": {"one": "{count} nota", "other": "{count} notas"},
   "Remove additional input {index}": "Eliminar entrada adicional {index}",
   "Add": "Añadir",
@@ -1257,3 +1257,4 @@ export const inspectorEs = {
   },
   "Per-note project pan laws are unavailable in this hosting mode": "Las leyes de panorama por nota no están disponibles en este modo de alojamiento."
 } as const
+

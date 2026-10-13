@@ -216,7 +216,7 @@ fn sslf_states_nested_delay_banks_and_float_arrays_use_the_public_offsets() {
     assert_eq!(instrument_value(&c, "level"), 0.6);
     assert_eq!(instrument_value(&c, "pitchHz"), 80.0);
     let mut payload = vec![0; 152];
-    payload[112..116].copy_from_slice(&0.5_f32.to_le_bytes());
+    payload[96..100].copy_from_slice(&0.5_f32.to_le_bytes());
     let mut state = b"SSLF".to_vec();
     state.extend(152_u32.to_le_bytes());
     state.extend(payload);
@@ -233,7 +233,7 @@ fn sslf_states_nested_delay_banks_and_float_arrays_use_the_public_offsets() {
     let mut b = vec![0; 1544];
     b[8..12].copy_from_slice(&120_f32.to_le_bytes());
     let c = effect("Multiband Delay", &b);
-    assert_eq!(effect_value(&c, "bands.0.delayMs"), 120.0);
+    assert_eq!(effect_value(&c, "timeMs.0"), 120.0);
     assert!(format!("{:?}", c.report).contains("bank_8/pan.15"));
 }
 
@@ -753,7 +753,7 @@ fn normalized_plugin_recording_float_words_preserve_zero_midpoint_and_full_scale
     for (point, want) in lane
         .points
         .iter()
-        .zip([36.1328125, 1549.1943359375, 7804.6875])
+        .zip([36.1328125_f64, 1549.1943359375, 7804.6875].map(|value| value as f32))
     {
         assert!((range.value(point.value) - want).abs() < 0.004);
     }
@@ -1110,7 +1110,8 @@ fn instrument_automation_clip_targets_name_the_device_and_parameter_without_infe
     assert!(
         report.contains("Instrument BooBass parameter 1")
             && report.contains("SCOPE:")
-            && report.contains("no named automation numbers")
+            && report.contains("no named automation numbers"),
+        "{report}"
     );
 }
 

@@ -578,7 +578,7 @@ impl Builder<'_> {
             .and_then(|c| c.plugin.as_ref())
             .map_or("unnamed", |p| p.internal_name.as_str());
         format!(
-            "SCOPE: Instrument {name} parameter {param}: DawVert fl_studio.dset supplies no named automation numbers for the decoded 3x Osc/DX10/Plucked/BooBass/Fruit Kick/SimSynth/Slicer/Granulizer/BassDrum states; Sytrus/Harmless entries are anonymous param_N ranges. PyFLP plugin.py parsers and LMMS importer supply no semantic number-to-knob map. State offsets were not substituted for parameter numbers; source event retained."
+            "SCOPE: Instrument {name} parameter {param} unsupported; retained opaquely: DawVert fl_studio.dset supplies no named automation numbers for the decoded 3x Osc/DX10/Plucked/BooBass/Fruit Kick/SimSynth/Slicer/Granulizer/BassDrum states; Sytrus/Harmless entries are anonymous param_N ranges. PyFLP plugin.py parsers and LMMS importer supply no semantic number-to-knob map. State offsets were not substituted for parameter numbers; source event retained."
         )
     }
 }

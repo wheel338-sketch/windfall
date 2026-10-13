@@ -563,9 +563,25 @@ impl<'a> Builder<'a> {
         let flp = self.flp;
         for link in &flp.remote_controllers {
             let source = link.source_channel().and_then(|id| flp.channel(id));
+            if source.is_some_and(|c| c.automation.is_some())
+                && self.automation_target(link.target()).is_none()
+            {
+                let text = match link.target() {
+                    crate::target::ControlTarget::ChannelPlugin { channel, param } => {
+                        self.instrument_target_report(channel, param)
+                    }
+                    target => format!(
+                        "Automation target {target:?} is unsupported or was not imported; kept in source events."
+                    ),
+                };
+                // Even unplaced automation clips need a per-target diagnostic.
+                // `say` consolidates an identical warning already produced by placement.
+                self.report
+                    .say(ReportSection::Automation, Outcome::Dropped, text);
+            }
             self.report.say(ReportSection::Automation,if source.is_some_and(|c|c.automation.is_some()){Outcome::Approximated}else{Outcome::Dropped},format!(
                 "Controller link source {:#010x} -> {:?}: {}. SCOPE: DawVert auto.py establishes source@2/location@8/flags@12/smoothing@16; PyFLP controller.py leaves source and trailing bytes unnamed. No serialized formula field or smoothing-unit conversion is established; raw flags={} and smoothing={} retained, no formula bytes or milliseconds invented.",
-                link.source,link.target(),if source.is_some_and(|c|c.automation.is_some()){"automation clip source mapped"}else{"source is not an imported automation clip; controller/MIDI source encoding lacks a public semantic layout"},link.flags,link.smoothing));
+                link.source,link.target(),if source.is_some_and(|c|c.automation.is_some()){"automation clip source decoded; see target conversion diagnostics"}else{"source is not an imported automation clip; controller/MIDI source encoding lacks a public semantic layout"},link.flags,link.smoothing));
         }
         if flp.uninterpreted_counts.contains_key(&226) {
             self.report.say(section,Outcome::Dropped,"SCOPE: MIDI controller event 226 remains opaque: PyFLP MIDIControllerEvent is only GreedyBytes; DawVert auto.py and LMMS importer establish no MIDI source-field layout or units.");

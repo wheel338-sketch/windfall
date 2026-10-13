@@ -11,7 +11,7 @@ export type SamplePlayback = {
  */
 legacyKeyWrap?: boolean, 
 /**
- * Only used to migrate pre-asset v1 sample tables without losing their audio.
+ * Inline mono source, including imported embedded WAV fallback audio.
  */
 inlineSource?: InlinePlaybackSource, sample: SampleId | null, sampleB: SampleId | null, slices: Array<SliceRegion>, curve: PlaybackCurve, keyCurves: Array<KeyPlaybackCurve>, 
 /**
