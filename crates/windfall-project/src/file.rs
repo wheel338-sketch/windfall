@@ -160,13 +160,14 @@ pub fn from_json(json: &str) -> Result<Project, LoadError> {
             supported: FORMAT_VERSION,
         });
     }
-    let project: Project = if found == FORMAT_VERSION {
+    let mut project: Project = if found == FORMAT_VERSION {
         serde_json::from_str(json)?
     } else {
         let mut value: Value = serde_json::from_str(json)?;
         migrate(&mut value, found, MIGRATIONS)?;
         serde_json::from_value(value)?
     };
+    project.own_soundfont_sources().map_err(LoadError::Invalid)?;
     project.check().map_err(LoadError::Invalid)?;
     Ok(project)
 }

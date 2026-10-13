@@ -1,6 +1,106 @@
 use super::Rig;
 use windfall_project::{ChannelId, Command, InstrumentKind, SampleInstrumentAsset, SamplePath};
 
+fn soundfont_channel(rig:&Rig)->ChannelId {
+    ChannelId(rig.session.dispatch(Command::AddChannel {name:None,sample:None,
+        instrument:Some(InstrumentKind::SoundFont),index:None,mixer_track:None},None).unwrap().created[0])
+}
+
+#[test]
+fn soundfont_import_owns_source_and_missing_relink_reopens_with_checked_history() {
+    let rig=Rig::new();let channel=soundfont_channel(&rig);
+    let before=rig.project();let original=rig.file("sf-owned.sf2");
+    std::fs::write(&original,general_midi_fixture()).unwrap();
+    rig.session.soundfont_load(channel,None,original.clone(),0,0).unwrap();
+    let imported=rig.project();let asset=imported.channel(channel).unwrap().sample_instrument.clone().unwrap();
+    let source=asset.soundfont_source().unwrap();assert!(imported.sample(source).is_some());
+    assert!(rig.session.state().pool.has_sample_instrument_asset(&asset.canonical(&imported)));
+    rig.session.undo().unwrap();assert_eq!(rig.project(),before);
+    rig.session.redo().unwrap();assert_eq!(rig.project(),imported);
+    let saved=rig.file("sf-owned.windfall");rig.session.project_save(Some(&saved)).unwrap();
+    let replacement=rig.file("sf-replacement.sf2");std::fs::rename(&original,&replacement).unwrap();
+    let reopened=rig.restart();reopened.session.project_open(&saved).unwrap();
+    assert_eq!(reopened.session.sample_instrument_missing_sources(channel).unwrap(),[source]);
+    let before=reopened.project();
+    reopened.session.soundfont_relink(channel,asset.clone(),before.sample(source).unwrap().path.clone(),replacement.clone()).unwrap();
+    let after=reopened.project();assert_eq!(after.channel(channel).unwrap().sample_instrument,Some(asset.clone()));
+    assert_eq!(after.sample(source).unwrap().path,SamplePath::External(replacement));
+    assert!(reopened.session.sample_instrument_missing_sources(channel).unwrap().is_empty());
+    reopened.session.undo().unwrap();assert_eq!(reopened.project(),before);
+    assert_eq!(reopened.session.sample_instrument_missing_sources(channel).unwrap(),[source]);
+    reopened.session.redo().unwrap();assert_eq!(reopened.project(),after);
+    reopened.session.project_save(Some(&saved)).unwrap();
+    let final_session=reopened.restart();final_session.session.project_open(&saved).unwrap();
+    assert_eq!(final_session.project().sample(source),after.sample(source));
+    assert!(final_session.session.sample_instrument_missing_sources(channel).unwrap().is_empty());
+}
+
+#[test]
+fn soundfont_relink_rejects_malformed_missing_presets_and_stale_publication_atomically() {
+    let rig=Rig::new();let channel=soundfont_channel(&rig);let file=rig.file("sf-original.sf2");
+    std::fs::write(&file,general_midi_fixture()).unwrap();rig.session.soundfont_load(channel,None,file,0,0).unwrap();
+    let project=rig.project();let asset=project.channel(channel).unwrap().sample_instrument.clone().unwrap();
+    let source=asset.soundfont_source().unwrap();let expected=project.sample(source).unwrap().path.clone();
+    let before=rig.session.document_snapshot();let bad=rig.file("sf-bad.sf2");std::fs::write(&bad,b"hostile").unwrap();
+    assert!(rig.session.soundfont_relink(channel,asset.clone(),expected.clone(),bad).is_err());
+    assert_eq!(rig.session.document_snapshot(),before);
+    let wrong=rig.file("sf-wrong-preset.sf2");let mut bytes=general_midi_fixture();
+    let at=bytes.windows(4).position(|w|w==b"phdr").unwrap()+8+20;bytes[at..at+2].copy_from_slice(&1u16.to_le_bytes());
+    std::fs::write(&wrong,bytes).unwrap();
+    assert!(rig.session.soundfont_relink(channel,asset.clone(),expected.clone(),wrong).is_err());
+    assert_eq!(rig.session.document_snapshot(),before);
+    let valid=rig.file("sf-valid.sf2");std::fs::write(&valid,general_midi_fixture()).unwrap();
+    let hold=rig.session.hold("soundfont-relink:prepared");
+    let job=rig.session.background(move|session|session.soundfont_relink(channel,asset,expected,valid));
+    hold.wait();rig.session.project_new().unwrap();let before=rig.session.document_snapshot();hold.release();
+    assert!(job.join().unwrap().is_err());assert_eq!(rig.session.document_snapshot(),before);
+}
+
+#[test]
+fn soundfont_portable_archive_contains_exact_bank_bytes_and_opens_without_original_file() {
+    let rig=Rig::new();let channel=soundfont_channel(&rig);let file=rig.file("sf-archive.sf2");
+    let bytes=general_midi_fixture();std::fs::write(&file,&bytes).unwrap();
+    let earlier=rig.file("sf-earlier.bank");std::fs::write(&earlier,&bytes).unwrap();
+    rig.session.soundfont_load(channel,None,earlier.clone(),0,0).unwrap();
+    let previous=rig.project().channel(channel).unwrap().sample_instrument.clone();
+    let retained=previous.as_ref().unwrap().soundfont_source().unwrap();
+    rig.session.soundfont_load(channel,previous,file.clone(),0,0).unwrap();
+    let before=rig.project();let source=before.channel(channel).unwrap().sample_instrument.as_ref().unwrap().soundfont_source().unwrap();
+    assert!(before.is_soundfont_source(retained));
+    let archive=rig.file("sf-portable.zip");rig.session.project_archive_save(&archive).unwrap();
+    assert_eq!(rig.project(),before);std::fs::remove_file(&file).unwrap();std::fs::remove_file(&earlier).unwrap();
+    rig.session.project_archive_open(&archive).unwrap();let reopened=rig.project();
+    let state=rig.session.state();
+    let path=windfall_project::file::resolve_sample_path(&reopened.sample(source).unwrap().path,
+        state.sample_dir.as_deref(),&rig.session.inner.factory_dir).unwrap();
+    assert_eq!(std::fs::read(path).unwrap(),bytes);
+    let asset=reopened.channel(channel).unwrap().sample_instrument.as_ref().unwrap();
+    assert_eq!(asset.soundfont_source(),Some(source));assert!(state.pool.has_sample_instrument_asset(&asset.canonical(&reopened)));
+    drop(state);
+    let SamplePath::Project(relative)=&reopened.sample(source).unwrap().path else {panic!("archive bank was not portable")};
+    assert_eq!(rig.session.soundfont_presets(relative).unwrap()[0].program,0);
+    rig.session.soundfont_load(channel,Some(asset.clone()),relative.clone(),0,0).unwrap();
+    assert_eq!(rig.project().channel(channel).unwrap().sample_instrument.as_ref().unwrap().soundfont_source(),Some(source));
+    assert_eq!(rig.project().samples.len(),reopened.samples.len());
+}
+
+#[test]
+fn soundfont_native_hardware_cc_changes_real_pcm_without_document_edits() {
+    use windfall_engine::midi_hardware::{InputMessage,MidiMessage};
+    let mut rig=Rig::new();let channel=soundfont_channel(&rig);let file=rig.file("sf-midi.sf2");
+    std::fs::write(&file,general_midi_fixture()).unwrap();rig.session.soundfont_load(channel,None,file,0,0).unwrap();
+    let snapshot=rig.session.document_snapshot();let generation=rig.session.midi_hardware_state().generation;
+    rig.session.midi_hardware_target(Some(channel),generation,snapshot.revision).unwrap();
+    let epoch=rig.session.controller().hardware_epoch();assert!(rig.session.hardware_note(epoch,60,127));
+    let before=rig.session.document_snapshot();
+    let baseline=rig.run(2048).iter().map(|x|x*x).sum::<f32>();assert!(baseline>0.001);
+    rig.session.soundfont_hardware_message(InputMessage {device:0,at:std::time::Instant::now(),stamp_micros:0,
+        message:MidiMessage::Controller{channel:0,number:7,value:0}});
+    let quiet=rig.run(2048).iter().map(|x|x*x).sum::<f32>();
+    assert!(quiet<baseline*0.0001);
+    assert_eq!(rig.session.document_snapshot(),before);
+}
+
 #[test]
 fn speech_render_saves_a_source_as_one_history_step_and_reopens() {
     let rig = Rig::new();
@@ -748,6 +848,7 @@ fn general_midi_soundfont_destination_preserves_rack_notes_history_disk_and_live
     assert!(matches!(
         saved.channel(channel).unwrap().sample_instrument,
         Some(SampleInstrumentAsset::SoundFont {
+            source: Some(_),
             bank: 0,
             program: 0,
             ..

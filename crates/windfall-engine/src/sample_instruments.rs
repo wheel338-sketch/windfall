@@ -66,7 +66,7 @@ impl SamplePool {
     ) -> Result<Self, String> {
         let mut ready: Vec<PreparedSampleBank> = Vec::new();
         for channel in &project.channels {
-            let Some(asset) = asset(channel) else {
+            let Some(asset) = asset(channel).map(|a|a.canonical(project)) else {
                 continue;
             };
             if !keep_going() {

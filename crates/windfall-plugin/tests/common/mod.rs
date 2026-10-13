@@ -8,6 +8,7 @@ pub fn program() -> Program {
     let mut program = Program::default();
     program.project.next_id = 20;
     program.project.samples.push(SampleAsset {
+        soundfont: false,
         regions: Vec::new(),
         processing: None,
         id: SampleId(2),

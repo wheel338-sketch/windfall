@@ -642,6 +642,10 @@ pub(crate) struct InstrumentUnit {
 }
 
 impl InstrumentUnit {
+    pub fn soundfont_midi(&mut self, message: windfall_dsp::sample_bank::SoundFontMidi) {
+        self.instrument.soundfont_midi(message);
+    }
+
     pub fn inherit_sample_bank_notes(&mut self, previous: &mut Self) {
         if self
             .instrument

@@ -99,12 +99,14 @@ impl ProjectPreparation {
             }
         }
         for channel in &project.channels {
-            let Some(asset @ windfall_project::SampleInstrumentAsset::SoundFont { path, .. }) =
+            let Some(asset @ windfall_project::SampleInstrumentAsset::SoundFont { .. }) =
                 &channel.sample_instrument
             else {
                 continue;
             };
-            if pool.has_sample_instrument_asset(asset) {
+            let asset=asset.canonical(project);
+            let path=asset.soundfont_path(project).expect("SoundFont path");
+            if pool.has_sample_instrument_asset(&asset) {
                 continue;
             }
             let file = windfall_project::file::resolve_sample_path(

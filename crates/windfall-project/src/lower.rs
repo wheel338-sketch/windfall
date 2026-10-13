@@ -1460,6 +1460,21 @@ impl Transaction<'_> {
                 self.push(Edit::SetSample(Change { old, new }));
                 "Relink sample source"
             }
+            Command::RegisterSoundFontSource {sample,expected} => {
+                let index=self.sample_index(sample)?;
+                let old=self.project.samples[index].clone();
+                if old.path!=expected {return Err(CommandError::invalid("SoundFont source path changed"));}
+                if self.project.channels.iter().any(|c|c.source.sample()==Some(sample)
+                    || c.sample_instrument.as_ref().is_some_and(|a|a.samples().any(|id|id==sample))
+                    || c.sample_playback.as_ref().is_some_and(|a|a.references(sample)))
+                    || self.project.playlist.clips.iter().any(|c|c.content.sample()==Some(sample))
+                    || old.processing.is_some() {
+                    return Err(CommandError::invalid("An audio source cannot also be a raw SoundFont bank"));
+                }
+                let mut new=old.clone();new.soundfont=true;
+                self.push(Edit::SetSample(Change {old,new}));
+                "Register SoundFont source"
+            }
             Command::AddSample { name, path } => self.add_sample(name, path)?,
             Command::SetSamplePlayback { channel, asset } => {
                 self.set_sample_playback(channel, asset)?
@@ -2221,6 +2236,7 @@ impl Transaction<'_> {
         self.push(Edit::Sample(ListEdit::Insert {
             index: self.project.samples.len(),
             item: SampleAsset {
+                soundfont: false,
                 id,
                 name,
                 path,
@@ -2260,7 +2276,7 @@ impl Transaction<'_> {
             c.source.sample() == Some(id)
                 || c.sample_instrument
                     .as_ref()
-                    .is_some_and(|a| a.samples().any(|sample| sample == id))
+                    .is_some_and(|a| a.samples().chain(a.soundfont_source()).any(|sample| sample == id))
                 || c.sample_playback.as_ref().is_some_and(|a| a.references(id))
         });
         if let Some(channel) = user {

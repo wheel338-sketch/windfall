@@ -968,6 +968,7 @@ const EVERY_COMMAND: { [Type in Command["type"]]: (ids: Ids) => Command } = {
     library: { assets: [{ reference: { id: "piano-fixture", revision: 1 }, languageVersion: 1, kind: "piano", name: "Fixture", source: "emit" }], channels: [], controllers: [] },
   }),
   relinkSamplePath: (ids) => ({ type: "relinkSamplePath", sample: ids.sample, expected: ids.project.samples.find(sample=>sample.id===ids.sample)!.path, path: {kind:"external",path:"C:/Windfall/relinked.wav"} }),
+  registerSoundFontSource: (ids) => ({type:"registerSoundFontSource",sample:ids.spareSample,expected:ids.project.samples.find(s=>s.id===ids.spareSample)!.path}),
   captureArrangementTimeline: (ids) => ({ type: "captureArrangementTimeline", id: ids.project.playlist.arrangementBook!.active! }),
 }
 

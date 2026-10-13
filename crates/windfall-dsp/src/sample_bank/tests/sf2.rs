@@ -373,3 +373,29 @@ fn sf2_linked_modulator_graph_sums_inputs_ignores_cycles_and_keeps_composition()
     let bank=parsed(&b);near(bank.sf2[0].resolve(60,127,controls)[8],13500.0-1200.0*32.0/127.0);
     assert_eq!(bank.sf2[0].programs.len(),0);
 }
+
+#[test]
+fn sf2_modulation_envelope_filter_and_lfo_volume_routes_match_pcm_reference() {
+    let mut b=fixture(&[(8,6900),(11,1200),(48,200),(25,-32768),(26,-32768),(27,-32768),
+        (28,-32768),(29,0),(33,-32768),(34,-32768),(35,-32768),(36,-32768)]);
+    b.smpl=(0..8192).flat_map(|_|1000_i16.to_le_bytes()).collect();disable_defaults(&mut b);
+    let bank=parsed(&b);let mut state=State::default();state.start(&bank.sf2[0],60,127,Controls::default());
+    let out=state.tick(&bank.sf2[0],&bank.zones()[0].audio,RATE,Controls::default(),0.0,1.0,1.0,0.0);
+    // A full-scale +1200c modulation envelope doubles 440Hz. Independently
+    // compute the Butterworth first impulse coefficient using tan/prewarping,
+    // then the 200cB amplifier and center pan. No renderer coefficient is read.
+    let k=(std::f64::consts::PI*880.0/48000.0).tan();
+    let b0=k*k/(1.0+std::f64::consts::SQRT_2*k+k*k);
+    let reference=(1000.0/32768.0*b0*0.1*std::f64::consts::FRAC_1_SQRT_2) as f32;
+    assert!((out[0]-reference).abs()<1e-8);
+    let mut b=fixture(&[(13,200),(21,-32768),(22,0),(54,1),
+        (33,-32768),(34,-32768),(35,-32768),(36,-32768)]);
+    b.smpl=(0..8192).flat_map(|_|1000_i16.to_le_bytes()).collect();disable_defaults(&mut b);
+    let bank=parsed(&b);let mut state=State::default();state.start(&bank.sf2[0],60,127,Controls::default());
+    let frame=1470;let mut out=[0.0;2];
+    for _ in 0..=frame {out=state.tick(&bank.sf2[0],&bank.zones()[0].audio,RATE,Controls::default(),0.0,1.0,1.0,0.0);}
+    let phase=frame as f64*(440.0*2.0_f64.powf(-6900.0/1200.0))/48000.0;
+    let lfo=if phase<0.25 {phase*4.0} else {2.0-phase*4.0};
+    let reference=(1000.0/32768.0*std::f64::consts::FRAC_1_SQRT_2*10.0_f64.powf(-lfo)) as f32;
+    assert!((out[0]-reference).abs()<1e-6);
+}

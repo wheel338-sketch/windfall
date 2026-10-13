@@ -537,6 +537,7 @@ mod tests {
         let id = SampleId(project.next_id);
         project.next_id += 1;
         project.samples.push(SampleAsset {
+            soundfont: false,
             id,
             name: "Exact".into(),
             path: SamplePath::Project("samples/exact.bin".into()),

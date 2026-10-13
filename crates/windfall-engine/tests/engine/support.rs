@@ -43,6 +43,7 @@ impl Rig {
         let id = SampleId(self.id());
         self.pool.insert(id, audio);
         self.project.samples.push(SampleAsset {
+            soundfont: false,
             processing: None,
             regions: Vec::new(),
             id,

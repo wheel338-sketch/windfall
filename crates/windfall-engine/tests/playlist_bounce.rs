@@ -33,6 +33,7 @@ fn soloed_playlist_span_renders_note_and_audio_into_a_buffer_and_excludes_other_
         let sample = SampleId(11);
         let channel = ChannelId(10);
         project.samples.push(SampleAsset {
+            soundfont: false,
             processing: None,
             regions: Vec::new(),
             id: sample,

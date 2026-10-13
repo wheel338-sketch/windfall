@@ -1,6 +1,48 @@
 use windfall_dsp::sample_bank::SampleZone;
 use windfall_project::*;
 
+#[test]
+fn soundfont_source_identity_relink_history_json_and_legacy_upgrade() {
+    let mut doc=Document::new(Project::new("SoundFont identity"));
+    let source=SampleId(doc.dispatch(Command::AddSample {name:"Own bank".into(),
+        path:SamplePath::External("C:/Own/bank.sf2".into())},None).unwrap().created[0]);
+    let channel=channel(&mut doc,InstrumentKind::SoundFont);
+    doc.dispatch(Command::RegisterSoundFontSource {sample:source,expected:doc.project().sample(source).unwrap().path.clone()},None).unwrap();
+    let asset=SampleInstrumentAsset::SoundFont {source:Some(source),path:SamplePath::External("C:/Own/bank.sf2".into()),bank:0,program:0};
+    doc.dispatch(Command::SetSampleInstrumentAsset {channel,expected:None,asset:Some(asset.clone())},None).unwrap();
+    assert!(doc.dispatch(Command::RemoveSample{id:source},None).is_err());
+    let before=doc.project().clone();
+    let replacement=SamplePath::External("C:/Recovered/bank.sf2".into());
+    doc.dispatch(Command::RelinkSamplePath {sample:source,expected:before.sample(source).unwrap().path.clone(),path:replacement.clone()},None).unwrap();
+    assert_eq!(asset.soundfont_path(doc.project()),Some(&replacement));
+    assert_eq!(doc.project().channel(channel).unwrap().sample_instrument,Some(asset));
+    let after=doc.project().clone();doc.undo().unwrap();assert_eq!(doc.project(),&before);
+    doc.redo().unwrap();assert_eq!(doc.project(),&after);
+    let reopened=file::from_json(&file::to_json(doc.project()).unwrap()).unwrap();assert_eq!(reopened,after);
+    let mut legacy=before.clone();
+    if let Some(SampleInstrumentAsset::SoundFont{source,..})=&mut legacy.channels.iter_mut().find(|c|c.id==channel).unwrap().sample_instrument {*source=None;}
+    let json=file::to_json(&legacy).unwrap();
+    let upgraded=file::from_json(&json).unwrap();
+    assert_eq!(upgraded.channel(channel).unwrap().sample_instrument.as_ref().unwrap().soundfont_source(),Some(source));
+    assert_eq!(upgraded.samples.len(),before.samples.len());
+}
+
+#[test]
+fn raw_soundfont_role_is_saved_after_preset_replacement_and_cannot_alias_audio() {
+    let mut doc=Document::new(Project::new("Bank source kinds"));let source=sample(&mut doc);
+    let before=doc.project().clone();let path=doc.project().sample(source).unwrap().path.clone();
+    doc.dispatch(Command::RegisterSoundFontSource{sample:source,expected:path.clone()},None).unwrap();
+    assert!(doc.project().is_soundfont_source(source));
+    let reopened=file::from_json(&file::to_json(doc.project()).unwrap()).unwrap();
+    assert!(reopened.is_soundfont_source(source));
+    doc.undo().unwrap();assert_eq!(doc.project(),&before);doc.redo().unwrap();
+    let audio=channel(&mut doc,InstrumentKind::MultiSampler);
+    assert!(doc.dispatch(Command::EditSampleZones{channel:audio,expected:vec![],zones:vec![SampleZone {sample:source.0,..Default::default()}]},None).is_err());
+    let mut legacy=serde_json::to_value(&before).unwrap();
+    for sample in legacy["samples"].as_array_mut().unwrap() {sample.as_object_mut().unwrap().remove("soundfont");}
+    let old:Project=serde_json::from_value(legacy).unwrap();assert!(!old.is_soundfont_source(source));
+}
+
 fn channel(doc: &mut Document, kind: InstrumentKind) -> ChannelId {
     ChannelId(
         doc.dispatch(

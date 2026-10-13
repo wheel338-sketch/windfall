@@ -66,6 +66,7 @@ impl Rig {
         self.pool
             .insert(sample, AudioBuffer::from_interleaved(RATE, 1, data));
         self.project.samples.push(SampleAsset {
+            soundfont: false,
             processing: None,
             regions: Vec::new(),
             id: sample,

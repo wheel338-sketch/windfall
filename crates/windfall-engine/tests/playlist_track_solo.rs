@@ -23,6 +23,7 @@ fn fixture(kind: Kind) -> (Project, SamplePool) {
     let sample = SampleId(11);
     let channel = ChannelId(10);
     project.samples.push(SampleAsset {
+        soundfont: false,
         processing: None,
         regions: Vec::new(),
         id: sample,

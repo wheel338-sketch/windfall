@@ -107,6 +107,21 @@ async fn sample_instrument_general_midi(
         .await
 }
 #[tauri::command]
+#[expect(clippy::too_many_arguments, reason = "Named Tauri wire arguments plus authenticated window context")]
+async fn soundfont_load(session:State<'_,Session>,channel:ChannelId,expected:Option<windfall_project::SampleInstrumentAsset>,
+    path:String,bank:u16,program:u16,window:tauri::WebviewWindow,caller:crate::window_calls::WindowCaller)->Result<DispatchResult,String> {
+    let _window_call=caller.enter(&window,"soundfont_load")?;
+    let session=session.inner().clone();
+    blocking(move||session.soundfont_load(channel,expected,path,bank,program)).await
+}
+#[tauri::command]
+async fn soundfont_relink(session:State<'_,Session>,channel:ChannelId,expected:windfall_project::SampleInstrumentAsset,
+    expected_path:windfall_project::SamplePath,path:String,window:tauri::WebviewWindow,caller:crate::window_calls::WindowCaller)->Result<DispatchResult,String> {
+    let _window_call=caller.enter(&window,"soundfont_relink")?;
+    let session=session.inner().clone();
+    blocking(move||session.soundfont_relink(channel,expected,expected_path,path)).await
+}
+#[tauri::command]
 async fn sample_instrument_save_bank(
     session: State<'_, Session>,
     channel: ChannelId,
@@ -2145,6 +2160,8 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         slice_discard,
         samples_reload,
         soundfont_presets,
+        soundfont_load,
+        soundfont_relink,
         sample_instrument_speech,
         sample_instrument_speech_begin,
         sample_instrument_speech_cancel,

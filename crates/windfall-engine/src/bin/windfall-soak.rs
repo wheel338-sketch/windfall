@@ -309,6 +309,7 @@ fn drum_project() -> (Project, SamplePool) {
         let channel = ChannelId(next_id());
         pool.insert(sample, sound);
         project.samples.push(SampleAsset {
+            soundfont: false,
             processing: None,
             regions: Vec::new(),
             id: sample,
@@ -562,6 +563,7 @@ fn add_song(project: &mut Project, pool: &mut SamplePool, bass: ChannelId, bass_
 
     pool.insert(sample, riser());
     project.samples.push(SampleAsset {
+        soundfont: false,
         processing: None,
         regions: Vec::new(),
         id: sample,

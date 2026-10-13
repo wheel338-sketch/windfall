@@ -729,6 +729,7 @@ impl ChannelPreset {
         let sample = self.sample_asset.map(|_| SampleId(take()));
         if let Some(id) = sample {
             project.samples.push(SampleAsset {
+                soundfont: false,
                 processing: None,
                 regions: Vec::new(),
                 id,
