@@ -78,7 +78,7 @@ impl Drop for State {
 }
 impl State {
     fn owner(&self) -> bool {
-        self.alive.get() && self.owner == super::super::handlers::token()
+        self.owner == super::super::handlers::token() && self.alive.get()
     }
     fn now(&self) -> u64 {
         self.start.elapsed().as_millis().min(u128::from(u64::MAX)) as u64
