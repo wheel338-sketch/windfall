@@ -1,3 +1,4 @@
+import { useContext } from "react"
 import type { PerformanceRackParams, ScratchParams, TimeTransportParams, VolumeGateParams } from "@/bindings"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -9,12 +10,15 @@ import { useSampleInfo } from "@/features/channel-rack/inspector/sample-info"
 import type { EditorProps } from "../editor-props"
 import { CurveEditor } from "./curve-editor"
 import { commitAsset } from "./editors"
+import { EffectAssetOwner, useEffectAssetCommit } from "../asset-owner"
+import { RackAudioInput } from "@/features/modular/audio-input"
 
 export function VolumeGateEditor({ effect, track, params, bind }: EditorProps<VolumeGateParams>) {
+  const commit = useEffectAssetCommit(effect, track, "volumeGate", commitAsset)
   return <div role="group" aria-label="Volume Gate settings" className="flex flex-col gap-2">
-    <CurveEditor key={`time:${effect}`} label="Replay time" points={params.timeCurve} onCommit={(curve) => commitAsset(effect, track, "volumeGate", "timeCurve", curve)} />
-    <CurveEditor key={`volume:${effect}`} label="Replay volume" points={params.volumeCurve} fallback={[{ x: 0, y: 1, tension: 0 }, { x: 1, y: 1, tension: 0 }]} onCommit={(curve) => commitAsset(effect, track, "volumeGate", "volumeCurve", curve)} />
-    <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => commitAsset(effect,track,"volumeGate","timeCurve",[])}>Use live replay clock</Button><Button size="sm" variant="outline" onClick={() => commitAsset(effect,track,"volumeGate","volumeCurve",[])}>Use automatable volume steps</Button></div>
+    <CurveEditor key={`time:${effect}`} label="Replay time" points={params.timeCurve} onCommit={(curve) => commit("timeCurve", curve)} />
+    <CurveEditor key={`volume:${effect}`} label="Replay volume" points={params.volumeCurve} fallback={[{ x: 0, y: 1, tension: 0 }, { x: 1, y: 1, tension: 0 }]} onCommit={(curve) => commit("volumeCurve", curve)} />
+    <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => commit("timeCurve",[])}>Use live replay clock</Button><Button size="sm" variant="outline" onClick={() => commit("volumeCurve",[])}>Use automatable volume steps</Button></div>
     {params.volumeCurve.length === 0 && <ParamRow columns={8}>{params.steps.map((_,index) => <ParamControl key={index} {...bind(`steps.${index}`)} />)}</ParamRow>}
     <ParamRow columns={3}>{["loopBeats", "retriggerChance", "retriggerSteps", "feedback", "mix", "trigger"].map((id) => <ParamControl key={id} {...bind(id)} />)}</ParamRow>
     <p className="text-xs text-muted-foreground">Trigger captures the preceding slice and restarts both envelopes. Hold it to replay that record; release to resume capture. Link Trigger to a MIDI key or pad through its control menu.</p>
@@ -65,20 +69,22 @@ export function PerformanceRackEditor({ bind }: EditorProps<PerformanceRackParam
 }
 
 export function ScratchEditor({ effect, track, params, bind }: EditorProps<ScratchParams>) {
+  const owner = useContext(EffectAssetOwner)
+  const commit = useEffectAssetCommit(effect, track, "scratch", commitAsset)
   const samples = useProjectStore((state) => state.project.samples)
   const asset = samples.find((sample) => sample.id === params.sourceId)
   const info = useSampleInfo(asset)
   return <div role="group" aria-label="Scratch settings" className="flex flex-col gap-2">
-    <Field><FieldLabel>Turntable source</FieldLabel>
-      <Select value={String(params.sourceId)} items={[{ value: "0", label: "Live record" }, ...samples.map((sample) => ({ value: String(sample.id), label: sample.name }))]} onValueChange={(value) => commitAsset(effect,track,"scratch","sourceId",Number(value))}>
+    {owner?.setSource ? <RackAudioInput label="Turntable source" audio={owner.source ?? null} apply={owner.setSource} /> : <Field><FieldLabel>Turntable source</FieldLabel>
+      <Select value={String(params.sourceId)} items={[{ value: "0", label: "Live record" }, ...samples.map((sample) => ({ value: String(sample.id), label: sample.name }))]} onValueChange={(value) => commit("sourceId",Number(value))}>
         <SelectTrigger aria-label="Scratch source"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>
           <SelectItem value="0">Live record</SelectItem>{samples.map((sample) => <SelectItem key={sample.id} value={String(sample.id)}>{sample.name}</SelectItem>)}
         </SelectGroup></SelectContent>
       </Select>
       <FieldDescription>Choose loaded project audio. Add an audio file to the channel rack or playlist to make it available here. Position moves the platter; Follow scratch curve performs the saved movement every Record cycle.</FieldDescription>
-    </Field>
+    </Field>}
     {info?.status === "error" && <Alert variant="destructive"><AlertDescription>{info.message}</AlertDescription></Alert>}
-    <CurveEditor key={effect} label="Scratch position" points={params.positionCurve} onCommit={(curve) => commitAsset(effect,track,"scratch","positionCurve",curve)} />
+    <CurveEditor key={effect} label="Scratch position" points={params.positionCurve} onCommit={(curve) => commit("positionCurve",curve)} />
     <ParamRow columns={5}>{["position", "freeze", "loopBeats", "mix", "curveEnabled"].map((id) => <ParamControl key={id} {...bind(id)} />)}</ParamRow>
   </div>
 }

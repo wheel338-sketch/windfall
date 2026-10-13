@@ -1,7 +1,7 @@
 import type { ConvolverImpulse } from "@/bindings"
 const MAX_FRAMES = 65_536
 /** Strict mono/stereo PCM or float WAV reader, called before document dispatch. */
-export function readImpulseWav(buffer: ArrayBuffer, name: string): ConvolverImpulse {
+export function readImpulseWav(buffer: ArrayBuffer, name: string, maxFrames = MAX_FRAMES): ConvolverImpulse {
   const view = new DataView(buffer)
   const tag = (at: number) => String.fromCharCode(...new Uint8Array(buffer, at, 4))
   if (buffer.byteLength < 12 || tag(0) !== "RIFF" || tag(8) !== "WAVE") throw new Error("Choose a PCM or float WAV impulse response")
@@ -22,7 +22,7 @@ export function readImpulseWav(buffer: ArrayBuffer, name: string): ConvolverImpu
   if (!(format === 1 && [16, 24, 32].includes(bits)) && !(format === 3 && bits === 32)) throw new Error("Supported WAV encodings: PCM 16/24/32 or float 32")
   if (alignment !== channels * bits / 8 || !dataAt || dataLength % alignment) throw new Error("Invalid WAV frame alignment")
   const length = dataLength / alignment
-  if (!length || length > MAX_FRAMES) throw new Error("IR must contain 1-65536 frames; trim a longer file before import")
+  if (!length || length > maxFrames) throw new Error(`Audio must contain 1-${maxFrames} frames; trim a longer file before import`)
   const read = (at: number): number => {
     if (format === 3) return view.getFloat32(at, true)
     if (bits === 16) return view.getInt16(at, true) / 32768

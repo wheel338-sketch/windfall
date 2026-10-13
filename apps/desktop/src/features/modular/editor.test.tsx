@@ -42,6 +42,54 @@ function editNumber(name: string, value: number) {
   const field = screen.getByRole("spinbutton", { name }); fireEvent.change(field, { target: { value: String(value) } }); fireEvent.blur(field)
 }
 describe("mounted modular rack", () => {
+  it("edits a saved native node parameter and restores its owner on undo while reporting browser capability", async () => {
+    await add("effect")
+    const before = stored(), channel = instrumentChannel(NAME).id
+    await act(async () => {
+      await dispatch({ type: "setChannelRack", id: channel, expected: before, graph: { ...before, nodes: before.nodes.map((node) => node.id === 4 ? { ...node, hosted: { target: { type: "rack", channel, path: [4, 0, 0, 0], instrument: false }, format: "clap", path: "C:/owned/fixture.clap", id: "org.windfall.test.bridge-delayed", name: "Owned fixture", state: [10, 20], parameters: [{ id: 7, name: "Native gain", min: 0, max: 1, value: 0.5, stepped: false, readOnly: false, automatable: true }] } } : node) } })
+      await settle()
+    })
+    await waitFor(() => expect(screen.getByText(/Native plugin hosting is unavailable/)).toBeInTheDocument())
+    expect(screen.getByRole("button", { name: "Open native editor" })).toBeDisabled()
+    const field = screen.getByRole("spinbutton", { name: "Native gain" })
+    fireEvent.focus(field); fireEvent.change(field, { target: { value: "0.75" } }); fireEvent.blur(field); await act(settle)
+    expect(stored().nodes.at(-1)?.hosted?.parameters[0].value).toBe(0.75)
+    expect(stored().nodes.at(-1)?.hosted?.state).toEqual([10, 20])
+    const saved = stored()
+    fireEvent.click(screen.getByRole("button", { name: "Remove node" })); await act(settle)
+    expect(stored().nodes.some((node) => node.hosted)).toBe(false)
+    fireEvent.click(screen.getByRole("button", { name: "Undo rack edit" })); await act(settle)
+    expect(stored()).toEqual(saved)
+  })
+  it("loads an owned IR in the real rack convolver editor and carries it through library history", async () => {
+    await choose("Module type", "effect"); await choose("Effect module", "convolver")
+    fireEvent.click(screen.getByRole("button", { name: "Add node" })); await act(settle)
+    const before = stored()
+    const { wav } = await import("@/features/effects/spectral/wav-fixture")
+    const file = new File([], "Owned IR.wav", { type: "audio/wav" })
+    Object.defineProperty(file, "arrayBuffer", { value: async () => wav([1, 0.25, -0.125]) })
+    fireEvent.change(screen.getByLabelText("Impulse response WAV"), { target: { files: [file] } })
+    await waitFor(() => expect(stored().nodes.at(-1)?.asset).toMatchObject({ type: "impulse", impulse: { name: "Owned IR.wav", frames: [[1, 1], [0.25, 0.25], [-0.125, -0.125]] } }))
+    const owned = stored()
+    fireEvent.click(screen.getByRole("button", { name: "Undo rack edit" })); await act(settle); expect(stored()).toEqual(before)
+    fireEvent.click(screen.getByRole("button", { name: "Redo rack edit" })); await act(settle); expect(stored()).toEqual(owned)
+    fireEvent.click(screen.getByRole("button", { name: "Save rack to library" }))
+    await waitFor(() => expect(library().getByRole("status")).toHaveTextContent("Saved"))
+    fireEvent.click(screen.getByRole("button", { name: "Clear impulse" })); await act(settle)
+    const entry = (await files.presetLibrary())[0]
+    fireEvent.click(screen.getByRole("button", { name: entry.name }))
+    await waitFor(() => expect(library().getByRole("status")).toHaveTextContent("Rack preset loaded"))
+    expect(stored().nodes.at(-1)?.asset).toEqual(owned.nodes.at(-1)?.asset)
+  })
+  it("edits the real waveshaper curve on its rack node with undo", async () => {
+    await choose("Module type", "effect"); await choose("Effect module", "waveshaper")
+    fireEvent.click(screen.getByRole("button", { name: "Add node" })); await act(settle)
+    const before = stored()
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Transfer curve y" }), { target: { value: "0.3" } }); await act(settle)
+    const processor = stored().nodes.at(-1)?.processor
+    expect(processor?.type === "effect" && processor.params.type === "waveshaper" && processor.params.shape[0].y).toBeCloseTo(0.3)
+    fireEvent.click(screen.getByRole("button", { name: "Undo rack edit" })); await act(settle); expect(stored()).toEqual(before)
+  })
   it.each([
     ["colorRouter", "Color 0", 0], ["envelope", "Attack", 1],
     ["propertyScaler", "Curve", 1], ["keySplitter", "Boundary key", 1],

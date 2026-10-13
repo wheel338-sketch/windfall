@@ -52,13 +52,15 @@ represented as working audio effects.
 
 ## Remaining gates
 
-Hosted graph nodes are not modeled: native-bound and sampler channels reject
-rack attachment. Implement real provider/binding/capture/editor ownership before
-relaxing that check. The round-three editor only saved/loaded checked preset
-text; round four also connects the integrated native Backend file/library
-facade. Graph replacement retriggers held parents and resets DSP tails/delays.
+Round five models native and asset ownership on individual graph nodes, as
+described below. Native-bound and sampler parent channels still reject rack
+attachment; add sample-bank or hosted instrument nodes inside a built-in parent.
+The round-three editor only saved/loaded checked preset text; round four also
+connects the integrated native Backend file/library facade. Graph replacement
+retriggers held parents and releases outgoing generations through bounded tail
+storage. Asset/native outgoing audio keeps running until retirement.
 The original round-three pass retained only the last envelope shape. Round four composes shapes and adds
-auxiliary outputs; asset-bearing node preparation is still missing.
+auxiliary outputs; round five adds asset-bearing node preparation.
 
 RealtimeFrame.rejectedRackEvents is optional and omitted at zero. A cumulative
 engine counter exposes bounded owner/generator/event refusal. The editor uses a
@@ -130,8 +132,62 @@ chord and Quarter beat pulse. Their graph definitions are CC0-1.0 and contain
 no bundled third-party presets, audio or artwork. They instantiate the user's
 chosen Windfall instrument and can be saved as ordinary preset files.
 
-Hosted rack nodes (provider/state/editor/retirement ownership), asset-bearing
-node preparation and internal-source Tempo modulation remain software work.
-Do not mark either rack umbrella or internal-controller umbrella complete from
-this source delivery. See `docs/qa/2026-10-12-r4-rack.md` for exact tests and
-integration gates.
+## Round-five node assets and native providers (written, not executed)
+
+`RackNode.asset` is optional and default-absent in old files. It owns validated
+instrument PCM/spectra/drum patches, an impulse, Scratch audio, mapped sample
+zones with inline audio, or SoundFont bytes and bank/program. Project SampleIds
+cannot be stored in an owned zone. Curves remain serialized in scalar params;
+document, history, plan and runtime pins retain their immutable store owners.
+The aggregate rack payload/state limit is 64 MiB. Preparation also reserves a
+shared 256 MiB family budget for payloads/IR workspace/fixed storage/native dry
+histories/compensation and a separate shared 256 MiB decoded-bank budget. Both
+cover pending, active and outgoing generations, with a 64-generation limit.
+
+The control-side `modular_assets.rs` prepares the real standalone instrument,
+bank parser, source publisher and convolver before admission. Missing payloads
+retain their names and produce unavailable banks/silent sources. Native preset
+review reports each missing owner; loading retains the graph so the editor can
+relink it. Inline payloads are carried directly by both rack text and the native
+`.wfpreset` container, requiring no destination-project sample namespace or
+source directory. Existing convolver/curve/layer/spectral/snapshot/number/drum
+editors receive rack ownership adapters; bank audio/zone/SF2 controls save via
+the same checked graph command. Native file reads retain revision/generation
+guards. Rack text permits the existing 256 MiB preset-file ceiling.
+
+`RackNode.hosted` owns a normal PluginBinding. The appended
+`PluginTarget::Rack { channel, path: [u32; 4], instrument }` uses zero padding
+after the node path. Checked replacement, duplication and preset application
+canonicalize the target. The node stays an instrument/effect port owner and
+native state replaces its built-in provider. Native provider selection goes
+through the existing `plugins_insert` facade and scanner/discovery. Selecting
+the same format/id at another location preserves state, wrapper and saved
+parameter values for relinking; another provider uses its own defaults.
+
+`modular_provider.rs` wraps existing PluginFactory/HostedEffect/
+HostedInstrument/ExternalEffect instances. It introduces no ABI loader or
+second process host. The desktop bridge selects instrument/effect role through
+the common target helper; capture inventories include nested node bindings.
+Rack native controls/state/wrapper edits are ordinary checked commands routed
+to their graph owner. Editor opening, parameter gestures, retry/failure reasons
+and render isolation use the existing manager. Native graph control wires and
+auxiliary built-in port aliases are checked refusals; the main stereo/note bus
+and native parameter controls are the advertised provider interface.
+
+Actual prepared latency is used by internal rack rings and published under the
+containing channel's existing compensation key, with child native identities
+recorded separately. Native nodes and their retirees keep the audio lane and
+receive existing transport/control-boundary calls. Per-note gain forwards into
+the existing native expression bridge. A failed helper uses that bridge's
+visible failure/bypass policy while independent graph nodes continue processing.
+
+Outgoing racks move into 64 preallocated seats, receive releases and zero new
+input, finish voices and tails, then move through the existing garbage queue.
+Their DSP, source leases, native facades and admission leases are destroyed on
+control. Outgoing native owners relinquish editor/capture selection immediately;
+owner maintenance closes their editors off audio. Plain unowned topology edits
+retain the previous audible-disconnection behavior while still retiring safely.
+
+Neither umbrella is promoted from unexecuted source. See
+`docs/qa/2026-10-13-r5-rack-assets.md` for exact written tests and shared files.
+Internal-source Tempo and scripted node paths are owned by the sibling worker.

@@ -48,7 +48,7 @@ function Parameter({
       : {
           type: "effectParam",
           track,
-          effect: binding.target.effect,
+          effect: binding.target.type === "effect" ? binding.target.effect : 0,
           param: index,
         }
   const automation = useAutomation(target)
@@ -108,7 +108,7 @@ export function PluginControls({ binding }: { binding: PluginBinding }) {
             setError(
               state.instances.find((instance) =>
                 sameTarget(instance.target, binding.target)
-              )?.error ?? null
+              )?.error ?? (backend.kind === "mock" ? "Native plugin hosting is unavailable in browser mode" : null)
             )
         })
         .catch((error: unknown) => {
@@ -138,7 +138,7 @@ export function PluginControls({ binding }: { binding: PluginBinding }) {
           <AlertTitle>Plugin unavailable</AlertTitle>
           <AlertDescription>
             {error}.{" "}
-            {binding.target.type === "instrument"
+            {binding.target.type === "instrument" || (binding.target.type === "rack" && binding.target.instrument)
               ? "This channel is silent."
               : "This effect is bypassed."}{" "}
             Its reference and saved state are retained.
@@ -192,7 +192,7 @@ export function PluginControls({ binding }: { binding: PluginBinding }) {
             <p className="text-xs text-muted-foreground">Receives this track’s detector-only sends. {!(binding.auxiliaryInputs ?? []).length && "No auxiliary inputs were reported when this plugin was added."}</p>
           </Field>
         )}
-        {binding.parameters.map((parameter, index) => (
+        {binding.parameters.map((parameter, index) => binding.target.type === "rack" ? <RackParameter key={parameter.id} binding={binding} parameter={parameter} /> : (
           <Parameter
             key={parameter.id}
             binding={binding}
@@ -203,4 +203,10 @@ export function PluginControls({ binding }: { binding: PluginBinding }) {
       </FieldGroup>
     </div>
   )
+}
+
+function RackParameter({ binding, parameter }: { binding: PluginBinding; parameter: PluginParameter }) {
+  const id = useId()
+  const value = useGestureValue(parameter.value, (value) => ({ type: "setPluginParam", target: binding.target, id: parameter.id, value }), (value) => Math.min(parameter.max, Math.max(parameter.min, parameter.stepped ? Math.round(value) : value)))
+  return <Field data-disabled={parameter.readOnly || undefined}><FieldLabel htmlFor={id}>{parameter.name}</FieldLabel><Input id={id} type="number" min={parameter.min} max={parameter.max} step={parameter.stepped ? 1 : "any"} disabled={parameter.readOnly} value={value.value} onFocus={value.onGestureStart} onBlur={value.onGestureEnd} onChange={(e) => { const next = Number(e.target.value); if (Number.isFinite(next)) value.onValueChange(next) }} /></Field>
 }

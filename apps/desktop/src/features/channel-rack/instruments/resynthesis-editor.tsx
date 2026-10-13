@@ -5,13 +5,14 @@ import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ParamControl, ParamGroup, ParamRow } from "@/features/params"
 import type { InstrumentChannel } from "@/lib/channel-source"
-import { dispatch } from "@/lib/store"
+import { useInstrumentAssetDispatch } from "./editor-owner"
 import { onHistoryNavigation } from "@/lib/store/project"
 import { getProjectGeneration, onProjectReplaced } from "@/lib/store/replaced"
 import { useInstrumentBinding } from "./use-instrument-binding"
 import { prepareAsset } from "./asset-job"
 
-export function ResynthesisEditor({ channel, colorScan = false }: { channel: InstrumentChannel; colorScan?: boolean }) {
+export function ResynthesisEditor({ channel, colorScan = false, sourceOnly = false }: { channel: InstrumentChannel; colorScan?: boolean; sourceOnly?: boolean }) {
+  const dispatch = useInstrumentAssetDispatch()
   const [busy,setBusy] = useState(false), [error,setError] = useState<string | null>(null)
   const request = useRef<AbortController | null>(null)
   useEffect(() => { const cancel = () => { request.current?.abort(); setBusy(false) }; const off = onProjectReplaced(cancel), historyOff = onHistoryNavigation(cancel); return () => { off(); historyOff(); cancel() } }, [])
@@ -52,7 +53,8 @@ export function ResynthesisEditor({ channel, colorScan = false }: { channel: Ins
       {asset?.type==="spectra"&&<><FieldDescription>{asset.frames.length} prepared frames, {asset.frames[0]?.partials.length} partials, root {asset.rootHz} Hz</FieldDescription><svg role="img" aria-label="Prepared spectral frames" viewBox={`0 0 ${asset.frames.length} ${asset.frames[0]?.partials.length??1}`} className="h-24 w-full" preserveAspectRatio="none">{asset.frames.flatMap((frame,x)=>frame.partials.map((partial,row)=><rect key={`${x}:${row}`} x={x} y={frame.partials.length-1-row} width={1} height={1} fill="currentColor" opacity={partial.level} />))}</svg></>}
       <Button variant="outline" disabled={!asset||busy} onClick={()=>void dispatch({type:"setInstrumentAsset",channel:channel.id,expected:channel.source,asset:null})}>Reset prepared source</Button>
     </ParamGroup>
-    <ParamGroup title="Frame playback"><ParamRow>{(colorScan ? ["position","scan","scanRate","stereoWidth"] : ["position","scan","scanRate"]).map(id=><ParamControl key={id} {...bind(id)} />)}</ParamRow></ParamGroup>
+    {!sourceOnly && <><ParamGroup title="Frame playback"><ParamRow>{(colorScan ? ["position","scan","scanRate","stereoWidth"] : ["position","scan","scanRate"]).map(id=><ParamControl key={id} {...bind(id)} />)}</ParamRow></ParamGroup>
     <ParamGroup title="Voice"><ParamRow>{["attackMs","releaseMs","level","polyphony"].map(id=><ParamControl key={id} {...bind(id)} />)}</ParamRow></ParamGroup>
+    </>}
   </div>
 }

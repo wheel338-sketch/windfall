@@ -21,7 +21,7 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { dispatch, useProjectGeneration, useProjectStore } from "@/lib/store"
-import { sameTarget } from "./store"
+import { findPluginBinding } from "./store"
 
 const DEFAULTS: PluginWrapperOptions = {
   smartDisable: false,
@@ -101,14 +101,8 @@ function WrapperFields({ binding }: { binding: PluginBinding }) {
     if (working.current) return
     // Read the current saved policy so an unrelated edit cannot be overwritten
     // by controls rendered from an older binding. No optimistic DSP state.
-    const current = useProjectStore.getState().project.plugins?.find(
-      (candidate) =>
-        sameTarget(candidate.target, binding.target) &&
-        candidate.format === binding.format &&
-        candidate.path === binding.path &&
-        candidate.id === binding.id
-    )
-    if (!current) return
+    const current = findPluginBinding(useProjectStore.getState().project, binding.target)
+    if (!current || current.format !== binding.format || current.path !== binding.path || current.id !== binding.id) return
     working.current = true
     setBusy(true)
     setError(null)
