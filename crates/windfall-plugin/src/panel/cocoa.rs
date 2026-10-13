@@ -33,7 +33,7 @@ unsafe extern "C" fn load(target: Obj, _: Obj, _: Obj) {
         let path = CStr::from_ptr(bytes).to_string_lossy();
         let label = super::load_program(&context.state, &path)
             .err()
-            .unwrap_or_else(|| "Program queued. Host transport and tempo drive playback.".into());
+            .unwrap_or_else(|| super::status_text(&context.state, "Program queued. Host transport and tempo drive playback."));
         let text = string(&label);
         object(context.status, c"setStringValue:", text);
         void(text, c"release");
@@ -193,7 +193,7 @@ impl Panel {
             context.status = control(
                 c"NSTextField",
                 view,
-                "Host transport, tempo and meter take precedence over the document.",
+                &super::status_text(&context.state, "Host transport, tempo and meter take precedence over the document."),
                 12.0,
                 12.0,
                 530.0,

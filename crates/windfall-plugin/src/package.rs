@@ -210,6 +210,7 @@ fn export_validated(
     stamp: &Stamp,
     verify_copies: bool,
 ) -> Result<(), String> {
+    program.validate_soundfont_sources()?;
     let packet = program.encode()?;
     if destination.exists() {
         return Err("Plugin export destination already exists; choose a new folder".into());

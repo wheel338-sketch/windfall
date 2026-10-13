@@ -55,7 +55,7 @@ impl Inner {
     fn load(&mut self) {
         self.status = super::load_program(&self.state, &self.path)
             .err()
-            .unwrap_or_else(|| "Program queued. Host transport and tempo drive playback.".into());
+            .unwrap_or_else(|| super::status_text(&self.state, "Program queued. Host transport and tempo drive playback."));
     }
     fn poll(&mut self) {
         if token() != self.owner {
@@ -267,9 +267,9 @@ impl Panel {
                 owner: token(),
                 input_method,
                 input_context,
-                state,
+                state: state.clone(),
                 path: String::new(),
-                status: "Host transport, tempo and meter take precedence over the document.".into(),
+                status: super::status_text(&state, "Host transport, tempo and meter take precedence over the document."),
             }));
             inner.borrow().draw();
             Ok(Self { timer: None, inner })

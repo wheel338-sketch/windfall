@@ -266,6 +266,9 @@ unsafe extern "C" fn activate(plugin: *const clap_plugin, rate: f64, min: u32, m
         }
     };
     instance.latency.store(latency, Ordering::Release);
+    if let Some(message) = instance.state.preparation_error() {
+        report(instance.host, message);
+    }
     // CLAP latency.changed is permitted while inactive, not after an active
     // audio-boundary swap. Active loads requested restart during preparation.
     if let Some(get) = unsafe { (*instance.host).get_extension }
@@ -665,7 +668,12 @@ unsafe extern "C" fn load(plugin: *const clap_plugin, stream: *const clap_istrea
         bytes.extend_from_slice(&chunk[..count as usize]);
     }
     match Program::decode(&bytes).and_then(|program| instance.state.load(program)) {
-        Ok(()) => true,
+        Ok(()) => {
+            if let Some(message) = instance.state.preparation_error() {
+                report(instance.host, message);
+            }
+            true
+        }
         Err(error) => {
             report(instance.host, &error);
             false
