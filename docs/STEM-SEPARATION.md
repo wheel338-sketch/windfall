@@ -187,7 +187,8 @@ and runtime scratch, and sets native manager admission to 3 GiB memory / 24 GiB 
 These are cooperative reservations, not an ORT allocator sandbox or measured
 RSS guarantee. Scratch includes the runtime's own workspace and model allocations;
 imported model bytes are charged separately. The native UMX-HQ 1.0.1 harness
-measured a process peak of about 852 MiB, including the harness, codecs and
+initially measured a process peak of about 852 MiB (later runs about 864 MiB),
+including the harness, codecs and
 playback pool. That exceeded the former aggregate reservation of about 672 MiB,
 so the scratch allowance was raised from 512 to 768 MiB. Other packs require
 their own memory and quality measurement; the fixed allowance does not establish
@@ -214,8 +215,8 @@ Ordinary, non-ignored tests:
   with an explicitly authored review fixture, runtime/default-model controls
   and manifest refusals. Simulator fixtures are lifecycle evidence only.
 
-After the integrator downloads the sole new dependency, updates Cargo.lock,
-regenerates IPC bindings, formats and compiles in its exclusive build window:
+For verification with an operator-installed runtime and licensed pack, after
+ordinary gates pass in the exclusive build window:
 
 ```powershell
 $env:WINDFALL_ORT_DYLIB = 'C:\installed-runtime\onnxruntime.dll'

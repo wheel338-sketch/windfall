@@ -72,5 +72,7 @@ tempfile = "3"
 workspace = true
 
 [features]
-# Public XInput import library only; opt-in Windows controller output worker.
+# The ordinary Windows desktop must expose the project-owned controller output.
+# The native adapter remains target-gated; no vendor SDK or runtime is bundled.
+default = ["xinput"]
 xinput = ["windfall-engine/xinput"]
