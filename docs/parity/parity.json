@@ -4,7 +4,7 @@
     "https://www.image-line.com/fl-studio-learning/fl-studio-online-manual/",
     "https://forum.image-line.com/viewtopic.php?p=2065297"
   ],
-  "as_of": "2026-10-12",
+  "as_of": "2026-10-13",
   "rows": [
     {
       "id": "core-lifetime-free-updates",
@@ -16,7 +16,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Windfall is free under GPL-3.0; this row closes when auto-update ships. QA 2026-10-12: SOFTWARE: Freeze session edits under an installation shutdown lease, bound streaming/redirect behavior, and add actual signed/corrupt package verification; current policy fixtures are not signature proof. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Windfall is free under GPL-3.0; this row closes when auto-update ships. QA 2026-10-13: SOFTWARE: Freeze internal controller/plugin/background edits under installation shutdown; quiesce audio/plugins and resolve unsaved work with cancel/rollback; bound response bodies before buffering; verify real generated-key signatures and corrupt/truncated/redirect-loop packages. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "core-stem-separation",
@@ -25,10 +25,10 @@
       "summary": "Splits a mixed recording into separate drum, bass, vocal and instrument tracks.",
       "windfall_name": "Stem separation",
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "producer",
-      "notes": "unverified: lowest edition. The compare table ticks Producer, but the purchase box on the same page shows it locked below Signature. Candidate basis: Demucs (MIT). QA 2026-10-12: SOFTWARE: Implement an ONNX Runtime adapter and run a licensed imported model pack with real four-stem audio output and independent separation quality evidence; no production runtime/weights are supplied. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "unverified: lowest edition. The compare table ticks Producer, but the purchase box on the same page shows it locked below Signature. Candidate basis: Demucs (MIT). Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Real-music listening and independent model-quality/other-OS evaluation. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "core-audio-recording",
@@ -40,7 +40,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "producer",
-      "notes": "Source includes synchronized mono/stereo and multitrack WAV capture, native-rate/drift correction, routed input monitoring, count-in, retained loop passes, take groups and comping. Printed takes use Direct output and external port assignments are implemented. Current QA distinguishes synthetic software checks from remaining physical capture, duplex latency/drift, device failure and platform acceptance. See docs/qa/2026-10-09-recording-mixer.md. QA 2026-10-11: No passing physical round trip; earlier virtual-cable failure cause unresolved. Microphone/line listening, converter latency, real independent-clock drift and actual device removal remain. Design: RECORDING.md, RECORDING-ALIGNMENT.md, DEVICE-ACCEPTANCE.md. Evidence and test index: docs/qa/2026-10-11-wave1-acceptance.md."
+      "notes": "Source includes synchronized mono/stereo and multitrack WAV capture, native-rate/drift correction, routed input monitoring, count-in, retained loop passes, take groups and comping. Printed takes use Direct output and external port assignments are implemented. Current QA distinguishes synthetic software checks from remaining physical capture, duplex latency/drift, device failure and platform acceptance. See docs/qa/2026-10-09-recording-mixer.md. QA 2026-10-13: SOFTWARE: Waiting on the real-device harness run covering actual input capture, dropout/device-loss handling and editable take alignment. No missing implementation was identified in the exercised software. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "core-audio-clips",
@@ -76,7 +76,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "A Windfall equivalent would be a rack of Windfall's own modules. FL 2026 added a SoundFont player and a note arpeggiator module. QA 2026-10-12: SOFTWARE: Wire native rack preset files/library through Backend and the editor; support auxiliary ports/assets and note-module automation. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "A Windfall equivalent would be a rack of Windfall's own modules. FL 2026 added a SoundFont player and a note arpeggiator module. QA 2026-10-13: SOFTWARE: Implement persisted asset ownership, control-side preparation, editor loading/capture and portable preset asset packaging for asset-bearing rack processors. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "core-audio-logger",
@@ -121,10 +121,10 @@
       "summary": "Removes background noise such as hiss or hum from recorded audio.",
       "windfall_name": "Denoising",
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "producer",
-      "notes": "Candidate basis: RNNoise (BSD). In FL this lives in the audio editor's noise removal and vocal denoiser tools. QA 2026-10-12: SOFTWARE: Charge peak classical working buffers and f64 accumulators against the job quota, including retained preview/results; current per-buffer limits do not account for aggregate working memory. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Candidate basis: RNNoise (BSD). In FL this lives in the audio editor's noise removal and vocal denoiser tools. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Independent listening and other-OS/device acceptance. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "core-sound-content",
@@ -145,10 +145,10 @@
       "summary": "A pitch-against-time grid for drawing and editing the notes of one instrument.",
       "windfall_name": "Piano roll",
       "phase": 2,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Umbrella row; sub-features are tracked as win-piano-* rows. Draw, paint, select and erase tools, clipboard, quantize, velocity and pan lane, ghost notes. The specialist tools are separate rows. QA 2026-10-12: SOFTWARE: Correct the transformed portamento ramp trajectory at frame 24001 and native Slide/Portamento/MIDI-bend delivery: expected settled 493.883 +/-1 Hz at frames 33000..43000 is not produced. piano_phrase_pcm and the joined native expression gate fail. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Umbrella row; sub-features are tracked as win-piano-* rows. Draw, paint, select and erase tools, clipboard, quantize, velocity and pan lane, ghost notes. The specialist tools are separate rows. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Independent listening and other-OS/device acceptance. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "core-mixer",
@@ -157,10 +157,10 @@
       "summary": "Routes every sound through tracks with level, pan, effects and sends.",
       "windfall_name": "Mixer",
       "phase": 2,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Umbrella row; the basic mixer lands in phase 1 and routing, sends and effect slots in phase 2 (win-mixer-* rows). Tracks, routing, sends, effect slots, meters and delay compensation are in. Sidechain, track EQ and track presets are separate rows. QA 2026-10-12: SOFTWARE: Make running CLAP/VST3 helper preset restoration settle to the independent constant PCM [0.125,-0.0625] across every frame and preserve it after reopen; both mixer_preset_native joined gates fail. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Umbrella row; the basic mixer lands in phase 1 and routing, sends and effect slots in phase 2 (win-mixer-* rows). Tracks, routing, sends, effect slots, meters and delay compensation are in. Sidechain, track EQ and track presets are separate rows. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Independent listening and other-OS/device acceptance. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "core-full-song-arrangement",
@@ -232,7 +232,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Windows desktop CLAP instruments/effects, isolated CLAP/VST3 scanning, parameter automation, editors and saved state are integrated. VST3 processor-return/capture foundation is tested, while production desktop additions await remaining lifecycle/event safeguards. Native macOS/Linux desktop hosting, AU and audio crash containment remain pending. The plan covers CLAP, VST3 and AU, not VST2. See docs/plugins/desktop-integration.md and docs/plugins/vst3-desktop.md. QA 2026-10-12: SOFTWARE: Complete the AU and shared host provider/capability/multi-output gaps above; narrow the literal VST2 wording to the decided scope exclusion. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Windows desktop CLAP instruments/effects, isolated CLAP/VST3 scanning, parameter automation, editors and saved state are integrated. VST3 processor-return/capture foundation is tested, while production desktop additions await remaining lifecycle/event safeguards. Native macOS/Linux desktop hosting, AU and audio crash containment remain pending. The plan covers CLAP, VST3 and AU, not VST2. See docs/plugins/desktop-integration.md and docs/plugins/vst3-desktop.md. QA 2026-10-13: SOFTWARE: Complete dynamic capability re-admission, saved native multi-output routing, capture/restart/replacement composition and non-Windows embedded editors; unblock desktop AU compilation. VST2 retains its separate recorded scope exclusion. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "core-fl-studio-remote",
@@ -493,10 +493,10 @@
       "summary": "Repeats a channel's notes as fading, optionally pitch-shifted echoes at the note level instead of as audio.",
       "windfall_name": "Note echo",
       "phase": 2,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-12: SOFTWARE: Discard delayed sequenced echoes at pattern loop boundaries while retaining UI-held echo ownership across Seek; rack_voice::seek_keeps_live_held_echoes_and_loop_discards_only_sequenced_echoes reports PCM differing from the dry reference. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Independent listening and other-OS/device acceptance. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "win-rack-polyphony",
@@ -685,10 +685,10 @@
       "summary": "Notes that bend an already playing note to a new pitch, and a per-note glide switch.",
       "windfall_name": "Slide notes",
       "phase": 2,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Source implementation: native sampler/built-in slides and portamento, musical-tick glides, draw/paint and captured-selection controls, FL slide import. Hosted-plugin/MIDI pitch transport remains. All checks/artifact builds deferred by user; see docs/NOTE-ARTICULATION.md. QA 2026-10-12: SOFTWARE: Correct the transformed portamento ramp trajectory at frame 24001 and native Slide/Portamento/MIDI-bend delivery: expected settled 493.883 +/-1 Hz at frames 33000..43000 is not produced. piano_phrase_pcm and the joined native expression gate fail. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Source implementation: native sampler/built-in slides and portamento, musical-tick glides, draw/paint and captured-selection controls, FL slide import. Hosted-plugin/MIDI pitch transport remains. All checks/artifact builds deferred by user; see docs/NOTE-ARTICULATION.md. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Independent listening and other-OS/device acceptance. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "win-piano-note-colors",
@@ -781,10 +781,10 @@
       "summary": "Changes note lengths in bulk to give legato, staccato or portamento phrasing.",
       "windfall_name": "Articulate",
       "phase": 2,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Selected-note legato and staccato length transformations are implemented with atomic undo and stale-review guards. Portamento phrasing remains pending. See docs/PIANO-TOOLS.md. QA 2026-10-12: SOFTWARE: Correct the transformed portamento ramp trajectory at frame 24001 and native Slide/Portamento/MIDI-bend delivery: expected settled 493.883 +/-1 Hz at frames 33000..43000 is not produced. piano_phrase_pcm and the joined native expression gate fail. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Selected-note legato and staccato length transformations are implemented with atomic undo and stale-review guards. Portamento phrasing remains pending. See docs/PIANO-TOOLS.md. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Independent listening and other-OS/device acceptance. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "win-piano-chop",
@@ -1285,10 +1285,10 @@
       "summary": "Reduces the reverb in an audio clip with a trained model, with general and vocal modes.",
       "windfall_name": "Reverb removal",
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": null,
-      "notes": "Machine-learning feature not named in the plan; no candidate basis identified. QA 2026-10-12: SOFTWARE: Replace the native 16-MiB whole-source capture bottleneck with bounded file-backed capture/streaming so the implemented long-source kernel can be used within declared job bounds. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Machine-learning feature not named in the plan; no candidate basis identified. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Independent listening and other-OS/device acceptance. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "win-mixer-tracks",
@@ -1417,10 +1417,10 @@
       "summary": "Saves and reloads a track's effects and settings as a preset.",
       "windfall_name": "Mixer track presets",
       "phase": 2,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Versioned capture/save/load and captured-destination replacement with fresh effect IDs are implemented. New QA covers built-in replacement, validation, routing preservation, history and persistence. Hosted plugin state/assets and native preset publication acceptance remain open. See docs/qa/2026-10-09-recording-mixer.md. QA 2026-10-12: SOFTWARE: Make running CLAP/VST3 helper preset restoration settle to the independent constant PCM [0.125,-0.0625] across every frame and preserve it after reopen; both mixer_preset_native joined gates fail. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Versioned capture/save/load and captured-destination replacement with fresh effect IDs are implemented. New QA covers built-in replacement, validation, routing preservation, history and persistence. Hosted plugin state/assets and native preset publication acceptance remain open. See docs/qa/2026-10-09-recording-mixer.md. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Independent listening and other-OS/device acceptance. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "win-mixer-waveform-view",
@@ -1456,7 +1456,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Saved hardware input routes, standalone monitoring and mono/stereo external outputs are implemented. Physical device port/open-count checks, multitrack monitoring and external replacement/copy alignment remain acceptance gates. See docs/qa/2026-10-09-recording-mixer.md. QA 2026-10-11: device_input_monitoring and device_external_output_ports remain ignored/unrun; monitoring latency/feedback listening and four-port stereo hardware absent. Design: DEVICE-ACCEPTANCE.md. Evidence and test index: docs/qa/2026-10-11-wave1-acceptance.md."
+      "notes": "Saved hardware input routes, standalone monitoring and mono/stereo external outputs are implemented. Physical device port/open-count checks, multitrack monitoring and external replacement/copy alignment remain acceptance gates. See docs/qa/2026-10-09-recording-mixer.md. QA 2026-10-13: SOFTWARE: Waiting on the real-device harness run covering physical input/output selection, routing, measured latency and loss/recovery. No missing implementation was identified in the exercised software. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "win-mixer-record-arm",
@@ -1468,7 +1468,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "producer",
-      "notes": "Saved arms and dry/post-effects/post-fader disk recording, shared multitrack keep, Direct printed playback and take associations are implemented. Native rendered-capture alignment/tail and hardware input acceptance remain open. See docs/qa/2026-10-09-recording-mixer.md. QA 2026-10-11: device_multitrack_arms remains ignored/unrun; physical mixed hardware/post-fader capture, post-effects arm and second physical input acceptance missing. Design: DEVICE-ACCEPTANCE.md, MULTITRACK-RECORDING.md. Evidence and test index: docs/qa/2026-10-11-wave1-acceptance.md."
+      "notes": "Saved arms and dry/post-effects/post-fader disk recording, shared multitrack keep, Direct printed playback and take associations are implemented. Native rendered-capture alignment/tail and hardware input acceptance remain open. See docs/qa/2026-10-09-recording-mixer.md. QA 2026-10-13: SOFTWARE: Waiting on the real-device harness run covering real armed-track input capture, placement, overlap and take alignment. No missing implementation was identified in the exercised software. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "win-mixer-render-tracks",
@@ -1657,10 +1657,10 @@
       "summary": "An additive synth that can also resynthesize audio and images.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "all-plugins",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-12: SOFTWARE: Optimize the unchanged maximum-load workload to meet the 0.75 sustained audio-time ratio in both ordinary and release gates; instrument_deadlines fails with the declared voices/partials/unison/routes. Cache tuning/frequency/matrix work or reduce runtime cost without reducing the workload. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Musical listening, independent patches and other hardware/OS CPU deadlines. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "inst-kepler-exo",
@@ -1681,10 +1681,10 @@
       "summary": "An additive synth that morphs between harmonic snapshots.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "all-plugins",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-12: SOFTWARE: Optimize the unchanged maximum-load workload to meet the 0.75 sustained audio-time ratio in both ordinary and release gates; instrument_deadlines fails with the declared voices/partials/unison/routes. Cache tuning/frequency/matrix work or reduce runtime cost without reducing the workload. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Musical listening, independent patches and other hardware/OS CPU deadlines. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "inst-ogun",
@@ -1693,10 +1693,10 @@
       "summary": "An additive synth aimed at metallic and shimmering timbres.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "all-plugins",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-12: SOFTWARE: Optimize the unchanged maximum-load workload to meet the 0.75 sustained audio-time ratio in both ordinary and release gates; instrument_deadlines fails with the declared voices/partials/unison/routes. Cache tuning/frequency/matrix work or reduce runtime cost without reducing the workload. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Musical listening, independent patches and other hardware/OS CPU deadlines. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "inst-poizone",
@@ -1741,10 +1741,10 @@
       "summary": "A hybrid synth combining FM and subtractive synthesis with a built-in sequencer and effects.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "all-plugins",
-      "notes": "Candidate basis: Dexed (GPL-3.0). QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-12: SOFTWARE: Optimize the unchanged maximum-load workload to meet the 0.75 sustained audio-time ratio in both ordinary and release gates; instrument_deadlines fails with the declared voices/partials/unison/routes. Cache tuning/frequency/matrix work or reduce runtime cost without reducing the workload. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Candidate basis: Dexed (GPL-3.0). QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Musical listening, independent patches and other hardware/OS CPU deadlines. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "inst-transistor-bass",
@@ -1765,10 +1765,10 @@
       "summary": "A multisample sampler with zone mapping, layering, modulation and effects.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "signature",
-      "notes": "QA 2026-10-12: SOFTWARE: Account for aggregate retained/concurrently prepared bank PCM under the admission budget and preserve held voices safely across bank replacement.; Add modulation and internal effects for mapped multisamples. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Listening, physical MIDI/audio devices and independent sample libraries. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "inst-harmless",
@@ -1777,10 +1777,10 @@
       "summary": "An additive engine presented with subtractive-style controls.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "signature",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-12: SOFTWARE: Optimize the unchanged maximum-load workload to meet the 0.75 sustained audio-time ratio in both ordinary and release gates; instrument_deadlines fails with the declared voices/partials/unison/routes. Cache tuning/frequency/matrix work or reduce runtime cost without reducing the workload. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Musical listening, independent patches and other hardware/OS CPU deadlines. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "inst-kepler",
@@ -1816,7 +1816,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "producer",
-      "notes": "QA 2026-10-12: SOFTWARE: Account for aggregate retained/concurrently prepared bank PCM under the admission budget and preserve held voices safely across bank replacement.; Implement the missing SF2 generators/modulators, stereo and 24-bit samples, delay-volume envelopes, portable sources and relink. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "QA 2026-10-13: SOFTWARE: Implement remaining SF2 2.04 generators, explicit/default modulators and composition, stereo-linked/24-bit samples, delay-volume envelope import, portable SF2 sources and dedicated relink. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "inst-sytrus",
@@ -1825,10 +1825,10 @@
       "summary": "A synth combining FM, ring modulation and subtractive methods with a deep modulation matrix.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "producer",
-      "notes": "Candidate basis: Dexed (GPL-3.0). QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-12: SOFTWARE: Optimize the unchanged maximum-load workload to meet the 0.75 sustained audio-time ratio in both ordinary and release gates; instrument_deadlines fails with the declared voices/partials/unison/routes. Cache tuning/frequency/matrix work or reduce runtime cost without reducing the workload. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Candidate basis: Dexed (GPL-3.0). QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Musical listening, independent patches and other hardware/OS CPU deadlines. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "inst-3x-osc",
@@ -1873,10 +1873,10 @@
       "summary": "Turns an image into sound by scanning it and mapping color and brightness to frequency and level.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-12: SOFTWARE: Optimize the unchanged maximum-load workload to meet the 0.75 sustained audio-time ratio in both ordinary and release gates; instrument_deadlines fails with the declared voices/partials/unison/routes. Cache tuning/frequency/matrix work or reduce runtime cost without reducing the workload. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Musical listening, independent patches and other hardware/OS CPU deadlines. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "inst-boobass",
@@ -1897,10 +1897,10 @@
       "summary": "The basic one-sample channel with pitch, envelope, loop and stretch settings.",
       "windfall_name": null,
       "phase": 1,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "The plan's phase-1 sampler. One-shot and gated playback, tuning, trim, reverse, volume envelope, cut groups, persisted forward/ping-pong loops and editable loop points. Prepared independent spectral duration/pitch is undergoing combined integration and review; filter and further modulation controls remain unfinished. See docs/SAMPLER-LOOPS.md and docs/SAMPLER-STRETCH.md. QA 2026-10-12: SOFTWARE: Discard delayed sequenced echoes at pattern loop boundaries while retaining UI-held echo ownership across Seek; rack_voice::seek_keeps_live_held_echoes_and_loop_discards_only_sequenced_echoes reports PCM differing from the dry reference. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "The plan's phase-1 sampler. One-shot and gated playback, tuning, trim, reverse, volume envelope, cut groups, persisted forward/ping-pong loops and editable loop points. Prepared independent spectral duration/pitch is undergoing combined integration and review; filter and further modulation controls remain unfinished. See docs/SAMPLER-LOOPS.md and docs/SAMPLER-STRETCH.md. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Independent listening and other-OS/device acceptance. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "inst-directwave-player",
@@ -1909,10 +1909,10 @@
       "summary": "A playback-only version of the multisample sampler for loading ready-made instruments.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "QA 2026-10-12: SOFTWARE: Account for aggregate retained/concurrently prepared bank PCM under the admission budget and preserve held voices safely across bank replacement.; Implement missing-source relink and recover the player without replacing its bank identity. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Listening, physical MIDI/audio devices and independent sample libraries. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "inst-drumpad",
@@ -1993,10 +1993,10 @@
       "summary": "A pad-based drum sampler with layered samples per pad.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Its bundled kits are Image-Line content; needs own. QA 2026-10-12: SOFTWARE: Account for aggregate retained/concurrently prepared bank PCM under the admission budget and preserve held voices safely across bank replacement.; Implement click-free choke transitions. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Its bundled kits are Image-Line content; needs own. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Listening, physical MIDI/audio devices and independent sample libraries. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "inst-fruity-slicer",
@@ -2029,10 +2029,10 @@
       "summary": "A hybrid synth and effects channel taken from a groove-box instrument.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "The manual names it Groove Machine Synth. QA 2026-10-12: SOFTWARE: Optimize the unchanged maximum-load workload to meet the 0.75 sustained audio-time ratio in both ordinary and release gates; instrument_deadlines fails with the declared voices/partials/unison/routes. Cache tuning/frequency/matrix work or reduce runtime cost without reducing the workload. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "The manual names it Groove Machine Synth. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Musical listening, independent patches and other hardware/OS CPU deadlines. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "inst-minisynth",
@@ -2077,10 +2077,10 @@
       "summary": "Turns typed text into robotic spoken or sung audio.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Windows only in FL. QA 2026-10-12: SOFTWARE: Account for aggregate retained/concurrently prepared bank PCM under the admission budget and preserve held voices safely across bank replacement.; Expose native speech-render cancellation in the editor. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Windows only in FL. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Intelligibility/listening, physical output and other operating systems. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "inst-wave-traveller",
@@ -2104,7 +2104,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Its samples are Image-Line content; needs own. QA 2026-10-12: SOFTWARE: Account for aggregate retained/concurrently prepared bank PCM under the admission budget and preserve held voices safely across bank replacement. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Its samples are Image-Line content; needs own. QA 2026-10-13: SOFTWARE: Add and run a declared low-CPU admission benchmark for the production PianoKeys renderer at representative/max polyphony, sample rates and callback partitions, including release/tail and live control changes; record the target-machine result. (Raised by the independent audit of the round-four recommendations; the rest of the row passes.). Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "inst-dashboard",
@@ -2125,10 +2125,10 @@
       "summary": "Plays force-feedback effects on game controllers from notes.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": null,
-      "notes": "manual-only: listed in the online manual's plugin index, not on the compare-editions page, so outside its 39/71/6 totals. Windows only in FL. QA 2026-10-12: SOFTWARE: Persist XInput routing as a project-owned instrument destination with checked history, rather than an app-wide MIDI preference. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "manual-only: listed in the online manual's plugin index, not on the compare-editions page, so outside its 39/71/6 totals. Windows only in FL. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Physical XInput controller, unplug/replug and measured motor feedback. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fx-transmitter",
@@ -2161,10 +2161,10 @@
       "summary": "Shifts the pitch and formant of incoming audio in real time, with separate modes for voice and full mixes.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "all-plugins",
-      "notes": "Candidate basis: Signalsmith Stretch (MIT). QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-12: SOFTWARE: Correct octave-down period and nonaligned pitch accuracy (134.66 cents observed), and preserve independent formants at 96 kHz in Mix mode; spectral unit and p2_pitch_quality references fail. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Candidate basis: Signalsmith Stretch (MIT). QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Independent vocal/music listening, physical live MIDI and other hardware/OS deadlines. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fx-transient-processor",
@@ -2221,10 +2221,10 @@
       "summary": "A rack of eleven guitar pedal effects with cabinet simulation.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "signature",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-12: SOFTWARE: Optimize the maximum eleven-pedal/8x cabinet graph: a 256-frame release workload measures 0.7893 CPU share against 0.75. Keep all pedals/cabinet variants and references. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Guitar/music listening and independent hardware/OS performance. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fx-low-lifter",
@@ -2245,10 +2245,10 @@
       "summary": "Corrects pitch in real time and can add harmony voices under MIDI control.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "signature",
-      "notes": "Needs real-time pitch detection. QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-12: SOFTWARE: Restore all four harmony peaks, including 44.1 kHz/997.3-Hz source with note 83; p2_pitch_quality finds only 3.2196e-6 power for the expected harmony. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Needs real-time pitch detection. QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Independent vocal/music listening, physical live MIDI and other hardware/OS deadlines. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fx-vintage-chorus",
@@ -2365,10 +2365,10 @@
       "summary": "A modular distortion unit combining several distortion types, filters, chorus and speaker cabinets.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-12: SOFTWARE: Optimize all declared 8x maximum modular-drive graphs: release CPU shares 1.281319, 1.066847 and 1.972472 exceed 0.75, including the three-cabinet case. Preserve all stages and convolution/aliasing behavior. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Guitar/music listening and independent hardware/OS performance. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fx-effector-12-fx",
@@ -2425,10 +2425,10 @@
       "summary": "A guitar-style overdrive distortion.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-12: SOFTWARE: Reduce the 8x/hot 384-kHz overdrive path to its declared 0.20 CPU share at blocks >=64; final release measures 0.318084375 at 64 frames. Preserve the existing signal and aliasing references. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Guitar/music listening and independent hardware/OS performance. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fx-fruity-chorus",
@@ -2569,10 +2569,10 @@
       "summary": "Shows an HTML page inside the project for notes and links.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "QA 2026-10-12: SOFTWARE: Enforce and prove resource/IPC isolation for hostile authored content in packaged WebView2, WKWebView and WebKitGTK; remaining platform implementations are not verified by jsdom sanitization. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Packaged WKWebView/WebKitGTK hostile-content and operator accessibility review. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fx-fruity-limiter",
@@ -2608,7 +2608,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Windows only in FL (built on Microsoft DirectX). QA 2026-10-12: SOFTWARE: Persist the OS synth as a project-owned destination and route its audio through the Windfall mixer/offline export; current OS audio bypasses both. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Windows only in FL (built on Microsoft DirectX). QA 2026-10-13: SOFTWARE: Complete SF2 2.04 bank support underlying the GM equivalent: generators/modulators/composition, stereo/24-bit samples, delay envelopes and portable/relink ownership. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fx-fruity-multiband-compressor",
@@ -2665,10 +2665,10 @@
       "summary": "A seven-band parametric equalizer.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": " QA 2026-10-12: SOFTWARE: Add EffectKind::Eq to a nonignored active/extreme CPU measurement harness with a declared budget, run it in release on this machine and record the results required by the row's 2026-10-11 SOFTWARE note. DSP, editor, filter response, automation/history and live/export tests pass. Evidence: independent audit, 2026-10-12."
+      "notes": "Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Independent musical listening and other hardware/OS CPU deadlines. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fx-fruity-parametric-eq2",
@@ -2797,10 +2797,10 @@
       "summary": "Distorts audio through a user-drawn input-to-output curve.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-12: SOFTWARE: Optimize the 8x 384-kHz curve path: release CPU share 0.3400125 at 64 frames exceeds 0.20, with the original authored curve and signal/aliasing references unchanged. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Guitar/music listening and independent hardware/OS performance. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fx-fruity-x-y-controller",
@@ -2836,7 +2836,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "The plan's phase-4 modular plugin rack. QA 2026-10-12: SOFTWARE: Implement hosted graph nodes with provider/state capture/editor/retirement ownership, auxiliary audio ports and asset-bearing processors, note-module parameter automation and aggregate fan-out admission. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "The plan's phase-4 modular plugin rack. QA 2026-10-13: SOFTWARE: Implement hosted-node provider/preparation/state/editor/retirement and asset-bearing node ownership/preparation/loading/capture/preset packaging. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fx-fruity-peak-controller",
@@ -2857,10 +2857,10 @@
       "summary": "Drives the lighting on Razer Chroma hardware from the project's tempo or audio.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Depends on Razer's own SDK; check its license against GPL-3.0 before starting. QA 2026-10-12: SOFTWARE: Register a usable mixer effect and connect actual session tempo/audio energy to its worker; implement the vendor adapter. The mock peripheral protocol alone is not this feature. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Depends on Razer's own SDK; check its license against GPL-3.0 before starting. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Installed Chroma service and actual vendor lighting devices. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fx-soundgoodizer",
@@ -2893,10 +2893,10 @@
       "summary": "Routes notes to different instruments according to their note color.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Only works inside FL's modular rack (Patcher); depends on fx-patcher. QA 2026-10-12: SOFTWARE: Expose saved module settings as checked automatable parameters and apply them at realtime boundaries. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Only works inside FL's modular rack (Patcher); depends on fx-patcher. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Listening and physical live-input/controller acceptance. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fx-vfx-envelope",
@@ -2905,10 +2905,10 @@
       "summary": "A note-triggered envelope generator for modulating parameters.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Only works inside FL's modular rack (Patcher); depends on fx-patcher. QA 2026-10-12: SOFTWARE: Expose saved module settings as checked automatable parameters and apply them at realtime boundaries.; Compose multiple envelope shapes on one path rather than retaining only the final shape. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Only works inside FL's modular rack (Patcher); depends on fx-patcher. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Listening and physical live-input/controller acceptance. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fx-vfx-level-scaler",
@@ -2917,10 +2917,10 @@
       "summary": "Rescales note properties such as velocity through a mapping curve as they pass.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Only works inside FL's modular rack (Patcher); depends on fx-patcher. QA 2026-10-12: SOFTWARE: Expose saved module settings as checked automatable parameters and apply them at realtime boundaries. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Only works inside FL's modular rack (Patcher); depends on fx-patcher. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Listening and physical live-input/controller acceptance. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fx-vfx-keyboard-splitter",
@@ -2929,10 +2929,10 @@
       "summary": "Splits incoming notes into key zones routed to different instruments.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Only works inside FL's modular rack (Patcher); depends on fx-patcher. QA 2026-10-12: SOFTWARE: Expose saved module settings as checked automatable parameters and apply them at realtime boundaries. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Only works inside FL's modular rack (Patcher); depends on fx-patcher. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Listening and physical live-input/controller acceptance. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fx-vfx-key-mapper",
@@ -2941,10 +2941,10 @@
       "summary": "Remaps incoming notes to other keys or chords.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Only works inside FL's modular rack (Patcher); depends on fx-patcher. QA 2026-10-12: SOFTWARE: Expose saved module settings as checked automatable parameters and apply them at realtime boundaries. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Only works inside FL's modular rack (Patcher); depends on fx-patcher. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Listening and physical live-input/controller acceptance. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fx-vfx-sequencer",
@@ -2953,10 +2953,10 @@
       "summary": "A step sequencer and arpeggiator that generates note patterns from incoming notes.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Only works inside FL's modular rack (Patcher); depends on fx-patcher. QA 2026-10-12: SOFTWARE: Expose saved module settings as checked automatable parameters and apply them at realtime boundaries. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Only works inside FL's modular rack (Patcher); depends on fx-patcher. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Listening and physical live-input/controller acceptance. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fx-emphasizer",
@@ -2980,7 +2980,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Only works inside FL's modular rack (Patcher); depends on fx-patcher. Grouped with the plan's phase-6 scripting. QA 2026-10-12: SOFTWARE: Join scripts to rack nodes and hardware audition; automate script parameters; expand transformed clip/pattern durations without truncation. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Only works inside FL's modular rack (Patcher); depends on fx-patcher. Grouped with the plan's phase-6 scripting. QA 2026-10-13: SOFTWARE: Apply scripts allocation-free to raw UI/hardware notes, preserving original-key/instance releases, delayed copies and gates; add append-only script parameter addresses, checked edits and matching live/offline automation. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fx-fruity-7-band-eq",
@@ -3100,7 +3100,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "signature",
-      "notes": "The plan's phase-6 video player. QA 2026-10-12: SOFTWARE: Route unmuted video audio through the Windfall mixer and offline export; currently the webview owns that audio. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "The plan's phase-6 video player. QA 2026-10-13: SOFTWARE: Add and run a Windows supported-video playback test through the real VideoPlayer and native media clock: verify rendered frame pixels/time at start, offset, seek, loop and stop, including the unmuted native soundtrack. Record the result; this can use an authored raw RGB/PCM AVI and does not need physical hardware or listening. (Raised by the independent audit of the round-four recommendations; the rest of the row passes.). Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "vis-fruity-big-clock",
@@ -3145,10 +3145,10 @@
       "summary": "Renders audio-reactive visuals in real time and can export them as video.",
       "windfall_name": null,
       "phase": 6,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "The plan's phase-6 visualizer. The manual names it ZGameEditor Visualizer. QA 2026-10-12: SOFTWARE: Add and run direct Session::media_render_audio acceptance using a known real project/region with PCM/frame alignment and failure guards. Exercise the enabled mounted/native Export synchronized AVI action through actual render data, AVI publication and cancellation; verify actual canvas painting from a native analyzer feed. (Raised by the independent audit of the round-three recommendations.). Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "The plan's phase-6 visualizer. The manual names it ZGameEditor Visualizer. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Independent musical visual/listening and other-OS webview acceptance. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "vis-wave-candy",
@@ -3169,10 +3169,10 @@
       "summary": "An animated dancing character whose moves are triggered by notes.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": null,
-      "notes": "manual-only: listed in the online manual's plugin index, not on the compare-editions page, so outside its 39/71/6 totals. Its default character art is Image-Line's; a Windfall equivalent needs its own artwork. QA 2026-10-12: SOFTWARE: Add and run a device-free software test taking actual sequenced/live note-on and note-off through Processor/Controller/Session realtime publication into the mounted character, including selected-channel filtering and clearing. (Raised by the independent audit of the round-three recommendations.). Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "manual-only: listed in the online manual's plugin index, not on the compare-editions page, so outside its 39/71/6 totals. Its default character art is Image-Line's; a Windfall equivalent needs its own artwork. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Independent musical visual/listening and other-OS webview acceptance. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "editor-newtone",
@@ -3181,10 +3181,10 @@
       "summary": "A pitch editor that detects the notes in a recording so their pitch and timing can be corrected by hand.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "signature",
-      "notes": "Needs pitch detection (the plan lists it under machine-learning features) and time-stretch. Candidate basis: Signalsmith Stretch (MIT). QA 2026-10-12: SOFTWARE: Charge peak classical working buffers and f64 accumulators against the job quota, including retained preview/results; current per-buffer limits do not account for aggregate working memory. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Needs pitch detection (the plan lists it under machine-learning features) and time-stretch. Candidate basis: Signalsmith Stretch (MIT). Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Independent listening and other-OS/device acceptance. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "editor-edison",
@@ -3193,10 +3193,10 @@
       "summary": "A wave editor and recorder that loads in an effect slot for trimming, cleaning and processing samples.",
       "windfall_name": null,
       "phase": 3,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "producer",
-      "notes": "Native selected-clip waveform/range editor supports trim, extract, normalize, reverse, fades, silence and cut. Immutable derived WAVs, one-step undo, stale/source/recording guards and save/reopen are covered. Effect-slot recording/editor integration, cleanup DSP and advanced tools remain pending. Browser mode explicitly refuses native file edits. See docs/AUDIO-EDITOR.md. QA 2026-10-12: SOFTWARE: Connect the supplied bounded interpreter to the audio-selection worker and implement Run script IPC/UI preview, cancellation and guarded apply. The existing selection callback is only a seam. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Native selected-clip waveform/range editor supports trim, extract, normalize, reverse, fades, silence and cut. Immutable derived WAVs, one-step undo, stale/source/recording guards and save/reopen are covered. Effect-slot recording/editor integration, cleanup DSP and advanced tools remain pending. Browser mode explicitly refuses native file edits. See docs/AUDIO-EDITOR.md. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Listening and other-OS editor/audio operation. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "editor-newtime",
@@ -3205,10 +3205,10 @@
       "summary": "A warp editor that slices audio and moves markers to correct or reshape its timing.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "producer",
-      "notes": "Candidate basis: Signalsmith Stretch (MIT). QA 2026-10-12: SOFTWARE: Charge peak classical working buffers and f64 accumulators against the job quota, including retained preview/results; current per-buffer limits do not account for aggregate working memory. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Candidate basis: Signalsmith Stretch (MIT). Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Independent listening and other-OS/device acceptance. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fmt-project-native",
@@ -3265,10 +3265,10 @@
       "summary": "Starts a project from a stored template and saves the current project as one.",
       "windfall_name": "Project templates",
       "phase": 2,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": null,
-      "notes": "FL's bundled templates reference Image-Line content; needs own. QA 2026-10-12: SOFTWARE: Persist cross-session extraction ownership/reference tracking and reclaim abandoned capture pins; reusable IPC captures currently pin roots for the entire session. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "FL's bundled templates reference Image-Line content; needs own. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Independent templates/preset corpus and other-OS filesystem behavior. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fmt-flp-import",
@@ -3280,7 +3280,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": null,
-      "notes": "Desktop picker prepares a reviewed conversion with category reports, bounded sample searches, missing-audio warnings, unsaved-project confirmation and stale-request guards. Unsupported plugin bytes and metadata persist in .windfall files and an Imported sounds report. Two real FL 20.8.4 reader projects verified; other versions remain unverified. Sound mappings and some timing/automation are approximate; proprietary restoration and identical playback remain unavailable. See docs/flp/coverage.md. QA 2026-10-12: SOFTWARE: Translate remaining processor state, instrument parameter automation, controller formulas/smoothing, nonlinear channel timing and arrangement navigation; retain unsupported recorded controls durably rather than only warning/dropping them. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Desktop picker prepares a reviewed conversion with category reports, bounded sample searches, missing-audio warnings, unsaved-project confirmation and stale-request guards. Unsupported plugin bytes and metadata persist in .windfall files and an Imported sounds report. Two real FL 20.8.4 reader projects verified; other versions remain unverified. Sound mappings and some timing/automation are approximate; proprietary restoration and identical playback remain unavailable. See docs/flp/coverage.md. QA 2026-10-13: SOFTWARE: Translate processor/instrument state and instrument parameter automation, controller formulas/smoothing, nonlinear shift/gate/glide and navigation semantics instead of retaining them only as archival data. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fmt-cloud-backup",
@@ -3301,10 +3301,10 @@
       "summary": "Stores the settings of a channel, plugin or mixer track as a preset file.",
       "windfall_name": "Presets",
       "phase": 2,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": null,
-      "notes": "Windfall presets use its own format; FL's bundled presets cannot be shipped. QA 2026-10-12: SOFTWARE: Preserve optional MidiOut outputPort/pluginDestination through preset migration, with checked/remapped hosted target identity instead of silently reverting to hardware; migrate_params currently treats these omitted-default keys as unknown. Extend preset capture/remapping to the incoming controller-panel/rack/script side tables rather than losing project-owned channel configuration. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Windfall presets use its own format; FL's bundled presets cannot be shipped. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Independent templates/preset corpus and other-OS filesystem behavior. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fmt-score-fsc",
@@ -3400,7 +3400,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": null,
-      "notes": "Not in the plan; legacy formats. QA 2026-10-12: SOFTWARE: Complete DrumSynth overtones/noise bands/slope/droop/filter/distortion rendering and public SYN/speech layouts/readers; preserve portable source ownership for original preset data. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Not in the plan; legacy formats. QA 2026-10-13: SOFTWARE: Implement complete DrumSynth overtone/noise-band/slope/droop/filter/distortion semantics and public SYN/speech readers. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fmt-import-zgr",
@@ -3517,10 +3517,10 @@
       "summary": "Renders to AAC audio in an M4A file.",
       "windfall_name": "M4A export",
       "phase": 6,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": null,
-      "notes": "Not in the plan's export list. AAC encoder licensing must be checked against GPL-3.0. QA 2026-10-12: SOFTWARE: Implement the selected Windows Media Foundation AAC encoder and native/IPC/UI export with encoder-delay/padding/trim/tag handling and atomic cancellation/error publication. The existing muxer accepts supplied packets only. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Not in the plan's export list. AAC encoder licensing must be checked against GPL-3.0. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Other-OS encoder availability and independent player interoperability. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fmt-export-wav-markers",
@@ -3532,7 +3532,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": null,
-      "notes": "Not named in the plan's phase table, so placed in phase 6. QA 2026-10-12: SOFTWARE: Implement two-source SliceDeck region interchange, per-slice gain/pitch/envelopes/reverse/labels, fractional beat counts and navigation semantics; current source-A interchange deliberately refuses deck B and skip/pause export. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Not named in the plan's phase table, so placed in phase 6. QA 2026-10-13: SOFTWARE: Expose editor source/view/edit/transfer of cue notes, slice attributes, beats and navigation metadata; add native timeline marker import and real UI label authoring. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fmt-wavpack",
@@ -3541,10 +3541,10 @@
       "summary": "Saves audio as WavPack files from the audio editor.",
       "windfall_name": "WavPack support",
       "phase": 6,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": null,
-      "notes": "Not in the plan. QA 2026-10-12: SOFTWARE: Implement the independent Rust WavPack encoder/decoder with public entropy/decorrelation, metadata/CRC and bounded mono/stereo 16/24-bit PCM; register native import/editor/export. No .wv codec exists. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Not in the plan. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Reference-tool WavPack corpus interoperability and independent playback. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fmt-host-vst3",
@@ -3556,7 +3556,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": null,
-      "notes": "Production Windows VST3 additions are enabled with bounded owner-thread capture, deferred dirty-state scheduling, held-note/control reconciliation and fallible deactivation. Native fixtures verify playback/capture/save/export. Round four closed pending-parameter persistence, scanned inner-binary approval and full-channel panic repairs, but found two further document-adoption and native parameter-overflow cases under repair. Combined checks remain pending. Installed external plugins, native editor operation, macOS/Linux and audio crash containment remain unverified or unfinished. See docs/plugins/vst3-desktop.md and docs/plugins/runtime-repairs.md. QA 2026-10-12: SOFTWARE: Adopt dynamic restart/capability changes into prepared instances, complete desktop providers on non-Windows platforms and native multi-output routing.; Provide an independent VST3 editor fixture with a real IPlugView/scale/owner path; native_clap_vst3_healthy_audio_and_state_use_independent_helpers currently aborts because fixture class 0 has no editor. Do not credit its unexecuted post-editor audio/state assertions. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Production Windows VST3 additions are enabled with bounded owner-thread capture, deferred dirty-state scheduling, held-note/control reconciliation and fallible deactivation. Native fixtures verify playback/capture/save/export. Round four closed pending-parameter persistence, scanned inner-binary approval and full-channel panic repairs, but found two further document-adoption and native parameter-overflow cases under repair. Combined checks remain pending. Installed external plugins, native editor operation, macOS/Linux and audio crash containment remain unverified or unfinished. See docs/plugins/vst3-desktop.md and docs/plugins/runtime-repairs.md. QA 2026-10-13: SOFTWARE: Re-admit dynamic ports/latency/parameters/note capabilities with stable parameter tombstones, stale automation diagnostics and PDC; save/reopen/export routed extra outputs; implement macOS/Linux owned embedded editors. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fmt-host-clap",
@@ -3568,7 +3568,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": null,
-      "notes": "Windows desktop CLAP instruments/effects now integrate project persistence, native-range automation, playback/export, mixer latency compensation, parameter inspectors and native editors. Real CLAP fixtures verify session audio, state round-trip and current-instance ownership. The host backend was also exercised with Surge XT/Effects and OB-Xf. Native macOS/Linux desktop hosting and audio crash containment remain unfinished. See docs/plugins/desktop-integration.md and docs/plugins/host-evaluation.md. QA 2026-10-12: SOFTWARE: Adopt dynamic restart/capability changes into prepared instances, complete desktop providers on non-Windows platforms and native multi-output routing. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Windows desktop CLAP instruments/effects now integrate project persistence, native-range automation, playback/export, mixer latency compensation, parameter inspectors and native editors. Real CLAP fixtures verify session audio, state round-trip and current-instance ownership. The host backend was also exercised with Surge XT/Effects and OB-Xf. Native macOS/Linux desktop hosting and audio crash containment remain unfinished. See docs/plugins/desktop-integration.md and docs/plugins/host-evaluation.md. QA 2026-10-13: SOFTWARE: Re-admit dynamic ports/latency/parameters/note capabilities with stable parameter tombstones, stale automation diagnostics and PDC; save/reopen/export routed extra outputs; implement Cocoa/X11 owned embedded editors. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fmt-host-au",
@@ -3580,7 +3580,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": null,
-      "notes": "macOS only. QA 2026-10-12: SOFTWARE: Implement the installed AUv2 catalog/desktop provider, Cocoa editor, transport/reset recovery and multi-bus/sidechain ownership. The macOS-only adapter remains uncompiled and unexecuted; this is unverified platform software, not external-only. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "macOS only. QA 2026-10-13: SOFTWARE: Desktop AU ownership, Cocoa dispatcher/window-parent and Tauri integration remain untypechecked because objc2-exception-helper stops at missing cc. Unblock that C dependency and resolve any Rust integration errors before admission; host AU adapter/Cocoa/sys and portable parts are checked. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fmt-host-vst2",
@@ -3616,7 +3616,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": null,
-      "notes": "Windows per-instance atomic mapping/helper/supervisor and a nonblocking measured 2B callback pipeline are under implementation. ABI2/authentication repair ba61a255 follows 27dc8a4a outside root. R2 supports five original trigger closures but finds incomplete post-reset DSP proof, startup state backpressure and final-DONE cancellation/deadline cases under repair before desktop activation. Native fault fixtures, graph PDC, packaged discovery, editors, external plugins and other platforms remain required. See docs/plugins/process-bridge.md. QA 2026-10-12: SOFTWARE: Finish capture/ACK/restart composition and packaged helper discovery on supported platforms; implement non-Windows IPC/provider.; Provide an independent VST3 editor fixture with a real IPlugView/scale/owner path; native_clap_vst3_healthy_audio_and_state_use_independent_helpers currently aborts because fixture class 0 has no editor. Do not credit its unexecuted post-editor audio/state assertions. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Windows per-instance atomic mapping/helper/supervisor and a nonblocking measured 2B callback pipeline are under implementation. ABI2/authentication repair ba61a255 follows 27dc8a4a outside root. R2 supports five original trigger closures but finds incomplete post-reset DSP proof, startup state backpressure and final-DONE cancellation/deadline cases under repair before desktop activation. Native fault fixtures, graph PDC, packaged discovery, editors, external plugins and other platforms remain required. See docs/plugins/process-bridge.md. QA 2026-10-13: SOFTWARE: Complete capture/ACK/helper-restart/document-replacement composition and capability re-admission into prepared helpers/plans; implement Cocoa/X11 editor embedding and ownership. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fmt-host-wrapper-options",
@@ -3625,10 +3625,10 @@
       "summary": "Per-plugin switches for idle bypass, buffer handling, threading, window scaling and window detachment.",
       "windfall_name": "Plugin host options",
       "phase": 4,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": null,
-      "notes": "QA 2026-10-12: SOFTWARE: Implement the threaded native owner provider; the saved Threaded option is currently refused. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Real device deadlines and external plugin behavior under each selected policy. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "fmt-host-fl-as-plugin",
@@ -3640,7 +3640,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "The plan lists this as 'possible later' and assigns no phase. QA 2026-10-12: SOFTWARE: Implement VST3 export ABI, editor/export command, active state publication/capture fence, reset flushing, host clock/meter arbitration and distributable plugin packaging. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "The plan lists this as 'possible later' and assigns no phase. QA 2026-10-13: SOFTWARE: Implement Cocoa/X11 exported panels, distributed runtime bundling/autoresolution/ABI validation, editor program-load dirty and PDC/restart notifications, and nested native providers. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "wf-audio-settings",
@@ -3652,7 +3652,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": null,
-      "notes": "The plan uses cpal: WASAPI and ASIO on Windows, CoreAudio on macOS, ALSA, JACK and PipeWire on Linux. Device, sample rate and buffer through WASAPI, CoreAudio, ALSA and JACK. ASIO is behind a build feature that is off. QA 2026-10-11: No new real-device run. Earlier 600s soak at actual 480 frames is historical only; requested 128 was not obtained. ASIO off/libclang unavailable, smaller buffers, multichannel and other OS gates remain. Design: DEVICE-ACCEPTANCE.md. Evidence and test index: docs/qa/2026-10-11-wave1-acceptance.md."
+      "notes": "The plan uses cpal: WASAPI and ASIO on Windows, CoreAudio on macOS, ALSA, JACK and PipeWire on Linux. Device, sample rate and buffer through WASAPI, CoreAudio, ALSA and JACK. ASIO is behind a build feature that is off. QA 2026-10-13: SOFTWARE: Waiting on the real-device harness run covering actual driver/rate/buffer selection, callback timing, hotplug and recovery. No missing implementation was identified in the exercised software. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "wf-transport",
@@ -3724,7 +3724,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": null,
-      "notes": "Whole-application scaling with persisted preferences and coherent canvas/control coordinates is being implemented in an isolated T3 task. Native third-party editor content scaling remains a required plugin-host integration; application-only browser checks will not complete this row. QA 2026-10-12: SOFTWARE: Handle live monitor DPI notifications and implement scaled/owned editors on macOS/Linux; add an independent VST3 GUI fixture to verify the native path.; Provide an independent VST3 editor fixture with a real IPlugView/scale/owner path; native_clap_vst3_healthy_audio_and_state_use_independent_helpers currently aborts because fixture class 0 has no editor. Do not credit its unexecuted post-editor audio/state assertions. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Whole-application scaling with persisted preferences and coherent canvas/control coordinates is being implemented in an isolated T3 task. Native third-party editor content scaling remains a required plugin-host integration; application-only browser checks will not complete this row. QA 2026-10-13: SOFTWARE: Implement macOS/Linux embedded editor GUI-thread ownership, parent handles, application scaling and monitor DPI transitions. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "wf-hint-bar",
@@ -3769,10 +3769,10 @@
       "summary": "Spreads instrument and mixer processing across CPU cores.",
       "windfall_name": "Multi-core mixing",
       "phase": 2,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": null,
-      "notes": "QA 2026-10-12: SOFTWARE: Integrate parallel track processing into the production mixer/plan, deterministic edge reduction, swap retirement and deadline-output policy, plus a live thread setting; production processing is still serial. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Physical callback deadlines/dispatch jitter, listening under live changes and other-OS runtime. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "wf-global-snap",
@@ -3793,10 +3793,10 @@
       "summary": "Lets an editor or plugin window leave the main window for a second monitor.",
       "windfall_name": "Detachable panels",
       "phase": 2,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": null,
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-12: SOFTWARE: Carry caller generation through every custom mutation IPC and reject stale two-window focus/menu/edit/close/reopen/replacement operations. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Physical multi-monitor/input/window-manager and other-OS interaction. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "wf-keyboard-shortcuts",
@@ -3844,7 +3844,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": null,
-      "notes": "Tempo, time signature and swing. QA 2026-10-12: SOFTWARE: Apply per-note pan-law behavior to remaining legacy built-in voices and add capability-aware live-law native PCM coverage; bridge expression/Volume forwarding is now integrated, but legacy voice support remains incomplete. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Tempo, time signature and swing. QA 2026-10-13: SOFTWARE: Implement project per-note pan-law behavior and live ramps for remaining FM/analog/acid/additive/physical/drum/polysynth/SpeechVoice families; expose native Pan/Volume/note-instance capabilities, visible refusals and capability-aware live PCM behavior. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "wf-midi-settings",
@@ -3904,7 +3904,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": null,
-      "notes": "Native meter/tempo count-in, pre-opened timestamped ADC capture, exact DAC-frame start, progress and zero-bar synchronized recording are implemented in source. Native-rate conversion, independent clock drift fitting, signed offsets and stop-tail draining are included. Artifacts and all QA deferred. See docs/METRONOME-COUNT-IN.md and docs/RECORDING-ALIGNMENT.md. QA 2026-10-11: device_count_in_gate remains ignored/unrun: real pre-roll exclusion, start alignment and transport/region restoration not established. Design: METRONOME-COUNT-IN.md, DEVICE-ACCEPTANCE.md. Evidence and test index: docs/qa/2026-10-11-wave1-acceptance.md."
+      "notes": "Native meter/tempo count-in, pre-opened timestamped ADC capture, exact DAC-frame start, progress and zero-bar synchronized recording are implemented in source. Native-rate conversion, independent clock drift fitting, signed offsets and stop-tail draining are included. Artifacts and all QA deferred. See docs/METRONOME-COUNT-IN.md and docs/RECORDING-ALIGNMENT.md. QA 2026-10-13: SOFTWARE: Waiting on the real-device harness run covering audible count-in/metronome timing and measured recording start/latency. No missing implementation was identified in the exercised software. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "wf-loop-recording",
@@ -3916,7 +3916,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "producer",
-      "notes": "Loop pass selection, atomic kept-source attachment, saved take groups and synchronized comp editing are implemented. Capture-to-keep, pass boundaries and real device acceptance remain open; do not infer complete recording QA from the general suite. See docs/qa/2026-10-09-recording-mixer.md. QA 2026-10-11: device_loop_takes remains ignored/unrun: real complete/partial pass lengths, equal burst positions, grouped attachment and undo gate. Design: LOOP-RECORDING.md, DEVICE-ACCEPTANCE.md. Evidence and test index: docs/qa/2026-10-11-wave1-acceptance.md."
+      "notes": "Loop pass selection, atomic kept-source attachment, saved take groups and synchronized comp editing are implemented. Capture-to-keep, pass boundaries and real device acceptance remain open; do not infer complete recording QA from the general suite. See docs/qa/2026-10-09-recording-mixer.md. QA 2026-10-13: SOFTWARE: Waiting on the real-device harness run covering continuous hardware capture through loop wraps, separate takes and gap/dropout behavior. No missing implementation was identified in the exercised software. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "wf-automation-recording",
@@ -3988,7 +3988,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": null,
-      "notes": "Depends on the controller plugins in the effect and core lists. QA 2026-10-12: SOFTWARE: Implement internal-source Tempo modulation with a feedback-safe realtime clock/map contract; Tempo is explicitly refused today. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Depends on the controller plugins in the effect and core lists. QA 2026-10-13: SOFTWARE: Implement feedback-safe internal-source Tempo clock/map, bounds/sync-source behavior and matching note/audio/metronome scheduling and live/offline export duration; Tempo is currently explicitly refused. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "wf-audio-to-midi",
@@ -3997,10 +3997,10 @@
       "summary": "Converts the notes detected in a recording into piano roll notes.",
       "windfall_name": "Audio-to-MIDI",
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": null,
-      "notes": "Candidate basis: Basic Pitch (Apache-2.0). QA 2026-10-12: SOFTWARE: Charge peak classical working buffers and f64 accumulators against the job quota, including retained preview/results; current per-buffer limits do not account for aggregate working memory.; Correct sparse polyphonic C-major detection: classical_tools::repeated_and_held_notes_silence_and_polyphonic_chord fails the independent 0.1-semitone/sustained-duration reference. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Candidate basis: Basic Pitch (Apache-2.0). Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Independent listening and other-OS/device acceptance. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "wf-remix-a-song",
@@ -4009,10 +4009,10 @@
       "summary": "Loads a song, separates it into stems and lays them out on the timeline ready for remixing.",
       "windfall_name": "Remix wizard",
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": null,
-      "notes": "New in FL Studio 2026. Depends on stem separation. QA 2026-10-12: SOFTWARE: Implement the real model/runtime separation dependency plus file-backed long-song tiling and rate conversion, then publish actual stems through the wizard. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "New in FL Studio 2026. Depends on stem separation. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Real-music listening and independent model-quality/other-OS evaluation. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "wf-performance-mode",
@@ -4021,10 +4021,10 @@
       "summary": "Turns the timeline into a grid of clips that can be triggered live in any order from a controller, keyboard or touch screen.",
       "windfall_name": "Performance mode",
       "phase": 6,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "The plan's phase-6 performance mode. QA 2026-10-12: SOFTWARE: Record accepted callback launch logs for replay, render native-plugin captures, and implement audio/automation pads plus channel layer/arpeggiator/echo and note-curve parity.; Prevent any PCM before the requested delayed launch (first 1531 frames), and preserve same-frame stop/retrigger ordering independently of process block partitions; tests/performance.rs fails. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "The plan's phase-6 performance mode. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Other-OS decoders and independent A/V synchronization/listening. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "wf-midi-scripting",
@@ -4033,10 +4033,10 @@
       "summary": "Python scripts that translate a hardware controller's messages into program actions and feedback.",
       "windfall_name": "Controller scripting",
       "phase": 6,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Part of the plan's phase-6 scripting. QA 2026-10-12: SOFTWARE: Add checked source/target selection beyond the fixed CC-channel-1/Master editor binding, and controller-script gesture, pickup, smoothing and automation-capture semantics. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Part of the plan's phase-6 scripting. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Physical controller pickup/encoders/feedback, port hotplug/naming and other-OS drivers. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "wf-preconfigured-controllers",
@@ -4096,7 +4096,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": null,
-      "notes": "QA 2026-10-12: SOFTWARE: Translate remaining panel inspectors, dynamic status/error/help text, MIDI/plugin/native dialogs and full command-palette search. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "QA 2026-10-13: SOFTWARE: Translate remaining inspectors, MIDI/plugin dialog interiors, dynamic status/help/error text and dynamic palette entries. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     },
     {
       "id": "wf-help-tutorials",
@@ -4105,10 +4105,10 @@
       "summary": "In-app links to the manual and step-by-step tutorials for first tasks.",
       "windfall_name": "Help and tutorials",
       "phase": 7,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": null,
-      "notes": "Guided tutorials were added in FL Studio 2026. QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-12: SOFTWARE: Correlate export completion to the exact tutorial request and implement device-loss/error/focus recovery through complete recording/export walkthroughs. Evidence: docs/qa/2026-10-12-round3-acceptance.md."
+      "notes": "Guided tutorials were added in FL Studio 2026. QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Physical recording device loss/focus and operator tutorial/accessibility review. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
     }
   ]
 }
