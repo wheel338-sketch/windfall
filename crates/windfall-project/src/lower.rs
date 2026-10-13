@@ -1392,28 +1392,44 @@ impl Transaction<'_> {
                 auxiliary_inputs,
                 outputs,
             } => {
-                let mut plugins = self.project.plugins.clone();
-                let plugin = plugins
-                    .iter_mut()
-                    .find(|plugin| plugin.target == target)
-                    .ok_or_else(|| CommandError::invalid("the plugin is not in this project"))?;
-                let mut current = plugin.clone();
-                current.parameters = parameters.clone();
-                current.capabilities.unavailable_parameters.clear();
-                current.validate().map_err(CommandError::invalid)?;
-                plugin.capabilities.revision =
-                    plugin.capabilities.revision.checked_add(1).ok_or_else(|| {
-                        CommandError::invalid("plugin capability revision exhausted")
+                if matches!(target, crate::PluginTarget::Rack { .. }) {
+                    self.edit_rack_plugin(target, |plugin| {
+                        let mut current = plugin.clone();
+                        current.parameters = parameters.clone();
+                        current.capabilities.unavailable_parameters.clear();
+                        current.validate().map_err(CommandError::invalid)?;
+                        plugin.capabilities.revision = plugin.capabilities.revision.checked_add(1)
+                            .ok_or_else(|| CommandError::invalid("plugin capability revision exhausted"))?;
+                        plugin.state = state;
+                        plugin.admit_parameters(parameters);
+                        plugin.auxiliary_inputs = auxiliary_inputs;
+                        plugin.capabilities.outputs = outputs;
+                        Ok(())
                     })?;
-                plugin.state = state;
-                plugin.admit_parameters(parameters);
-                plugin.auxiliary_inputs = auxiliary_inputs;
-                plugin.capabilities.outputs = outputs;
-                plugin.validate().map_err(CommandError::invalid)?;
-                self.push(Edit::Plugins(Change {
-                    old: self.project.plugins.clone(),
-                    new: plugins,
-                }));
+                } else {
+                    let mut plugins = self.project.plugins.clone();
+                    let plugin = plugins
+                        .iter_mut()
+                        .find(|plugin| plugin.target == target)
+                        .ok_or_else(|| CommandError::invalid("the plugin is not in this project"))?;
+                    let mut current = plugin.clone();
+                    current.parameters = parameters.clone();
+                    current.capabilities.unavailable_parameters.clear();
+                    current.validate().map_err(CommandError::invalid)?;
+                    plugin.capabilities.revision =
+                        plugin.capabilities.revision.checked_add(1).ok_or_else(|| {
+                            CommandError::invalid("plugin capability revision exhausted")
+                        })?;
+                    plugin.state = state;
+                    plugin.admit_parameters(parameters);
+                    plugin.auxiliary_inputs = auxiliary_inputs;
+                    plugin.capabilities.outputs = outputs;
+                    plugin.validate().map_err(CommandError::invalid)?;
+                    self.push(Edit::Plugins(Change {
+                        old: self.project.plugins.clone(),
+                        new: plugins,
+                    }));
+                }
                 "Re-admit plugin capabilities"
             }
             Command::SetPluginOutputRoute {

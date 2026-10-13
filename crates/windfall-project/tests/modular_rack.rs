@@ -929,3 +929,37 @@ fn channel_preset_capture_keeps_nested_racks_and_loading_plain_sound_removes_the
     .unwrap();
     assert_eq!(doc.project().settings.modular_racks[0].graph, graph());
 }
+
+#[test]
+fn update_capture_readmits_nested_rack_state_atomically_with_history_and_reopen() {
+    let (mut doc, channel) = document();
+    let mut rack = graph();
+    rack.nodes[2].hosted = Some(PluginBinding {
+        target: PluginTarget::Effect { effect: EffectId(0) },
+        format: "clap".into(), path: "C:/owned/fixture.clap".into(),
+        id: "org.windfall.test.gain".into(), name: "Native rack".into(),
+        state: vec![1, 2, 3],
+        parameters: vec![PluginParameter { id: 7, name: "Gain".into(), min: 0.0, max: 1.0, value: 0.5, stepped: false, read_only: false, automatable: true }],
+        sidechain_input: None, auxiliary_inputs: vec![], capabilities: Default::default(), wrapper: Default::default(),
+    });
+    let outer = RackGraph { next_id: 2, nodes: vec![node(1, RackProcessor::Rack { graph: Box::new(rack) })], ..Default::default() };
+    set(&mut doc, channel, Some(outer)).unwrap();
+    let target = PluginTarget::Rack { channel, path: [1, 3, 0, 0], instrument: false };
+    let before = doc.project().plugin(target).unwrap().clone();
+    let mut gain = before.parameters[0].clone();
+    gain.value = 0.25;
+    let command = |parameters| Command::ReadmitPlugin { target, state: vec![9, 8, 7], parameters, auxiliary_inputs: vec![], outputs: vec![] };
+    doc.dispatch(command(vec![gain.clone()]), None).unwrap();
+    let captured = doc.project().clone();
+    assert_eq!(captured.plugin(target).unwrap().state, [9, 8, 7]);
+    assert_eq!(captured.plugin(target).unwrap().parameters[0].value, 0.25);
+    assert_eq!(captured.plugin(target).unwrap().capabilities.revision, before.capabilities.revision + 1);
+    assert_eq!(file::from_json(&file::to_json(&captured).unwrap()).unwrap(), captured);
+    doc.undo().unwrap();
+    assert_eq!(doc.project().plugin(target).unwrap().state, before.state);
+    assert_eq!(doc.project().plugin(target).unwrap().parameters[0].value, 0.5);
+    doc.redo().unwrap();
+    assert_eq!(doc.project(), &captured);
+    assert!(doc.dispatch(command(vec![gain.clone(), gain]), None).is_err());
+    assert_eq!(doc.project(), &captured);
+}
