@@ -1,5 +1,69 @@
 # Windfall CLAP export target
 
+## Round-five source checkpoint — 2026-10-13
+
+This section supersedes the historical checkpoints below. The source is
+edit-only work: no build or test has run for this checkpoint.
+
+The exported CLAP/VST3 binary contains the Windfall engine runtime itself;
+it does not depend on a desktop executable or a second engine DLL. The stable
+`windfall_runtime_stamp` C entry returns static JSON with ABI 1, the exact
+workspace package version, and architecture/OS. Export probes the selected
+runtime and each copied format binary before publishing. Bundle-local
+`windfall-runtime.json` must match that binary's compiled stamp before its
+program is used. Missing, malformed, oversized or incompatible metadata and
+missing/corrupt program state refuse creation. CLAP reports through host log;
+Windfall's own host reads the bounded `windfall_runtime_error` diagnostic when
+a factory or VST3 activation refuses.
+
+The desktop runtime override is optional. Automatic lookup checks the Tauri
+resource directory's `plugin-runtime/`, then an executable-adjacent
+`plugin-runtime/`, then the executable's directory. It never searches CWD/PATH
+and never skips an invalid preferred file. Tauri's pre-build/pre-dev command
+serially prepares the runtime and `windfall-plugin-audio` helper using
+`scripts/build-plugin-runtime.mjs`. The resource inventory checks their exact
+version, installer target, hashes and complete two-file inventory. A universal
+Mac build assembles both artifacts with lipo; fat exports validate both slice
+records and retain a universal stamp when exported from either native slice.
+
+VST3 state/stamp resources remain under `Contents/Resources`. The helper is
+next to the runtime under `Contents/x86_64-win`, `Contents/x86_64-linux`, or
+`Contents/MacOS`. On macOS CLAP is a complete bundle with the same internal
+resource/runtime separation. On Windows/Linux keep the flat CLAP binary,
+program JSON, runtime stamp and helper together.
+
+Native editor file loads use `Publication::load_editor`, which marks host state
+dirty and announces parameter values. VST3 uses `IComponentHandler2::setDirty`
+and component-handler restart bits 4 (parameter values), 8 (latency), and 1
+(reload). CLAP uses state dirty, parameter rescan and restart callbacks; latency
+changed is called while inactive during activation. A latency-changing program
+waits for host deactivation/restart; current audio and CLAP latency remain
+unchanged until then. Same-latency replacements retain the existing callback
+publication/capture fence. Failed loads emit no dirty/restart notification.
+The Cocoa/X11 worker must use this same editor load method.
+
+Nested CLAP/VST3 instruments and effects have an export-owned process provider.
+Every prepared guest has its own public random mapping namespace, independent
+helpers, binding fingerprints, parameter table and note ownership. The creating
+control owner alone captures native state and confirms helper exit; callback
+facades retain only prepared mapping/signals/storage. Reset releases held notes,
+advances the bridge timeline epoch and clears local PCM, dry histories and
+transition ramps. Retired guests terminate helpers on control after publication
+acknowledgement. The owning guest retains native state through save/reopen.
+
+Automatic/Bridged bindings use this provider. In-process/threaded requests, AU
+bindings and recursive Windfall bindings receive explicit format/policy reasons.
+Native plugin files remain at their saved installed paths; third-party binaries
+are not redistributed. Missing helpers/files and native startup refusal fail
+preparation with a visible reason. Nested helpers declare a hard realtime
+scheduling requirement through CLAP render and refuse VST3 offline setup;
+offline-mode program loads are atomic refusals with a realtime-bounce reason.
+This is the explicit provider policy, rather than silent asynchronous offline
+output. Hardware recording remains unavailable inside a device-free export.
+
+See `docs/qa/2026-10-13-r5-plugin-export.md` for exact authored tests and
+integration checks. Cocoa/X11 editor source belongs to the sibling branch.
+
 ## Round-four source checkpoint — 2026-10-12
 
 The round-four implementation adds a combined VST3 factory/component/audio
