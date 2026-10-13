@@ -276,6 +276,10 @@ impl ClapInstance {
 
 impl InstanceBackend for ClapInstance {
     fn refresh_capabilities(&mut self) -> Result<(), PluginError> {
+        // Finish a requested owner callback without consuming its dirty/restart
+        // notifications. The installed owner will deliver those through idle.
+        let callback = self.instance.access_shared_handler(|shared| shared.take(flag::CALLBACK));
+        if callback != 0 { self.instance.call_on_main_thread_callback(); }
         let plugin = self.instance.plugin_handle();
         let inputs = read_ports(self.extensions.audio_ports, &plugin, true)?;
         let outputs = read_ports(self.extensions.audio_ports, &plugin, false)?;
