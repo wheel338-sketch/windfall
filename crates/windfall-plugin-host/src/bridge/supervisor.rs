@@ -790,7 +790,9 @@ fn supervise(
                     )
                 });
                 match result {
-                    Ok(packet) => { let _ = response.send(Ok(packet)); }
+                    Ok(packet) => {
+                        let _ = response.send(Ok(packet));
+                    }
                     Err(error) => {
                         *terminal_reply = Some((response, error.clone()));
                         return Err(error);

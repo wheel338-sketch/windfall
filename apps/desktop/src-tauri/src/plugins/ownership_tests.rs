@@ -1542,7 +1542,9 @@ fn native_clap_project_pan_laws_and_live_ramps_match_render_pcm_without_allocati
             assert!(
                 (ramp[i][1] - baseline[i][1] * (gains.1 + (to.1 - gains.1) * part)).abs() < 2e-6,
                 "{law:?} ramp right {i}: actual={} expected={} latency={}",
-                ramp[i][1], baseline[i][1] * (gains.1 + (to.1 - gains.1) * part), unit.latency()
+                ramp[i][1],
+                baseline[i][1] * (gains.1 + (to.1 - gains.1) * part),
+                unit.latency()
             );
         }
     }

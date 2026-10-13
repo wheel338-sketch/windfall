@@ -23,13 +23,17 @@ fn soundfont_channel(rig: &Rig) -> ChannelId {
 fn soundfont_import_owns_source_and_missing_relink_reopens_with_checked_history() {
     let rig = Rig::new();
     let channel = soundfont_channel(&rig);
-    let before = rig.project();
+    let mut before = rig.project();
     let original = rig.file("sf-owned.sf2");
     std::fs::write(&original, general_midi_fixture()).unwrap();
     rig.session
         .soundfont_load(channel, None, original.clone(), 0, 0)
         .unwrap();
     let imported = rig.project();
+    // Source registration allocates one identity. Undo retires it rather than
+    // rewinding the allocator and allowing another asset to reuse that address.
+    assert_eq!(imported.next_id, before.next_id + 1);
+    before.next_id = imported.next_id;
     let asset = imported
         .channel(channel)
         .unwrap()
@@ -1269,7 +1273,7 @@ fn general_midi_soundfont_destination_preserves_rack_notes_history_disk_and_live
             None,
         )
         .unwrap();
-    let before = rig.project();
+    let mut before = rig.project();
     let settings = rig.session.midi_hardware_state().settings;
     let path = rig.file("own-gm.sf2");
     std::fs::write(&path, general_midi_fixture()).unwrap();
@@ -1283,6 +1287,8 @@ fn general_midi_soundfont_destination_preserves_rack_notes_history_disk_and_live
         )
         .unwrap();
     let saved = rig.project();
+    assert_eq!(saved.next_id, before.next_id + 1);
+    before.next_id = saved.next_id;
     assert_eq!(
         saved.channel(channel).unwrap().mixer_track,
         before.channel(channel).unwrap().mixer_track

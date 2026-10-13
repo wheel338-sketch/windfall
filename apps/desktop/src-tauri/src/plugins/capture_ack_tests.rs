@@ -564,9 +564,7 @@ fn bridge_capture_ack_restart_replacement_native_interleaving_table() {
         );
         let statuses = runtime.bridge_status();
         assert!(
-            statuses
-                .iter()
-                .all(|(_, _, status)| status.reaped),
+            statuses.iter().all(|(_, _, status)| status.reaped),
             "capture fault result={result:?}, statuses={statuses:?}"
         );
     }
@@ -664,11 +662,19 @@ fn bridge_capture_ack_restart_replacement_native_interleaving_table() {
                     loop {
                         let mut left = [1.0; 512];
                         let mut right = left;
-                        assert_eq!(crate::test_alloc::allocator_calls(|| audio.process(&mut left, &mut right)), 0);
+                        assert_eq!(
+                            crate::test_alloc::allocator_calls(
+                                || audio.process(&mut left, &mut right)
+                            ),
+                            0
+                        );
                         if left.iter().all(|value| (*value - 0.5).abs() < 1e-6) && right == left {
                             break;
                         }
-                        assert!(std::time::Instant::now() < healthy_deadline, "initial healthy DSP proof missing: {row}");
+                        assert!(
+                            std::time::Instant::now() < healthy_deadline,
+                            "initial healthy DSP proof missing: {row}"
+                        );
                         std::thread::sleep(Duration::from_millis(2));
                     }
                     let token = runtime.selected_token(target).unwrap();
@@ -878,7 +884,16 @@ fn bridge_capture_ack_restart_replacement_native_interleaving_table() {
                         } else {
                             0.625
                         };
-                        assert_eq!(restored.parameters.iter().find(|parameter| parameter.id == 7).unwrap().value, expected, "recovered saved control differs: {row}");
+                        assert_eq!(
+                            restored
+                                .parameters
+                                .iter()
+                                .find(|parameter| parameter.id == 7)
+                                .unwrap()
+                                .value,
+                            expected,
+                            "recovered saved control differs: {row}"
+                        );
                         let deadline = std::time::Instant::now() + Duration::from_secs(3);
                         loop {
                             let mut left = [1.0; 512];
