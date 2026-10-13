@@ -288,6 +288,13 @@ fn check_settings(project: &Project) -> Result<(), String> {
 fn check_samples(project: &Project) -> Result<(), String> {
     let mut ids = HashSet::new();
     for sample in &project.samples {
+        if sample.soundfont && (sample.processing.is_some()
+            || project.channels.iter().any(|c|c.source.sample()==Some(sample.id)
+                || c.sample_playback.as_ref().is_some_and(|a|a.references(sample.id))
+                || c.sample_instrument.as_ref().is_some_and(|a|a.samples().any(|id|id==sample.id)))
+            || project.playlist.clips.iter().any(|c|c.content.sample()==Some(sample.id))) {
+            return Err("A raw SoundFont bank cannot also be used as an audio sample.".into());
+        }
         crate::model::check_audio_regions(&sample.regions)?;
         check_id(project, "sample", sample.id, &mut ids)?;
         if let Some(recipe) = &sample.processing {

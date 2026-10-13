@@ -381,6 +381,7 @@ fn gens(entries: &[(u16, u16)]) -> Vec<u8> {
         .collect()
 }
 struct Bank {
+    sm24: Option<Vec<u8>>,
     phdr: Vec<u8>,
     pbag: Vec<u8>,
     pgen: Vec<u8>,
@@ -418,6 +419,7 @@ impl Bank {
             .flat_map(|index| (((index % 200) as i16 + 1) * 100).to_le_bytes())
             .collect();
         Self {
+            sm24: None,
             phdr,
             inst,
             shdr,
@@ -442,7 +444,9 @@ impl Bank {
             b"INFO",
             &[(b"ifil", &[2, 0, 4, 0]), (b"INAM", b"Test\0")],
         ));
-        data.extend(list(b"sdta", &[(b"smpl", &self.smpl)]));
+        let mut samples=vec![(b"smpl",self.smpl.as_slice())];
+        if let Some(low)=&self.sm24 {samples.push((b"sm24",low));}
+        data.extend(list(b"sdta", &samples));
         data.extend(list(
             b"pdta",
             &[
@@ -1008,3 +1012,5 @@ fn choke_tail_is_reported_after_the_new_strike_has_finished() {
     assert_eq!(unit.tail_samples(), 0);
     assert!(pcm[pcm.len() - 2..].iter().all(|x| *x == 0.0));
 }
+
+mod sf2;

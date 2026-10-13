@@ -87,6 +87,10 @@ export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, Ana
     path: string): Promise<void>
   sampleInstrumentImportZone?(channel: ChannelId, expected: import("@/bindings").SampleInstrumentAsset | null,
     path: string, pad: number | null): Promise<DispatchResult>
+  soundfontLoad?(channel: ChannelId, expected: import("@/bindings").SampleInstrumentAsset | null,
+    path: string, bank: number, program: number): Promise<DispatchResult>
+  soundfontRelink?(channel: ChannelId, expected: import("@/bindings").SampleInstrumentAsset,
+    expectedPath: import("@/bindings").SamplePath, path: string): Promise<DispatchResult>
   soundfontPresets?(path: string): Promise<import("@/bindings").SoundFontPreset[]>
   sampleInstrumentSpeech?(channel: ChannelId, expected: import("@/bindings").SampleInstrumentAsset | null,
     text: string, pitch: number, duration: number, request?: number): Promise<DispatchResult>

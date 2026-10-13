@@ -38,6 +38,7 @@ pub enum MidiMessage {
     Start,
     Continue,
     Stop,
+    PolyPressure {channel:u8,key:u8,value:u8},
 }
 
 impl MidiMessage {
@@ -63,6 +64,7 @@ impl MidiMessage {
                 key,
                 velocity,
             }),
+            (10, &[key,value])=>Some(Self::PolyPressure {channel,key,value}),
             (11, &[number, value]) => Some(Self::Controller {
                 channel,
                 number,
@@ -86,6 +88,7 @@ impl MidiMessage {
             | Self::Controller { channel, .. }
             | Self::PitchBend { channel, .. }
             | Self::ChannelPressure { channel, .. }
+            | Self::PolyPressure {channel,..}
             | Self::ProgramChange { channel, .. } => Some(channel),
             Self::Clock | Self::Start | Self::Continue | Self::Stop => None,
         }
@@ -119,6 +122,7 @@ impl MidiMessage {
             Self::ProgramChange { channel, program } => {
                 ([0xc0 | (channel & 15), program & 127, 0], 2)
             }
+            Self::PolyPressure{channel,key,value}=>([0xa0|(channel&15),key&127,value&127],3),
             Self::Clock => ([0xf8, 0, 0], 1),
             Self::Start => ([0xfa, 0, 0], 1),
             Self::Continue => ([0xfb, 0, 0], 1),
@@ -140,6 +144,7 @@ mod tests {
             &[0xe0, 0x7f, 0x7f],
             &[0xe9, 0, 0x40],
             &[0xd2, 99],
+            &[0xa2, 60, 100],
             &[0xcf, 5],
             &[0xf8],
             &[0xfa],

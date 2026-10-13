@@ -462,6 +462,8 @@ export function createTauriBackend(): Backend {
     sampleInstrumentRelinkSource: (channel, expected, sample, expectedPath, path) => call("sample_instrument_relink_source", { channel, expected, sample, expectedPath, path }),
     sampleInstrumentSaveBank: (channel, expected, path) => call("sample_instrument_save_bank", { channel, expected, path }),
     sampleInstrumentImportZone: (channel, expected, path, pad) => call("sample_instrument_import_zone", { channel, expected, path, pad }),
+    soundfontLoad: (channel, expected, path, bank, program) => call("soundfont_load", {channel, expected, path, bank, program}),
+    soundfontRelink: (channel, expected, expectedPath, path) => call("soundfont_relink", {channel, expected, expectedPath, path}),
     soundfontPresets: (path) => call("soundfont_presets", { path }),
     sampleInstrumentSpeech: (channel, expected, text, pitch, duration, request) => call("sample_instrument_speech", { channel, expected, text, pitch, duration, request }),
     sampleInstrumentSpeechBegin: (channel) => call("sample_instrument_speech_begin", { channel }),

@@ -28,6 +28,15 @@ pub(crate) fn asset(channel: &windfall_project::Channel) -> Option<SampleInstrum
 }
 
 impl SamplePool {
+    /// Control-side readiness retries retain the exact previously parsed SF2
+    /// candidates. Their immutable owners already carry aggregate admission.
+    pub fn reuse_soundfont_candidates(&mut self, previous:&Self) {
+        let banks=Arc::make_mut(&mut self.sample_banks);
+        for held in previous.sample_banks.iter().filter(|held|matches!(held.asset,SampleInstrumentAsset::SoundFont{..})) {
+            banks.retain(|current|current.asset!=held.asset);
+            banks.push(held.clone());
+        }
+    }
     /// Load SF2 bytes off audio. Pure parser validates before replacing a handle.
     /// The caller resolves/reads the reference and guards document admission.
     pub fn insert_soundfont(
@@ -66,7 +75,7 @@ impl SamplePool {
     ) -> Result<Self, String> {
         let mut ready: Vec<PreparedSampleBank> = Vec::new();
         for channel in &project.channels {
-            let Some(asset) = asset(channel) else {
+            let Some(asset) = asset(channel).map(|a|a.canonical(project)) else {
                 continue;
             };
             if !keep_going() {

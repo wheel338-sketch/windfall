@@ -70,12 +70,18 @@ describe("sample instrument purpose-built editors",()=>{
   })
   it("browses bank/program presets and retains their file reference",async()=>{
     backend.soundfontPresets=vi.fn().mockResolvedValue([{name:"Own piano",bank:3,program:7}])
+    backend.soundfontLoad=vi.fn().mockImplementation(async(channel,expected,path,bank,program)=>backend.dispatch({
+      type:"batch",label:"Load SoundFont",commands:[
+        {type:"addSample",name:"Own bank",path:{kind:"external",path}},
+        {type:"registerSoundFontSource",sample:useProjectStore.getState().project.nextId,expected:{kind:"external",path}},
+        {type:"setSampleInstrumentAsset",channel,expected,asset:{type:"soundFont",path:{kind:"external",path},bank,program,source:useProjectStore.getState().project.nextId}}
+      ]}))
     const id=await open("soundFont")
     fireEvent.change(screen.getByRole("textbox",{name:"SoundFont file"}),{target:{value:"C:/Own/keys.sf2"}})
     fireEvent.click(screen.getByRole("button",{name:"Browse presets"}));await act(()=>settle())
     fireEvent.click(screen.getByRole("button",{name:"3:7 · Own piano"}));await act(()=>settle())
     expect(useProjectStore.getState().project.channels.find(item=>item.id===id)?.sampleInstrument)
-      .toEqual({type:"soundFont",path:{kind:"external",path:"C:/Own/keys.sf2"},bank:3,program:7})
+      .toMatchObject({type:"soundFont",path:{kind:"external",path:"C:/Own/keys.sf2"},bank:3,program:7,source:expect.any(Number)})
   })
   it("reopens the saved SoundFont path and browses that bank",async()=>{
     backend.soundfontPresets=vi.fn().mockResolvedValue([{name:"Own piano",bank:3,program:7}])
@@ -91,6 +97,35 @@ describe("sample instrument purpose-built editors",()=>{
     fireEvent.click(screen.getByRole("button",{name:"Browse presets"}));await act(()=>settle())
     expect(backend.soundfontPresets).toHaveBeenCalledWith("C:/Own/keys.sf2")
     expect(screen.getByRole("button",{name:"3:7 · Own piano"})).toBeInTheDocument()
+  })
+  it("validates SoundFont relink in its dedicated dialog and preserves source identity with undo",async()=>{
+    const result=await dispatch({type:"addChannel",instrument:"soundFont"})
+    if(!result)throw new Error("channel creation failed")
+    const id=result.created[0]
+    const added=await dispatch({type:"addSample",name:"Missing bank",path:{kind:"external",path:"C:/Missing/bank.sf2"}})
+    if(!added)throw new Error("source creation failed")
+    const source=added.created[0]
+    await dispatch({type:"registerSoundFontSource",sample:source,expected:{kind:"external",path:"C:/Missing/bank.sf2"}})
+    const asset={type:"soundFont" as const,path:{kind:"external" as const,path:"C:/Missing/bank.sf2"},bank:0,program:0,source}
+    await dispatch({type:"setSampleInstrumentAsset",channel:id,expected:null,asset})
+    backend.sampleInstrumentMissingSources=vi.fn().mockResolvedValue([source])
+    backend.soundfontRelink=vi.fn().mockRejectedValue(new Error("Replacement does not contain selected preset"))
+    render(<ValueContextMenus><Panel id={id}/></ValueContextMenus>);await act(()=>settle())
+    expect(screen.getByRole("alert")).toHaveTextContent("Missing SoundFont file")
+    fireEvent.click(screen.getByRole("button",{name:"Relink SoundFont source"}))
+    const dialog=within(screen.getByRole("dialog"))
+    fireEvent.change(dialog.getByRole("textbox",{name:"Replacement SoundFont file"}),{target:{value:"C:/Recovered/bank.sf2"}})
+    fireEvent.click(dialog.getByRole("button",{name:"Verify and relink SoundFont"}));await act(()=>settle())
+    expect(dialog.getByRole("alert")).toHaveTextContent("Replacement does not contain selected preset")
+    expect(useProjectStore.getState().project.channels.find(c=>c.id===id)?.sampleInstrument).toEqual(asset)
+    backend.soundfontRelink=vi.fn().mockImplementation(async(_channel,expected,expectedPath,path)=>backend.dispatch({
+      type:"relinkSamplePath",sample:expected.type==="soundFont" ? expected.source! : 0,expected:expectedPath,path:{kind:"external",path}}))
+    backend.sampleInstrumentMissingSources=vi.fn().mockResolvedValue([])
+    fireEvent.click(dialog.getByRole("button",{name:"Verify and relink SoundFont"}));await act(()=>settle())
+    expect(useProjectStore.getState().project.samples.find(s=>s.id===source)?.path).toEqual({kind:"external",path:"C:/Recovered/bank.sf2"})
+    expect(useProjectStore.getState().project.channels.find(c=>c.id===id)?.sampleInstrument).toEqual(asset)
+    await undo();await act(()=>settle())
+    expect(useProjectStore.getState().project.samples.find(s=>s.id===source)?.path).toEqual(asset.path)
   })
   it("switches generated piano recipes with undo and exposes the active source",async()=>{
     const id=await open("pianoKeys")

@@ -785,6 +785,7 @@ mod tests {
         assert_ne!(copy.name, pattern.name);
         assert!(make_unique(UniqueSource::Pattern(pattern), || pattern.id.0).is_err());
         let sample = SampleAsset {
+            soundfont: false,
             processing: None,
             regions: Vec::new(),
             id: SampleId(50),

@@ -432,6 +432,11 @@ pub struct SampleAsset {
     pub id: SampleId,
     pub name: String,
     pub path: SamplePath,
+    /// Raw SF2 file storage, including sources retained after changing presets.
+    /// It is prepared as a bank, never submitted to the ordinary audio decoder.
+    #[serde(default, skip_serializing_if = "sample_source_is_audio")]
+    #[ts(as = "Option<bool>", optional)]
+    pub soundfont: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub processing: Option<crate::AudioEditRecipe>,
@@ -440,6 +445,7 @@ pub struct SampleAsset {
     #[ts(as = "Option<Vec<AudioRegion>>", optional)]
     pub regions: Vec<AudioRegion>,
 }
+fn sample_source_is_audio(soundfont:&bool)->bool { !*soundfont }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]

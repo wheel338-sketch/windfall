@@ -153,6 +153,9 @@ pub fn create(
     limits: Limits,
     check: &mut Check<'_>,
 ) -> Result<(), Error> {
+    let mut owned=project.clone();
+    owned.own_soundfont_sources().map_err(invalid)?;
+    let project=&owned;
     project.check().map_err(invalid)?;
     if project.samples.len().saturating_add(2) > limits.entries {
         return Err(invalid("Too many archive audio sources."));
@@ -256,6 +259,11 @@ pub fn create(
             original_path: sample.path.clone(),
         });
         sample.path = SamplePath::Project(path);
+    }
+    for channel in &mut snapshot.channels {
+        if let Some(windfall_project::SampleInstrumentAsset::SoundFont {source:Some(id),path,..})=&mut channel.sample_instrument {
+            *path=snapshot.samples.iter().find(|s|s.id==*id).ok_or_else(||invalid("Missing SoundFont identity"))?.path.clone();
+        }
     }
     let json = file::to_json_with(&snapshot, session)?;
     let manifest_json = serde_json::to_vec_pretty(&manifest)?;

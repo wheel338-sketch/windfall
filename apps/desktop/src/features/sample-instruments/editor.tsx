@@ -4,6 +4,7 @@ import type { SampleInstrumentAsset, SampleZone, SoundFontPreset } from "@/bindi
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -254,26 +255,66 @@ function PlayerEditor({ channel }: { channel: InstrumentChannel }) {
 
 function SoundFontEditor({ channel }: { channel: InstrumentChannel }) {
   const selected = channel.sampleInstrument?.type === "soundFont" ? channel.sampleInstrument : null
-  const [path,setPath] = useState(selected?.path.kind === "external" ? selected.path.path : "")
+  const samples = useProjectStore(state => state.project.samples)
+  const source = samples.find(sample => sample.id === selected?.source)
+  const storedPath = source?.path ?? selected?.path
+  const [path,setPath] = useState(storedPath?.path ?? "")
   const [presets,setPresets] = useState<SoundFontPreset[]>([])
   const [error,setError] = useState<string | null>(null)
+  const [busy,setBusy] = useState(false)
+  const [missing,setMissing] = useState(false)
+  const [relink,setRelink] = useState(false)
+  const [replacement,setReplacement] = useState("")
   const request = useRef(0)
+  useEffect(() => {
+    setPath(storedPath?.path ?? "")
+    let current = true
+    void backend.sampleInstrumentMissingSources?.(channel.id).then(ids => {
+      if (current) setMissing(selected?.source != null && ids.includes(selected.source))
+    }).catch(error => { if (current) setError(errorMessage(error)) })
+    return () => { current = false; request.current++ }
+  }, [channel.id, selected, storedPath])
   return <FieldGroup>
     <Field><FieldLabel>SoundFont file</FieldLabel><Input aria-label="SoundFont file" value={path} onChange={event=>{setPath(event.target.value);setPresets([]);request.current++}} /></Field>
-    <Button disabled={!backend.soundfontPresets || !path} onClick={async()=>{
+    <Button disabled={busy || !backend.soundfontPresets || !path} onClick={async()=>{
       const token = ++request.current
       try { const found=await backend.soundfontPresets!(path);if(token===request.current){setPresets(found);setError(null)} }
       catch(error){if(token===request.current)setError(errorMessage(error))}
     }}>Browse presets</Button>
     <div role="group" aria-label="SoundFont presets" className="flex flex-col gap-1">
-      {presets.map(preset=><Button key={`${preset.bank}:${preset.program}`} variant="outline" onClick={()=>void dispatch({
-        type:"setSampleInstrumentAsset",channel:channel.id,expected:channel.sampleInstrument??null,
-        asset:{type:"soundFont",path:{kind:"external",path},bank:preset.bank,program:preset.program}
-      })}>{preset.bank}:{preset.program} · {preset.name}</Button>)}
+      {presets.map(preset=><Button key={`${preset.bank}:${preset.program}`} variant="outline"
+        disabled={busy || !backend.soundfontLoad} onClick={async()=>{
+          const generation=getProjectGeneration();setBusy(true)
+          try {
+            const result=await backend.soundfontLoad!(channel.id,selected,path,preset.bank,preset.program)
+            if(generation===getProjectGeneration()){receivePatch(result.patch);setError(null)}
+          } catch(error){if(generation===getProjectGeneration())setError(errorMessage(error))}
+          finally{setBusy(false)}
+        }}>{preset.bank}:{preset.program} · {preset.name}</Button>)}
     </div>
-    {channel.sampleInstrument?.type === "soundFont" && <FieldDescription>Selected bank {channel.sampleInstrument.bank}, program {channel.sampleInstrument.program}</FieldDescription>}
-    {!backend.soundfontPresets && <Alert><AlertDescription>SoundFont file loading requires the desktop app.</AlertDescription></Alert>}
-    {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+    {selected && <FieldDescription>Selected bank {selected.bank}, program {selected.program}</FieldDescription>}
+    {source && <FieldDescription>Project source {source.id}: {source.name}. Portable project archives include this bank.</FieldDescription>}
+    {missing && <Alert><AlertDescription>Missing SoundFont file. Relink its project source to restore playback.</AlertDescription></Alert>}
+    {source && <Button variant="outline" disabled={busy || !backend.soundfontRelink} onClick={()=>{setReplacement("");setError(null);setRelink(true)}}>Relink SoundFont source</Button>}
+    <Dialog open={relink} onOpenChange={setRelink}>
+      <DialogContent>
+        <DialogTitle>Relink SoundFont source</DialogTitle>
+        <DialogDescription>Choose a replacement SF2 file. Windfall validates every selected preset using this source before updating its path. The source identity is preserved and the change can be undone.</DialogDescription>
+        <Input aria-label="Replacement SoundFont file" value={replacement} onChange={event=>setReplacement(event.target.value)} />
+        <Button disabled={busy || !replacement || !source || !selected || !backend.soundfontRelink} onClick={async()=>{
+          if(!source || !selected)return
+          const generation=getProjectGeneration();setBusy(true)
+          try {
+            const result=await backend.soundfontRelink!(channel.id,selected,source.path,replacement)
+            if(generation===getProjectGeneration()){receivePatch(result.patch);setRelink(false);setMissing(false);setError(null)}
+          } catch(error){if(generation===getProjectGeneration())setError(errorMessage(error))}
+          finally{setBusy(false)}
+        }}>Verify and relink SoundFont</Button>
+        {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+      </DialogContent>
+    </Dialog>
+    {!backend.soundfontLoad && <Alert><AlertDescription>SoundFont file loading requires the desktop app.</AlertDescription></Alert>}
+    {error && !relink && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
   </FieldGroup>
 }
 

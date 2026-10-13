@@ -183,6 +183,7 @@ fn audio_and_automation_pads_loop_route_and_restore_without_song_playback() {
     let sample = SampleId(project.next_id);
     project.next_id += 1;
     project.samples.push(SampleAsset {
+        soundfont: false,
         id: sample,
         name: "constant".into(),
         path: SamplePath::External("own.wav".into()),
