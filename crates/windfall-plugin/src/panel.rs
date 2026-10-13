@@ -1,7 +1,6 @@
 //! Main-thread control panel. Hosts can load an exported program without a
 //! second audio device or desktop process. Native parent owns the outer window.
 use crate::publication::Publication;
-#[cfg(windows)]
 use std::ffi::CStr;
 use std::{
     ffi::{c_char, c_void},
@@ -17,7 +16,19 @@ pub fn supports(platform: *const c_char) -> bool {
             matches!(CStr::from_ptr(platform), value if value == c"HWND" || value == c"win32")
         }
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        unsafe {
+            matches!(CStr::from_ptr(platform), value if value == c"NSView" || value == c"cocoa")
+        }
+    }
+    #[cfg(target_os = "linux")]
+    {
+        unsafe {
+            matches!(CStr::from_ptr(platform), value if value == c"X11EmbedWindowID" || value == c"x11")
+        }
+    }
+    #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
     {
         let _ = platform;
         false
@@ -25,19 +36,67 @@ pub fn supports(platform: *const c_char) -> bool {
 }
 #[cfg(windows)]
 pub use windows::Panel;
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
+mod cocoa;
+#[cfg(target_os = "macos")]
+pub use cocoa::Panel;
+#[cfg(target_os = "linux")]
+mod x11;
+#[cfg(target_os = "linux")]
+pub use x11::Panel;
+#[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
 pub struct Panel;
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
 impl Panel {
     pub fn open(_: *mut c_void, _: Rc<Publication>) -> Result<Self, String> {
-        Err("Native export panel requires Windows".into())
+        Err("Native export panel requires Windows, macOS or X11".into())
     }
     pub fn visible(&self, _: bool) {}
+}
+/// The same bounded load transaction is used by all three native panels.
+fn load_program(state: &Publication, path: &str) -> Result<(), String> {
+    let file = std::fs::File::open(path.trim()).map_err(|e| e.to_string())?;
+    load_reader(state, file)
+}
+fn load_reader(state: &Publication, reader: impl std::io::Read) -> Result<(), String> {
+    use std::io::Read;
+    let mut bytes = Vec::new();
+    reader
+        .take(crate::MAX_STATE_BYTES as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| e.to_string())?;
+    state.load(crate::Program::decode(&bytes)?)
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn native_panel_load_is_complete_and_read_decode_refusals_preserve_state() {
+        let state = Publication::default();
+        let mut program = crate::Program::default();
+        program.project.settings.name = "Panel recall".into();
+        let encoded = program.encode().unwrap();
+        load_reader(&state, std::io::Cursor::new(&encoded)).unwrap();
+        assert_eq!(state.capture().unwrap(), encoded);
+        assert!(load_reader(&state, std::io::Cursor::new(b"corrupt packet")).is_err());
+        struct Failed;
+        impl std::io::Read for Failed {
+            fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::other("injected read refusal"))
+            }
+        }
+        assert!(
+            load_reader(&state, Failed)
+                .unwrap_err()
+                .contains("injected read refusal")
+        );
+        assert_eq!(state.capture().unwrap(), encoded);
+    }
 }
 #[cfg(windows)]
 mod windows {
     use super::*;
-    use std::{io::Read, ptr};
+    use std::ptr;
     use windows_sys::Win32::{
         Foundation::*, Graphics::Gdi::COLOR_WINDOW, System::LibraryLoader::*,
         UI::WindowsAndMessaging::*,
@@ -76,14 +135,7 @@ mod windows {
                 let size =
                     unsafe { GetWindowTextW(context.path, text.as_mut_ptr(), text.len() as i32) };
                 let path = String::from_utf16_lossy(&text[..size.max(0) as usize]);
-                let result = (|| {
-                    let file = std::fs::File::open(path.trim()).map_err(|e| e.to_string())?;
-                    let mut bytes = Vec::new();
-                    file.take(crate::MAX_STATE_BYTES as u64 + 1)
-                        .read_to_end(&mut bytes)
-                        .map_err(|e| e.to_string())?;
-                    context.state.load(crate::Program::decode(&bytes)?)
-                })();
+                let result = load_program(&context.state, &path);
                 let label = result.err().unwrap_or_else(|| {
                     "Program queued. Host transport and tempo drive playback.".into()
                 });
