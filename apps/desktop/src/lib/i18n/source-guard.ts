@@ -231,7 +231,81 @@ export function localizationViolations(
     if (cleaned && !invariantReason(cleaned, context)) fail(node, cleaned, context)
   }
   const active = new Set<ts.Node>()
-  const argumentBindings: Map<string | ts.Symbol, ts.Expression>[] = []
+  const argumentBindings: Map<string | ts.Symbol, ts.Expression | readonly ts.Expression[]>[] = []
+  const unwrapped = (node: ts.Expression): ts.Expression =>
+    ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isSatisfiesExpression(node) ? unwrapped(node.expression) : node
+  /** The values of an object literal, or of a constant that is one. */
+  const tableValues = (table: ts.Expression): ts.Expression[] | undefined => {
+    const literals: ts.ObjectLiteralExpression[] = []
+    const value = unwrapped(table)
+    if (ts.isObjectLiteralExpression(value)) literals.push(value)
+    else if (ts.isIdentifier(value)) for (const declaration of declarationsAt(value)) {
+      const initializer = ts.isVariableDeclaration(declaration) && declaration.initializer ? unwrapped(declaration.initializer) : undefined
+      if (initializer && ts.isObjectLiteralExpression(initializer)) literals.push(initializer)
+    }
+    if (!literals.length) return undefined
+    return literals.flatMap((literal) => literal.properties.flatMap((property) => ts.isPropertyAssignment(property) ? [property.initializer] : []))
+  }
+  /** The rows of a literal list, of a constant that is one, or of a table of lists read by key. */
+  const rowsOf = (list: ts.Expression, seen = new Set<ts.Node>()): ts.Expression[] | undefined => {
+    const value = unwrapped(list)
+    if (seen.has(value)) return undefined
+    seen.add(value)
+    let lists: ts.Expression[] = []
+    if (ts.isArrayLiteralExpression(value)) lists = [value]
+    else if (ts.isIdentifier(value)) for (const declaration of declarationsAt(value)) {
+      if (ts.isVariableDeclaration(declaration) && declaration.initializer && ts.isArrayLiteralExpression(unwrapped(declaration.initializer)))
+        lists.push(unwrapped(declaration.initializer))
+    } else if (ts.isElementAccessExpression(value)) lists = (tableValues(value.expression) ?? []).map(unwrapped)
+    if (!lists.length || !lists.every(ts.isArrayLiteralExpression)) return undefined
+    return lists.flatMap((literal) => literal.elements.flatMap((element) =>
+      // A spread of another literal list contributes its rows; any other spread is kept whole.
+      ts.isSpreadElement(element) ? rowsOf(element.expression, seen) ?? [element.expression] : [element]))
+  }
+  /** What a map callback's item parameter stands for, or undefined when it cannot be told. */
+  const mappedItems = (list: ts.Expression, callback: ts.Expression | undefined) => {
+    if (!callback || (!ts.isArrowFunction(callback) && !ts.isFunctionExpression(callback))) return undefined
+    const item = callback.parameters[0]
+    const bindings = new Map<string | ts.Symbol, ts.Expression | readonly ts.Expression[]>()
+    if (!item) return bindings
+    const symbolOf = (name: ts.Identifier) => checker.getSymbolAtLocation(name) ?? name.text
+    // Object.values(TABLE) and Object.entries(TABLE) hand over the table's values.
+    const source = unwrapped(list)
+    if (ts.isCallExpression(source) && ts.isPropertyAccessExpression(source.expression) &&
+      source.expression.expression.getText() === "Object" && source.arguments[0]) {
+      const values = tableValues(source.arguments[0])
+      if (values && source.expression.name.text === "values" && ts.isIdentifier(item.name)) {
+        bindings.set(symbolOf(item.name), values)
+        return bindings
+      }
+      if (values && source.expression.name.text === "entries" && ts.isArrayBindingPattern(item.name)) {
+        const value = item.name.elements[1]
+        if (value && !ts.isOmittedExpression(value) && ts.isIdentifier(value.name)) bindings.set(symbolOf(value.name), values)
+        return bindings
+      }
+    }
+    if (ts.isIdentifier(item.name)) {
+      bindings.set(checker.getSymbolAtLocation(item.name) ?? item.name.text, list)
+      return bindings
+    }
+    // A tuple pattern over literal tuples binds each position alone. A row
+    // that is not a literal tuple stands for every position.
+    if (!ts.isArrayBindingPattern(item.name)) return undefined
+    const rows = rowsOf(list)
+    if (!rows) return undefined
+    const tuples: ts.ArrayLiteralExpression[] = []
+    const whole: ts.Expression[] = []
+    for (const row of rows.map(unwrapped))
+      if (ts.isArrayLiteralExpression(row) && !row.elements.some(ts.isSpreadElement)) tuples.push(row)
+      else whole.push(row)
+    for (const [position, element] of item.name.elements.entries()) {
+      if (ts.isOmittedExpression(element)) continue
+      if (!ts.isIdentifier(element.name) || element.dotDotDotToken || element.initializer) return undefined
+      bindings.set(checker.getSymbolAtLocation(element.name) ?? element.name.text,
+        [...tuples.flatMap((tuple) => tuple.elements[position] ? [tuple.elements[position]] : []), ...whole])
+    }
+    return bindings
+  }
   const declarationsAt = (node: ts.Node): readonly ts.Declaration[] => {
     let symbol = checker.getSymbolAtLocation(node)
     if (symbol && symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol)
@@ -264,7 +338,7 @@ export function localizationViolations(
     if (ts.isIdentifier(node)) {
       for (let index = argumentBindings.length - 1; index >= 0; index -= 1) {
         const argument = argumentBindings[index].get(checker.getSymbolAtLocation(node) ?? node.text)
-        if (argument) { visible(argument, context); return }
+        if (argument) { for (const value of "kind" in argument ? [argument] : argument) visible(value, context); return }
       }
       const found = declarationsAt(node)
       if (found.length) for (const declaration of found) {
@@ -277,6 +351,14 @@ export function localizationViolations(
     if (ts.isPropertyAccessExpression(node)) {
       for (const declaration of declarationsAt(node.name))
         if (ts.isPropertyAssignment(declaration)) visible(declaration.initializer, context)
+      return
+    }
+    if (ts.isElementAccessExpression(node)) {
+      // A table looked up by key for display shows any of its values, whatever
+      // its property names are: LABELS[kind] is a caption as much as a.label.
+      const values = tableValues(node.expression)
+      if (values) { for (const value of values) visible(value, context); return }
+      ts.forEachChild(node, (child) => visible(child, context))
       return
     }
     if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node) || ts.isJsxFragment(node)) {
@@ -322,20 +404,28 @@ export function localizationViolations(
           else if (fn.body) returns(fn.body)
         } finally { argumentBindings.pop() }
       }
-      if (ts.isPropertyAccessExpression(node.expression)) visible(node.expression.expression, context)
+      // A mapped list is shown only where its callback shows the item. Binding
+      // the item to what it is drawn from finds a caption rendered raw, and
+      // leaves a list of technical IDs that is only compared or used as keys.
+      const mapped = ["map", "flatMap"].includes(name) && ts.isPropertyAccessExpression(node.expression)
+        ? mappedItems(node.expression.expression, node.arguments[0]) : undefined
+      if (ts.isPropertyAccessExpression(node.expression) && !mapped) visible(node.expression.expression, context)
       if (["String", "Number"].includes(name)) for (const argument of node.arguments) visible(argument, context)
       // map/render callbacks produce visible text; ordinary call arguments may
       // instead be technical IDs and are inspected by their sink contract.
       if (["map", "flatMap"].includes(name)) {
-        for (const arg of node.arguments) if (ts.isArrowFunction(arg) || ts.isFunctionExpression(arg)) {
-          if (ts.isBlock(arg.body)) {
-            const returns = (child: ts.Node) => {
-              if (ts.isReturnStatement(child) && child.expression) visible(child.expression, context)
-              ts.forEachChild(child, returns)
-            }
-            returns(arg.body)
-          } else visible(arg.body, context)
-        }
+        if (mapped) argumentBindings.push(mapped)
+        try {
+          for (const arg of node.arguments) if (ts.isArrowFunction(arg) || ts.isFunctionExpression(arg)) {
+            if (ts.isBlock(arg.body)) {
+              const returns = (child: ts.Node) => {
+                if (ts.isReturnStatement(child) && child.expression) visible(child.expression, context)
+                ts.forEachChild(child, returns)
+              }
+              returns(arg.body)
+            } else visible(arg.body, context)
+          }
+        } finally { if (mapped) argumentBindings.pop() }
       }
       return
     }

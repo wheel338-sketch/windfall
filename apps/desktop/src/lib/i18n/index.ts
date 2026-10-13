@@ -3,7 +3,7 @@ import { en } from "./en"
 import { es } from "./es"
 import { nativeEn } from "./native-messages"
 import { actionMessages, dynamicActionMessage } from "./action-messages"
-import type { Catalog, Language, MessageKey } from "./types"
+import type { Catalog, Language, Message, MessageKey } from "./types"
 export type { Language, MessageKey } from "./types"
 export const catalogs: Record<Language, Catalog> = { en, es }
 export const LANGUAGE_STORAGE_KEY = "windfall.language"
@@ -36,6 +36,10 @@ export function formatNumber(value: number, options?: Intl.NumberFormatOptions, 
 }
 export function formatDate(value: Date | number, options?: Intl.DateTimeFormatOptions, language = useLanguageStore.getState().language): string {
   return new Intl.DateTimeFormat(locales[language], options).format(value)
+}
+/** A number inside a sentence: the locale's decimal mark, with no grouping and no rounding. */
+export function plainNumber(value: number, language = useLanguageStore.getState().language): string {
+  return Number.isFinite(value) ? formatNumber(value, { useGrouping: false, maximumFractionDigits: 20 }, language) : String(value)
 }
 export function message(key: MessageKey, values: Record<string, string | number> = {}, language = useLanguageStore.getState().language): string {
   const entry = catalogs[language][key]
@@ -80,7 +84,31 @@ export function localizeBackendText(text: string): string {
     ["Update check failed; retry when online. ", "Update check failed; retry when online. {detail}"],
   ] as const
   for (const [prefix,key] of prefixes) if (text.startsWith(prefix)) return message(key,{detail:text.slice(prefix.length)})
-  return useLanguageStore.getState().language === "en" ? text : message("Native diagnostic: {detail}", { detail: text })
+  const language = useLanguageStore.getState().language
+  return language === "en" || alreadyLocalized(text, language) ? text : message("Native diagnostic: {detail}", { detail: text })
+}
+
+const renderings = new Map<Language, { fixed: Set<string>; patterns: RegExp[] }>()
+/**
+ * Whether text is this language's rendering of a catalog entry. A failure the
+ * app raises itself is translated where it is raised, so it arrives here
+ * already in the interface language and is not an opaque native diagnostic.
+ */
+function alreadyLocalized(text: string, language: Language): boolean {
+  let known = renderings.get(language)
+  if (!known) {
+    known = { fixed: new Set(), patterns: [] }
+    for (const entry of Object.values<Message>(catalogs[language]))
+      for (const form of typeof entry === "string" ? [entry] : [entry.one, entry.other]) {
+        if (!form.includes("{")) { known.fixed.add(form); continue }
+        // A template that is nearly all parameters would match any text.
+        if (form.replace(/\{\w+\}/g, "").trim().length < 8) continue
+        const literal = form.split(/\{\w+\}/).map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+        known.patterns.push(new RegExp(`^${literal.join("[\\s\\S]*")}$`))
+      }
+    renderings.set(language, known)
+  }
+  return known.fixed.has(text) || known.patterns.some((pattern) => pattern.test(text))
 }
 
 const NATIVE_MESSAGE_PREFIX = "windfall-message:"

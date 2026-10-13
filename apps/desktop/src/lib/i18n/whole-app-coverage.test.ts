@@ -95,6 +95,26 @@ describe("whole application localization admission", () => {
       .toEqual([expect.objectContaining({ text: "Space", context: "JSX text" })])
     for (const reason of Object.values(invariantKeyboardKeys)) expect(reason.length).toBeGreaterThan(10)
   })
+  it("binds a mapped list's item to where its callback shows it", () => {
+    const failures = localizationViolations("fixture.tsx", `
+      const view = <ul>
+        {(["previous", "next"] as const).map((direction) => <li key={direction} data-direction={direction}>{direction === "previous" ? <b/> : <i/>}</li>)}
+        {["Shown raw"].map((caption) => <li key={caption}>{caption}</li>)}
+        {[["gain", "Tuple caption"]].map(([id, caption]) => <li key={id}>{caption}</li>)}
+        {Object.entries(rows).map(([id, caption]) => <li key={id}>{caption}</li>)}
+      </ul>;
+      const rows = { gain: "Entry caption" };
+    `, hasKey)
+    // Technical IDs that are only compared or used as keys are not captions.
+    expect(failures.map(({ text }) => text).sort()).toEqual(["Entry caption", "Shown raw", "Tuple caption"])
+  })
+  it("treats every value of a table looked up for display as a caption", () => {
+    const failures = localizationViolations("fixture.tsx", `
+      const NAMES = { meter: "Peak meter", scope: "Oscilloscope" };
+      const view = (kind: "meter" | "scope") => <span title={NAMES[kind]}>{NAMES[kind]}</span>;
+    `, hasKey)
+    expect(failures.map(({ text }) => text).sort()).toEqual(["Oscilloscope", "Peak meter"])
+  })
   it("rejects semantic string parameters and concatenations of translated fragments", () => {
     const failures = localizationViolations("fixture.tsx", `
       import { message, translatedText as t } from "@/lib/i18n";
