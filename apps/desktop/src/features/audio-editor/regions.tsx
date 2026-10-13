@@ -77,7 +77,7 @@ function RegionRow({ region, index, preview, disabled, onSelect, onSave, onDelet
     </fieldset>}
     {tempo && <fieldset className="flex flex-wrap gap-2"><legend className="text-sm">WAV tempo and meter</legend>
       {["Tempo BPM", "Integer beats", "Meter numerator", "Meter denominator", "Tempo root key (-1 for none)", "One shot (0 or 1)"].map((label, at) =>
-        <label key={label} className="text-sm">{label}<Input type="number" step="any" aria-label={`${region.name} ${label}`} value={tempo[at] ?? ""} disabled={disabled}
+        <label key={label} className="text-sm">{label}<Input type="number" step="any" aria-label={`${region.name} ${label}`} value={tempo[at] ?? ""} disabled={disabled || (at === 1 && beats !== undefined)}
           onChange={event => attribute("WindfallTempo/1 ", tempo.map((value, i) => i === at ? event.target.value : value).join(" "))} /></label>)}
     </fieldset>}
     {root !== undefined && <label className="text-sm">Root MIDI key<Input type="number" min={0} max={127} aria-label={`${region.name} Root MIDI key`} value={root} disabled={disabled}
