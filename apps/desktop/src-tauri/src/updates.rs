@@ -791,7 +791,7 @@ mod tests {
             .collect();
         let app = tauri::test::mock_builder()
             .plugin(tauri_plugin_updater::Builder::new().build())
-            .build(tauri::generate_context!())
+            .build(crate::context())
             .unwrap();
         let publics = [key.with_extension("pub"), wrong.with_extension("pub")];
         let cases = publics

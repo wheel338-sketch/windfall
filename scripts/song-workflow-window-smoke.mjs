@@ -181,14 +181,39 @@ async function webdriverTransport(session) {
     if (!response.ok) throw new Error(`WebDriver ${method} ${path}: ${response.status} ${JSON.stringify(json.value ?? json).slice(0, 2000)}`)
     return json.value
   }
-  const ready = Date.now() + 20000
-  for (;;) {
-    if (driverError) throw driverError
-    try { await wd("GET", "/status"); break } catch (error) { if (Date.now() > ready) throw error }
-    await delay(100)
+  const exited = async () => { try { return Number((await readFile(exitFile, "utf8")).trim()) } catch { return null } }
+  // Until the page answers, any failure (the driver missing, the app dying
+  // at start-up) stops the driver and says why, instead of leaving it
+  // running and this script waiting on it.
+  let sessionPath
+  const starting = async () => {
+    const ready = Date.now() + 20000
+    for (;;) {
+      if (driverError) throw new Error(`tauri-driver could not be started: ${driverError.message}`)
+      if (driver.exitCode !== null) throw new Error(`tauri-driver exited with ${driver.exitCode}`)
+      try { await wd("GET", "/status"); break } catch (error) { if (Date.now() > ready) throw new Error(`tauri-driver did not answer within 20 s: ${error.message}`) }
+      await delay(100)
+    }
+    const creating = wd("POST", "/session", { capabilities:{ alwaysMatch:{ "tauri:options":{ application:wrapper } } } })
+    creating.catch(() => {})
+    const deadline = Date.now() + 90000
+    let created
+    creating.then((value) => { created = value }, (error) => { created = { error } })
+    while (!created) {
+      const code = await exited()
+      if (code !== null) throw new Error(`The app exited with ${code} before its WebDriver session started`)
+      if (Date.now() > deadline) throw new Error("No WebDriver session within 90 s")
+      await delay(200)
+    }
+    if (created.error) throw created.error
+    sessionPath = `/session/${created.sessionId}`
   }
-  const created = await wd("POST", "/session", { capabilities:{ alwaysMatch:{ "tauri:options":{ application:wrapper } } } })
-  const sessionPath = `/session/${created.sessionId}`
+  try {
+    await starting()
+  } catch (error) {
+    driver.kill("SIGKILL")
+    throw new Error(`${error.message}\n--- driver and app output ---\n${session.logs.slice(-6000)}`)
+  }
   await wd("POST", `${sessionPath}/timeouts`, { script:120000 })
   const evaluate = async (expression) => {
     const value = await wd("POST", `${sessionPath}/execute/async`, {
@@ -206,7 +231,14 @@ async function webdriverTransport(session) {
     return true })()`
   const hookDeadline = Date.now() + 60000
   for (;;) {
-    try { await evaluate(hook); break } catch (error) { if (Date.now() > hookDeadline) throw error }
+    try { await evaluate(hook); break } catch (error) {
+      const code = await exited()
+      if (code !== null || Date.now() > hookDeadline) {
+        await wd("DELETE", sessionPath).catch(() => {})
+        driver.kill("SIGKILL")
+        throw new Error(`${code !== null ? `The app exited with ${code}` : "The page did not answer within 60 s"}: ${error.message}\n--- driver and app output ---\n${session.logs.slice(-6000)}`)
+      }
+    }
     await delay(200)
   }
   const drain = async () => {
@@ -230,7 +262,6 @@ async function webdriverTransport(session) {
       ...held.map((value) => ({ type:"keyDown", value })), { type:"keyDown", value:typed }, { type:"keyUp", value:typed }, ...[...held].reverse().map((value) => ({ type:"keyUp", value })),
     ] }] })
   }
-  const exited = async () => { try { return Number((await readFile(exitFile, "utf8")).trim()) } catch { return null } }
   const finish = async () => {
     await wd("DELETE", sessionPath).catch(() => {})
     driver.kill()

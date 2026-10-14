@@ -252,11 +252,13 @@ impl Drop for Instance {
         self.editor = None;
     } // Cocoa view releases before AU disposal.
 }
+/// The parameters a unit reports, and where each id lives in the unit.
+type ParameterTable = (Vec<PluginParam>, Arc<[(u32, ParameterAddress)]>);
 fn read_parameters(
     unit: Unit,
     inputs: &[Bus],
     outputs: &[Bus],
-) -> Result<(Vec<PluginParam>, Arc<[(u32, ParameterAddress)]>), PluginError> {
+) -> Result<ParameterTable, PluginError> {
     let mut addresses = Vec::new();
     for (scope, elements) in [
         (GLOBAL, 1),
@@ -516,21 +518,21 @@ impl InstanceBackend for Instance {
     }
     fn flush_params(&mut self, changes: &[HostEvent], _: &mut dyn FnMut(PluginEvent)) {
         for event in changes {
-            if let HostEvent::Param { id, value, .. } = *event {
-                if let Some(param) = self.params.iter().find(|p| p.id == id) {
-                    let Some((_, address)) = self.addresses.iter().find(|p| p.0 == id) else {
-                        continue;
-                    };
-                    unsafe {
-                        AudioUnitSetParameter(
-                            self.native.unit,
-                            address.id,
-                            address.scope,
-                            address.element,
-                            param.clamp(value) as f32,
-                            0,
-                        );
-                    }
+            if let HostEvent::Param { id, value, .. } = *event
+                && let Some(param) = self.params.iter().find(|p| p.id == id)
+            {
+                let Some((_, address)) = self.addresses.iter().find(|p| p.0 == id) else {
+                    continue;
+                };
+                unsafe {
+                    AudioUnitSetParameter(
+                        self.native.unit,
+                        address.id,
+                        address.scope,
+                        address.element,
+                        param.clamp(value) as f32,
+                        0,
+                    );
                 }
             }
         }
@@ -1109,10 +1111,10 @@ impl Processor {
                 channel.fill(0.0);
             }
         }
-        if let Some(main) = self.input.buses.first_mut() {
-            if !crate::au_model::copy_stereo(&mut main.channels, il, ir) {
-                return Err(ProcessFailed);
-            }
+        if let Some(main) = self.input.buses.first_mut()
+            && !crate::au_model::copy_stereo(&mut main.channels, il, ir)
+        {
+            return Err(ProcessFailed);
         }
         if let (Some(index), Some(key)) = (self.sidechain, key) {
             if key.len() != frames {

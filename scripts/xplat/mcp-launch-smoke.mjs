@@ -110,38 +110,43 @@ function decodeWav(buffer) {
 // Presses the Apply button of the proposal labelled `label` in the window.
 function approve(pid, label) {
   if (approver !== "osascript") return { skipped:"no approver" }
+  // JXA, walking uiElements() down into the window's web area (AppleScript's
+  // `entire contents` does not reach WKWebView's out-of-process elements).
+  // A web <button> is an AXButton whose description is its text. When it is
+  // not found, the roles and buttons seen are returned for the report.
   const script = `
-on run argv
-  set wanted to item 1 of argv
-  set pid to (item 2 of argv) as integer
-  tell application "System Events"
-    set p to first process whose unix id is pid
-    set frontmost of p to true
-    repeat with e in (entire contents of window 1 of p)
-      try
-        if role of e is "AXButton" then
-          set n to ""
-          try
-            set n to name of e
-          end try
-          if n is missing value then set n to ""
-          set d to ""
-          try
-            set d to description of e
-          end try
-          if d is missing value then set d to ""
-          if n is wanted or d is wanted then
-            click e
-            return "clicked"
-          end if
-        end if
-      end try
-    end repeat
-  end tell
-  return "missing"
-end run`
-  const result = spawnSync("osascript", ["-", "Apply", String(pid)], { input:script, encoding:"utf8", timeout:180000 })
-  return { status:result.status, stdout:result.stdout?.trim(), stderr:result.stderr?.trim().slice(0, 2000), label }
+function run(argv) {
+  const wanted = argv[0], pid = parseInt(argv[1], 10)
+  const process = Application("System Events").processes.whose({ unixId: pid })[0]
+  process.frontmost = true
+  const seen = { count: 0, roles: {}, buttons: [] }
+  const text = (read) => { try { return read() || "" } catch (error) { return "" } }
+  function walk(element, depth) {
+    if (depth > 40 || seen.count > 6000) return null
+    let children
+    try { children = element.uiElements() } catch (error) { return null }
+    for (const child of children) {
+      seen.count++
+      const role = text(() => child.role())
+      seen.roles[role] = (seen.roles[role] || 0) + 1
+      if (role === "AXButton") {
+        const name = text(() => child.name()), description = text(() => child.description())
+        if (seen.buttons.length < 80) seen.buttons.push(name + "|" + description)
+        if (name === wanted || description === wanted) { child.click(); return "clicked" }
+      }
+      const found = walk(child, depth + 1)
+      if (found) return found
+    }
+    return null
+  }
+  for (const window of process.windows()) {
+    const found = walk(window, 0)
+    if (found) return found
+  }
+  return "missing " + JSON.stringify(seen)
+}`
+  const result = spawnSync("osascript", ["-l", "JavaScript", "-", "Apply", String(pid)], { input:script, encoding:"utf8", timeout:240000 })
+  return { status:result.status, stdout:result.stdout?.trim().slice(0, 6000), stderr:result.stderr?.trim().slice(0, 2000), label }
 }
 
 // Lists the app's on-screen windows (owner, bounds) without screen-recording

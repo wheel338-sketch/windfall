@@ -42,6 +42,14 @@ use tauri::{Emitter, Manager, WindowEvent};
 
 use session::Session;
 
+/// The app's configuration, assets and icons. Expanded in this one place:
+/// on macOS every `generate_context!` embeds the Info.plist under the same
+/// symbol, so a second expansion (the updater tests use the real context
+/// too) does not link.
+pub(crate) fn context<R: tauri::Runtime>() -> tauri::Context<R> {
+    tauri::generate_context!()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -103,6 +111,6 @@ pub fn run() {
             }
         })
         .invoke_handler(commands::handler())
-        .run(tauri::generate_context!())
+        .run(context())
         .expect("error while running the Windfall shell");
 }

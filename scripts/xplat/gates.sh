@@ -49,7 +49,7 @@ step() {
   totals=$(awk '/^test result:/ { for (i = 1; i <= NF; i++) { if ($(i+1) ~ /^passed/) p += $i; if ($(i+1) ~ /^failed/) f += $i; if ($(i+1) ~ /^ignored/) g += $i }; b++ } END { if (b) printf " tests %d/%d/%d over %d blocks", p, f, g, b }' "$log")
   echo "   $name: exit $status, $(( $(date +%s) - started ))s$totals" | tee -a "$summary"
   if [ "$status" -ne 0 ]; then
-    failed=1
+    [ -n "${REPORT_ONLY:-}" ] && echo "   $name: recorded, not gating ($REPORT_ONLY)" | tee -a "$summary" || failed=1
     grep -E '^(test .* FAILED|---- .* stdout ----|error(\[|:))' "$log" | head -40 | sed 's/^/     /' | tee -a "$summary"
   fi
   return 0
@@ -65,7 +65,18 @@ for name in "${selected[@]}"; do
     clippy) step clippy cargo clippy --workspace --all-targets -- -D warnings ;;
     fixtures) step fixtures cargo build --manifest-path crates/windfall-plugin-host/test-plugins/Cargo.toml --target-dir target ;;
     native-bins) step native-bins cargo build -p windfall-desktop -p windfall-plugin -p windfall-plugin-host --bins --lib ;;
-    test-workspace) step test-workspace cargo test --workspace --no-fail-fast -- --test-threads=1 ;;
+    # The instruments' CPU-deadline tests hold a synth to a share of one
+    # performance core. On shared hosted runners (XPLAT_CPU_BUDGET=report)
+    # they run as their own step and are recorded without deciding the
+    # gate; everywhere else they gate with the rest.
+    test-workspace)
+      if [ "${XPLAT_CPU_BUDGET:-gate}" = report ]; then
+        step test-workspace cargo test --workspace --no-fail-fast -- --test-threads=1 --skip instrument_deadlines::
+        REPORT_ONLY="shared runner, not a performance core" step cpu-budget cargo test -p windfall-dsp --test dsp --no-fail-fast -- --test-threads=1 instrument_deadlines::
+      else
+        step test-workspace cargo test --workspace --no-fail-fast -- --test-threads=1
+      fi
+      ;;
     # The cases ignored only because they need the fixture library built by
     # hand; the workspace run above leaves them out. (The desktop crate's
     # native plugin tests, plugins::capture_ack_tests and friends, are
@@ -76,7 +87,9 @@ for name in "${selected[@]}"; do
     ui-install) step ui-install pnpm --dir apps/desktop install --frozen-lockfile ;;
     typecheck) step typecheck pnpm --dir apps/desktop typecheck ;;
     lint) step lint pnpm --dir apps/desktop lint ;;
-    vitest) step vitest pnpm --dir apps/desktop exec vitest run --maxWorkers=4 ;;
+    # Hosted CI runners have 3-4 vCPUs; VITEST_WORKERS=2 keeps the UI tests
+    # inside their own timeouts there.
+    vitest) step vitest pnpm --dir apps/desktop exec vitest run --maxWorkers="${VITEST_WORKERS:-4}" ;;
     frontend-build) step frontend-build pnpm --dir apps/desktop build ;;
     # The desktop crate's build script checks that every bundled resource
     # exists, target/release/plugin-runtime among them; a fresh checkout has

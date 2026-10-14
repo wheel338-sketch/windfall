@@ -15,6 +15,7 @@ rm -rf "$out"; mkdir -p "$out"
 status=0
 note() { echo "$*" | tee -a "$out/summary.log"; }
 export DEBIAN_FRONTEND=noninteractive
+ls "$artifacts"/*.deb "$artifacts"/*.AppImage > /dev/null || { note "no .deb or AppImage in $artifacts"; exit 2; }
 apt-get update > "$out/apt-update.log" 2>&1
 apt-get install -y --no-install-recommends file > /dev/null 2>&1
 

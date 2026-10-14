@@ -1184,7 +1184,28 @@ mod tests {
         // require a separately built fixture and never start nested Cargo.
         let source =
             std::env::var_os("WINDFALL_BRIDGE_FIXTURE").expect("explicit native fixture path");
-        std::fs::copy(source, &path).unwrap();
+        if cfg!(target_os = "macos") && format == "vst3" {
+            // macOS loads VST3 only from a bundle directory, as the
+            // integration tests' fixtures are published.
+            let executable = path.join("Contents/MacOS");
+            std::fs::create_dir_all(&executable).unwrap();
+            std::fs::copy(source, executable.join("fixture")).unwrap();
+            std::fs::write(
+                path.join("Contents/Info.plist"),
+                format!(
+                    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<plist version=\"1.0\"><dict>\
+                     <key>CFBundleExecutable</key><string>fixture</string>\
+                     <key>CFBundleIdentifier</key><string>org.windfall.fixture.{}</string>\
+                     <key>CFBundlePackageType</key><string>BNDL</string>\
+                     <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>\
+                     <key>CFBundleVersion</key><string>1</string></dict></plist>\n",
+                    folder.file_name().unwrap().to_string_lossy()
+                ),
+            )
+            .unwrap();
+        } else {
+            std::fs::copy(source, &path).unwrap();
+        }
         let host = PluginHost::windfall();
         let module = host.load(&path).unwrap();
         let mut instance = module
@@ -1249,8 +1270,7 @@ mod tests {
         drop(native);
         drop(module);
         drop(host);
-        std::fs::remove_file(path).unwrap();
-        std::fs::remove_dir(folder).unwrap();
+        std::fs::remove_dir_all(folder).unwrap();
     }
     #[test]
     #[ignore = "requires explicitly built WINDFALL_BRIDGE_FIXTURE; runs no nested Cargo"]

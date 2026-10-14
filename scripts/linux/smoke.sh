@@ -6,7 +6,11 @@
 # default device is the null device, so nothing reaches real hardware.
 #
 # 1. The AppImage, extracted (no FUSE in a container), before any Windfall
-#    package is installed: the MCP launch smoke and the song workflow.
+#    package is installed: the MCP launch smoke and the song workflow. The
+#    host provides ALSA's libasound.so.2, as every desktop distribution does:
+#    AppImages leave it out on purpose (linuxdeploy's exclude list) so the
+#    host's ALSA configuration applies, so it is installed first here.
+# Each smoke has a hard timeout (4 and 15 minutes); a timeout is exit 124.
 # 2. The .deb, installed with apt so its declared dependencies come in: the
 #    same two smokes against /usr/bin/windfall-desktop.
 set -uo pipefail
@@ -49,12 +53,12 @@ chmod -R a+rwX "$out"
 smoke() {
   local label="$1" exe="$2"
   note "== $label: MCP launch smoke ($exe)"
-  run_as_tester node "$scripts/xplat/mcp-launch-smoke.mjs" "$exe" "$out/$label-mcp/report.json" > "$out/$label-mcp.log" 2>&1
+  run_as_tester timeout --kill-after=15 240 node "$scripts/xplat/mcp-launch-smoke.mjs" "$exe" "$out/$label-mcp/report.json" > "$out/$label-mcp.log" 2>&1
   local s=$?
   tail -25 "$out/$label-mcp.log" | tee -a "$summary"
   note "   exit $s"; [ $s -eq 0 ] || status=1
   note "== $label: song workflow smoke (WebDriver)"
-  run_as_tester node "$scripts/song-workflow-window-smoke.mjs" "$exe" "$out/$label-song/report.json" 4444 > "$out/$label-song.log" 2>&1
+  run_as_tester timeout --kill-after=15 900 node "$scripts/song-workflow-window-smoke.mjs" "$exe" "$out/$label-song/report.json" 4444 > "$out/$label-song.log" 2>&1
   s=$?
   tail -5 "$out/$label-song.log" | tee -a "$summary"
   node -e "const r=require('$out/$label-song/report.json'); for (const c of r.checks) console.log((c.pass?'PASS ':'FAIL ')+c.name); if (r.error) console.log(r.error.slice(0,3000))" 2>&1 | tee -a "$summary"
@@ -62,6 +66,8 @@ smoke() {
 }
 
 # --- 1. The AppImage. ---
+apt-get update > "$out/apt-update.log" 2>&1
+apt-get install -y --no-install-recommends libasound2 > "$out/apt-alsa.log" 2>&1 || { note "libasound2 could not be installed"; status=1; }
 appimage_root=/opt/windfall-appimage
 rm -rf "$appimage_root"; mkdir -p "$appimage_root"
 cp "$image" "$appimage_root/Windfall.AppImage"; chmod +x "$appimage_root/Windfall.AppImage"
@@ -71,7 +77,6 @@ smoke appimage "$appimage_root/squashfs-root/AppRun"
 
 # --- 2. The .deb. ---
 note "== deb: apt install $(basename "$deb")"
-apt-get update > "$out/apt-update.log" 2>&1
 apt-get install -y --no-install-recommends "$deb" > "$out/apt-install.log" 2>&1 || { note "apt install failed"; tail -20 "$out/apt-install.log" | tee -a "$summary"; status=1; }
 dpkg -L windfall | grep -E 'bin/|plugin-runtime|factory/[^/]+$' | head -20 | tee -a "$summary"
 smoke deb /usr/bin/windfall-desktop

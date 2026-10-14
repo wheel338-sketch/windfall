@@ -64,13 +64,14 @@ case "$command" in
     out="$repo/target/xplat/linux"
     rm -rf "$out"; mkdir -p "$out"
     id=$(docker create "${volumes[@]}" "$build_image" true)
-    docker cp "$id:/src/target/release/bundle/deb/." "$out/" || true
-    docker cp "$id:/src/target/release/bundle/appimage/." "$out/" || true
-    docker cp "$id:/src/target/xplat-logs" "$out/logs" || true
+    docker cp "$id:/src/target/release/bundle/deb/." "$(host "$out")/" || true
+    docker cp "$id:/src/target/release/bundle/appimage/." "$(host "$out")/" || true
+    docker cp "$id:/src/target/xplat-logs" "$(host "$out/logs")" || true
     mkdir -p "$out/fixtures"
-    docker cp "$id:/src/target/debug/libwindfall_test_plugins.so" "$out/fixtures/" || true
+    docker cp "$id:/src/target/debug/libwindfall_test_plugins.so" "$(host "$out/fixtures")/" || true
     docker rm "$id" >/dev/null
-    rm -rf "$out"/*.AppDir "$out"/Windfall.AppDir "$out"/build_appimage.sh 2>/dev/null || true
+    # Only the packages: not the staging folders Tauri leaves beside them.
+    find "$out" -mindepth 1 -maxdepth 1 -type d ! -name fixtures ! -name logs -exec rm -rf {} +
     ls -la "$out"
     ;;
   smoke)
@@ -78,9 +79,16 @@ case "$command" in
     # except the packages and the smoke scripts.
     out="$repo/target/xplat/linux"
     host_out="$(host "$out")"; host_scripts="$(host "$repo/scripts")"
-    docker run --rm --init --cpus "$cpus" --memory "$memory" --shm-size 1g \
+    # The smokes time out on their own; this bounds the whole container
+    # (45 minutes) and removes it whatever happens.
+    docker rm -f windfall-linux-smoke > /dev/null 2>&1 || true
+    status=0
+    timeout 2700 docker run --rm --init --name windfall-linux-smoke --cpus "$cpus" --memory "$memory" --shm-size 1g \
       -v "$host_out:/artifacts" -v "$host_scripts:/scripts:ro" \
-      "$runtime_image" bash /scripts/linux/smoke.sh /artifacts "$@"
+      "$runtime_image" bash /scripts/linux/smoke.sh /artifacts "$@" || status=$?
+    docker rm -f windfall-linux-smoke > /dev/null 2>&1 || true
+    [ "$status" -eq 124 ] && echo "The Linux smoke container ran past 45 minutes and was removed" >&2
+    exit "$status"
     ;;
   pristine)
     # Plain Ubuntu images, oldest and newest LTS: only what apt brings in.

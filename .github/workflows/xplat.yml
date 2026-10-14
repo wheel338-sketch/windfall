@@ -33,7 +33,7 @@ jobs:
   build:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 240
+    timeout-minutes: 350
     strategy:
       fail-fast: false
       matrix:
@@ -82,6 +82,11 @@ jobs:
       - name: Gates (fmt, UI, clippy, fixtures, workspace tests)
         id: gates
         continue-on-error: true
+        env:
+          # 3-4 vCPU shared runners: two UI test workers, and the synths'
+          # CPU-deadline tests recorded rather than gating (see gates.sh).
+          VITEST_WORKERS: 2
+          XPLAT_CPU_BUDGET: report
         run: bash scripts/xplat/gates.sh target/xplat-logs
 
       - name: Bundle (unsigned preview)
