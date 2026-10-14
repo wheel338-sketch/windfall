@@ -148,4 +148,14 @@ or when it needs an asset the project does not have (a trained model).
   external check. A route change caused by a plugin gaining or losing a
   capability while notes sound must continue each running ramp from its
   current value without a click, on the path the app actually takes (in
-  process, in a replaced helper process, and in the same unit).
+  process, in a replaced helper process, and in the same unit).- `wf-languages`: every sentence Windfall itself shows is translated: the
+  interface through the catalogs and text from Rust as a code plus named values,
+  guarded by tests in both. Two things are deliberately shown as they arrive:
+  an error cause reported by the operating system or a third-party library is
+  inserted verbatim inside the translated sentence (the operating system
+  already words its own messages in the system language, and rewording them
+  would lose information), and an internal error identifier shown in a
+  diagnostic "detail" field meant for bug reports (such as `InvalidRiff`) stays
+  an identifier. History labels saved by older versions as plain text are shown
+  as saved. Review of the Spanish by a native-speaking producer is an external
+  check.
