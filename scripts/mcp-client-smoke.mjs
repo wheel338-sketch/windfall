@@ -191,10 +191,19 @@ async function launch() {
     await click('[role="menubar"] [role="menuitem"]', title)
     await click('[role="menu"] [role="menuitem"]', item, true)
   }
+  // Closes the window as the user does; the agent's edits are not saved, so
+  // the app asks first and is told not to save.
   const quit = async () => {
     spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `$p = Get-Process -Id ${child.pid}; [void]$p.CloseMainWindow()`], { windowsHide:true })
     const deadline = Date.now() + 20000
-    while (child.exitCode === null && Date.now() < deadline) await delay(50)
+    let asked = false
+    while (child.exitCode === null && Date.now() < deadline) {
+      if (!asked) {
+        const prompt = await evaluate(`(() => { const b = [...document.querySelectorAll('[role="alertdialog"] button, [role="dialog"] button')].find((e) => e.textContent.trim() === "Don't save" && e.getClientRects().length > 0); if (!b) return null; const r = b.getBoundingClientRect(); return { x:r.x + r.width / 2, y:r.y + r.height / 2 } })()`).catch(() => null)
+        if (prompt) { session.askedToSave = true; asked = true; await mouse(prompt).catch(() => {}) }
+      }
+      await delay(50)
+    }
     socket.close()
     session.exitCode = child.exitCode
     if (child.exitCode === null) { child.kill(); throw new Error("The app did not exit within 20 s of closing its window") }
@@ -493,7 +502,7 @@ try {
   check("turned off, the settings file says so", JSON.parse(await readFile(resolve(config, "mcp.json"), "utf8")).enabled === false, null)
 
   await app.quit()
-  check("the app quits cleanly by closing its window", app.session.exitCode === 0, app.session.exitCode)
+  check("closing the window asks to save the agent's edits, and quits cleanly without saving", app.session.askedToSave === true && app.session.exitCode === 0, { asked:app.session.askedToSave, exitCode:app.session.exitCode })
   const problems = app.session.console.filter((entry) => entry.type !== "warning")
   check("the webview console had no uncaught exception or error", problems.length === 0, problems)
   app = null
