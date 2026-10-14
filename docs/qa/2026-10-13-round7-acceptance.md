@@ -449,3 +449,73 @@ things:
 
 The remount on a language change held in the real window: the project, its
 generation and its history were identical before, during and after.
+
+## Final gates
+
+All ran one at a time through `target/round7f/gates.sh` on the source of
+`eaa66579`, without affinity or priority settings (the deadline harnesses use
+their recorded internal measuring-thread policy). Rust counts are passed /
+failed / ignored. Logs are `target/round7-final-gate-<step>.log` unless said
+otherwise.
+
+| Gate | Command | Result |
+|---|---|---|
+| Fixture and native binaries | `cargo build --offline --manifest-path crates/windfall-plugin-host/test-plugins/Cargo.toml --target-dir target`; `cargo build --offline -p windfall-desktop -p windfall-plugin -p windfall-plugin-host --bins --lib` | built |
+| Format | `cargo fmt --all --check` | pass |
+| Strict lint | `cargo clippy --workspace --all-targets -- -D warnings` | pass, no diagnostics |
+| Bindings | `bash scripts/gen-bindings.sh target/round7f/final-bindings`; `node scripts/check-bindings.mjs target/round7f/final-bindings`; `node --test scripts/check-bindings.test.mjs` | 627 files; all current; tests pass |
+| Simulator | `bash scripts/build-sim.sh`; `node scripts/check-sim.mjs` | 7,448,810 bytes; current. The committed simulator was stale after `4b8ff021` (new codes in `windfall-ipc`); this rebuild is committed with the record. |
+| Rust workspace, gate run | `cargo test --workspace --no-fail-fast -- --test-threads=1` | 4854 / 1 / 40 over 187 blocks, 963 s. The failure was `session::tests::library::the_factory_content_is_the_first_root_and_lists_as_folders_of_sounds`, which asserted the English words of a browser refusal that is now `browser.folderMissing`; it asserts the code now. |
+| Rust workspace, confirmation | same, after that one change | 4855 / 0 / 40 over 187 blocks, exit 0, 856 s (`round7-final-gate2-workspace.log`); format and lint again clean (`gate2-fmt`, `gate2-clippy`) |
+| Software capture opt-ins | `cargo test --offline -p windfall-desktop --lib plugins::runtime::capture_ack_tests:: -- --test-threads=1 --include-ignored` | 9 / 0 / 0 |
+| Release E1 | `cargo test --offline --release -p windfall-dsp --test dsp e1_cpu -- --test-threads=1 --nocapture` | 3 / 0 / 0 |
+| Release P2 | `… p2_effect_budgets …` | 4 / 0 / 0 (the new multiband-delay case: three bands 2.9 / 2.7 / 2.7%, sixteen bands 11.0 / 11.0 / 10.9% of a core at blocks 64 / 256 / 2,048, limit 20%; reset 0.1 to 0.2 µs) |
+| Release instruments | `… instrument_deadlines …` | 22 / 0 / 0 |
+| Release threading | `cargo test --offline --release -p windfall-engine --test engine release_many_heavy_tracks -- --test-threads=1 --nocapture` | 1 / 0 / 0 |
+| Frontend typecheck, lint | `pnpm --dir apps/desktop typecheck`; `… lint` | pass; pass |
+| Frontend suite | `pnpm --dir apps/desktop test --maxWorkers=4 --reporter=default --reporter=json --outputFile=../../target/round7-final-gate-frontend-results.json` | 536 files, 6,509 passed, 0 failed, 0 skipped, 534 s |
+| Production frontend | `pnpm --dir apps/desktop build` | pass |
+| Parity consistency | `node scripts/parity.mjs --check` | 342 rows: 334 done, 3 in progress, 5 won't do; tracker unchanged |
+| Release and resource scripts | `node --test scripts/release/release.test.mjs scripts/release/workflow.test.mjs` | pass, 123 s |
+| Apple host | `cargo check --offline --target aarch64-apple-darwin -p windfall-plugin-host --all-targets` | pass, no diagnostics |
+| Apple desktop and export | `bash target/round5/macos-check.sh` (environment as in the round-six record) | pass, no diagnostics |
+| Linux host and common | `bash target/round5/linux-check.sh -p windfall-plugin-host -p windfall-core -p windfall-dsp -p windfall-project -p windfall-ipc -p windfall-stretch` | pass, no diagnostics |
+| Linux broad integration | `bash target/round5/linux-desktop-check-only.sh` | pass, no diagnostics |
+| Tauri debug build | `pnpm --dir apps/desktop tauri build --debug --no-bundle` | built |
+| Analyzer window | `node scripts/analyzer-window-smoke.mjs target/debug/windfall-desktop.exe target/round7-analyzer-window/report.json 9271` | 18 checks, all pass, software-memory-sink |
+| Sample window | `node scripts/sample-workflow-window-smoke.mjs … target/round7-sample-window/report.json 9272` | 65 checks, all pass |
+| Notebook window | `node scripts/notebook-isolation-window-smoke.mjs … target/round7-notebook-window/report.json 9273` | 35 checks, all pass |
+| Video window | `node scripts/video-player-window-smoke.mjs … target/round7-video-window/report.json 9274` | 35 checks, all pass |
+| Language window (new) | `node scripts/language-switch-window-smoke.mjs … target/round7-language-window/report.json 9275` | 14 checks, all pass |
+| Factory content | `cargo run --offline -p windfall-factory -- verify content/factory` | content matches the generator |
+
+Not run this round: the real ONNX stem harness (not in this round's list and
+nothing it covers changed). No real audio device, MIDI device or ignored
+hardware test was used; every window report names the software memory sink.
+
+### Cross-target results
+
+The four checks above compile the Rust changed this round for those systems:
+the bridge protocol, the ramp hand-over, the helper and its capture, the
+live note-expression cells and the threaded wrapper, the VST3 instance (macOS
+and Linux builds of the plugin host), the desktop's departure and carry, the
+message codes and the source guard (desktop and plugin crates), the
+constant-time echo line (DSP). They are type checks only; nothing was linked
+or run on another system. Audio Unit capture was not changed and still reads
+state only when inactive.
+
+## Where this stops
+
+Commits on `feat/parity-100`, in order: `579c40a9` (merge of the translation
+branch), `0fbb7510` (step 1), `08c25553`, `11ffcc5c`, `c928a1be` (step 3),
+`d9ef6f4a`, `a61f7dcd` (step 2, frontend), `1ddf1874` (step 4), `4b8ff021`,
+`eaa66579` (step 2, codes, guards, window smoke) and the closing commit that
+holds this table, the corrected library test and the rebuilt simulator. The
+builder's `24117f6a` sits between `579c40a9` and `0fbb7510`. Nothing is
+pushed. No build or test process is left running.
+
+| Row | Evidence run here | Still open | Recommendation |
+|---|---|---|---|
+| `wf-project-settings` — the project pan law and per-note pan and volume for hosted plugins | In process (round seven, builder): four routes times four laws within 1.5e-8; 32 capability loss and return migrations, CLAP and VST3, live and offline, every frame within 4.8e-7 of the model. Through real helper processes (this round): the same 32 migrations, every frame within 4.8e-7, largest step at most 82% of the click bound, live equals offline exactly, no allocation in `process`, `set_note_expression` or the replayed `note_on_instance`, one voice and none stuck; the owner's wait for the fade (returns without audio, returns once the faded output was played); a bridged plugin without note instances against the in-process owner, four laws, live and offline, identical samples; the wire form of ramps, stages and carried notes bit for bit, with eleven kinds of malformed words refused; version-ten helpers refused at authentication. Same unit: fixture class 28 withholds and returns pan, volume or both while running; the production unit re-reads its routes at the boundary, is never replaced or deactivated and asks no restart, every frame within 4.5e-8 of the law, largest step 13% of the bound; the host-level test of the same switch. Capture: a state capture during a sounding note leaves the output identical sample for sample, VST3 and CLAP, in process and through the helper, live and offline (VST3 capture used to deactivate the plugin). Release budget for the multiband delay at both layouts. Full suites and cross-target checks in the gate table. | EXTERNAL-ONLY: third-party CLAP and VST3 plugins (including ones that change note expressions while running, and real VST3 state read while processing), physical audio and MIDI devices, listening; running the bridge, the helper and the threaded wrapper on macOS and Linux (type-checked only); Audio Unit hosting on macOS (unchanged, still captures inactive). SCOPE: README 2026-10-13, `wf-project-settings`: one route per property per plugin output; mixed per-note routes are not attempted. | `done` |
+| `fmt-flp-import` — reads notes, clips, automation, routing and sample references out of an FL project file | The README end state checked against the product: the review counts exact, approximate and omitted per category, an omitted control is filed as omitted (`24117f6a`), and since this round the review also lists every device with its omitted field names, uncut by the 200-line category limit (`ImportReport::omitted_controls`, "Omitted controls" section). Tests: `report::tests::omitted_controls_are_listed_by_device_whatever_the_line_limit`; the round-seven fixture test asserts the list for Fruity Soft Clipper and that it matches the dropped lines; `import-dialog.test.tsx` shows the section and its absence; the pinned open list (233 families on 33 device names) passes; `docs/flp/coverage.md` agrees with the README and now names the list. FLP suite 209 / 0; full suites in the gate table. | EXTERNAL-ONLY: a corpus of real FL project files, listening. SCOPE: README 2026-10-13, `fmt-flp-import`: the stand-in controls for the 233 recorded families are work on the stand-ins, not on the import row; device state with no public layout stays opaque with a per-device warning. (The review's per-field lines are still English in a Spanish interface; that is open under `wf-languages`.) | `done` |
+| `wf-languages` — shows the interface in a chosen language | Translation branch merged; both guards pass on the merged tree (0 untranslated occurrences, 0 missing descriptor addresses); full frontend suite 6,509 / 0. Code-based history labels (frontend), store-kept errors as source translated at display, titles that follow a switch, all with tests. Rust: every message code declares its parameters (append-only registry test, debug refusal of a missing parameter); the UI test checks every code in every language has exactly those parameters; a source guard in the desktop crate checks every coded call and pins the English sentences that remain. 28 backend sites converted (templates, browser folders, plugin database, scores, mixer presets), nested causes decoded. The real window: switched to Spanish through settings and back, 14 checks (menu bar, a menu, the status bar, a dialog, a backend refusal sent as a code, an instrument editor, the history, the project unchanged); it found and fixed an English status bar. | SOFTWARE: (1) 116 parameterised sentences in the desktop crate are still built in English, each listed in `apps/desktop/src-tauri/src/uncoded_messages.txt` [backlog] (the guard fails if one is added, and when one is coded until its line goes). (2) The core crates: about 420 sentences built with `format!` (windfall-project 190, mostly project validation and edit refusals; windfall-flp 110, the import review lines; plugin-host 26, engine 22, plugin 22, codec 21, ipc 10, sim 4, analysis, dsp and factory 1 each) and 24 hand-written `Display` impls reach the interface in English; MIDI is the only family mapped to codes at the IPC boundary. (3) History labels the backend builds from a setting name are stored as English and recognised by pattern at display; they are not yet stored as a code with parameters. (4) Labels the playlist writes in English through `plural()` ("Delete clips" and the like) may lack catalog entries and would show in English; not enumerated. EXTERNAL: review of the Spanish by a native-speaking producer, text expansion in tight controls. | `in-progress` |

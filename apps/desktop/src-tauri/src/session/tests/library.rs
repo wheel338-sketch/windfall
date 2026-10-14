@@ -1489,7 +1489,8 @@ fn the_factory_content_is_the_first_root_and_lists_as_folders_of_sounds() {
     assert!(rig.session.sample_info(&hats[0].path).is_ok());
 
     let error = rig.session.browser_list(&rig.file("gone")).unwrap_err();
-    assert!(error.contains("does not exist"), "{error}");
+    // The reason is a code and the folder; the words are the catalog's.
+    assert!(error.contains("browser.folderMissing"), "{error}");
     assert!(rig.session.browser_list("Drums").is_err());
 }
 
