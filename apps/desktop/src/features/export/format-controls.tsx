@@ -12,7 +12,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { formatSampleRate } from "@/lib/time"
 
 import { Choice, type Option } from "./choice"
-import { message, plainNumber, translatedText as t } from "@/lib/i18n"
+import { localizeBackendText, message, plainNumber, translatedText as t } from "@/lib/i18n"
 
 type Settings = Pick<
   ExportOptions,
@@ -73,10 +73,10 @@ export function FormatControls({
   set<K extends keyof Settings>(key: K, value: Settings[K]): void
   onFormat(format: ExportFormat): void
 }) {
-  const [m4aReason, setM4aReason] = useState<string | null>("Checking the Windows AAC encoder…")
+  const [m4aReason, setM4aReason] = useState<string | null>(() => t("Checking the Windows AAC encoder…"))
   useEffect(() => {
     let active = true
-    void backend.m4aCapability().then(reason => { if (active) setM4aReason(reason) })
+    void backend.m4aCapability().then(reason => { if (active) setM4aReason(reason && localizeBackendText(reason)) })
       .catch(error => { if (active) setM4aReason(errorMessage(error)) })
     return () => { active = false }
   }, [])

@@ -48,11 +48,11 @@ export const KEYMAP_PRESETS: {
   name: string
   about: string
 }[] = [
-  { id: "windfall", name: "Windfall", about: "Shortcuts most apps share." },
+  { id: "windfall", name: "Windfall", get about() { return t("Shortcuts most apps share.") } },
   {
     id: "fl",
     name: "FL Studio",
-    about: "FL Studio's defaults, for people switching over.",
+    get about() { return t("FL Studio's defaults, for people switching over.") },
   },
 ]
 

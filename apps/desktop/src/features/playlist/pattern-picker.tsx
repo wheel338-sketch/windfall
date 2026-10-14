@@ -76,7 +76,7 @@ const PatternRow = memo(function PatternRow({
   const used =
     clips === 0
       ? t("not on the timeline yet")
-      : `on the timeline ${clips === 1 ? "once" : message("{clips} times", { clips: plainNumber(clips) })}`
+      : clips === 1 ? t("on the timeline once") : message("on the timeline {clips} times", { clips: plainNumber(clips) })
   const hint = useHint(
     selected
       ? message("{name} is the pattern Draw and Paint place. It is {used}. Double-click to rename", { name, used })

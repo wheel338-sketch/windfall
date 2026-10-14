@@ -1,5 +1,6 @@
 import type { SamplerPreprocessRequest } from "@/bindings"
 import type { SamplerChannel } from "@/lib/channel-source"
+import { translatedText as t } from "@/lib/i18n"
 
 /** The longest fade the sample pre-processor accepts, in milliseconds. */
 export const MAX_PREPROCESS_FADE_MS = 60_000
@@ -60,11 +61,11 @@ export function preprocessRequest(
   choices: PreprocessChoices
 ): { request: SamplerPreprocessRequest } | { error: string } {
   if (channel.source.sample === null)
-    return { error: "Load a sample into the channel first." }
+    return { error: t("Load a sample into the channel first.") }
   const fadeInMs = fade(choices.fadeInMs)
   const fadeOutMs = fade(choices.fadeOutMs)
   if (fadeInMs === null || fadeOutMs === null)
-    return { error: "A fade is a time from 0 to 60000 ms." }
+    return { error: t("A fade is a time from 0 to 60000 ms.") }
   const loopCrossfade = hasLoopSeam(channel)
     ? Math.min(MAX_PREPROCESS_CROSSFADE, Math.max(0, choices.loopCrossfade))
     : 0
@@ -81,6 +82,6 @@ export function preprocessRequest(
     ...(choices.normalize ? { normalize: true } : {}),
   }
   if (Object.keys(request).length === 1)
-    return { error: "Choose at least one treatment to apply." }
+    return { error: t("Choose at least one treatment to apply.") }
   return { request }
 }

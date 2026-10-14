@@ -13,7 +13,7 @@ import { songTick } from "../ops"
 import { useAudioClipCounts } from "../selectors"
 import { usePlaylistStore } from "../store"
 import { placeSampleClips } from "./ops"
-import { translatedText as t, message, plainNumber, dynamicTitle } from "@/lib/i18n"
+import { historyLabel, translatedText as t, message, plainNumber, dynamicTitle } from "@/lib/i18n"
 
 function used(clips: number): string {
   return clips === 0
@@ -46,7 +46,7 @@ async function addAtSongPosition(sample: SampleAsset) {
         },
       },
     ],
-    "Add audio clip"
+    historyLabel("Add audio clip")
   )
   if (created && created.length > 0) usePlaylistStore.getState().select(created)
 }

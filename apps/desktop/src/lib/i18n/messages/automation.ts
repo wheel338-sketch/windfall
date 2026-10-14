@@ -49,6 +49,7 @@ export const automationEn = {
   "{name} and its clip on the playlist are deleted with it.": "{name} and its clip on the playlist are deleted with it.",
   "{name} and its {clips} clips on the playlist are deleted with it.": "{name} and its {clips} clips on the playlist are deleted with it.",
   "{name} is deleted with it.": "{name} is deleted with it.",
+  "Automated by {name} — this sets the value used outside its clips": "Automated by {name} — this sets the value used outside its clips",
 } as const
 
 export const automationEs = {
@@ -100,4 +101,5 @@ export const automationEs = {
   "{name} and its clip on the playlist are deleted with it.": "{name} y su clip de la lista de reproducción se eliminan junto con este elemento.",
   "{name} and its {clips} clips on the playlist are deleted with it.": "{name} y sus {clips} clips de la lista de reproducción se eliminan junto con este elemento.",
   "{name} is deleted with it.": "{name} se elimina junto con este elemento.",
+  "Automated by {name} — this sets the value used outside its clips": "Automatizado por {name}: esto fija el valor que se usa fuera de sus clips",
 } satisfies Record<keyof typeof automationEn, Message>

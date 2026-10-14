@@ -6,7 +6,7 @@ import {
   withExtension,
   type PatternInfo,
 } from "../edit-math"
-import { translatedText as t, message, plainNumber } from "@/lib/i18n"
+import { historyLabel, translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 /** Three simultaneous notes, including any pattern extension, in one dispatch. */
 export function chordInsertCommand(
@@ -45,7 +45,7 @@ export function chordInsertCommand(
       { pattern: target.pattern.id, channel: target.channel },
       notes
     ),
-    "Insert chord",
+    historyLabel("Insert chord"),
     target.pattern,
     start + length
   )

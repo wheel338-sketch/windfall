@@ -48,6 +48,13 @@ export const settingsEn = {
   "the default device": "the default device",
   "{label}, not offered by this device": "{label}, not offered by this device",
   "{stored}, not found": "{stored}, not found",
+  "Shortcuts most apps share.": "Shortcuts most apps share.",
+  "FL Studio's defaults, for people switching over.": "FL Studio's defaults, for people switching over.",
+  "Saved. Separate audio from the playlist or browser.": "Saved. Separate audio from the playlist or browser.",
+  "Model imported. Save to use it as the default separation pack.": "Model imported. Save to use it as the default separation pack.",
+  "{count} output channels": { one: "{count} output channel", other: "{count} output channels" },
+  "{count} samples, {latency}": { one: "{count} sample, {latency}", other: "{count} samples, {latency}" },
+  "{count} samples": { one: "{count} sample", other: "{count} samples" },
 } as const
 
 export const settingsEs = {
@@ -98,4 +105,11 @@ export const settingsEs = {
   "the default device": "el dispositivo predeterminado",
   "{label}, not offered by this device": "{label}, no ofrecido por este dispositivo",
   "{stored}, not found": "{stored}, no encontrado",
+  "Shortcuts most apps share.": "Los atajos que comparten la mayoría de las aplicaciones.",
+  "FL Studio's defaults, for people switching over.": "Los atajos predeterminados de FL Studio, para quien viene de allí.",
+  "Saved. Separate audio from the playlist or browser.": "Guardado. Separa audio desde la lista de reproducción o el explorador.",
+  "Model imported. Save to use it as the default separation pack.": "Modelo importado. Guarda para usarlo como paquete de separación predeterminado.",
+  "{count} output channels": { one: "{count} canal de salida", other: "{count} canales de salida" },
+  "{count} samples, {latency}": { one: "{count} muestra, {latency}", other: "{count} muestras, {latency}" },
+  "{count} samples": { one: "{count} muestra", other: "{count} muestras" },
 } satisfies Record<keyof typeof settingsEn, Message>

@@ -139,7 +139,8 @@ export async function startRoll(
     session.setEditing(currentPattern().id, id)
     editor.setContext(readContext(currentPattern().id, id))
   }
-  if (options.channel !== null) show(options.channel ?? "Kick")
+  // The demo song's first channel, its kick, unless the test names another.
+  if (options.channel !== null) show(options.channel ?? project().channels[0].name)
   // The panel passes every change of the lane on to the editor.
   const unfollow = useProjectStore.subscribe(() => {
     const editing = session.editing

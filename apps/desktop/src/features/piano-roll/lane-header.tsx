@@ -47,7 +47,7 @@ export function LaneHeader() {
   const kind = usePianoRollStore((state) => state.laneKind)
   const setKind = usePianoRollStore((state) => state.setLaneKind)
   const hint = useHint(t("What the bars under the notes show and edit"))
-  const label = LANE_KINDS.find((item) => item.id === kind)?.label ?? kind
+  const label = LANE_KINDS.find((item) => item.id === kind)?.label ?? ""
   const notesForPreset = () => {
     const selected = session.editor.selectedNotes()
     return selected.length > 0 ? selected : session.editor.notes

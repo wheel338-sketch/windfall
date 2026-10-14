@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Field, FieldLabel, FieldDescription } from "@/components/ui/field"
 import { parseManifest } from "@/features/analysis/manifest"
 import type { AnalysisModel, AnalysisRuntimeSettings } from "@/features/analysis/types"
-import { translatedText as t } from "@/lib/i18n"
+import { localizeBackendText, translatedText as t } from "@/lib/i18n"
 
 export function StemSeparationSettings() {
   const [settings, setSettings] = useState<AnalysisRuntimeSettings>({ libraryPath: null, modelId: null, modelVersion: null })
@@ -20,7 +20,7 @@ export function StemSeparationSettings() {
     let live = true
     void Promise.all([backend.analysisRuntimeSettings(), backend.analysisCapability()]).then(([settings, capability]) => {
       if (!live) return
-      setSettings(settings); setNative(capability.native); setModels(capability.models); setStatus(capability.reason)
+      setSettings(settings); setNative(capability.native); setModels(capability.models); setStatus(capability.reason && localizeBackendText(capability.reason))
     }).catch((e: unknown) => { if (live) setError(errorMessage(e)) })
     return () => { live = false }
   }, [])
@@ -55,7 +55,8 @@ export function StemSeparationSettings() {
       </Field>
       <Button onClick={() => void run(async () => {
         setSettings(await backend.analysisRuntimeConfigure(settings))
-        setStatus((await backend.analysisCapability()).reason ?? "Saved. Separate audio from the playlist or browser.")
+        const { reason } = await backend.analysisCapability()
+        setStatus(reason ? localizeBackendText(reason) : t("Saved. Separate audio from the playlist or browser."))
       })}>{t("Save separation settings")}</Button>
       <Field><FieldLabel htmlFor="stem-weights">{t("Import local ONNX model")}</FieldLabel>
         <Input id="stem-weights" value={path} maxLength={2048} onChange={(e) => setPath(e.target.value)} />
@@ -73,7 +74,7 @@ export function StemSeparationSettings() {
         const imported = await backend.analysisModelImport(path, model)
         setModels((await backend.analysisCapability()).models)
         setSettings((s) => ({ ...s, modelId: imported.id, modelVersion: imported.version }))
-        setStatus("Model imported. Save to use it as the default separation pack.")
+        setStatus(t("Model imported. Save to use it as the default separation pack."))
       })}>{t("Verify and import separation pack")}</Button>
     </fieldset>
   </section>

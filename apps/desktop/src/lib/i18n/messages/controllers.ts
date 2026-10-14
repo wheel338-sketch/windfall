@@ -79,6 +79,11 @@ export const controllersEn = {
   "linked.": "linked.",
   "{device} · {channel} · {control}": "{device} · {channel} · {control}",
   "{pending} notes captured": "{pending} notes captured",
+  "Could not dump the note log": "Could not dump the note log",
+  "Could not start multi-link": "Could not start multi-link",
+  "Could not link the control": "Could not link the control",
+  "Could not change pickup mode": "Could not change pickup mode",
+  "Could not change note recording": "Could not change note recording",
 } as const
 
 export const controllersEs = {
@@ -160,4 +165,9 @@ export const controllersEs = {
   "linked.": "enlazados.",
   "{device} · {channel} · {control}": "{device} · {channel} · {control}",
   "{pending} notes captured": "{pending} notas capturadas",
+  "Could not dump the note log": "No se ha podido volcar el registro de notas",
+  "Could not start multi-link": "No se ha podido iniciar la vinculación múltiple",
+  "Could not link the control": "No se ha podido vincular el control",
+  "Could not change pickup mode": "No se ha podido cambiar el modo de captura",
+  "Could not change note recording": "No se ha podido cambiar la grabación de notas",
 } satisfies Record<keyof typeof controllersEn, Message>

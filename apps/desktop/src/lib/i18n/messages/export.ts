@@ -119,6 +119,13 @@ export const exportEn = {
   "{signed} dB of gain": "{signed} dB of gain",
   "{value} (highest)": "{value} (highest)",
   "{value} (smallest)": "{value} (smallest)",
+  "Enter a loudness from {min} to {max} LUFS.": "Enter a loudness from {min} to {max} LUFS.",
+  "Enter a ceiling from {min} to {max} dBTP.": "Enter a ceiling from {min} to {max} dBTP.",
+  "Mastering works on the whole mix. Turn off stems to master the export.": "Mastering works on the whole mix. Turn off stems to master the export.",
+  "Loudness": "Loudness",
+  "Sample peak": "Sample peak",
+  "Loudest 3 seconds": "Loudest 3 seconds",
+  "Checking the Windows AAC encoder…": "Checking the Windows AAC encoder…",
 } as const
 
 export const exportEs = {
@@ -240,4 +247,11 @@ export const exportEs = {
   "{signed} dB of gain": "{signed} dB de ganancia",
   "{value} (highest)": "{value} (la más alta)",
   "{value} (smallest)": "{value} (el más pequeño)",
+  "Enter a loudness from {min} to {max} LUFS.": "Introduce una sonoridad de {min} a {max} LUFS.",
+  "Enter a ceiling from {min} to {max} dBTP.": "Introduce un techo de {min} a {max} dBTP.",
+  "Mastering works on the whole mix. Turn off stems to master the export.": "La masterización trabaja sobre la mezcla completa. Desactiva las pistas separadas para masterizar la exportación.",
+  "Loudness": "Sonoridad",
+  "Sample peak": "Pico de muestra",
+  "Loudest 3 seconds": "3 segundos más fuertes",
+  "Checking the Windows AAC encoder…": "Comprobando el codificador AAC de Windows…",
 } satisfies Record<keyof typeof exportEn, Message>

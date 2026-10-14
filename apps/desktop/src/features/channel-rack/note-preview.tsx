@@ -73,7 +73,7 @@ function contextItems(target: NotePreviewTarget): ContextItem[] {
     const bound = notePreviewActionForTarget(action, target)
     return [
       {
-        title: action.title,
+        title: actionTitle(id, action.title),
         shortcut: shortcutLabel(id),
         disabled: !isEnabled(bound, state),
         reason: disabledReason(bound, state),

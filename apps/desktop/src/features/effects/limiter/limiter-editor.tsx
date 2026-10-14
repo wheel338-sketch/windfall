@@ -42,7 +42,7 @@ export function LimiterEditor({
           <LimiterHistory slot={slot} />
           <AnalyzerStatusLine
             slot={slot}
-            location="input, output and reduction as the limiter measured them"
+            location={t("input, output and reduction as the limiter measured them")}
           />
         </div>
         <ParamRow columns={4}>

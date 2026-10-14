@@ -389,6 +389,15 @@ export const effectsEn = {
   "{share}% from {morphCurveNames} to {morphCurveNames2}": "{share}% from {morphCurveNames} to {morphCurveNames2}",
   "{side} side {ms} late": "{side} side {ms} late",
   "¢ flat": "¢ flat",
+  "Shapes everything the unit plays": "Shapes everything the unit plays",
+  "Shapes only what is fed back, so each repeat is filtered once more and the first echo is left clean": "Shapes only what is fed back, so each repeat is filtered once more and the first echo is left clean",
+  "{time} at {tempo}": "{time} at {tempo}",
+  "{division} at {tempo}": "{division} at {tempo}",
+  "about {division} at {tempo}": "about {division} at {tempo}",
+  "sharp": "sharp",
+  "spectrum of this track's output, −90 to 0 dB": "spectrum of this track's output, −90 to 0 dB",
+  "input, output and reduction as the limiter measured them": "input, output and reduction as the limiter measured them",
+  "this track, one note at a time": "this track, one note at a time",
 } as const
 
 export const effectsEs = {
@@ -780,4 +789,13 @@ export const effectsEs = {
   "{share}% from {morphCurveNames} to {morphCurveNames2}": "{share}% de {morphCurveNames} a {morphCurveNames2}",
   "{side} side {ms} late": "Lado {side} retrasado {ms}",
   "¢ flat": "¢ bajo",
+  "Shapes everything the unit plays": "Modela todo lo que reproduce la unidad",
+  "Shapes only what is fed back, so each repeat is filtered once more and the first echo is left clean": "Modela solo lo que se realimenta, de modo que cada repetición se filtra una vez más y el primer eco queda limpio",
+  "{time} at {tempo}": "{time} a {tempo}",
+  "{division} at {tempo}": "{division} a {tempo}",
+  "about {division} at {tempo}": "aproximadamente {division} a {tempo}",
+  "sharp": "alto",
+  "spectrum of this track's output, −90 to 0 dB": "espectro de la salida de esta pista, de −90 a 0 dB",
+  "input, output and reduction as the limiter measured them": "entrada, salida y reducción tal como las midió el limitador",
+  "this track, one note at a time": "esta pista, una nota cada vez",
 } satisfies Record<keyof typeof effectsEn, Message>

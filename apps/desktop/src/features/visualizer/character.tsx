@@ -3,7 +3,16 @@ import type { ActiveNotePose, ChannelId } from "@/bindings"
 import { useRealtime } from "@/lib/store/realtime"
 import { message, plainNumber, translatedText as t } from "@/lib/i18n"
 
-export type CharacterPose = { name: string; body: number; leftArm: number; rightArm: number; leftLeg: number; rightLeg: number; lift: number }
+/** What each pose is called; a pose's name is its code. */
+const POSE_NAMES: Record<CharacterPose["name"], string> = {
+  get rest() { return t("rest") },
+  get step() { return t("step") },
+  get wave() { return t("wave") },
+  get jump() { return t("jump") },
+  get lean() { return t("lean") },
+}
+
+export type CharacterPose = { name: "rest" | "step" | "wave" | "jump" | "lean"; body: number; leftArm: number; rightArm: number; leftLeg: number; rightLeg: number; lift: number }
 
 export function characterPose(note: Pick<ActiveNotePose, "key" | "velocity"> | null, frame: number): CharacterPose {
   if (!note) return { name: "rest", body: 0, leftArm: 20, rightArm: -20, leftLeg: 0, rightLeg: 0, lift: 0 }
@@ -34,8 +43,8 @@ export function NoteCharacter({ channel }: { channel: ChannelId | null }) {
     }
     const title = element.ownerSVGElement?.querySelector("title")
     if (title) title.textContent = note
-      ? message("Moss: {pose}, note {key}", { pose: pose.name, key: plainNumber(note.key) })
-      : message("Moss: {pose}", { pose: pose.name })
+      ? message("Moss: {pose}, note {key}", { pose: POSE_NAMES[pose.name], key: plainNumber(note.key) })
+      : message("Moss: {pose}", { pose: POSE_NAMES[pose.name] })
   })
   return (
     <svg viewBox="0 0 200 200" role="img" aria-label={t("Moss note character")} className="h-52 w-full text-primary">

@@ -386,13 +386,13 @@ function RiffForm({ request }: { request: RiffRequest }) {
             try {
               if (!(await applyRiff(request, settings)))
                 setFailure(
-                  "The riff could not be added. Close and reopen the generator to try again."
+                  t("The riff could not be added. Close and reopen the generator to try again.")
                 )
             } catch (cause) {
               setFailure(
                 cause instanceof Error
                   ? cause.message
-                  : "The riff could not be added."
+                  : t("The riff could not be added.")
               )
             }
           }}
@@ -908,7 +908,7 @@ function RiffForm({ request }: { request: RiffRequest }) {
                   setFailure(
                     cause instanceof Error
                       ? cause.message
-                      : "The riff could not be played."
+                      : t("The riff could not be played.")
                   )
                 }
               }}

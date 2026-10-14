@@ -1,5 +1,6 @@
 import type { Project } from "@/bindings"
 import { targetState } from "@/lib/automation/targets"
+import { message } from "@/lib/i18n"
 import { useHintStore } from "@/lib/store/hint"
 import { useProjectStore } from "@/lib/store/project"
 import { automatedValue, realtimeFrame } from "@/lib/store/realtime"
@@ -15,7 +16,7 @@ import { automatedValue, realtimeFrame } from "@/lib/store/realtime"
 export const NOTICE_MS = 5000
 
 export function automatedEditNotice(name: string): string {
-  return `Automated by ${name} — this sets the value used outside its clips`
+  return message("Automated by {name} — this sets the value used outside its clips", { name })
 }
 
 /**

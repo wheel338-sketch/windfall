@@ -64,7 +64,7 @@ export function Oscilloscope({
     }
     context.stroke()
     if (!frame || !frame.scope || frame.scope.left.length === 0) {
-      emptyLabel(context, width, height, colors.label, "No signal to draw")
+      emptyLabel(context, width, height, colors.label, t("No signal to draw"))
       return
     }
     const scope = frame.scope
@@ -131,7 +131,7 @@ export function SpectrumCurve({ slot, floorDb }: ViewProps & { floorDb: number }
     context.stroke()
     const spectrum = frame?.spectrum
     if (!spectrum || (spectrum.left.length === 0 && spectrum.right.length === 0)) {
-      emptyLabel(context, width, height, colors.label, "No spectrum available")
+      emptyLabel(context, width, height, colors.label, t("No spectrum available"))
       return
     }
     const curve = spectrumCurve(
@@ -190,7 +190,7 @@ export function Spectrogram({ slot, floorDb }: ViewProps & { floorDb: number }) 
     const { width, height } = size
     const kept = history()
     if (kept.length === 0) {
-      emptyLabel(context, width, height, colors.label, "No spectrogram available")
+      emptyLabel(context, width, height, colors.label, t("No spectrogram available"))
       return
     }
     const rowHeight = height / SPECTROGRAM_ROWS
@@ -245,7 +245,7 @@ export function Vectorscope({ slot }: ViewProps) {
     context.stroke()
     const points = frame?.vector
     if (!points || points.length === 0) {
-      emptyLabel(context, width, height, colors.label, "No stereo picture")
+      emptyLabel(context, width, height, colors.label, t("No stereo picture"))
       return
     }
     context.fillStyle = colors.trace

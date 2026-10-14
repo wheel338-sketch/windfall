@@ -233,6 +233,13 @@ export const libEn = {
   "{track} → send to {track2}": "{track} → send to {track2}",
   "{track} → sidechain to {track2}": "{track} → sidechain to {track2}",
   "{track} → volume": "{track} → volume",
+  "It has {count} notes": { one: "It has {count} note", other: "It has {count} notes" },
+  "Open project. Saved in this browser:\n{saved}": "Open project. Saved in this browser:\n{saved}",
+  "Export audio to": "Export audio to",
+  "Folder to add": "Folder to add",
+  "Audio file to load": "Audio file to load",
+  "Could not read browser library metadata. Repair or remove windfall.mock.browser-library in this browser's storage before saving favorites or tags. The original value has been preserved.": "Could not read browser library metadata. Repair or remove windfall.mock.browser-library in this browser's storage before saving favorites or tags. The original value has been preserved.",
+  "The WebAssembly document crashed, and stays unusable until the page is reloaded: {reason}": "The WebAssembly document crashed, and stays unusable until the page is reloaded: {reason}",
 } as const
 
 export const libEs = {
@@ -468,4 +475,11 @@ export const libEs = {
   "{track} → send to {track2}": "{track} → envío a {track2}",
   "{track} → sidechain to {track2}": "{track} → cadena lateral a {track2}",
   "{track} → volume": "{track} → volumen",
+  "It has {count} notes": { one: "Tiene {count} nota", other: "Tiene {count} notas" },
+  "Open project. Saved in this browser:\n{saved}": "Abrir proyecto. Guardados en este navegador:\n{saved}",
+  "Export audio to": "Exportar el audio a",
+  "Folder to add": "Carpeta que añadir",
+  "Audio file to load": "Archivo de audio que cargar",
+  "Could not read browser library metadata. Repair or remove windfall.mock.browser-library in this browser's storage before saving favorites or tags. The original value has been preserved.": "No se han podido leer los metadatos de la biblioteca del navegador. Repara o elimina windfall.mock.browser-library del almacenamiento de este navegador antes de guardar favoritos o etiquetas. Se ha conservado el valor original.",
+  "The WebAssembly document crashed, and stays unusable until the page is reloaded: {reason}": "El documento WebAssembly ha fallado y no se podrá usar hasta que se recargue la página: {reason}",
 } satisfies Record<keyof typeof libEn, Message>

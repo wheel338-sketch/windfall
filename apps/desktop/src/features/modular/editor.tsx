@@ -131,8 +131,8 @@ export function ModularEditor({ channel, root }: { channel: Channel; root: RackG
   return <div className="flex min-h-0 flex-col gap-3" aria-label={t("Modular rack editor")}>
     <div className="flex flex-wrap items-end gap-2">
       <ChoiceField<AddType> label={t("Module type")} value={addType} choices={TYPES} onChange={setAddType} />
-      {addType === "effect" && <ChoiceField<EffectKind> label={t("Effect module")} value={effect} choices={EFFECT_KINDS} onChange={setEffect} />}
-      {addType === "instrument" && <ChoiceField<InstrumentKind> label={t("Instrument module")} value={instrument} choices={INSTRUMENT_KINDS} onChange={setInstrument} />}
+      {addType === "effect" && <ChoiceField<EffectKind> label={t("Effect module")} value={effect} choices={EFFECT_KINDS} onChange={setEffect} labelOf={(kind) => t(effectDescriptor(kind).name)} />}
+      {addType === "instrument" && <ChoiceField<InstrumentKind> label={t("Instrument module")} value={instrument} choices={INSTRUMENT_KINDS} onChange={setInstrument} labelOf={(kind) => t(instrumentDescriptor(kind).name)} />}
       <Button onClick={() => void add()} disabled={busy || graph.nodes.length >= 64}>{t("Add node")}</Button>
       <Button variant="outline" disabled={busy} onClick={() => void undo()}>{t("Undo rack edit")}</Button>
       <Button variant="outline" disabled={busy} onClick={() => void redo()}>{t("Redo rack edit")}</Button>

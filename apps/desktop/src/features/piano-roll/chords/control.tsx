@@ -44,7 +44,7 @@ import {
   seededTriad,
   triadKeys,
 } from "./generator"
-import { translatedText as t } from "@/lib/i18n"
+import { message, translatedText as t } from "@/lib/i18n"
 
 type Request = {
   context: EditorContext
@@ -100,7 +100,8 @@ function ChordForm({ request, close }: { request: Request; close(): void }) {
       const chordQuality = TRIADS.find(
         (triad) => triad.quality === (choice?.quality ?? quality)
       )!
-      const label = `${choice ? `${choice.degree} · ` : ""}${PITCH_NAMES[pitchClass(chordRoot)]} ${chordQuality.label.toLowerCase()} · MIDI ${keys.join(", ")}`
+      const chord = message("{root} {quality}", { root: PITCH_NAMES[pitchClass(chordRoot)], quality: chordQuality.label.toLowerCase() })
+      const label = [...(choice ? [choice.degree] : []), chord, `MIDI ${keys.join(", ")}`].join(" · ")
       return { command, label, error: null }
     } catch (error) {
       return {

@@ -1,3 +1,4 @@
+import { message, plainNumber, translatedText as t } from "@/lib/i18n"
 import type { FrameStats, TimeGridView } from "@/lib/canvas"
 
 import { generateNotes } from "./generate-notes"
@@ -23,7 +24,7 @@ function describe(view: TimeGridView, params: BenchParams): string {
   const { info } = view.renderer
   const size = `${view.element.width}x${view.element.height}`
   return [
-    `${info.kind}  ${params.notes.toLocaleString("en-US")} notes  ${size} @${window.devicePixelRatio}x`,
+    message("{renderer}  {notes} notes  {size} @{ratio}x", { renderer: info.kind, notes: params.notes, size, ratio: plainNumber(window.devicePixelRatio) }),
     info.device,
   ].join("\n")
 }
@@ -42,9 +43,9 @@ export function startSession(
   const header = describe(view, params)
 
   if (params.auto) {
-    setHud(`${header}\nstarting`)
+    setHud([header, t("starting")].join("\n"))
     runBenchmark({ view, model }, createScenarios(), params, (status) =>
-      setHud(`${header}\n${status}`)
+      setHud([header, status].join("\n"))
     ).then(
       (results) => {
         window.__benchResults = results
@@ -54,7 +55,7 @@ export function startSession(
         window.__benchError =
           error instanceof Error ? error.message : String(error)
         window.__benchDone = true
-        setHud(`${header}\nfailed: ${window.__benchError}`)
+        setHud([header, message("failed: {error}", { error: window.__benchError })].join("\n"))
       }
     )
     return
@@ -69,9 +70,8 @@ export function startSession(
     drawMs += stats.cpuMs
     last = stats
   }
-  const hint =
-    "wheel scroll, ctrl+wheel zoom, alt+wheel row zoom\ndrag to select, drag notes to move, space playhead"
-  setHud(`${header}\n${hint}`)
+  const hint = t("wheel scroll, ctrl+wheel zoom, alt+wheel row zoom\ndrag to select, drag notes to move, space playhead")
+  setHud([header, hint].join("\n"))
   window.setInterval(() => {
     if (frames === 0) return
     const fps = (frames * 1000) / HUD_INTERVAL_MS
@@ -80,8 +80,8 @@ export function startSession(
     setHud(
       [
         header,
-        `${fps.toFixed(0)} draws/s  ${average.toFixed(2)} ms cpu per draw`,
-        `${last?.itemsInRange ?? 0} notes in range  ${selected} selected`,
+        message("{rate} draws/s  {average} ms cpu per draw", { rate: plainNumber(Math.round(fps)), average: plainNumber(Number(average.toFixed(2))) }),
+        message("{inRange} notes in range  {selected} selected", { inRange: plainNumber(last?.itemsInRange ?? 0), selected: plainNumber(selected) }),
         hint,
       ].join("\n")
     )

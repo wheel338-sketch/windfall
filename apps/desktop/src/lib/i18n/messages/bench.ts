@@ -8,6 +8,12 @@ export const benchEn = {
   "Worst case for an edit: every frame 1,000 notes change in the model, the whole batch is rebuilt from the Note array (colors, sort, index) and uploaded again.": "Worst case for an edit: every frame 1,000 notes change in the model, the whole batch is rebuilt from the Note array (colors, sort, index) and uploaded again.",
   "Zoom sweep around the middle of the song, from all 200 bars across the view to 2 bars and back.": "Zoom sweep around the middle of the song, from all 200 bars across the view to 2 bars and back.",
   "bench.html has no #root element": "bench.html has no #root element",
+  "{renderer}  {notes} notes  {size} @{ratio}x": "{renderer}  {notes} notes  {size} @{ratio}x",
+  "starting": "starting",
+  "failed: {error}": "failed: {error}",
+  "wheel scroll, ctrl+wheel zoom, alt+wheel row zoom\ndrag to select, drag notes to move, space playhead": "wheel scroll, ctrl+wheel zoom, alt+wheel row zoom\ndrag to select, drag notes to move, space playhead",
+  "{rate} draws/s  {average} ms cpu per draw": "{rate} draws/s  {average} ms cpu per draw",
+  "{inRange} notes in range  {selected} selected": "{inRange} notes in range  {selected} selected",
 } as const
 
 export const benchEs = {
@@ -18,4 +24,10 @@ export const benchEs = {
   "Worst case for an edit: every frame 1,000 notes change in the model, the whole batch is rebuilt from the Note array (colors, sort, index) and uploaded again.": "Peor caso de una edición: en cada fotograma cambian 1.000 notas en el modelo, y todo el lote se reconstruye a partir de la matriz de Note (colores, orden, índice) y se vuelve a subir.",
   "Zoom sweep around the middle of the song, from all 200 bars across the view to 2 bars and back.": "Barrido de ampliación alrededor del centro de la canción: de los 200 compases a lo ancho de la vista hasta 2 compases, ida y vuelta.",
   "bench.html has no #root element": "bench.html no tiene ningún elemento #root",
+  "{renderer}  {notes} notes  {size} @{ratio}x": "{renderer}  {notes} notas  {size} @{ratio}x",
+  "starting": "empezando",
+  "failed: {error}": "error: {error}",
+  "wheel scroll, ctrl+wheel zoom, alt+wheel row zoom\ndrag to select, drag notes to move, space playhead": "rueda: desplazar, ctrl+rueda: ampliar, alt+rueda: altura de fila\narrastrar: seleccionar, arrastrar notas: mover, espacio: cursor de reproducción",
+  "{rate} draws/s  {average} ms cpu per draw": "{rate} dibujos/s  {average} ms de CPU por dibujo",
+  "{inRange} notes in range  {selected} selected": "{inRange} notas a la vista  {selected} seleccionadas",
 } satisfies Record<keyof typeof benchEn, Message>

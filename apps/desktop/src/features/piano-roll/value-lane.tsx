@@ -34,7 +34,7 @@ import {
 import { fadePastEnd, shownLengthTicks } from "./overlays"
 import type { PianoRollSession } from "./session"
 import { usePianoRollStore } from "./store"
-import { message } from "@/lib/i18n"
+import { message, translatedText as t } from "@/lib/i18n"
 
 /** More bars than this in view are drawn merged by pixel column. */
 const MAX_SEPARATE_BARS = 3000
@@ -63,13 +63,12 @@ const GUIDES: Record<LaneKind, { value: number; strong: boolean }[]> = {
 }
 
 const HINTS: Record<LaneKind, string> = {
-  velocity:
-    "Drag to set velocity; drag across bars to paint them. With notes selected only they change, and dragging one of them scales them together",
-  pan: "Drag to set note pan; drag across bars to paint them. With notes selected only they change, and dragging one of them shifts them together",
-  release: "Paint each note's release amount. The midpoint preserves the instrument's release time; lower values shorten it and higher values lengthen it",
-  finePitchCents: "Paint fine pitch in cents around the note's MIDI key. Selected notes keep their pitch differences when shifted together",
-  modulationX: "Paint per-note modulation X, which offsets cutoff in the built-in voices. The midpoint applies no offset",
-  modulationY: "Paint per-note modulation Y, which offsets resonance in the built-in voices. The midpoint applies no offset",
+  get velocity() { return t("Drag to set velocity; drag across bars to paint them. With notes selected only they change, and dragging one of them scales them together") },
+  get pan() { return t("Drag to set note pan; drag across bars to paint them. With notes selected only they change, and dragging one of them shifts them together") },
+  get release() { return t("Paint each note's release amount. The midpoint preserves the instrument's release time; lower values shorten it and higher values lengthen it") },
+  get finePitchCents() { return t("Paint fine pitch in cents around the note's MIDI key. Selected notes keep their pitch differences when shifted together") },
+  get modulationX() { return t("Paint per-note modulation X, which offsets cutoff in the built-in voices. The midpoint applies no offset") },
+  get modulationY() { return t("Paint per-note modulation Y, which offsets resonance in the built-in voices. The midpoint applies no offset") },
 }
 
 type Stroke = {
@@ -383,7 +382,7 @@ export function ValueLane({ kind, color }: ValueLaneProps) {
   return (
     <canvas
       ref={canvasRef}
-      aria-label={message("Note {findLabel} values", { findLabel: LANE_KINDS.find((item) => item.id === kind)?.label.toLowerCase() ?? kind })}
+      aria-label={message("Note {findLabel} values", { findLabel: LANE_KINDS.find((item) => item.id === kind)?.label.toLowerCase() ?? "" })}
       className="block h-full w-full cursor-crosshair touch-none"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}

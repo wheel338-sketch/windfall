@@ -1,5 +1,6 @@
 import type { HitPart } from "@/lib/canvas"
 import { MODIFIER_HINTS } from "@/lib/edit-modifiers"
+import { message, translatedText as t } from "@/lib/i18n"
 
 import type { Tool } from "./store"
 
@@ -129,29 +130,29 @@ export function hintFor(intent: Intent | null, tool: Tool): string | null {
   if (!intent) return null
   const rightClick =
     tool === "select"
-      ? "Right-click for the menu"
-      : "Right-click or right-drag deletes"
+      ? t("Right-click for the menu")
+      : t("Right-click or right-drag deletes")
   const { copy, add, free } = MODIFIER_HINTS
   switch (intent.kind) {
     case "draw":
-      return `Click to add a note, drag to place it. ${free}. Ctrl+drag selects. ${rightClick}`
+      return message("Click to add a note, drag to place it. {free}. Ctrl+drag selects. {rightClick}", { free, rightClick })
     case "paint":
-      if (intent.drum) return `Drag to toggle drum steps. The first cell chooses add or delete. Escape cancels. ${rightClick}`
-      return `Drag to paint a row of notes. ${free}. Ctrl+drag selects. ${rightClick}`
+      if (intent.drum) return message("Drag to toggle drum steps. The first cell chooses add or delete. Escape cancels. {rightClick}", { rightClick })
+      return message("Drag to paint a row of notes. {free}. Ctrl+drag selects. {rightClick}", { free, rightClick })
     case "erase":
-      return "Click or drag across notes to delete them"
-    case "mute": return "Click a note to mute or unmute it"
-    case "slice": return `Click inside a note to split it. ${free}`
-    case "zoom": return "Drag a rectangle to zoom. Click again or press Escape to restore the view"
-    case "playback": return "Hold and drag to seek and audition notes. Release or press Escape to stop auditioning"
+      return t("Click or drag across notes to delete them")
+    case "mute": return t("Click a note to mute or unmute it")
+    case "slice": return message("Click inside a note to split it. {free}", { free })
+    case "zoom": return t("Drag a rectangle to zoom. Click again or press Escape to restore the view")
+    case "playback": return t("Hold and drag to seek and audition notes. Release or press Escape to stop auditioning")
     case "marquee":
-      return "Drag to select notes. Shift adds to the selection. Click empty space to clear it"
+      return t("Drag to select notes. Shift adds to the selection. Click empty space to clear it")
     case "move":
-      return `Drag to move. ${copy}. ${add}. ${free}. ${rightClick}`
+      return message("Drag to move. {copy}. {add}. {free}. {rightClick}", { copy, add, free, rightClick })
     case "resize":
       return intent.edge === "end"
-        ? `Drag to change the length. ${free}`
-        : `Drag to move the start and keep the end. ${free}`
+        ? message("Drag to change the length. {free}", { free })
+        : message("Drag to move the start and keep the end. {free}", { free })
     case "menu":
       return null
     default: {

@@ -25,7 +25,7 @@ import {
   type AnalysisReview,
   type AnalysisTask,
 } from "./types"
-import { translatedText as t, message, dynamicTitle } from "@/lib/i18n"
+import { translatedText as t, message, dynamicTitle, type MessageKey } from "@/lib/i18n"
 
 /** UI identity only. Native capture/recheck remains the installation authority. */
 export function captureAnalysisClip(id: number) {
@@ -196,10 +196,10 @@ function reason(command: AnalysisCommand): string | undefined {
   return undefined
 }
 
-function command(id: AnalysisCommand, title: string): Action {
+function command(id: AnalysisCommand, title: MessageKey): Action {
   return {
     id: `analysis.${id}`,
-    title,
+    ...dynamicTitle(title, {}),
     section: "Analysis",
     enabled: () => reason(id) === undefined,
     whyDisabled: () => reason(id),
@@ -211,7 +211,7 @@ function command(id: AnalysisCommand, title: string): Action {
 }
 function recoveryCommand(
   id: string,
-  title: string,
+  title: MessageKey,
   operation: "cancel" | "retry" | "forget"
 ): Action {
   const reason = () => {
@@ -226,7 +226,7 @@ function recoveryCommand(
   }
   return {
     id: `analysis.${id}`,
-    title,
+    ...dynamicTitle(title, {}),
     section: "Analysis",
     enabled: () => reason() === undefined,
     whyDisabled: reason,

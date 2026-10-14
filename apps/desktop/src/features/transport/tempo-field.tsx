@@ -212,7 +212,7 @@ export function TempoField() {
         change: setTempo,
         parse: (text) => parseTempo(text.replace(/\s*bpm$/i, "")),
       },
-      "Tempo",
+      t("Tempo"),
       [
         ...TEMPO_AUTOMATION,
         contextSeparator,

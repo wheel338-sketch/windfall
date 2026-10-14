@@ -57,7 +57,7 @@ import type { WaveShape } from "./synth/wave-glyph"
 import { useGestureValue } from "./use-gesture-value"
 import { CHANNEL_VOLUME_PRESETS, nextChannelVolume } from "./volume-presets"
 import { nextChannelVolumeScale } from "./volume-scale"
-import { translatedText as t, message } from "@/lib/i18n"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 
 type ChannelRowProps = {
@@ -319,8 +319,8 @@ export const ChannelRow = memo(function ChannelRow({
   const stepLabel = useCallback(
     (step: number) =>
       detail.includes(step)
-        ? `Step ${step + 1}, with notes the step grid cannot show`
-        : `Step ${step + 1}`,
+        ? message("Step {index}, with notes the step grid cannot show", { index: plainNumber(step + 1) })
+        : message("Step {index}", { index: plainNumber(step + 1) }),
     [detail]
   )
   const onToggle = useCallback(

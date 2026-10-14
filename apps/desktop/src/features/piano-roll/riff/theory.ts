@@ -178,11 +178,15 @@ export function degreeNumeral(chord: RiffDegree, scale: RiffScaleId): string {
   )
 }
 
+/** The suffixes of chord symbols, written the same in every language. */
+type ChordSymbolQuality = "" | "aug" | "dim" | "m" | "sus4" | "sus2"
+type ChordSymbolSeventh = "" | "maj7" | "7"
+
 /** A short name for a root-position chord, such as "Am" or "G7". */
 export function chordName(keys: readonly number[]): string {
   if (keys.length === 0) return ""
   const above = new Set(keys.map((key) => (((key - keys[0]) % 12) + 12) % 12))
-  const quality =
+  const quality: ChordSymbolQuality =
     above.has(4) && above.has(8)
       ? "aug"
       : above.has(4)
@@ -196,6 +200,6 @@ export function chordName(keys: readonly number[]): string {
               : above.has(2)
                 ? "sus2"
                 : ""
-  const seventh = above.has(11) ? "maj7" : above.has(10) ? "7" : ""
+  const seventh: ChordSymbolSeventh = above.has(11) ? "maj7" : above.has(10) ? "7" : ""
   return PITCH_NAMES[((keys[0] % 12) + 12) % 12] + quality + seventh
 }

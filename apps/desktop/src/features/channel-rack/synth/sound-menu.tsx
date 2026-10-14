@@ -24,7 +24,7 @@ import { synthSoundActionId } from "../actions"
 import { loadInstrumentSound, selectedChannel } from "../channel-ops"
 import { matchingPreset, SYNTH_PRESETS, type SynthSettings } from "./presets"
 import { nextSynthSoundPreset } from "./synth-sound-preset-step"
-import { translatedText as t, message } from "@/lib/i18n"
+import { historyLabel, translatedText as t, message } from "@/lib/i18n"
 
 // Rendered only while the menu is open, so it can follow the app state.
 function SoundItems() {
@@ -77,7 +77,7 @@ function SoundItems() {
           void loadInstrumentSound(
             channel.id,
             next.params,
-            `Load sound: ${next.name}`
+            historyLabel("Load sound: {name}", { name: next.name })
           )
         }}
       >
@@ -94,7 +94,7 @@ function SoundItems() {
           void loadInstrumentSound(
             channel.id,
             next.params,
-            `Load sound: ${next.name}`
+            historyLabel("Load sound: {name}", { name: next.name })
           )
         }}
       >

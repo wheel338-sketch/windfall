@@ -9,17 +9,17 @@ export const BAND_COUNT = 16
 export const LANES = [
   {
     id: "delayMs",
-    name: "Delay",
+    get name() { return t("Delay") },
     get hint() { return t("How late each band is heard. Draw across the bars to shape an echo that sweeps through the spectrum") },
   },
   {
     id: "level",
-    name: "Level",
+    get name() { return t("Level") },
     get hint() { return t("How loud each band's echo is") },
   },
   {
     id: "pan",
-    name: "Pan",
+    get name() { return t("Pan") },
     get hint() { return t("Where each band's echo sits between left and right. The middle of the plot is the center") },
   },
 ] as const

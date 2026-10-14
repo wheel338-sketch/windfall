@@ -283,7 +283,7 @@ function SheetExportForm({ request }: { request: SheetRequest }) {
             onClick={() =>
               run(
                 () => saveSheetMusicXml(request),
-                "Could not save the MusicXML score"
+                t("Could not save the MusicXML score")
               )
             }
           >
@@ -296,7 +296,7 @@ function SheetExportForm({ request }: { request: SheetRequest }) {
             onClick={() =>
               run(
                 async () => printSheet(pages, paper),
-                "Could not print the score"
+                t("Could not print the score")
               )
             }
           >
@@ -308,7 +308,7 @@ function SheetExportForm({ request }: { request: SheetRequest }) {
             onClick={() =>
               run(
                 () => saveSheetPdf(request, pages),
-                "Could not save the PDF score"
+                t("Could not save the PDF score")
               )
             }
           >

@@ -359,7 +359,7 @@ function UnitPanel({ unit, bind }: UnitPanelProps) {
         field="filter"
         unit={unit}
         bind={bind}
-        about="Shapes everything the unit plays"
+        about={t("Shapes everything the unit plays")}
         aside={
           <ParamControl
             {...bind(id("filterPost"))}
@@ -374,7 +374,7 @@ function UnitPanel({ unit, bind }: UnitPanelProps) {
         field="feedbackFilter"
         unit={unit}
         bind={bind}
-        about="Shapes only what is fed back, so each repeat is filtered once more and the first echo is left clean"
+        about={t("Shapes only what is fed back, so each repeat is filtered once more and the first echo is left clean")}
       />
     </div>
   )

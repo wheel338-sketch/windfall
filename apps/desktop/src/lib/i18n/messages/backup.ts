@@ -21,6 +21,10 @@ export const backupEn = {
   "The project changed before backup started.": "The project changed before backup started.",
   "Versions to retain": "Versions to retain",
   "bytes ·": "bytes ·",
+  "Portable backup created and checksum recorded.": "Portable backup created and checksum recorded.",
+  "Verified backup restored to {path}": "Verified backup restored to {path}",
+  "Restored {version}": "Restored {version}",
+  "Backup created after Save.": "Backup created after Save.",
 } as const
 
 export const backupEs = {
@@ -44,4 +48,8 @@ export const backupEs = {
   "The project changed before backup started.": "El proyecto cambió antes de que empezara la copia de seguridad.",
   "Versions to retain": "Versiones que se conservan",
   "bytes ·": "bytes ·",
+  "Portable backup created and checksum recorded.": "Copia de seguridad portátil creada y suma de comprobación registrada.",
+  "Verified backup restored to {path}": "Copia de seguridad verificada y restaurada en {path}",
+  "Restored {version}": "Restaurado {version}",
+  "Backup created after Save.": "Copia de seguridad creada después de guardar.",
 } satisfies Record<keyof typeof backupEn, Message>

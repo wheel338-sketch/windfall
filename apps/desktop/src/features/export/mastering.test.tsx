@@ -10,12 +10,12 @@ import { settle, startTestApp } from "@/test/harness"
 
 import { ExportDialog } from "./export-dialog"
 import {
-  BAD_CEILING,
-  BAD_TARGET,
+  badCeiling,
+  badTarget,
   DEFAULT_MASTERING_DRAFT,
   formatLevel,
   masteringRequest,
-  NOT_WITH_STEMS,
+  notWithStems,
   parseLevel,
   presetOf,
   reviewRows,
@@ -76,12 +76,12 @@ describe("mastering request and review figures", () => {
     for (const target of ["", "-5.9", "-30.1", "loud", "-1e1", "NaN"]) {
       const request = masteringRequest({ ...on, target }, false)
       expect(request.options, target).toBeUndefined()
-      expect(request.targetError, target).toBe(BAD_TARGET)
+      expect(request.targetError, target).toBe(badTarget())
       expect(request.ceilingError, target).toBeNull()
     }
     for (const ceiling of ["0.1", "-9.5", "x"]) {
       expect(masteringRequest({ ...on, ceiling }, false).ceilingError).toBe(
-        BAD_CEILING
+        badCeiling()
       )
     }
     expect(masteringRequest({ ...on, ceiling: "0" }, false).options).toEqual({
@@ -91,7 +91,7 @@ describe("mastering request and review figures", () => {
     })
     const stems = masteringRequest(on, true)
     expect(stems.options).toBeUndefined()
-    expect(stems.stemsError).toBe(NOT_WITH_STEMS)
+    expect(stems.stemsError).toBe(notWithStems())
   })
 
   it("names the preset a pair of levels is, and custom otherwise", () => {
@@ -254,7 +254,7 @@ describe("mastering in the export dialog", () => {
     const target = screen.getByLabelText("Loudness target (LUFS)")
     await user.clear(target)
     await user.type(target, "-3")
-    expect(screen.getByText(BAD_TARGET)).toHaveAttribute("role", "alert")
+    expect(screen.getByText(badTarget())).toHaveAttribute("role", "alert")
     expect(screen.getByRole("combobox", { name: "Master for" })).toHaveTextContent(
       "Custom"
     )
@@ -265,11 +265,11 @@ describe("mastering in the export dialog", () => {
 
     await user.clear(target)
     await user.type(target, "-16")
-    expect(screen.queryByText(BAD_TARGET)).toBeNull()
+    expect(screen.queryByText(badTarget())).toBeNull()
     await user.click(
       screen.getByRole("checkbox", { name: "Export mixer tracks as stems" })
     )
-    expect(screen.getByText(NOT_WITH_STEMS)).toHaveAttribute("role", "alert")
+    expect(screen.getByText(notWithStems())).toHaveAttribute("role", "alert")
     await user.click(screen.getByRole("button", { name: "Export" }))
     await settle()
     expect(exported).not.toHaveBeenCalled()
@@ -295,7 +295,7 @@ describe("mastering in the export dialog", () => {
     await user.click(screen.getByRole("button", { name: "Choose…" }))
     await user.click(screen.getByRole("checkbox", { name: "Export each playlist track to its own file" }))
     await user.click(master())
-    expect(screen.getByText(NOT_WITH_STEMS)).toHaveAttribute("role", "alert")
+    expect(screen.getByText(notWithStems())).toHaveAttribute("role", "alert")
     await user.click(screen.getByRole("button", { name: "Export" }))
     await settle()
     expect(exported).not.toHaveBeenCalled()

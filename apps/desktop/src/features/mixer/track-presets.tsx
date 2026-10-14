@@ -59,15 +59,12 @@ export function missingPlugins(
   return missing
 }
 
-const KEPT =
-  "Their settings are kept with the project, and those effects pass audio through until the plugins are installed."
-
 function missingNote(missing: readonly string[]): string {
   return i18nMessage("Not installed here: {missing}", { missing: missing.join(", ") })
 }
 
 export function TrackPresetsPanel({ track }: { track: TrackId }) {
-  const trackName = useProjectStore((state) => state.project.mixer.tracks.find((item) => item.id === track)?.name ?? "Mixer track")
+  const trackName = useProjectStore((state) => state.project.mixer.tracks.find((item) => item.id === track)?.name ?? t("Mixer track"))
   const entries = useShelf((state) => state.entries)
   const [name, setName] = useState(trackName)
   const [nameColor, setNameColor] = useState(false)
@@ -133,15 +130,17 @@ export function TrackPresetsPanel({ track }: { track: TrackId }) {
       : []
     if (getProjectGeneration() !== generation) throw new Error(t("The project changed before loading the preset"))
     if (!(await dispatch({ type: "applyMixerTrackPreset", id: track, expected, preset, nameColor }))) {
-      setMessage("Preset was not applied. The destination may have changed.")
+      setMessage(t("Preset was not applied. The destination may have changed."))
       return
     }
     if (plugins === null) {
-      setMessage(`Loaded ${preset.name}. Could not check which of its plugins are installed.`)
+      setMessage(i18nMessage("Loaded {name}. Could not check which of its plugins are installed.", { name: preset.name }))
       return
     }
     const missing = missingPlugins(preset.plugins, plugins)
-    setMessage(missing.length ? `Loaded ${preset.name}. ${missingNote(missing)}. ${KEPT}` : `Loaded ${preset.name}`)
+    setMessage(missing.length
+      ? i18nMessage("Loaded {name}. Not installed here: {missing}. Their settings are kept with the project, and those effects pass audio through until the plugins are installed.", { name: preset.name, missing: missing.join(", ") })
+      : i18nMessage("Loaded {name}", { name: preset.name }))
   }
   async function applyFromLibrary(entry: MixerPresetLibraryEntry) {
     const generation = getProjectGeneration()
@@ -157,17 +156,17 @@ export function TrackPresetsPanel({ track }: { track: TrackId }) {
       <div className="flex flex-wrap gap-1">
         <Button size="sm" variant="outline" disabled={busy} onClick={() => void run(async () => {
           const saved = await backend.mixerPresetLibrarySave(await capture())
-          setMessage(`Saved ${saved.name} to the preset library as ${saved.file}`)
+          setMessage(i18nMessage("Saved {name} to the preset library as {file}", { name: saved.name, file: saved.file }))
           await refresh()
         })}>{t("Save to library")}</Button>
         <Button size="sm" variant="outline" disabled={busy || entries.length >= 128} onClick={() => void run(async () => {
           const preset = await capture()
           writeShelf([...useShelf.getState().entries, { key: crypto.randomUUID(), preset }])
-          setMessage(`Saved ${preset.name} to the preset shelf`)
+          setMessage(i18nMessage("Saved {name} to the preset shelf", { name: preset.name }))
         })}>{t("Save to shelf")}</Button>
         <Button size="sm" variant="outline" disabled={busy} onClick={() => void run(async () => {
           const path = await backend.mixerPresetSave(await capture())
-          if (path) setMessage(`Saved ${path}`)
+          if (path) setMessage(i18nMessage("Saved {path}", { path }))
         })}>{t("Save file…")}</Button>
         <Button size="sm" variant="outline" disabled={busy} onClick={() => void run(async () => {
           const generation = getProjectGeneration()
@@ -192,7 +191,7 @@ export function TrackPresetsPanel({ track }: { track: TrackId }) {
                   ? <Button size="sm" variant="destructive" aria-label={i18nMessage("Confirm deleting library preset {entryName}", { entryName: entry.name })} disabled={busy} onClick={() => void run(async () => {
                       setConfirming(null)
                       await backend.mixerPresetLibraryDelete(entry.file)
-                      setMessage(`Deleted ${entry.file} from the preset library`)
+                      setMessage(i18nMessage("Deleted {file} from the preset library", { file: entry.file }))
                       await refresh()
                     })}>{t("Delete file")}</Button>
                   : <Button size="sm" variant="ghost" aria-label={i18nMessage("Delete library preset {entryName}", { entryName: entry.name })} disabled={busy} onClick={() => setConfirming(entry.file)}>×</Button>}

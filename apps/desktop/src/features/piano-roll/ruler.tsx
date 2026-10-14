@@ -41,10 +41,10 @@ const MIN_BAR_LABEL_PX = 46
 const MIN_TICK_MARK_PX = 10
 const MIN_BEAT_LABEL_PX = 64
 
-const END_HINT =
-  "Drag to change the pattern length by bars. Alt: by steps. Notes past the end do not play"
-const RULER_HINT =
-  "Click to move the playhead. Drag the marker at the end of the pattern to change its length"
+const END_HINT = () =>
+  t("Drag to change the pattern length by bars. Alt: by steps. Notes past the end do not play")
+const RULER_HINT = () =>
+  t("Click to move the playhead. Drag the marker at the end of the pattern to change its length")
 
 const RULER_MENU: ContextItem[] = [
   ...VIEW_MENU,
@@ -275,7 +275,7 @@ export function Ruler() {
     }
     const near = nearEnd(localX(event))
     event.currentTarget.style.cursor = near ? "ew-resize" : "default"
-    showHint(near ? END_HINT : RULER_HINT)
+    showHint(near ? END_HINT() : RULER_HINT())
   }
 
   function onPointerUp(event: React.PointerEvent<HTMLCanvasElement>) {

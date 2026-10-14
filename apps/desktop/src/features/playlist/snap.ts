@@ -8,10 +8,10 @@ import { translatedText as t } from "@/lib/i18n"
 export type SnapMode = "none" | "step" | "beat" | "bar"
 
 export const SNAP_MODES: { mode: SnapMode; label: string; about: string }[] = [
-  { mode: "bar", get label() { return t("Bar") }, about: "Clips land on bar lines" },
-  { mode: "beat", get label() { return t("Beat") }, about: "Clips land on beats" },
-  { mode: "step", get label() { return t("Step") }, about: "Clips land on sixteenth notes" },
-  { mode: "none", get label() { return t("None") }, about: "Clips land exactly where dropped" },
+  { mode: "bar", get label() { return t("Bar") }, get about() { return t("Clips land on bar lines") } },
+  { mode: "beat", get label() { return t("Beat") }, get about() { return t("Clips land on beats") } },
+  { mode: "step", get label() { return t("Step") }, get about() { return t("Clips land on sixteenth notes") } },
+  { mode: "none", get label() { return t("None") }, get about() { return t("Clips land exactly where dropped") } },
 ]
 
 /** Grid size in ticks, or 0 when snapping is off. */
