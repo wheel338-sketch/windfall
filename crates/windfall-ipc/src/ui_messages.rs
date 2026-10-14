@@ -78,17 +78,152 @@ pub const UI_MESSAGE_CODES: &[&str] = &[
     "midi.read.unknownHeaderProblem",
     "midi.read.unknownTrackProblem",
     "midi.read.unknownTruncation",
+    "templates.folderUnreadable",
+    "templates.factoryName",
+    "templates.folderNotCreated",
+    "templates.nameTaken",
+    "templates.noFactoryTemplate",
+    "templates.deleteFailed",
+    "templates.notATemplate",
+    "templates.notATemplateName",
+    "templates.gone",
+    "browser.folderMissing",
+    "browser.folderDenied",
+    "browser.notAFolder",
+    "browser.folderUnreadable",
+    "plugins.databaseLocked",
+    "plugins.databaseSaveFailed",
+    "plugins.databaseOpenFailed",
+    "plugins.databaseReadFailed",
+    "scores.saveFailed",
+    "scores.openFailed",
+    "scores.readFailed",
+    "mixerPresets.openFailed",
+    "mixerPresets.readFailed",
+    "mixerPresets.invalid",
+    "mixerPresets.saveFailed",
+    "mixerPresets.deleteFailed",
 ];
+
+/// The parameters each code is shown with, in the order of
+/// [`UI_MESSAGE_CODES`]. Every catalog entry of a code uses exactly these
+/// names; the UI admission test compares the two. A message may carry
+/// more than its code shows, never less.
+pub const UI_MESSAGE_PARAMS: &[(&str, &[&str])] = &[
+    ("midi.import.notesPastEnd", &["count"]),
+    ("midi.import.notesCutAtEnd", &["count"]),
+    ("midi.import.notesSplit", &["count"]),
+    ("midi.import.notesOverLimit", &["count", "limit"]),
+    ("midi.import.tempoOutOfRange", &["count", "max", "min"]),
+    ("midi.import.tempoChangesThinned", &["changes", "kept"]),
+    (
+        "midi.import.timeSignatureFitted",
+        &[
+            "denominator",
+            "numerator",
+            "usedDenominator",
+            "usedNumerator",
+        ],
+    ),
+    ("midi.import.timeSignatureChanges", &["count"]),
+    ("midi.import.drumsAsSynth", &["channel"]),
+    ("midi.import.drumKeysWithoutPad", &["count"]),
+    ("midi.import.pitchBendNotImported", &["count"]),
+    ("midi.import.controllersNotImported", &["count"]),
+    ("midi.import.aftertouchNotImported", &["count"]),
+    ("midi.import.programChangesNotImported", &["count"]),
+    ("midi.import.keySignaturesNotImported", &["count"]),
+    ("midi.import.markersNotImported", &["count"]),
+    ("midi.import.expressionImported", &["count"]),
+    ("midi.import.finePitchFitted", &["count"]),
+    ("midi.export.unexportedNotes", &["count"]),
+    ("midi.export.overlapNotes", &["count"]),
+    ("midi.export.bendClampedNotes", &["count", "range"]),
+    ("midi.export.modulationYClampedNotes", &["count"]),
+    ("midi.export.mpePanOmitted", &["count"]),
+    ("midi.export.channelPanOmitted", &["count"]),
+    ("midi.export.slidesWithoutTarget", &["count"]),
+    ("midi.export.mpeGroupNotes", &["count"]),
+    ("midi.export.mpeSharedNotes", &["count"]),
+    ("midi.preview.tokensExhausted", &[]),
+    ("midi.preview.replaced", &[]),
+    ("midi.preview.expired", &[]),
+    ("midi.export.extension", &[]),
+    ("midi.export.bendRange", &["max"]),
+    ("midi.export.resolution", &[]),
+    ("midi.export.patternMissing", &["id"]),
+    ("midi.export.tooManyNotes", &["limit"]),
+    ("midi.export.tooManyMessages", &["limit"]),
+    ("midi.read.notMidi", &[]),
+    ("midi.read.tooLarge", &["bytes", "limit"]),
+    ("midi.read.chunkHeaderTruncated", &["offset"]),
+    ("midi.read.chunkTruncated", &["offset"]),
+    ("midi.read.unsupportedFormat", &["format"]),
+    ("midi.read.headerShort", &[]),
+    ("midi.read.zeroQuarterTicks", &[]),
+    ("midi.read.zeroFrameTicks", &[]),
+    ("midi.read.frameRate", &[]),
+    ("midi.read.noTracks", &[]),
+    ("midi.read.eventTruncated", &["offset", "track"]),
+    ("midi.read.missingValue", &["offset", "track"]),
+    ("midi.read.variableLength", &["offset", "track"]),
+    ("midi.read.eventLength", &["offset", "track"]),
+    ("midi.read.systemMessage", &["offset", "track"]),
+    ("midi.read.runningStatus", &["offset", "track"]),
+    ("midi.read.tooLong", &["limit"]),
+    ("midi.read.io", &["detail", "path"]),
+    ("midi.read.unknownHeaderProblem", &[]),
+    ("midi.read.unknownTrackProblem", &["offset", "track"]),
+    ("midi.read.unknownTruncation", &["offset"]),
+    ("templates.folderUnreadable", &["error"]),
+    ("templates.factoryName", &["name"]),
+    ("templates.folderNotCreated", &["error"]),
+    ("templates.nameTaken", &["name"]),
+    ("templates.noFactoryTemplate", &["id"]),
+    ("templates.deleteFailed", &["error"]),
+    ("templates.notATemplate", &["id"]),
+    ("templates.notATemplateName", &["name"]),
+    ("templates.gone", &["name"]),
+    ("browser.folderMissing", &["folder"]),
+    ("browser.folderDenied", &["folder"]),
+    ("browser.notAFolder", &["folder"]),
+    ("browser.folderUnreadable", &["error", "folder"]),
+    ("plugins.databaseLocked", &["error", "file"]),
+    ("plugins.databaseSaveFailed", &["error"]),
+    ("plugins.databaseOpenFailed", &["error"]),
+    ("plugins.databaseReadFailed", &["error"]),
+    ("scores.saveFailed", &["error"]),
+    ("scores.openFailed", &["error"]),
+    ("scores.readFailed", &["error"]),
+    ("mixerPresets.openFailed", &["error"]),
+    ("mixerPresets.readFailed", &["error"]),
+    ("mixerPresets.invalid", &["error"]),
+    ("mixerPresets.saveFailed", &["error"]),
+    ("mixerPresets.deleteFailed", &["error"]),
+];
+
+/// The parameters `code` is shown with, or `None` for an unregistered code.
+pub fn ui_message_params(code: &str) -> Option<&'static [&'static str]> {
+    UI_MESSAGE_PARAMS
+        .iter()
+        .find(|(known, _)| *known == code)
+        .map(|(_, params)| *params)
+}
 
 pub fn ui_message(code: &str, params: Value) -> String {
     debug_assert!(
         UI_MESSAGE_CODES.contains(&code),
         "unregistered UI message code"
     );
-    let params = match params {
+    let params: BTreeMap<String, Value> = match params {
         Value::Object(values) => values.into_iter().collect(),
         _ => BTreeMap::new(),
     };
+    debug_assert!(
+        ui_message_params(code)
+            .is_some_and(|declared| declared.iter().all(|name| params.contains_key(*name))),
+        "UI message {code} lacks a declared parameter"
+    );
     let message = UiMessage {
         code: code.to_owned(),
         params,
@@ -291,14 +426,72 @@ mod tests {
         let codes: std::collections::BTreeSet<_> = UI_MESSAGE_CODES.iter().copied().collect();
         assert_eq!(codes.len(), UI_MESSAGE_CODES.len());
         for code in UI_MESSAGE_CODES {
-            let decoded = decode(&ui_message(
-                code,
-                json!({ "count": 1234, "channel": "Mi batería" }),
-            ));
+            // Every declared parameter, and two that every code may carry.
+            let mut params = serde_json::Map::new();
+            for name in ui_message_params(code).unwrap() {
+                params.insert((*name).to_owned(), json!("valor"));
+            }
+            params.insert("count".to_owned(), json!(1234));
+            params.insert("channel".to_owned(), json!("Mi batería"));
+            let decoded = decode(&ui_message(code, Value::Object(params)));
             assert_eq!(decoded.code, *code);
             assert_eq!(decoded.params["count"], 1234);
             assert_eq!(decoded.params["channel"], "Mi batería");
         }
+    }
+
+    #[test]
+    fn every_code_declares_its_parameters_and_the_registry_only_grows() {
+        // One declaration per code, in the same order.
+        assert_eq!(
+            UI_MESSAGE_PARAMS
+                .iter()
+                .map(|(code, _)| *code)
+                .collect::<Vec<_>>(),
+            UI_MESSAGE_CODES
+        );
+        for (code, params) in UI_MESSAGE_PARAMS {
+            assert!(
+                code.split('.').count() >= 2
+                    && code.chars().all(|c| c.is_ascii_alphanumeric() || c == '.'),
+                "{code}"
+            );
+            let mut names = params.to_vec();
+            names.sort_unstable();
+            names.dedup();
+            assert_eq!(names, *params, "{code}: parameters sorted and unique");
+            for name in *params {
+                assert!(
+                    !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric()),
+                    "{code}: {name}"
+                );
+            }
+            assert_eq!(ui_message_params(code), Some(*params));
+        }
+        assert_eq!(ui_message_params("no.such.code"), None);
+        // Append-only: a code keeps its place for good, because a kept
+        // message outlives the build that wrote it. The first and last code
+        // of each release of the registry are pinned by position; add new
+        // codes at the end and a new line here.
+        for (index, code) in [
+            (0, "midi.import.notesPastEnd"),
+            (56, "midi.read.unknownTruncation"),
+            (57, "templates.folderUnreadable"),
+            (81, "mixerPresets.deleteFailed"),
+        ] {
+            assert_eq!(UI_MESSAGE_CODES[index], code);
+        }
+        assert_eq!(UI_MESSAGE_CODES.len(), 82);
+    }
+
+    #[test]
+    #[should_panic(expected = "lacks a declared parameter")]
+    #[cfg(debug_assertions)]
+    fn a_message_without_one_of_its_declared_parameters_is_refused_in_tests() {
+        ui_message(
+            "browser.folderUnreadable",
+            json!({ "folder": "C:/Samples" }),
+        );
     }
 
     #[test]

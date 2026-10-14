@@ -55,9 +55,9 @@ impl PluginDatabaseStore {
                 log::warn!("plugin database: {error}");
                 Loaded {
                     database: PluginDatabase::default(),
-                    locked: Some(format!(
-                        "{error}. Favorites and categories are not being saved. Repair or rename \"{}\" and restart to save them again.",
-                        file.display()
+                    locked: Some(windfall_ipc::ui_message(
+                        "plugins.databaseLocked",
+                        serde_json::json!({ "error": error.to_string(), "file": file.display().to_string() }),
                     )),
                 }
             }
@@ -126,8 +126,12 @@ impl PluginDatabaseStore {
 
     fn save(&self, database: &PluginDatabase) -> Result<(), String> {
         let bytes = database.to_json()?;
-        write_atomic(&self.file, &bytes)
-            .map_err(|error| format!("Could not save the plugin database: {error}"))
+        write_atomic(&self.file, &bytes).map_err(|error| {
+            windfall_ipc::ui_message(
+                "plugins.databaseSaveFailed",
+                serde_json::json!({ "error": error.to_string() }),
+            )
+        })
     }
 }
 
@@ -136,13 +140,23 @@ fn read(file: &Path) -> Result<Option<PluginDatabase>, String> {
     let opened = match std::fs::File::open(file) {
         Ok(opened) => opened,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(format!("The plugin database could not be opened: {error}")),
+        Err(error) => {
+            return Err(windfall_ipc::ui_message(
+                "plugins.databaseOpenFailed",
+                serde_json::json!({ "error": error.to_string() }),
+            ));
+        }
     };
     let mut bytes = Vec::new();
     opened
         .take(MAX_DATABASE_BYTES + 1)
         .read_to_end(&mut bytes)
-        .map_err(|error| format!("The plugin database could not be read: {error}"))?;
+        .map_err(|error| {
+            windfall_ipc::ui_message(
+                "plugins.databaseReadFailed",
+                serde_json::json!({ "error": error.to_string() }),
+            )
+        })?;
     if bytes.len() as u64 > MAX_DATABASE_BYTES {
         return Err("The plugin database is larger than 8 MiB".to_owned());
     }
@@ -263,7 +277,7 @@ mod tests {
             assert!(
                 view.error
                     .as_deref()
-                    .is_some_and(|e| e.contains("not being saved"))
+                    .is_some_and(|e| e.contains("plugins.databaseLocked"))
             );
             assert_eq!(
                 status(&view, "org.example.glass").map(|s| s.0),
@@ -303,7 +317,7 @@ mod tests {
             },
             &found,
         );
-        assert!(refused.unwrap_err().contains("Could not save"));
+        assert!(refused.unwrap_err().contains("plugins.databaseSaveFailed"));
         std::fs::remove_dir(&file).unwrap();
         // The favorite did not stick in memory either.
         let view = store.view(&found);

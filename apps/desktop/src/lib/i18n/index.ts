@@ -207,7 +207,11 @@ export function nativeMessage(text: string, language = currentLanguage()): strin
     for (const [key, parameter] of Object.entries(value.params)) {
       if (typeof parameter !== "string" && (typeof parameter !== "number" || !Number.isFinite(parameter)))
         return message("native.messageInvalid", {}, language)
-      params[key] = parameter
+      // A cause that is a coded message itself is put into words as well;
+      // anything else, such as what the operating system said, stays as it is.
+      params[key] = typeof parameter === "string" && parameter.startsWith(NATIVE_MESSAGE_PREFIX)
+        ? nativeMessage(parameter, language) ?? parameter
+        : parameter
     }
     const entry = en[value.code as MessageKey]
     const source = typeof entry === "string" ? entry : entry.other

@@ -44,13 +44,24 @@ pub fn user_root(folder: &Path) -> BrowserRoot {
 pub fn list_folder(folder: &Path) -> Result<Vec<BrowserEntry>, String> {
     let shown = paths::display(folder);
     let entries = fs::read_dir(folder).map_err(|error| match error.kind() {
-        io::ErrorKind::NotFound => format!("The folder \"{shown}\" does not exist."),
-        io::ErrorKind::PermissionDenied => {
-            format!("Windfall is not allowed to read the folder \"{shown}\".")
+        io::ErrorKind::NotFound => windfall_ipc::ui_message(
+            "browser.folderMissing",
+            serde_json::json!({ "folder": shown }),
+        ),
+        io::ErrorKind::PermissionDenied => windfall_ipc::ui_message(
+            "browser.folderDenied",
+            serde_json::json!({ "folder": shown }),
+        ),
+        io::ErrorKind::NotADirectory => {
+            windfall_ipc::ui_message("browser.notAFolder", serde_json::json!({ "folder": shown }))
         }
-        io::ErrorKind::NotADirectory => format!("\"{shown}\" is not a folder."),
-        _ if folder.is_file() => format!("\"{shown}\" is not a folder."),
-        _ => format!("Could not read the folder \"{shown}\": {error}"),
+        _ if folder.is_file() => {
+            windfall_ipc::ui_message("browser.notAFolder", serde_json::json!({ "folder": shown }))
+        }
+        _ => windfall_ipc::ui_message(
+            "browser.folderUnreadable",
+            serde_json::json!({ "error": error.to_string(), "folder": shown }),
+        ),
     })?;
 
     let mut listed = Vec::new();
@@ -288,16 +299,24 @@ mod tests {
     fn a_folder_that_cannot_be_listed_says_why() {
         let folder = tempfile::tempdir().unwrap();
         let missing = folder.path().join("gone");
+        // The reason is a code and the folder it is about; the words are the
+        // catalog's, in the language of the interface.
         assert_eq!(
             list_folder(&missing).unwrap_err(),
-            format!("The folder \"{}\" does not exist.", missing.display())
+            windfall_ipc::ui_message(
+                "browser.folderMissing",
+                serde_json::json!({ "folder": missing.display().to_string() })
+            )
         );
 
         let file = folder.path().join("kick.wav");
         fs::write(&file, b"").unwrap();
         assert_eq!(
             list_folder(&file).unwrap_err(),
-            format!("\"{}\" is not a folder.", file.display())
+            windfall_ipc::ui_message(
+                "browser.notAFolder",
+                serde_json::json!({ "folder": file.display().to_string() })
+            )
         );
     }
 

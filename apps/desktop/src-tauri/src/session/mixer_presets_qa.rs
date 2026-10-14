@@ -283,8 +283,9 @@ fn qa_library_lists_damaged_files_with_their_reason_and_names_nothing_outside_it
     assert_eq!(listed.entries.len(), 6);
     assert_eq!(by_file(&good.file).error, None);
     for (file, reason) in [
-        ("Cut short.wfmixer", "Invalid mixer preset"),
-        ("Not json.wfmixer", "Invalid mixer preset"),
+        // The refusal is a code now; its words are the catalog's.
+        ("Cut short.wfmixer", "mixerPresets.invalid"),
+        ("Not json.wfmixer", "mixerPresets.invalid"),
         ("Newer.wfmixer", "Unsupported mixer preset version"),
         ("Out of range.WFMIXER", "invalid track settings"),
     ] {
@@ -387,15 +388,12 @@ fn qa_single_files_round_trip_and_invalid_ones_are_refused_both_ways() {
         .session
         .mixer_preset_read(rig.file("nowhere.wfmixer"))
         .unwrap_err();
-    assert!(
-        missing.contains("Could not open the mixer preset"),
-        "{missing}"
-    );
+    assert!(missing.contains("mixerPresets.openFailed"), "{missing}");
     let text = serde_json::to_string(&preset).unwrap();
     let cut = rig.file("cut.wfmixer");
     fs::write(&cut, &text[..text.len() - 20]).unwrap();
     let error = rig.session.mixer_preset_read(cut).unwrap_err();
-    assert!(error.contains("Invalid mixer preset"), "{error}");
+    assert!(error.contains("mixerPresets.invalid"), "{error}");
     let mut repeated = preset.clone();
     repeated.effects[1].id = repeated.effects[0].id;
     let twice = rig.file("twice.wfmixer");

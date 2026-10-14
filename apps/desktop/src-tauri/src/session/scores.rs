@@ -55,8 +55,12 @@ impl Session {
             };
             (target, score.to_json()?.into_bytes(), Vec::new())
         };
-        file::write_atomic(&target, &bytes)
-            .map_err(|error| format!("Could not save the score: {error}"))?;
+        file::write_atomic(&target, &bytes).map_err(|error| {
+            windfall_ipc::ui_message(
+                "scores.saveFailed",
+                serde_json::json!({ "error": error.to_string() }),
+            )
+        })?;
         Ok(ScoreWritten {
             path: paths::display(&target),
             notes,
@@ -68,13 +72,22 @@ impl Session {
     /// that a score does not.
     pub fn score_read(&self, path: &str) -> Result<ScoreReview, String> {
         let source = paths::absolute(path)?;
-        let opened =
-            File::open(&source).map_err(|error| format!("Could not open the score: {error}"))?;
+        let opened = File::open(&source).map_err(|error| {
+            windfall_ipc::ui_message(
+                "scores.openFailed",
+                serde_json::json!({ "error": error.to_string() }),
+            )
+        })?;
         let mut bytes = Vec::new();
         opened
             .take(MAX_SCORE_FILE_BYTES as u64 + 1)
             .read_to_end(&mut bytes)
-            .map_err(|error| format!("Could not read the score: {error}"))?;
+            .map_err(|error| {
+                windfall_ipc::ui_message(
+                    "scores.readFailed",
+                    serde_json::json!({ "error": error.to_string() }),
+                )
+            })?;
         if bytes.len() > MAX_SCORE_FILE_BYTES {
             return Err("The score file is larger than 32 MiB.".into());
         }

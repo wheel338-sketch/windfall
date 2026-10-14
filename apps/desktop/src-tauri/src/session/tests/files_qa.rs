@@ -629,7 +629,7 @@ fn a_user_template_carries_its_audio_and_opens_as_a_new_project() {
             rig.session
                 .template_save(name)
                 .unwrap_err()
-                .contains("exists already")
+                .contains("templates.nameTaken")
         );
     }
     assert_eq!(fs::read(&file).unwrap(), bytes);

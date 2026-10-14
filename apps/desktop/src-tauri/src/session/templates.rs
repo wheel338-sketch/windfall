@@ -150,7 +150,12 @@ impl Session {
         let listing = match fs::read_dir(self.template_dir()) {
             Ok(listing) => listing,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(templates),
-            Err(error) => return Err(format!("Could not read the templates folder: {error}")),
+            Err(error) => {
+                return Err(windfall_ipc::ui_message(
+                    "templates.folderUnreadable",
+                    serde_json::json!({ "error": error.to_string() }),
+                ));
+            }
         };
         let mut user = Vec::new();
         for item in listing.flatten() {
@@ -192,21 +197,27 @@ impl Session {
             .iter()
             .any(|factory| factory.name.eq_ignore_ascii_case(&stem))
         {
-            return Err(format!(
-                "\"{stem}\" is a template that comes with Windfall. Pick another name."
+            return Err(windfall_ipc::ui_message(
+                "templates.factoryName",
+                serde_json::json!({ "name": stem }),
             ));
         }
         let folder = self.template_dir();
-        fs::create_dir_all(&folder)
-            .map_err(|error| format!("Could not make the templates folder: {error}"))?;
+        fs::create_dir_all(&folder).map_err(|error| {
+            windfall_ipc::ui_message(
+                "templates.folderNotCreated",
+                serde_json::json!({ "error": error.to_string() }),
+            )
+        })?;
         let target = folder.join(format!("{stem}.{TEMPLATE_EXTENSION}"));
         // Windows would find "kick" for "Kick"; so does this, everywhere.
         let taken = self.templates()?.into_iter().any(|template| {
             !template.factory && template.name.to_lowercase() == stem.to_lowercase()
         });
         if taken || fs::symlink_metadata(&target).is_ok() {
-            return Err(format!(
-                "A template called \"{stem}\" exists already. Delete it first, or pick another name."
+            return Err(windfall_ipc::ui_message(
+                "templates.nameTaken",
+                serde_json::json!({ "name": stem }),
             ));
         }
         self.archive_export_to(target, self.archive_job()?)
@@ -228,7 +239,12 @@ impl Session {
             let factory = FACTORY
                 .iter()
                 .find(|template| template.id == factory)
-                .ok_or_else(|| format!("There is no factory template \"{factory}\"."))?;
+                .ok_or_else(|| {
+                    windfall_ipc::ui_message(
+                        "templates.noFactoryTemplate",
+                        serde_json::json!({ "id": factory }),
+                    )
+                })?;
             drop(self.recording_idle()?);
             let ticket = self.begin_replacement();
             let mut project = (factory.build)();
@@ -254,25 +270,39 @@ impl Session {
             return Err("Templates that come with Windfall cannot be deleted.".into());
         }
         let file = self.user_template(id)?;
-        fs::remove_file(&file).map_err(|error| format!("Could not delete the template: {error}"))
+        fs::remove_file(&file).map_err(|error| {
+            windfall_ipc::ui_message(
+                "templates.deleteFailed",
+                serde_json::json!({ "error": error.to_string() }),
+            )
+        })
     }
 
     /// The file of the user template `id`, which must exist in the
     /// templates folder itself.
     fn user_template(&self, id: &str) -> Result<PathBuf, String> {
-        let name = id
-            .strip_prefix(USER_PREFIX)
-            .ok_or_else(|| format!("\"{id}\" is not a template."))?;
+        let name = id.strip_prefix(USER_PREFIX).ok_or_else(|| {
+            windfall_ipc::ui_message(
+                "templates.notATemplate",
+                serde_json::json!({ "id": id.to_string() }),
+            )
+        })?;
         // The id is a name, never a path: anything that could leave the
         // folder is not the name of a template.
         if safe_file_stem(name).as_deref() != Ok(name) {
-            return Err(format!("\"{name}\" is not the name of a template."));
+            return Err(windfall_ipc::ui_message(
+                "templates.notATemplateName",
+                serde_json::json!({ "name": name.to_string() }),
+            ));
         }
         let file = self
             .template_dir()
             .join(format!("{name}.{TEMPLATE_EXTENSION}"));
         if !file.is_file() {
-            return Err(format!("The template \"{name}\" no longer exists."));
+            return Err(windfall_ipc::ui_message(
+                "templates.gone",
+                serde_json::json!({ "name": name.to_string() }),
+            ));
         }
         Ok(file)
     }

@@ -93,17 +93,30 @@ fn is_preset_file(path: &Path) -> bool {
 
 /// Reads and checks a whole preset file. Never reads more than the limit.
 fn read_preset_file(path: &Path) -> Result<MixerTrackPreset, String> {
-    let file = fs::File::open(path)
-        .map_err(|error| format!("Could not open the mixer preset: {error}"))?;
+    let file = fs::File::open(path).map_err(|error| {
+        windfall_ipc::ui_message(
+            "mixerPresets.openFailed",
+            serde_json::json!({ "error": error.to_string() }),
+        )
+    })?;
     let mut bytes = Vec::new();
     file.take(MAX_PRESET_BYTES + 1)
         .read_to_end(&mut bytes)
-        .map_err(|error| format!("Could not read the mixer preset: {error}"))?;
+        .map_err(|error| {
+            windfall_ipc::ui_message(
+                "mixerPresets.readFailed",
+                serde_json::json!({ "error": error.to_string() }),
+            )
+        })?;
     if bytes.len() as u64 > MAX_PRESET_BYTES {
         return Err("Preset file exceeds 256 MiB".into());
     }
-    let preset: MixerTrackPreset =
-        serde_json::from_slice(&bytes).map_err(|error| format!("Invalid mixer preset: {error}"))?;
+    let preset: MixerTrackPreset = serde_json::from_slice(&bytes).map_err(|error| {
+        windfall_ipc::ui_message(
+            "mixerPresets.invalid",
+            serde_json::json!({ "error": error.to_string() }),
+        )
+    })?;
     preset.validate()?;
     Ok(preset)
 }
@@ -166,7 +179,10 @@ fn describe(path: &Path) -> MixerPresetLibraryEntry {
         .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
         .map(|since| since.as_millis().min(u128::from(u64::MAX)) as u64);
     let read = match &metadata {
-        Err(error) => Err(format!("Could not open the mixer preset: {error}")),
+        Err(error) => Err(windfall_ipc::ui_message(
+            "mixerPresets.openFailed",
+            serde_json::json!({ "error": error.to_string() }),
+        )),
         Ok(_) if bytes > MAX_PRESET_BYTES => Err("Preset file exceeds 256 MiB".to_owned()),
         Ok(_) if bytes <= FULL_CHECK_BYTES => read_preset_file(path).map(|preset| {
             let plugins = plugin_refs(&preset);
@@ -191,10 +207,19 @@ fn describe(path: &Path) -> MixerPresetLibraryEntry {
 }
 
 fn skim(path: &Path) -> Result<(String, usize, Vec<MixerPresetPluginRef>), String> {
-    let file = fs::File::open(path)
-        .map_err(|error| format!("Could not open the mixer preset: {error}"))?;
+    let file = fs::File::open(path).map_err(|error| {
+        windfall_ipc::ui_message(
+            "mixerPresets.openFailed",
+            serde_json::json!({ "error": error.to_string() }),
+        )
+    })?;
     let skimmed: Skimmed = serde_json::from_reader(io::BufReader::new(file.take(MAX_PRESET_BYTES)))
-        .map_err(|error| format!("Invalid mixer preset: {error}"))?;
+        .map_err(|error| {
+            windfall_ipc::ui_message(
+                "mixerPresets.invalid",
+                serde_json::json!({ "error": error.to_string() }),
+            )
+        })?;
     if skimmed.version != 1 {
         return Err("Unsupported mixer preset version".into());
     }
@@ -242,8 +267,12 @@ impl Session {
     ) -> Result<String, String> {
         let bytes = encode(&preset)?;
         let path = crate::paths::absolute(&path)?;
-        windfall_project::file::write_atomic(&path, &bytes)
-            .map_err(|error| format!("Could not save the mixer preset: {error}"))?;
+        windfall_project::file::write_atomic(&path, &bytes).map_err(|error| {
+            windfall_ipc::ui_message(
+                "mixerPresets.saveFailed",
+                serde_json::json!({ "error": error.to_string() }),
+            )
+        })?;
         Ok(crate::paths::display(&path))
     }
 
@@ -313,7 +342,12 @@ impl Session {
     ) -> Result<MixerPresetLibraryEntry, String> {
         let bytes = encode(&preset)?;
         let folder = self.mixer_preset_library_dir();
-        let refused = |error: io::Error| format!("Could not save the mixer preset: {error}");
+        let refused = |error: io::Error| {
+            windfall_ipc::ui_message(
+                "mixerPresets.saveFailed",
+                serde_json::json!({ "error": error.to_string() }),
+            )
+        };
         fs::create_dir_all(&folder).map_err(refused)?;
         let held = fs::read_dir(&folder)
             .map_err(refused)?
@@ -365,7 +399,10 @@ impl Session {
             if error.kind() == io::ErrorKind::NotFound {
                 "That preset is no longer in the library".to_owned()
             } else {
-                format!("Could not delete the mixer preset: {error}")
+                windfall_ipc::ui_message(
+                    "mixerPresets.deleteFailed",
+                    serde_json::json!({ "error": error.to_string() }),
+                )
             }
         })
     }

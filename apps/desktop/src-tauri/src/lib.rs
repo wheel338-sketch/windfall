@@ -13,6 +13,8 @@ mod commands;
 pub mod events;
 mod files_commands;
 pub mod library;
+#[cfg(test)]
+mod message_guard;
 mod panel_layout;
 pub mod paths;
 pub mod plugin_database;
