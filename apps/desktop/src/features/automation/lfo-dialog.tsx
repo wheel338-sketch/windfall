@@ -185,7 +185,7 @@ function LfoForm({ request }: { request: Request }) {
             <Numeric label={t("Point spacing (ticks)")} value={resolution} set={setResolution} min={1} max={MAX_SONG_TICKS} />
           </>}
           {request.kind === "piano" && <>
-            <Field><FieldLabel>{t("Event property")}</FieldLabel><Select items={LANE_KINDS.map(({ id, label }) => ({ value: id, label }))} value={property} onValueChange={(value) => { const option = LANE_KINDS.find((item) => item.id === value); if (option) setProperty(option.id) }}>
+            <Field><FieldLabel>{t("Event property")}</FieldLabel><Select value={property} onValueChange={(value) => { const option = LANE_KINDS.find((item) => item.id === value); if (option) setProperty(option.id) }}>
               <SelectTrigger aria-label={t("LFO event property")}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{LANE_KINDS.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectGroup></SelectContent>
             </Select></Field>
             <Numeric label={t("Apply strength (%)")} value={strength} set={setStrength} min={0} max={100} step={0.1} />

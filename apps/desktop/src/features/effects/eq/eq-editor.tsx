@@ -310,7 +310,7 @@ export function EqEditor({
       </div>
       <AnalyzerStatusLine
         slot={slot}
-        location={t("spectrum of this track's output, −90 to 0 dB")}
+        location="spectrum of this track's output, −90 to 0 dB"
         className="col-span-full"
       />
     </div>

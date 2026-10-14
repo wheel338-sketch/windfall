@@ -108,7 +108,7 @@ function ProgressionForm({ request }: { request: ProgressionRequest }) {
     if (command.type === "addNotes") count = command.notes.length
   } catch (cause) {
     error =
-      cause instanceof Error ? cause.message : t("Check the progression settings.")
+      cause instanceof Error ? cause.message : "Check the progression settings."
   }
 
   return (
@@ -131,13 +131,13 @@ function ProgressionForm({ request }: { request: ProgressionRequest }) {
             try {
               if (!(await applyProgression(request, settings)))
                 setFailure(
-                  t("The progression could not be added. Close and reopen the generator to try again.")
+                  "The progression could not be added. Close and reopen the generator to try again."
                 )
             } catch (cause) {
               setFailure(
                 cause instanceof Error
                   ? cause.message
-                  : t("The progression could not be added.")
+                  : "The progression could not be added."
               )
             }
           }}

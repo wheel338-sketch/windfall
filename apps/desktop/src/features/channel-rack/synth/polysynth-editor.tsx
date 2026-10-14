@@ -76,7 +76,7 @@ export function PolysynthEditor({ channel, params }: { channel: ChannelId; param
   const automation = useParamAutomation((param) => ({ type: "instrumentParam", channel, param }), String(channel))
   const bind = useParamBinding({ descriptor, params, setParam, ...automation })
   if (params.type === "pocketSynth") return <Tabs defaultValue="Oscillator" aria-label={t("Pocket synth pages")}>
-    <TabsList>{POLYSYNTH_PANELS.pocketSynth.map(([title]) => <TabsTrigger key={title} value={title}>{t(title)}</TabsTrigger>)}</TabsList>
+    <TabsList>{POLYSYNTH_PANELS.pocketSynth.map(([title]) => <TabsTrigger key={title} value={title}>{title}</TabsTrigger>)}</TabsList>
     {POLYSYNTH_PANELS.pocketSynth.map(([title, ids]) => <TabsContent key={title} value={title}>
       <ParamGroup title={title}><ParamRow>{ids.map((id) => <ParamControl key={id} {...bind(id)} />)}</ParamRow></ParamGroup>
     </TabsContent>)}

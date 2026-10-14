@@ -406,7 +406,7 @@ export function ArrangementPanel({
             )}
             <NameEditor
               label={t("New arrangement name")}
-              action={t("Add arrangement")}
+              action="Add arrangement"
               onSubmit={(name) =>
                 apply(() => ({
                   type: "addArrangement",
@@ -427,7 +427,7 @@ export function ArrangementPanel({
                   key={`${active.id}:${active.name}`}
                   label={t("Arrangement name")}
                   initial={active.name}
-                  action={t("Rename arrangement")}
+                  action="Rename arrangement"
                   onSubmit={(name) =>
                     apply(() => ({
                       type: "renameArrangement",
@@ -462,7 +462,7 @@ export function ArrangementPanel({
             <FieldLegend>{t("Track groups")}</FieldLegend>
             <NameEditor
               label={t("New track group name")}
-              action={t("Add track group")}
+              action="Add track group"
               onSubmit={(name) =>
                 apply(() => ({
                   type: "addTrackGroup",
@@ -477,7 +477,7 @@ export function ArrangementPanel({
                   key={group.name}
                   label={message("Name for track group {groupId}", { groupId: plainNumber(group.id) })}
                   initial={group.name}
-                  action={message("Rename group {group}", { group: plainNumber(group.id) })}
+                  action={`Rename group ${group.id}`}
                   onSubmit={(name) =>
                     apply(() => ({
                       type: "renameTrackGroup",

@@ -10,7 +10,7 @@ import { useTempo } from "@/lib/store"
 
 import type { EditorProps } from "../editor-props"
 import { nearestDivision, syncedDelayMs } from "./timing"
-import { message, translatedText as t } from "@/lib/i18n"
+import { translatedText as t } from "@/lib/i18n"
 
 function formatTempo(bpm: number): string {
   return `${Number.isInteger(bpm) ? bpm : bpm.toFixed(1)} BPM`
@@ -27,15 +27,15 @@ export function DelayEditor({ bind }: EditorProps<DelayParams>) {
   const chosen = division.choices[bind.value("division")]
   const timeMs = bind.value("timeMs")
   const label = (value: string) =>
-    division.choices.find((choice) => choice.value === value)?.label ?? ""
+    division.choices.find((choice) => choice.value === value)?.label ?? value
 
   let equivalent: string
   if (synced) {
     const ms = syncedDelayMs(chosen.value as NoteDivision, tempo)
-    equivalent = message("{time} at {tempo}", { time: formatMs(ms), tempo: formatTempo(tempo) })
+    equivalent = `${formatMs(ms)} at ${formatTempo(tempo)}`
   } else {
     const match = nearestDivision(timeMs, tempo)
-    equivalent = message(match.exact ? "{division} at {tempo}" : "about {division} at {tempo}", { division: label(match.division), tempo: formatTempo(tempo) })
+    equivalent = `${match.exact ? "" : "about "}${label(match.division)} at ${formatTempo(tempo)}`
   }
 
   return (

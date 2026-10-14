@@ -167,15 +167,15 @@ function promptDialogs(): MockDialogs {
         )
       }
       return ask(
-        i18nMessage("Open project. Saved in this browser:\n{saved}", { saved: saved.join("\n") }),
+        `Open project. Saved in this browser:\n${saved.join("\n")}`,
         saved[0]
       )
     },
-    saveProject: (suggested) => ask(t("Save project as"), suggested),
-    exportPath: (suggested) => ask(t("Export audio to"), suggested),
-    folder: () => ask(t("Folder to add"), "/samples/My samples"),
+    saveProject: (suggested) => ask("Save project as", suggested),
+    exportPath: (suggested) => ask("Export audio to", suggested),
+    folder: () => ask("Folder to add", "/samples/My samples"),
     audioFile: () =>
-      ask(t("Audio file to load"), `${FACTORY_ROOT}/Drums/Kicks/Kick 01.wav`),
+      ask("Audio file to load", `${FACTORY_ROOT}/Drums/Kicks/Kick 01.wav`),
   }
 }
 

@@ -29,11 +29,6 @@ export const visualizerEn = {
   "Video export cancelled": "Video export cancelled",
   "Visual stage": "Visual stage",
   "Windfall scenes follow the selected audio analyzer. Moss dances to actual held notes on the chosen channel.": "Windfall scenes follow the selected audio analyzer. Moss dances to actual held notes on the chosen channel.",
-  "rest": "rest",
-  "step": "step",
-  "wave": "wave",
-  "jump": "jump",
-  "lean": "lean",
 } as const
 
 export const visualizerEs = {
@@ -65,9 +60,4 @@ export const visualizerEs = {
   "Video export cancelled": "Exportación de vídeo cancelada",
   "Visual stage": "Escenario visual",
   "Windfall scenes follow the selected audio analyzer. Moss dances to actual held notes on the chosen channel.": "Las escenas de Windfall siguen el analizador de audio seleccionado. Moss baila con las notas que realmente suenan en el canal elegido.",
-  "rest": "en reposo",
-  "step": "paso",
-  "wave": "saludo",
-  "jump": "salto",
-  "lean": "inclinación",
 } satisfies Record<keyof typeof visualizerEn, Message>

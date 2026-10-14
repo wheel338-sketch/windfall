@@ -20,13 +20,13 @@ const MODES: {
     mode: "pattern",
     get label() { return t("Pattern") },
     action: "transport.patternMode",
-    get about() { return t("Loop the selected pattern") },
+    about: "Loop the selected pattern",
   },
   {
     mode: "song",
     get label() { return t("Song") },
     action: "transport.songMode",
-    get about() { return t("Play the playlist") },
+    about: "Play the playlist",
   },
 ]
 

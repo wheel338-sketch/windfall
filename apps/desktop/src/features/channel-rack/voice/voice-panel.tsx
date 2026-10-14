@@ -37,7 +37,7 @@ import {
   type VoiceFilter,
   type VoiceFilterMode,
 } from "./settings"
-import { formatNumber, translatedText as t, message } from "@/lib/i18n"
+import { translatedText as t, message } from "@/lib/i18n"
 
 /** The targets that have an envelope in this panel. */
 type EnvelopeTarget = "filter" | "pitch" | "pan" | "resonance"
@@ -72,8 +72,8 @@ const ENVELOPE_DEPTH: Record<EnvelopeTarget, { max: number; unit: string }> =
   {
     filter: { max: 8, unit: "oct" },
     pitch: { max: 2400, unit: "ct" },
-    pan: { max: 1, get unit() { return t("pan") } },
-    resonance: { max: 1, get unit() { return t("res") } },
+    pan: { max: 1, unit: "pan" },
+    resonance: { max: 1, unit: "res" },
   }
 
 const TIME_SCALE = powerScale(3)
@@ -233,7 +233,7 @@ function EnvelopeControls({
               bipolar
               showValue
               format={(depth) =>
-                `${formatNumber(depth, { minimumFractionDigits: target === "pitch" ? 0 : 2, maximumFractionDigits: target === "pitch" ? 0 : 2, useGrouping: false })} ${depthUnit}`
+                `${depth.toFixed(target === "pitch" ? 0 : 2)} ${depthUnit}`
               }
               onValueChange={(depth) => set({ depth })}
               {...gestures}

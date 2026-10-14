@@ -46,7 +46,7 @@ export async function backupAfterSave(ticket: SaveTicket | null, saved: string, 
       rememberBackup(ticket.path, { ...current, head: row.id })
       if (numberedVersion && saved !== ticket.path && !useBackupConfig.getState().projects[saved]) rememberBackup(saved, { ...current, head: row.id })
     }
-    useBackupJob.setState({ result: t("Backup created after Save.") })
+    useBackupJob.setState({ result: "Backup created after Save." })
   } catch (error) {
     const message = errorMessage(error)
     useBackupJob.setState({ error: message }); toast.error(t("Project saved; optional backup failed"), { description: message })

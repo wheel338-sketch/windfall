@@ -351,7 +351,7 @@ function ToolForm({ request }: { request: ToolRequest }) {
                 closeNoteTools()
               else
                 setFailure(
-                  t("Could not apply the tool. Check the notification, then reopen with a fresh selection.")
+                  "Could not apply the tool. Check the notification, then reopen with a fresh selection."
                 )
             } finally {
               applying.current = false

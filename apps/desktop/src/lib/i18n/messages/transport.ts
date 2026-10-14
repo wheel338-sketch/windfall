@@ -114,9 +114,6 @@ export const transportEn = {
   "{taps} {taps2} · tap at least twice": "{taps} {taps2} · tap at least twice",
   "{tempo} beats per minute": "{tempo} beats per minute",
   "{xruns} dropouts": "{xruns} dropouts",
-  "Loop the selected pattern": "Loop the selected pattern",
-  "Play the playlist": "Play the playlist",
-  "Could not read the transport": "Could not read the transport",
 } as const
 
 export const transportEs = {
@@ -233,7 +230,4 @@ export const transportEs = {
   "{taps} {taps2} · tap at least twice": "{taps} {taps2} · marca al menos dos veces",
   "{tempo} beats per minute": "{tempo} pulsos por minuto",
   "{xruns} dropouts": "{xruns} interrupciones",
-  "Loop the selected pattern": "Repetir el patrón seleccionado",
-  "Play the playlist": "Reproducir la lista de reproducción",
-  "Could not read the transport": "No se ha podido leer el transporte",
 } satisfies Record<keyof typeof transportEn, Message>

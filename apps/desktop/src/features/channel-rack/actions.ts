@@ -1,4 +1,4 @@
-import { dynamicTitle, historyLabel, translatedText as t } from "@/lib/i18n"
+import { dynamicTitle, translatedText as t } from "@/lib/i18n"
 import type { Channel } from "@/bindings"
 import { INSTRUMENT_KINDS, instrumentDescriptor } from "@/features/params"
 import {
@@ -183,7 +183,7 @@ const SYNTH_SOUND_ACTIONS = SYNTH_PRESETS.filter(
     return params !== null && matchingPreset(params)?.id === preset.id
   },
   run: withSelected((channel) =>
-    loadInstrumentSound(channel.id, preset.params, historyLabel("Load sound: {name}", { name: preset.name }))
+    loadInstrumentSound(channel.id, preset.params, `Load sound: ${preset.name}`)
   ),
 }))
 

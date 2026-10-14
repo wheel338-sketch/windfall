@@ -306,7 +306,7 @@ export function TimelineControls() {
           reported = state.navigationOverflows
           useTimelineStore.setState({
             error:
-              t("Playback reached the navigation limit and stopped. Use a longer loop region or move the navigation markers farther apart."),
+              "Playback reached the navigation limit and stopped. Use a longer loop region or move the navigation markers farther apart.",
           })
         }
       } catch {

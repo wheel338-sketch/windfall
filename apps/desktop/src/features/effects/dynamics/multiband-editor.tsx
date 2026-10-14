@@ -19,9 +19,9 @@ import { BANDS, maximizerLatencyFrames, type BandKey } from "./curves"
 import { message, translatedText as t } from "@/lib/i18n"
 
 const BAND_HINTS: Record<BandKey, string> = {
-  get low() { return t("the lows") },
-  get mid() { return t("the middle") },
-  get high() { return t("the highs") },
+  low: "the lows",
+  mid: "the middle",
+  high: "the highs",
 }
 
 function BandGroup({
@@ -204,7 +204,7 @@ export function MultibandCompressorEditor({
     <Editor
       effect={effect}
       bind={bind}
-      name={t("Multiband Compressor")}
+      name="Multiband Compressor"
       maximizer={false}
     />
   )
@@ -219,6 +219,6 @@ export function MultibandMaximizerEditor({
   bind,
 }: EditorProps<MultibandMaximizerParams>) {
   return (
-    <Editor effect={effect} bind={bind} name={t("Multiband Maximizer")} maximizer />
+    <Editor effect={effect} bind={bind} name="Multiband Maximizer" maximizer />
   )
 }

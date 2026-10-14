@@ -3,7 +3,7 @@ import type {
   MasteringOptions,
   MasteringReview,
 } from "@/bindings"
-import { formatNumber, translatedText as t, message, plainNumber } from "@/lib/i18n"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 /*
  * Mastering on export: the form's side of `windfall_dsp::mastering`. The
@@ -78,18 +78,10 @@ export function presetOf(draft: Pick<MasteringDraft, "target" | "ceiling">) {
   return preset?.id ?? CUSTOM_PRESET
 }
 
-/** Said when the target is not a loudness mastering can aim for. */
-export function badTarget(): string {
-  return message("Enter a loudness from {min} to {max} LUFS.", { min: plainNumber(MASTERING_TARGET.min), max: plainNumber(MASTERING_TARGET.max) })
-}
-/** Said when the ceiling is not one mastering can hold. */
-export function badCeiling(): string {
-  return message("Enter a ceiling from {min} to {max} dBTP.", { min: plainNumber(MASTERING_CEILING.min), max: plainNumber(MASTERING_CEILING.max) })
-}
-/** Said when stems are on: mastering needs the whole mix. */
-export function notWithStems(): string {
-  return t("Mastering works on the whole mix. Turn off stems to master the export.")
-}
+export const BAD_TARGET = `Enter a loudness from ${MASTERING_TARGET.min} to ${MASTERING_TARGET.max} LUFS.`
+export const BAD_CEILING = `Enter a ceiling from ${MASTERING_CEILING.min} to ${MASTERING_CEILING.max} dBTP.`
+export const NOT_WITH_STEMS =
+  "Mastering works on the whole mix. Turn off stems to master the export."
 
 export type MasteringRequest = {
   /** What to send, when mastering is on and everything is in order. */
@@ -114,27 +106,22 @@ export function masteringRequest(
   }
   const targetLufs = parseLevel(draft.target, MASTERING_TARGET)
   const ceilingDbtp = parseLevel(draft.ceiling, MASTERING_CEILING)
-  const stemsError = stems ? notWithStems() : null
+  const stemsError = stems ? NOT_WITH_STEMS : null
   const ready = targetLufs !== null && ceilingDbtp !== null && !stemsError
   return {
     options: ready
       ? { targetLufs, ceilingDbtp, dynamics: draft.dynamics }
       : undefined,
-    targetError: targetLufs === null ? badTarget() : null,
-    ceilingError: ceilingDbtp === null ? badCeiling() : null,
+    targetError: targetLufs === null ? BAD_TARGET : null,
+    ceilingError: ceilingDbtp === null ? BAD_CEILING : null,
     stemsError,
   }
 }
 
-/** A reading with a fixed number of decimals, in the decimal mark of the language shown. */
-function fixed(value: number, digits = 1): string {
-  return formatNumber(value, { minimumFractionDigits: digits, maximumFractionDigits: digits, useGrouping: false })
-}
-
 function signed(value: number, digits = 1): string {
   const rounded = Number(value.toFixed(digits))
-  if (rounded === 0) return fixed(0, digits)
-  return `${rounded < 0 ? "−" : "+"}${fixed(Math.abs(rounded), digits)}`
+  if (rounded === 0) return (0).toFixed(digits)
+  return `${rounded < 0 ? "−" : "+"}${Math.abs(rounded).toFixed(digits)}`
 }
 
 /** "−14.0 LUFS", and "silent" for a reading at the floor. */
@@ -142,7 +129,7 @@ export function formatLevel(value: number, unit: string): string {
   if (!Number.isFinite(value) || value <= LOUDNESS_FLOOR) return t("silent")
   const rounded = Number(value.toFixed(1))
   const text =
-    rounded < 0 ? `−${fixed(Math.abs(rounded))}` : fixed(rounded)
+    rounded < 0 ? `−${Math.abs(rounded).toFixed(1)}` : rounded.toFixed(1)
   return `${text} ${unit}`
 }
 
@@ -183,16 +170,16 @@ export function reviewRows(review: MasteringReview): ReviewRow[] {
   const audible =
     before.integratedLufs > LOUDNESS_FLOOR &&
     after.integratedLufs > LOUDNESS_FLOOR
-  const range = (reading: LoudnessReading) => `${fixed(reading.loudnessRangeLu)} LU`
+  const range = (reading: LoudnessReading) => `${reading.loudnessRangeLu.toFixed(1)} LU`
   const crest = (reading: LoudnessReading) =>
     reading.truePeakDbtp - reading.integratedLufs
   return [
-    row("integratedLufs", t("Loudness"), before.integratedLufs, after.integratedLufs, "LUFS", "LU"),
-    row("truePeakDbtp", t("True peak"), before.truePeakDbtp, after.truePeakDbtp, "dBTP", "dB"),
-    row("samplePeakDb", t("Sample peak"), before.samplePeakDb, after.samplePeakDb, "dBFS", "dB"),
+    row("integratedLufs", "Loudness", before.integratedLufs, after.integratedLufs, "LUFS", "LU"),
+    row("truePeakDbtp", "True peak", before.truePeakDbtp, after.truePeakDbtp, "dBTP", "dB"),
+    row("samplePeakDb", "Sample peak", before.samplePeakDb, after.samplePeakDb, "dBFS", "dB"),
     row(
       "shortTermMaxLufs",
-      t("Loudest 3 seconds"),
+      "Loudest 3 seconds",
       before.shortTermMaxLufs,
       after.shortTermMaxLufs,
       "LUFS",
@@ -208,8 +195,8 @@ export function reviewRows(review: MasteringReview): ReviewRow[] {
     {
       id: "peakToLoudness",
       label: t("Peak to loudness"),
-      before: audible ? `${fixed(crest(before))} LU` : t("silent"),
-      after: audible ? `${fixed(crest(after))} LU` : t("silent"),
+      before: audible ? `${crest(before).toFixed(1)} LU` : "silent",
+      after: audible ? `${crest(after).toFixed(1)} LU` : "silent",
       change: audible ? `${signed(crest(after) - crest(before))} LU` : "",
     },
   ]
@@ -225,23 +212,23 @@ export function reviewVerdict(review: MasteringReview): string {
   const short = review.targetLufs - review.after.integratedLufs
   const over = review.after.truePeakDbtp - review.ceilingDbtp
   if (over > 0.05) {
-    return message("The true peak is {over} dB over the ceiling of {ceiling}. Lower the target or the ceiling and export again.", { over: fixed(over), ceiling })
+    return message("The true peak is {over} dB over the ceiling of {ceiling}. Lower the target or the ceiling and export again.", { over: over.toFixed(1), ceiling })
   }
   if (short > MASTERING_TOLERANCE_LU) {
-    return message("{short} LU under the target of {target}: this mix cannot be that loud under a ceiling of {ceiling} without being crushed. Lower the target or raise the ceiling.", { short: fixed(short), target, ceiling })
+    return message("{short} LU under the target of {target}: this mix cannot be that loud under a ceiling of {ceiling} without being crushed. Lower the target or raise the ceiling.", { short: short.toFixed(1), target, ceiling })
   }
-  return message("{short} LU over the target of {target}.", { short: fixed(Math.abs(short)), target })
+  return message("{short} LU over the target of {target}.", { short: Math.abs(short).toFixed(1), target })
 }
 
 /** What the chain did, for the line under the table. */
 export function reviewSummary(review: MasteringReview): string {
   const parts = [message("{signed} dB of gain", { signed: signed(review.gainDb) })]
   if (review.compressionDb > 0.05) {
-    parts.push(message("up to {amount} dB of band compression", { amount: fixed(review.compressionDb) }))
+    parts.push(message("up to {amount} dB of band compression", { amount: review.compressionDb.toFixed(1) }))
   }
   parts.push(
     review.limitingDb > 0.05
-      ? message("up to {amount} dB of limiting", { amount: fixed(review.limitingDb) })
+      ? message("up to {amount} dB of limiting", { amount: review.limitingDb.toFixed(1) })
       : t("no limiting")
   )
   return message("{parts}, in {passes} passes.", { parts: parts.join(", "), passes: plainNumber(review.passes) })

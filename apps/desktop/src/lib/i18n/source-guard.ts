@@ -10,15 +10,12 @@ const displayProperties = new Set([
   "submenu", "reason", "emptyText", "loadingText", "errorText", "onText", "offText",
   "message", "notice", "confirmation", "cancelText", "confirmText",
   "submitLabel", "cancelLabel", "clipLabel", "whyDisabled",
-  // A line of help about an item, shown beside it or in its tooltip.
-  "about",
 ])
 const displayCalls: Readonly<Record<string, readonly number[] | "all">> = {
   useHint: [0], setError: [0], setProgress: [0], setNotice: [0],
   reportError: [0, 1], refuse: [0, 1], attempt: [1],
   askConfirm: "all", askPrompt: "all", askText: "all",
-  // window.prompt's second argument is the starting value of the field the user edits, not a caption.
-  alert: "all", confirm: "all", prompt: [0],
+  alert: "all", confirm: "all", prompt: "all",
   toast: [0, 1], "toast.success": [0, 1], "toast.error": [0, 1],
   "toast.warning": [0, 1], "toast.info": [0, 1], "toast.loading": [0, 1],
   "toast.message": [0, 1], "toast.promise": [1],
@@ -47,101 +44,7 @@ export type LocalizationViolation = {
   context: string
 }
 
-type GuardContext = { tree: ts.SourceFile; checker: ts.TypeChecker; originalFiles: ReadonlyMap<string, string>; flows: Flows }
-
-type JsxSite = ts.JsxOpeningElement | ts.JsxSelfClosingElement
-/**
- * Where values travel in the whole program, gathered once: the calls of every
- * function, parameter and state setter; where a function or setter is handed
- * on as an argument; where a component is drawn; what a `let` is assigned;
- * and what is written into each store with `setState`. The guard follows a
- * value shown on screen back through these to the text it was made from.
- */
-type Flows = {
-  calls: Map<ts.Symbol, ts.CallExpression[]>
-  passes: Map<ts.Symbol, { call: ts.CallExpression; index: number }[]>
-  elements: Map<ts.Symbol, JsxSite[]>
-  assignments: Map<ts.Symbol, ts.Expression[]>
-  storeWrites: Map<ts.Symbol, ts.Expression[]>
-}
-
-const unwrap = (node: ts.Expression): ts.Expression =>
-  ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isSatisfiesExpression(node) || ts.isNonNullExpression(node) ? unwrap(node.expression) : node
-
-function resolvedSymbol(checker: ts.TypeChecker, node: ts.Node): ts.Symbol | undefined {
-  const symbol = ts.isShorthandPropertyAssignment(node.parent) && node.parent.name === node
-    ? checker.getShorthandAssignmentValueSymbol(node.parent) : checker.getSymbolAtLocation(node)
-  if (symbol && symbol.flags & ts.SymbolFlags.Alias) {
-    const target = checker.getAliasedSymbol(symbol)
-    // An import from a module outside the program resolves to nothing; keep the import.
-    return target.declarations?.length ? target : symbol
-  }
-  return symbol
-}
-
-/** The module an identifier is imported from, if it is imported. */
-function importedFrom(checker: ts.TypeChecker, node: ts.Identifier): string | undefined {
-  for (const declaration of checker.getSymbolAtLocation(node)?.getDeclarations() ?? []) {
-    if (!ts.isImportSpecifier(declaration)) continue
-    const statement = declaration.parent.parent.parent
-    if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier)) return statement.moduleSpecifier.text
-  }
-  return undefined
-}
-
-/** The function that builds a zustand store's state: `create(fn)`, `create<T>()(fn)`, through `persist(fn)` and other middleware. */
-function storeCreator(checker: ts.TypeChecker, initializer: ts.Expression): ts.FunctionLikeDeclaration | undefined {
-  const call = unwrap(initializer)
-  if (!ts.isCallExpression(call)) return undefined
-  const callee = ts.isCallExpression(call.expression) ? call.expression.expression : call.expression
-  if (!ts.isIdentifier(callee) || callee.text !== "create" || importedFrom(checker, callee) !== "zustand") return undefined
-  let state: ts.Expression | undefined = call.arguments[0]
-  while (state && ts.isCallExpression(unwrap(state))) state = (unwrap(state) as ts.CallExpression).arguments[0]
-  state = state && unwrap(state)
-  return state && (ts.isArrowFunction(state) || ts.isFunctionExpression(state)) ? state : undefined
-}
-
-/** The store a hook or alias names: `useHintStore`, or `store` after `const store = useHintStore`. */
-function storeOf(checker: ts.TypeChecker, expression: ts.Expression, seen = new Set<ts.Symbol>()): ts.Symbol | undefined {
-  const value = unwrap(expression)
-  if (!ts.isIdentifier(value)) return undefined
-  const symbol = resolvedSymbol(checker, value)
-  if (!symbol || seen.has(symbol)) return undefined
-  seen.add(symbol)
-  for (const declaration of symbol.getDeclarations() ?? []) {
-    if (!ts.isVariableDeclaration(declaration) || !declaration.initializer) continue
-    const initializer = unwrap(declaration.initializer)
-    if (ts.isIdentifier(initializer)) return storeOf(checker, initializer, seen)
-    if (storeCreator(checker, initializer)) return symbol
-  }
-  return undefined
-}
-
-function gatherFlows(trees: Iterable<ts.SourceFile>, checker: ts.TypeChecker): Flows {
-  const flows: Flows = { calls: new Map(), passes: new Map(), elements: new Map(), assignments: new Map(), storeWrites: new Map() }
-  const push = <K, V>(map: Map<K, V[]>, key: K | undefined, value: V) => {
-    if (key !== undefined) map.set(key, [...(map.get(key) ?? []), value])
-  }
-  const visit = (node: ts.Node) => {
-    if (ts.isCallExpression(node)) {
-      const callee = unwrap(node.expression)
-      push(flows.calls, resolvedSymbol(checker, ts.isPropertyAccessExpression(callee) ? callee.name : callee), node)
-      if (ts.isPropertyAccessExpression(callee) && callee.name.text === "setState" && node.arguments[0])
-        push(flows.storeWrites, storeOf(checker, callee.expression), node.arguments[0])
-      node.arguments.forEach((argument, index) => {
-        const value = unwrap(argument)
-        if (ts.isIdentifier(value)) push(flows.passes, resolvedSymbol(checker, value), { call: node, index })
-      })
-    }
-    if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node))
-      push(flows.elements, resolvedSymbol(checker, node.tagName), node)
-    if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isIdentifier(node.left))
-      push(flows.assignments, resolvedSymbol(checker, node.left), node.right)
-    ts.forEachChild(node, visit)
-  }
-  for (const tree of trees) visit(tree)
-  return flows
-}
+type GuardContext = { tree: ts.SourceFile; checker: ts.TypeChecker; originalFiles: ReadonlyMap<string, string> }
 
 function normalizedPath(path: string): string {
   const parts: string[] = []
@@ -188,11 +91,10 @@ export function applicationLocalizationViolations(sources: Readonly<Record<strin
     module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler,
   }, host)
   const checker = program.getTypeChecker()
-  const flows = gatherFlows(trees.values(), checker)
   const failures = new Map<string, LocalizationViolation>()
   for (const [path, tree] of trees) {
     const file = originalFiles.get(path) ?? path
-    for (const failure of localizationViolations(file, tree.text, hasKey, { tree, checker, originalFiles, flows }))
+    for (const failure of localizationViolations(file, tree.text, hasKey, { tree, checker, originalFiles }))
       failures.set(`${failure.file}:${failure.line}:${failure.column}:${failure.text}`, failure)
   }
   return [...failures.values()]
@@ -213,7 +115,7 @@ export function localizationViolations(
   context?: GuardContext
 ): LocalizationViolation[] {
   if (!context) return applicationLocalizationViolations({ [file]: source }, hasKey)
-  const { tree, checker, originalFiles, flows } = context
+  const { tree, checker, originalFiles } = context
   const violations = new Map<string, LocalizationViolation>()
   const declarations = new Map<string, ts.Expression[]>()
   const functions = new Map<string, ts.FunctionLikeDeclaration[]>()
@@ -323,12 +225,6 @@ export function localizationViolations(
     const identity = `${filename}:${node.getStart(owner)}:${node.getEnd()}`
     violations.set(identity, {
       file: filename, line: location.line + 1, column: location.character + 1, text, context,
-      // TRACE-START
-      ...((globalThis as { GUARD_TRACE?: boolean }).GUARD_TRACE ? { trace: [...active].map((step) => {
-        const at = step.getSourceFile()
-        return `${at.fileName}:${at.getLineAndCharacterOfPosition(step.getStart(at)).line + 1} ${step.getText(at).slice(0, 60).replace(/\s+/g, " ")}`
-      }) } : {}),
-      // TRACE-END
     })
   }
   const literal = (node: ts.Node, text: string, context: string) => {
@@ -340,16 +236,6 @@ export function localizationViolations(
   const argumentBindings: Map<string | ts.Symbol, ts.Expression | readonly ts.Expression[]>[] = []
   const unwrapped = (node: ts.Expression): ts.Expression =>
     ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isSatisfiesExpression(node) ? unwrapped(node.expression) : node
-  /** The object literal an expression is, or the constant's that it names. */
-  const objectLiterals = (table: ts.Expression): ts.ObjectLiteralExpression[] => {
-    const value = unwrapped(table)
-    if (ts.isObjectLiteralExpression(value)) return [value]
-    if (!ts.isIdentifier(value)) return []
-    return declarationsAt(value).flatMap((declaration) => {
-      const initializer = ts.isVariableDeclaration(declaration) && declaration.initializer ? unwrapped(declaration.initializer) : undefined
-      return initializer && ts.isObjectLiteralExpression(initializer) ? [initializer] : []
-    })
-  }
   /** The values of an object literal, or of a constant that is one. */
   const tableValues = (table: ts.Expression): ts.Expression[] | undefined => {
     const literals: ts.ObjectLiteralExpression[] = []
@@ -373,12 +259,6 @@ export function localizationViolations(
       if (ts.isVariableDeclaration(declaration) && declaration.initializer && ts.isArrayLiteralExpression(unwrapped(declaration.initializer)))
         lists.push(unwrapped(declaration.initializer))
     } else if (ts.isElementAccessExpression(value)) lists = (tableValues(value.expression) ?? []).map(unwrapped)
-    else if (ts.isPropertyAccessExpression(value)) {
-      // TABLE.key, a list kept in a table under a name.
-      const found = objectLiterals(value.expression).flatMap((table) => table.properties.flatMap((property) =>
-        ts.isPropertyAssignment(property) && propertyName(property.name) === value.name.text ? [rowsOf(property.initializer, seen)] : []))
-      return found.length && found.every((rows) => rows !== undefined) ? found.flat() as ts.Expression[] : undefined
-    }
     if (!lists.length || !lists.every(ts.isArrayLiteralExpression)) return undefined
     return lists.flatMap((literal) => literal.elements.flatMap((element) =>
       // A spread of another literal list contributes its rows; any other spread is kept whole.
@@ -433,283 +313,6 @@ export function localizationViolations(
     if (symbol && symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol)
     return symbol?.getDeclarations() ?? []
   }
-  /** What a function gives back: its expression body, or every `return` that is not a nested function's. */
-  const returnedExpressions = (fn: ts.SignatureDeclaration): ts.Expression[] => returnedFrom((fn as ts.FunctionLikeDeclaration).body)
-  const returnedFrom = (body: ts.ConciseBody | undefined): ts.Expression[] => {
-    if (!body) return []
-    if (!ts.isBlock(body)) return [body]
-    const found: ts.Expression[] = []
-    const returns = (child: ts.Node) => {
-      if (ts.isReturnStatement(child) && child.expression) found.push(child.expression)
-      if (child !== body && ts.isFunctionLike(child)) return
-      ts.forEachChild(child, returns)
-    }
-    returns(body)
-    return found
-  }
-  const returnsOf = (body: ts.ConciseBody, context: string) => {
-    for (const value of returnedFrom(body)) visible(value, context)
-  }
-  /** A function the value is: an arrow or function expression, or one wrapped in useCallback, memo or forwardRef. */
-  const functionValue = (value: ts.Expression | undefined): ts.FunctionLikeDeclaration | undefined => {
-    const inner = value && unwrap(value)
-    if (!inner) return undefined
-    if (ts.isArrowFunction(inner) || ts.isFunctionExpression(inner)) return inner
-    if (ts.isCallExpression(inner) && /(?:^|\.)(?:useCallback|memo|forwardRef)$/.test(inner.expression.getText()))
-      return functionValue(inner.arguments[0])
-    return undefined
-  }
-  /** The functions a call can run, found through its callee's declarations. */
-  const calledFunctions = (call: ts.CallExpression): ts.FunctionLikeDeclaration[] => {
-    const callee = unwrap(call.expression)
-    return functionsNamed(resolvedSymbol(checker, ts.isPropertyAccessExpression(callee) ? callee.name : callee))
-  }
-  /**
-   * The functions a name can hold: a declared function, one assigned to a
-   * variable, a binding's default, or what callers pass for a parameter or a
-   * component's prop, such as `stepLabel={(step) => …}`.
-   */
-  const functionsNamed = (symbol: ts.Symbol | undefined, seen = new Set<ts.Symbol>()): ts.FunctionLikeDeclaration[] => {
-    if (!symbol || seen.has(symbol)) return []
-    seen.add(symbol)
-    const from = (value: ts.Expression | undefined): ts.FunctionLikeDeclaration[] => {
-      const fn = functionValue(value)
-      if (fn) return [fn]
-      const inner = value && unwrap(value)
-      return inner && ts.isIdentifier(inner) ? functionsNamed(resolvedSymbol(checker, inner), seen) : []
-    }
-    const found: ts.FunctionLikeDeclaration[] = []
-    for (const declaration of symbol.getDeclarations() ?? []) {
-      if ((ts.isFunctionDeclaration(declaration) || ts.isMethodDeclaration(declaration)) && declaration.body) found.push(declaration)
-      if ((ts.isVariableDeclaration(declaration) || ts.isPropertyAssignment(declaration)) && declaration.initializer) found.push(...from(declaration.initializer))
-      if (ts.isParameter(declaration)) for (const value of argumentsFor(declaration)) found.push(...from(value))
-      if (ts.isBindingElement(declaration)) {
-        found.push(...from(declaration.initializer))
-        const pattern = declaration.parent
-        const key = declaration.propertyName ?? declaration.name
-        if (ts.isObjectBindingPattern(pattern) && ts.isParameter(pattern.parent) && (ts.isIdentifier(key) || ts.isStringLiteral(key)))
-          for (const value of propValues(pattern.parent, key.text)) found.push(...from(value))
-      }
-    }
-    return found
-  }
-  /** What is written for prop `name` where a component is drawn, or for that property of the object callers pass. */
-  const propValues = (parameter: ts.ParameterDeclaration, name: string): ts.Expression[] => {
-    const fn = parameter.parent
-    const index = fn.parameters.indexOf(parameter)
-    const symbol = functionSymbol(fn)
-    if (!symbol) return []
-    const found: ts.Expression[] = []
-    for (const call of callsOf(symbol)) {
-      const argument = call.arguments[index] && unwrap(call.arguments[index])
-      if (argument && ts.isObjectLiteralExpression(argument)) for (const property of argument.properties)
-        if (ts.isPropertyAssignment(property) && propertyName(property.name) === name) found.push(property.initializer)
-    }
-    if (index === 0) for (const site of flows.elements.get(symbol) ?? []) for (const attribute of site.attributes.properties)
-      if (ts.isJsxAttribute(attribute) && attribute.name.getText() === name && attribute.initializer &&
-        ts.isJsxExpression(attribute.initializer) && attribute.initializer.expression) found.push(attribute.initializer.expression)
-    return found
-  }
-  /** The symbol callers name a function by: its own name, or the variable or property holding it. */
-  const functionSymbol = (fn: ts.SignatureDeclaration): ts.Symbol | undefined => {
-    if ((ts.isFunctionDeclaration(fn) || ts.isMethodDeclaration(fn)) && fn.name) return checker.getSymbolAtLocation(fn.name)
-    let holder: ts.Node = fn.parent
-    while (ts.isParenthesizedExpression(holder) || ts.isAsExpression(holder) ||
-      (ts.isCallExpression(holder) && /(?:^|\.)(?:useCallback|memo|forwardRef)$/.test(holder.expression.getText()))) holder = holder.parent
-    if ((ts.isVariableDeclaration(holder) || ts.isPropertyAssignment(holder)) && (ts.isIdentifier(holder.name) || ts.isStringLiteral(holder.name)))
-      return checker.getSymbolAtLocation(holder.name)
-    return undefined
-  }
-  /** Every call of what `symbol` names, also where it is handed to another function and called there. */
-  const callsOf = (symbol: ts.Symbol, seen = new Set<ts.Symbol>()): ts.CallExpression[] => {
-    if (seen.has(symbol)) return []
-    seen.add(symbol)
-    const found = [...(flows.calls.get(symbol) ?? [])]
-    for (const { call, index } of flows.passes.get(symbol) ?? []) for (const fn of calledFunctions(call)) {
-      const parameter = fn.parameters[index]
-      const handed = parameter && ts.isIdentifier(parameter.name) ? checker.getSymbolAtLocation(parameter.name) : undefined
-      if (handed) found.push(...callsOf(handed, seen))
-    }
-    return found
-  }
-  /** What the callers of a parameter's function pass in its place. */
-  const argumentsFor = (parameter: ts.ParameterDeclaration): ts.Expression[] => {
-    const fn = parameter.parent
-    const index = fn.parameters.indexOf(parameter)
-    const symbol = functionSymbol(fn)
-    if (!symbol) return []
-    return callsOf(symbol).flatMap((call) => parameter.dotDotDotToken ? [...call.arguments.slice(index)] : call.arguments[index] ? [call.arguments[index]] : [])
-  }
-  /** What callers pass as property `name` of a parameter: an object's property, or a component's prop. */
-  const propertyOfParameter = (parameter: ts.ParameterDeclaration, name: string, context: string, seen = new Set<ts.Node>()) => {
-    if (seen.has(parameter)) return
-    seen.add(parameter)
-    const fn = parameter.parent
-    const index = fn.parameters.indexOf(parameter)
-    const symbol = functionSymbol(fn)
-    if (!symbol) return
-    for (const call of callsOf(symbol)) if (call.arguments[index]) readProperty(call.arguments[index], name, context, seen)
-    if (index !== 0) return
-    // A control that translates a prop itself has its keys checked where it is drawn.
-    const contract = Object.hasOwn(translatedProps, symbol.name) ? translatedProps[symbol.name] : undefined
-    if (contract && fn.getSourceFile().fileName.endsWith(contract.source) && contract.props.includes(name)) return
-    for (const site of flows.elements.get(symbol) ?? []) for (const attribute of site.attributes.properties) {
-      if (ts.isJsxSpreadAttribute(attribute)) readProperty(attribute.expression, name, context, seen)
-      else if (attribute.name.getText() === name && attribute.initializer) {
-        if (ts.isStringLiteral(attribute.initializer)) visible(attribute.initializer, context)
-        else if (ts.isJsxExpression(attribute.initializer) && attribute.initializer.expression) visible(attribute.initializer.expression, context)
-      }
-    }
-  }
-  /** Whatever is written under `field` into a store: its initial state, `set(…)` and `setState(…)` anywhere. */
-  const storeField = (store: ts.Symbol, field: string, context: string) => {
-    const writes = [...(flows.storeWrites.get(store) ?? [])]
-    for (const declaration of store.getDeclarations() ?? []) {
-      const creator = ts.isVariableDeclaration(declaration) && declaration.initializer ? storeCreator(checker, declaration.initializer) : undefined
-      if (!creator) continue
-      writes.push(...returnedExpressions(creator))
-      const set = creator.parameters[0]
-      const setter = set && ts.isIdentifier(set.name) ? checker.getSymbolAtLocation(set.name) : undefined
-      if (setter) for (const call of callsOf(setter)) if (call.arguments[0]) writes.push(call.arguments[0])
-    }
-    for (const write of writes) {
-      // set((state) => ({ … })) writes what its function gives back.
-      const fn = functionValue(write)
-      for (const value of fn ? returnedExpressions(fn) : [write]) readProperty(value, field, context)
-    }
-  }
-  /** The fields a store selector reads straight off the state: `(state) => state.text`. */
-  const selectedFields = (selector: ts.FunctionLikeDeclaration): string[] => {
-    const state = selector.parameters[0]
-    if (!state) return []
-    if (ts.isObjectBindingPattern(state.name)) return state.name.elements.flatMap((element) => {
-      const key = element.propertyName ?? element.name
-      return ts.isIdentifier(key) ? [key.text] : []
-    })
-    const symbol = ts.isIdentifier(state.name) ? checker.getSymbolAtLocation(state.name) : undefined
-    const fields = new Set<string>()
-    const reads = (child: ts.Node) => {
-      if (ts.isPropertyAccessExpression(child) && ts.isIdentifier(child.expression) &&
-        checker.getSymbolAtLocation(child.expression) === symbol &&
-        // state.project.playlist shows the playlist, not the project.
-        !((ts.isPropertyAccessExpression(child.parent) || ts.isElementAccessExpression(child.parent)) && child.parent.expression === child))
-        fields.add(child.name.text)
-      ts.forEachChild(child, reads)
-    }
-    if (selector.body) reads(selector.body)
-    return [...fields]
-  }
-  /** Follows a binding back to what it was taken from: a destructured property, a prop, or a piece of React state. */
-  const bindingValues = (element: ts.BindingElement, context: string) => {
-    const pattern = element.parent
-    const holder = pattern.parent
-    if (ts.isObjectBindingPattern(pattern)) {
-      const key = element.propertyName ?? element.name
-      if (element.dotDotDotToken || !(ts.isIdentifier(key) || ts.isStringLiteral(key))) return
-      if (ts.isVariableDeclaration(holder) && holder.initializer) readProperty(holder.initializer, key.text, context)
-      if (ts.isParameter(holder)) propertyOfParameter(holder, key.text, context)
-      return
-    }
-    // const [value, setValue] = useState(initial): the value is the initial one and whatever is set.
-    if (!ts.isVariableDeclaration(holder) || !holder.initializer || pattern.elements.indexOf(element) !== 0) return
-    const call = unwrap(holder.initializer)
-    if (!ts.isCallExpression(call) || !/(?:^|\.)useState$/.test(call.expression.getText())) return
-    if (call.arguments[0]) visible(call.arguments[0], context)
-    const setter = pattern.elements[1]
-    const symbol = setter && !ts.isOmittedExpression(setter) && ts.isIdentifier(setter.name) ? checker.getSymbolAtLocation(setter.name) : undefined
-    if (symbol) for (const set of callsOf(symbol)) if (set.arguments[0]) visible(set.arguments[0], context)
-  }
-  /** Shows property `name` of whatever `source` can be: object literals, list rows, a store's state, a function's result, a parameter. */
-  const readProperty = (source: ts.Expression, name: string, context: string, seen = new Set<ts.Node>()) => {
-    const value = unwrap(source)
-    if (seen.has(value)) return
-    seen.add(value)
-    const again = (next: ts.Expression) => readProperty(next, name, context, seen)
-    if (ts.isObjectLiteralExpression(value)) {
-      for (const property of value.properties) {
-        if (ts.isSpreadAssignment(property)) { again(property.expression); continue }
-        if (!property.name || propertyName(property.name) !== name) continue
-        if (ts.isPropertyAssignment(property)) visible(property.initializer, context)
-        if (ts.isShorthandPropertyAssignment(property)) visible(property.name, context)
-        if (ts.isGetAccessorDeclaration(property) && property.body) returnsOf(property.body, context)
-      }
-      return
-    }
-    if (ts.isArrayLiteralExpression(value)) {
-      for (const element of value.elements) again(ts.isSpreadElement(element) ? element.expression : element)
-      return
-    }
-    if (ts.isConditionalExpression(value)) { again(value.whenTrue); again(value.whenFalse); return }
-    if (ts.isBinaryExpression(value)) {
-      const operator = value.operatorToken.kind
-      if (operator === ts.SyntaxKind.QuestionQuestionToken || operator === ts.SyntaxKind.BarBarToken) again(value.left)
-      if ([ts.SyntaxKind.QuestionQuestionToken, ts.SyntaxKind.BarBarToken, ts.SyntaxKind.AmpersandAmpersandToken].includes(operator)) again(value.right)
-      return
-    }
-    if (ts.isElementAccessExpression(value)) {
-      const values = tableValues(value.expression)
-      if (values) values.forEach(again)
-      else again(value.expression)
-      return
-    }
-    if (ts.isPropertyAccessExpression(value)) {
-      for (const declaration of declarationsAt(value.name)) if (ts.isPropertyAssignment(declaration)) again(declaration.initializer)
-      return
-    }
-    if (ts.isIdentifier(value)) {
-      for (let index = argumentBindings.length - 1; index >= 0; index -= 1) {
-        const bound = argumentBindings[index].get(checker.getSymbolAtLocation(value) ?? value.text)
-        if (bound) { for (const item of "kind" in bound ? [bound] : bound) again(item); return }
-      }
-      const symbol = resolvedSymbol(checker, value)
-      for (const declaration of symbol?.getDeclarations() ?? []) {
-        if (ts.isVariableDeclaration(declaration)) {
-          if (declaration.initializer) again(declaration.initializer)
-          for (const assigned of flows.assignments.get(symbol!) ?? []) again(assigned)
-        }
-        if (ts.isParameter(declaration)) propertyOfParameter(declaration, name, context, seen)
-      }
-      return
-    }
-    if (ts.isCallExpression(value)) {
-      const callee = unwrap(value.expression)
-      // A store's whole state: useStore() or useStore.getState().
-      const store = value.arguments.length === 0 ? storeOf(checker, callee) ??
-        (ts.isPropertyAccessExpression(callee) && callee.name.text === "getState" ? storeOf(checker, callee.expression) : undefined) : undefined
-      if (store) { storeField(store, name, context); return }
-      // A row taken from a list.
-      if (ts.isPropertyAccessExpression(callee) && ["find", "findLast", "filter", "at", "slice", "sort", "toSorted", "reverse", "toReversed", "concat"].includes(callee.name.text)) {
-        again(callee.expression)
-        return
-      }
-      if (/(?:^|\.)useMemo$/.test(callee.getText())) {
-        const fn = functionValue(value.arguments[0])
-        if (fn) returnedExpressions(fn).forEach(again)
-        return
-      }
-      for (const fn of calledFunctions(value)) {
-        const bindings = new Map<string | ts.Symbol, ts.Expression>()
-        fn.parameters.forEach((parameter, index) => {
-          if (ts.isIdentifier(parameter.name) && value.arguments[index]) bindings.set(checker.getSymbolAtLocation(parameter.name) ?? parameter.name.text, value.arguments[index])
-        })
-        argumentBindings.push(bindings)
-        try { returnedExpressions(fn).forEach(again) } finally { argumentBindings.pop() }
-      }
-    }
-  }
-  /** The branch of `typeof x === "string" ? … : …` that only a non-string `x` reaches, when that branch is `x` itself. */
-  const narrowedAway = (node: ts.ConditionalExpression): ts.Expression | undefined => {
-    const test = unwrapped(node.condition)
-    if (!ts.isBinaryExpression(test)) return undefined
-    const [query, kind] = ts.isTypeOfExpression(unwrapped(test.left)) ? [unwrapped(test.left), unwrapped(test.right)] : [unwrapped(test.right), unwrapped(test.left)]
-    if (!ts.isTypeOfExpression(query) || !ts.isStringLiteral(kind) || kind.text !== "string" || !ts.isIdentifier(unwrapped(query.expression))) return undefined
-    const operator = test.operatorToken.kind
-    const equal = operator === ts.SyntaxKind.EqualsEqualsEqualsToken || operator === ts.SyntaxKind.EqualsEqualsToken
-    if (!equal && operator !== ts.SyntaxKind.ExclamationEqualsEqualsToken && operator !== ts.SyntaxKind.ExclamationEqualsToken) return undefined
-    const other = unwrapped(equal ? node.whenFalse : node.whenTrue)
-    const subject = checker.getSymbolAtLocation(unwrapped(query.expression))
-    return ts.isIdentifier(other) && subject && checker.getSymbolAtLocation(other) === subject ? (equal ? node.whenFalse : node.whenTrue) : undefined
-  }
   const translatedFragment = (node: ts.Node, seen = new Set<ts.Node>()): boolean => {
     if (seen.has(node)) return false
     seen.add(node)
@@ -756,36 +359,17 @@ export function localizationViolations(
         const argument = argumentBindings[index].get(checker.getSymbolAtLocation(node) ?? node.text)
         if (argument) { for (const value of "kind" in argument ? [argument] : argument) visible(value, context); return }
       }
-      const symbol = resolvedSymbol(checker, node)
-      const found = (symbol?.getDeclarations() ?? []).filter((declaration) => !ts.isImportSpecifier(declaration))
+      const found = declarationsAt(node)
       if (found.length) for (const declaration of found) {
-        // const _exhaustive: never = intent can never hold a value.
-        if (ts.isVariableDeclaration(declaration) && declaration.type?.kind === ts.SyntaxKind.NeverKeyword) continue
-        if (ts.isVariableDeclaration(declaration)) {
-          if (declaration.initializer) visible(declaration.initializer, context)
-          // A variable shows whatever is later assigned to it, too.
-          for (const value of flows.assignments.get(symbol!) ?? []) visible(value, context)
-        }
-        if (ts.isBindingElement(declaration)) {
-          if (declaration.initializer) visible(declaration.initializer, context)
-          bindingValues(declaration, context)
-        }
-        if (ts.isParameter(declaration)) {
-          if (declaration.initializer) visible(declaration.initializer, context)
-          // A parameter shows what every caller passes in its place.
-          for (const value of argumentsFor(declaration)) visible(value, context)
-        }
+        if (ts.isVariableDeclaration(declaration) && declaration.initializer) visible(declaration.initializer, context)
+        if (ts.isBindingElement(declaration) && declaration.initializer) visible(declaration.initializer, context)
       }
       else for (const value of declarations.get(node.text) ?? []) visible(value, context)
       return
     }
     if (ts.isPropertyAccessExpression(node)) {
-      for (const declaration of declarationsAt(node.name)) {
+      for (const declaration of declarationsAt(node.name))
         if (ts.isPropertyAssignment(declaration)) visible(declaration.initializer, context)
-        if (ts.isGetAccessorDeclaration(declaration) && declaration.body) returnsOf(declaration.body, context)
-      }
-      // What the object it is read from holds under that name.
-      readProperty(node.expression, node.name.text, context)
       return
     }
     if (ts.isElementAccessExpression(node)) {
@@ -816,15 +400,13 @@ export function localizationViolations(
       const full = node.expression.getText()
       const name = ts.isPropertyAccessExpression(node.expression) ? node.expression.name.text : full
       if (translationName(node.expression)) return
-      // A store hook shows the fields its selector reads.
-      const store = storeOf(checker, node.expression)
-      if (store) {
-        const selector = functionValue(node.arguments[0])
-        if (selector) for (const field of selectedFields(selector)) storeField(store, field, context)
-        return
-      }
       const declared = declarationsAt(ts.isPropertyAccessExpression(node.expression) ? node.expression.name : node.expression)
-      const local = calledFunctions(node)
+      const local: ts.FunctionLikeDeclaration[] = []
+      for (const declaration of declared) {
+        if (ts.isFunctionDeclaration(declaration) || ts.isMethodDeclaration(declaration)) local.push(declaration)
+        if (ts.isVariableDeclaration(declaration) && declaration.initializer &&
+          (ts.isArrowFunction(declaration.initializer) || ts.isFunctionExpression(declaration.initializer))) local.push(declaration.initializer)
+      }
       for (const fn of declared.length ? local : functions.get(name) ?? []) {
         const bindings = new Map<string | ts.Symbol, ts.Expression>()
         fn.parameters.forEach((parameter, index) => {
@@ -868,11 +450,7 @@ export function localizationViolations(
       return
     }
     if (ts.isConditionalExpression(node)) {
-      // typeof label === "string" ? t(label) : label: no text reaches the other branch.
-      const narrowed = narrowedAway(node)
-      if (narrowed !== node.whenTrue) visible(node.whenTrue, context)
-      if (narrowed !== node.whenFalse) visible(node.whenFalse, context)
-      return
+      visible(node.whenTrue, context); visible(node.whenFalse, context); return
     }
     if (ts.isBinaryExpression(node)) {
       if (node.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken) {
@@ -889,16 +467,8 @@ export function localizationViolations(
     }
     ts.forEachChild(node, (child) => visible(child, context))
   }
-  // What has been followed already with no call's arguments bound, by context:
-  // values now travel far (callers, setters, stores), and many paths meet.
-  const followed = new Map<ts.Node, Set<string>>()
   const visible = (node: ts.Node, context: string) => {
     if (active.has(node)) return
-    if (argumentBindings.length === 0) {
-      const contexts = followed.get(node) ?? new Set<string>()
-      if (contexts.has(context)) return
-      followed.set(node, contexts.add(context))
-    }
     active.add(node)
     try { inspect(node, context) }
     finally { active.delete(node) }
@@ -937,20 +507,6 @@ export function localizationViolations(
     if (ts.isPropertyAssignment(node) && displayProperties.has(propertyName(node.name))) {
       visible(node.initializer, propertyName(node.name))
     }
-    // A select whose trigger has an empty <SelectValue /> and no `items` to name
-    // its values shows the chosen value itself.
-    if (ts.isJsxElement(node) && ts.isIdentifier(node.openingElement.tagName) && node.openingElement.tagName.text === "Select" &&
-      importedFrom(checker, node.openingElement.tagName)?.endsWith("components/ui/select")) {
-      const attributes = node.openingElement.attributes.properties
-      const named = (name: string) => attributes.find((attribute): attribute is ts.JsxAttribute => ts.isJsxAttribute(attribute) && attribute.name.getText() === name)
-      const bare = (child: ts.Node): boolean => (ts.isJsxSelfClosingElement(child) && child.tagName.getText() === "SelectValue" &&
-        !child.attributes.properties.some((attribute) => ts.isJsxAttribute(attribute) && attribute.name.getText() === "children")) ||
-        !!ts.forEachChild(child, bare)
-      const value = named("value")?.initializer
-      if (!named("items") && value && ts.isJsxExpression(value) && value.expression && bare(node)) visible(value.expression, "select value shown as it is")
-    }
-    // { label } shows whatever the variable or parameter named label holds.
-    if (ts.isShorthandPropertyAssignment(node) && displayProperties.has(node.name.text)) visible(node.name, node.name.text)
     if (ts.isBindingElement(node) && ts.isIdentifier(node.name) &&
       displayProperties.has(node.name.text) && node.initializer) visible(node.initializer, "display prop default")
     if (ts.isParameter(node) && ts.isIdentifier(node.name) &&
@@ -992,12 +548,8 @@ export function localizationViolations(
       if (translated && ["message", "dynamicTitle", "i18nMessage", "localizedMessage", "historyLabel"].includes(translated)) {
         const values = node.arguments[1]
         if (values && ts.isObjectLiteralExpression(values))
-          for (const property of values.properties) {
-            // An identifier (`id`, `infoId`) or a file path (`path`, `openPath`) is written as it is.
-            if (!property.name || /^(?:id|path)$|(?:Id|Path)$/.test(propertyName(property.name))) continue
-            if (ts.isPropertyAssignment(property)) visible(property.initializer, "untranslated semantic message parameter")
-            if (ts.isShorthandPropertyAssignment(property)) visible(property.name, "untranslated semantic message parameter")
-          }
+          for (const property of values.properties) if (ts.isPropertyAssignment(property))
+            visible(property.initializer, "untranslated semantic message parameter")
       }
     }
     // App-created errors can reach reportError/the error boundary later.

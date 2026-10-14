@@ -45,7 +45,7 @@ import {
   type DemoChannel,
 } from "./demo-data"
 import { KitStates } from "./states"
-import { formatNumber, translatedText as t, message } from "@/lib/i18n"
+import { translatedText as t, message } from "@/lib/i18n"
 
 export type KitEvent = { type: string; detail?: unknown }
 
@@ -105,7 +105,7 @@ export default function KitDemo() {
   const [masterGain, setMasterGain] = React.useState(1)
   const [tempo, setTempo] = React.useState(128)
   const [playing, setPlaying] = React.useState(true)
-  const [lastEvent, setLastEvent] = React.useState(() => t("Move a control"))
+  const [lastEvent, setLastEvent] = React.useState("Move a control")
 
   const [region, setRegion] = React.useState({ start: 0.04, end: 0.82 })
   const [sampler, setSampler] = React.useState({
@@ -270,7 +270,7 @@ export default function KitDemo() {
             value={tempo}
             onValueChange={(next) => {
               setTempo(next)
-              record("tempo", next, message("Tempo {tempo} BPM", { tempo: formatNumber(next, { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: false }) }))
+              record("tempo", next, `Tempo ${next.toFixed(2)} BPM`)
             }}
             {...gesture("tempo")}
             min={10}
@@ -363,12 +363,12 @@ export default function KitDemo() {
           <Panel title={t("Mixer")} hint={t("Meters follow the pattern")}>
             <div className="flex h-full gap-1">
               <MixerStrip
-                name={t("Master")}
+                name="Master"
                 testId="strip-master"
                 gain={masterGain}
                 onGainChange={(gain) => {
                   setMasterGain(gain)
-                  record("gain", gain, message("Master {gain}", { gain: formatGain(gain) }))
+                  record("gain", gain, `Master ${formatGain(gain)}`)
                 }}
                 gesture={gesture("master")}
                 meterRef={masterMeter}
@@ -382,7 +382,7 @@ export default function KitDemo() {
                   gain={channel.gain}
                   onGainChange={(gain) => {
                     patchChannel(channel.id, { gain })
-                    record("gain", gain, [channel.name, formatGain(gain)].join(" "))
+                    record("gain", gain, `${channel.name} ${formatGain(gain)}`)
                   }}
                   gesture={gesture(`strip-${channel.id}`)}
                   pan={channel.pan}
@@ -450,7 +450,7 @@ export default function KitDemo() {
                   value={sampler.gain}
                   onValueChange={(gain) => {
                     setSampler((was) => ({ ...was, gain }))
-                    record("knob-gain", gain, message("Gain {gain}", { gain: formatGain(gain) }))
+                    record("knob-gain", gain, `Gain ${formatGain(gain)}`)
                   }}
                   {...gesture("knob-gain")}
                   min={0}
@@ -478,7 +478,7 @@ export default function KitDemo() {
                   value={sampler.mix}
                   onValueChange={(mix) => {
                     setSampler((was) => ({ ...was, mix }))
-                    record("knob-mix", mix, message("Mix {mix}", { mix: percentUnit.format(mix) }))
+                    record("knob-mix", mix, `Mix ${percentUnit.format(mix)}`)
                   }}
                   {...gesture("knob-mix")}
                   defaultValue={0.35}
@@ -574,11 +574,11 @@ export default function KitDemo() {
                 record(
                   "note-on",
                   { key, velocity },
-                  message("Note on {note} at {velocity}%", { note: noteName(key), velocity: Math.round(velocity * 100) })
+                  `Note on ${noteName(key)} at ${Math.round(velocity * 100)}%`
                 )
               }}
               onNoteOff={(key) =>
-                record("note-off", { key }, message("Note off {note}", { note: noteName(key) }))
+                record("note-off", { key }, `Note off ${noteName(key)}`)
               }
               className="h-20"
             />

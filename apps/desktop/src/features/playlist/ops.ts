@@ -365,7 +365,7 @@ export async function addTrack(): Promise<void> {
 export async function insertTrack(index: number): Promise<void> {
   if (index >= playlist().tracks.length) return addTrack()
   const added = await dispatch(
-    labelled(historyLabel("Insert track"), { type: "addPlaylistTrack", index })
+    labelled("Insert track", { type: "addPlaylistTrack", index })
   )
   if (added) ui().setTargetTrack(added.created[0])
 }

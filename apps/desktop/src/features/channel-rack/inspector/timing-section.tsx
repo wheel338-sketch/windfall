@@ -110,7 +110,7 @@ export function TimingSection({ channel }: { channel: Channel }) {
       </div>
       <div className="flex items-center justify-between gap-2" {...gateHint}>
         <span>{t("Gate")}</span>
-        <NumberField size="sm" aria-label={t("Channel gate in ticks")} min={0} max={MAX_PATTERN_STEPS * TICKS_PER_STEP} step={1} defaultValue={0} unit={t("ticks")} {...gate} />
+        <NumberField size="sm" aria-label={t("Channel gate in ticks")} min={0} max={MAX_PATTERN_STEPS * TICKS_PER_STEP} step={1} defaultValue={0} unit="ticks" {...gate} />
       </div>
       <div className="flex flex-wrap gap-1">
         {GATE_PRESETS.map(({ label, ticks: preset }) => (
@@ -174,7 +174,7 @@ export function TimingSection({ channel }: { channel: Channel }) {
       </div>
       <div className="flex items-center justify-between gap-2" {...shiftHint}>
         <span>{t("Shift")}</span>
-        <NumberField size="sm" aria-label={t("Channel shift in ticks")} min={-PPQ} max={PPQ} step={1} defaultValue={0} unit={t("ticks")} {...shift} />
+        <NumberField size="sm" aria-label={t("Channel shift in ticks")} min={-PPQ} max={PPQ} step={1} defaultValue={0} unit="ticks" {...shift} />
       </div>
       <div className="flex flex-wrap gap-1">
         {SHIFT_PRESETS.map(({ label, ticks: preset }) => (

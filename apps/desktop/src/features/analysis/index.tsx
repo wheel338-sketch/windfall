@@ -405,7 +405,7 @@ export function AnalysisPanel({
       {!capability && <p>{t("Checking native availability…")}</p>}
       {capability?.reason && (
         <p role="status">
-          {localizeBackendText(capability.reason)}
+          {capability.reason ?? t("No inference algorithm is available.")}
         </p>
       )}
       {stale && (

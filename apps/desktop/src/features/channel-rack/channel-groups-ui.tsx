@@ -181,7 +181,7 @@ function GroupForm({ request }: { request: GroupRequest }) {
                       ? t("New group…")
                       : target === UNGROUPED
                         ? t("Ungrouped")
-                        : groups.find((group) => groupValue(group) === target)}
+                        : target.slice(6)}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>

@@ -1653,7 +1653,7 @@ export class PlaylistSession {
           gesture.brush,
           clips,
           gesture.kind === "place"
-            ? historyLabel("Add clip")
+            ? "Add clip"
             : historyLabel("Paint clips", { count: clips.length })
         )
         this.settle()

@@ -18,14 +18,12 @@ export function NumberField({ label, value, min, max, step = 1, onChange }: {
   </Field>
 }
 
-export function ChoiceField<T extends string>({ label, value, choices, onChange, labelOf = (choice) => t(choice) }: {
+export function ChoiceField<T extends string>({ label, value, choices, onChange }: {
   label: string; value: T; choices: readonly T[]; onChange: (value: T) => void
-  /** What a choice is called; a choice is a code, and by default its catalog entry names it. */
-  labelOf?: (choice: T) => string
 }) {
   return <Field><FieldLabel>{label}</FieldLabel><Select value={value} onValueChange={(next) => { if (next !== null) onChange(next) }}>
-    <SelectTrigger aria-label={label}><SelectValue>{labelOf(value)}</SelectValue></SelectTrigger>
-    <SelectContent><SelectGroup>{choices.map((choice) => <SelectItem key={choice} value={choice}>{labelOf(choice)}</SelectItem>)}</SelectGroup></SelectContent>
+    <SelectTrigger aria-label={label}><SelectValue /></SelectTrigger>
+    <SelectContent><SelectGroup>{choices.map((choice) => <SelectItem key={choice} value={choice}>{choice}</SelectItem>)}</SelectGroup></SelectContent>
   </Select></Field>
 }
 

@@ -42,6 +42,10 @@ export async function renamePattern(id = currentPatternId()): Promise<void> {
   await dispatch({ type: "updatePattern", id: pattern.id, patch: { name } })
 }
 
+function count(amount: number, one: string, many: string): string {
+  return `${amount} ${amount === 1 ? one : many}`
+}
+
 /**
  * What deleting a pattern takes with it, in words, or null for an empty
  * pattern nothing plays: that one goes without a question.
@@ -58,7 +62,7 @@ export function patternLoss(id: PatternId): string | null {
     (clip) => clip.content.type === "pattern" && clip.content.pattern === id
   ).length
   if (notes === 0 && clips === 0) return null
-  const has = message("It has {count} notes", { count: notes })
+  const has = `It has ${count(notes, "note", "notes")}`
   if (clips === 0) return message("{has}. Undo brings the pattern back.", { has })
   const used =
     clips === 1

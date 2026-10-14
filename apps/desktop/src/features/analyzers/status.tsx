@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils"
 
 import { useAnalyzerStatus } from "./feed"
 import type { AnalyzerReason, AnalyzerStatus } from "./types"
-import { formatNumber, translatedText as t } from "@/lib/i18n"
+import { translatedText as t } from "@/lib/i18n"
 
 const REASONS: Record<AnalyzerReason, string> = {
   get desktopRequired() { return t("Needs the desktop app's audio engine") },
@@ -87,7 +87,7 @@ export function AnalyzerStatusLine({ slot, location, className }: StatusProps) {
       <span className="truncate">
         {analyzerStatusText(status)}
         {location ? ` · ${location}` : ""}
-        {live && rate ? ` · ${formatNumber(rate / 1000, { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false })} kHz` : ""}
+        {live && rate ? ` · ${(rate / 1000).toFixed(1)} kHz` : ""}
       </span>
     </p>
   )

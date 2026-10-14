@@ -40,7 +40,7 @@ export function RackLibrary({ channel, root }: { channel: Channel; root: RackGra
     guard()
     const result = await dispatch({ type: "setChannelRack", id: channel.id, expected: root, graph: importRackGraph(graph, root.nextId) })
     if (!result) throw new Error(t("Rack preset was refused; the saved graph was kept"))
-    setStatus(t("Rack preset loaded"))
+    setStatus("Rack preset loaded")
   }
   const load = (path?: string) => action(async (guard) => {
     const picked = path ?? await backend.pickPresetPath()
@@ -60,11 +60,11 @@ export function RackLibrary({ channel, root }: { channel: Channel; root: RackGra
     capture.preset.name = name.trim()
     if (library) {
       const entry = await backend.presetLibrarySave(name.trim(), capture)
-      setEntries(await backend.presetLibrary()); setStatus(message("Saved {name}", { name: entry.name }))
+      setEntries(await backend.presetLibrary()); setStatus(`Saved ${entry.name}`)
     } else {
       const path = await backend.pickPresetPath(name.trim())
       if (!path) return
-      guard(); await backend.presetWrite(path, capture); setStatus(t("Rack preset file saved"))
+      guard(); await backend.presetWrite(path, capture); setStatus("Rack preset file saved")
     }
   })
   return <section aria-label={t("Rack preset library")} className="flex flex-col gap-2 rounded-md border p-3">

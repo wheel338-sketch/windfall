@@ -1,13 +1,13 @@
 import type { ParamInfo } from "@/bindings"
 import { defaultFields } from "./default-fields"
-import { message, translatedText as t } from "@/lib/i18n"
+import { message } from "@/lib/i18n"
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null
 }
 
 function missing(info: ParamInfo): Error {
-  return new Error(message("These settings have no \"{infoId}\" ({infoName})", { infoId: info.id, infoName: t(info.name) }))
+  return new Error(message("These settings have no \"{infoId}\" ({infoName})", { infoId: info.id, infoName: info.name }))
 }
 
 /** Brings a value into the range of its setting, as the core does. */

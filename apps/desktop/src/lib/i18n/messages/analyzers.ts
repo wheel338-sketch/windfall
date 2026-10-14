@@ -59,8 +59,6 @@ export const analyzersEn = {
   "Waiting for audio": "Waiting for audio",
   "{name} peak level": "{name} peak level",
   "{trackName}, after its fader": "{trackName}, after its fader",
-  "No signal to draw": "No signal to draw",
-  "No stereo picture": "No stereo picture",
 } as const
 
 export const analyzersEs = {
@@ -122,6 +120,4 @@ export const analyzersEs = {
   "Waiting for audio": "Esperando audio",
   "{name} peak level": "Nivel de pico de {name}",
   "{trackName}, after its fader": "{trackName}, después de su fader",
-  "No signal to draw": "No hay señal que dibujar",
-  "No stereo picture": "Sin imagen estéreo",
 } satisfies Record<keyof typeof analyzersEn, Message>

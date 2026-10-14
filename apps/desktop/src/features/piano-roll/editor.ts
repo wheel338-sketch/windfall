@@ -810,7 +810,7 @@ export class Editor {
               channel: ctx.channel,
               notes,
             },
-            historyLabel("Stamp {name}", { name: stamp.stamp.label }),
+            `Stamp ${stamp.stamp.label}`,
             ctx.pattern,
             endOfInits(notes)
           ),
@@ -856,7 +856,7 @@ export class Editor {
               channel: ctx.channel,
               updates,
             },
-            historyLabel("Resize notes"),
+            "Resize notes",
             ctx.pattern,
             endAfterUpdates(gesture.notes, updates)
           )
@@ -881,7 +881,7 @@ export class Editor {
         })
         if (commands.length) this.commitDrag(withExtension(
           { type: "batch", label: historyLabel("Paint drum steps"), commands },
-          historyLabel("Paint drum steps"),
+          "Paint drum steps",
           ctx.pattern,
           endOfInits(adds)
         ))
@@ -903,7 +903,7 @@ export class Editor {
               channel: ctx.channel,
               notes,
             },
-            historyLabel("Paint notes"),
+            "Paint notes",
             ctx.pattern,
             endOfInits(notes)
           )
@@ -1043,7 +1043,7 @@ export class Editor {
     await this.commit(
       withExtension(
         noteInsertionCommand({ pattern: ctx.pattern.id, channel: ctx.channel }, notes, contents.curves),
-        historyLabel("Paste notes"),
+        "Paste notes",
         ctx.pattern,
         endOfInits(notes)
       ),
@@ -1065,7 +1065,7 @@ export class Editor {
     await this.commit(
       withExtension(
         noteInsertionCommand({ pattern: ctx.pattern.id, channel: ctx.channel }, inits, curveInserts(sources, ctx.pattern.noteCurves)),
-        historyLabel("Duplicate notes"),
+        "Duplicate notes",
         ctx.pattern,
         endOfInits(inits)
       ),
@@ -1143,7 +1143,7 @@ export class Editor {
         this.host.settings().pitchScale ?? null,
         true
       )
-    await this.update(notes, moveUpdates(notes, delta), historyLabel("Move notes"))
+    await this.update(notes, moveUpdates(notes, delta), "Move notes")
   }
 
   /** Transposes the selection, preserving its shape within the keyboard. */
@@ -1158,7 +1158,7 @@ export class Editor {
         this.host.settings().pitchScale ?? null,
         true
       )
-    await this.update(notes, moveUpdates(notes, delta), historyLabel("Transpose notes"))
+    await this.update(notes, moveUpdates(notes, delta), "Transpose notes")
   }
 
   /** Dispatches note updates as one command and follows the result. */
@@ -1497,7 +1497,7 @@ export class Editor {
       this.commitDrag(
         withExtension(
           noteInsertionCommand(target, inits, curveInserts(notes, ctx.pattern.noteCurves)),
-          historyLabel("Add note"),
+          "Add note",
           ctx.pattern,
           endOfInits(inits)
         )
@@ -1521,7 +1521,7 @@ export class Editor {
       this.commitDrag(
         withExtension(
           noteInsertionCommand(target, inits, curveInserts(notes, ctx.pattern.noteCurves)),
-          historyLabel("Duplicate notes"),
+          "Duplicate notes",
           ctx.pattern,
           endOfInits(inits)
         ),
@@ -1534,7 +1534,7 @@ export class Editor {
     this.commitDrag(
       withExtension(
         { type: "updateNotes", ...target, updates },
-        historyLabel("Move notes"),
+        "Move notes",
         ctx.pattern,
         endAfterUpdates(notes, updates)
       )

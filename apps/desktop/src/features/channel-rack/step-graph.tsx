@@ -90,7 +90,7 @@ function LaneGraph({ pattern, channel, lengthSteps, groupSize }: { pattern: Patt
     }
     current.last = point
     setPreview(new Map(current.updates))
-    setReadout(message("Step {index}: {value}", { index: plainNumber(point.step + 1), value: graphReadout(current.property, current.reset ? reset : min + point.fraction * (max - min)) }))
+    setReadout(`Step ${point.step + 1}: ${graphReadout(current.property, current.reset ? reset : min + point.fraction * (max - min))}`)
   }
 
   async function commit(updates: NoteUpdate[], capturedNotes: Note[], generation: number) {
@@ -155,7 +155,7 @@ function LaneGraph({ pattern, channel, lengthSteps, groupSize }: { pattern: Patt
           <span className="truncate font-medium">{owner?.name ?? t("Channel")}{" "}{t("graph")}</span>
           <Button variant="ghost" size="xs" aria-label={t("Close step graph")} onClick={() => useRackStore.getState().setGraphOpen(false)}>{t("Close")}</Button>
         </div>
-        <Select items={GRAPH_PROPERTIES.map((item) => ({ value: item, label: GRAPH_LABELS[item] }))} value={property} onValueChange={(value) => { if (GRAPH_PROPERTIES.includes(value as GraphProperty)) setProperty(value as GraphProperty) }}>
+        <Select value={property} onValueChange={(value) => { if (GRAPH_PROPERTIES.includes(value as GraphProperty)) setProperty(value as GraphProperty) }}>
           <SelectTrigger size="sm" aria-label={t("Step graph property")}><SelectValue /></SelectTrigger>
           <SelectContent><SelectGroup>{GRAPH_PROPERTIES.map((item) => <SelectItem key={item} value={item}>{GRAPH_LABELS[item]}</SelectItem>)}</SelectGroup></SelectContent>
         </Select>

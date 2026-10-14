@@ -25,7 +25,7 @@ async function withState(
 
 /** Puts what the note log holds into the pattern that is being edited. */
 export function dumpNoteLog(seconds: number | null): Promise<void> {
-  return withState(t("Could not dump the note log"), async (state) => {
+  return withState("Could not dump the note log", async (state) => {
     const { pattern } = useTransportStore.getState()
     await backend.scoreLogDump(pattern, seconds, state.generation)
     toast.success(t("Note log dumped to the pattern"), {
@@ -41,7 +41,7 @@ const CONTROLLER_ACTIONS: Action[] = [
     section: "Tools",
     keywords: "midi learn link several knobs faders hardware in order",
     run: () =>
-      void withState(t("Could not start multi-link"), async (state) => {
+      void withState("Could not start multi-link", async (state) => {
         if (state.learn?.multi) {
           await backend.controllerLearnCancel()
           toast(t("Multi-link is off"))
@@ -56,7 +56,7 @@ const CONTROLLER_ACTIONS: Action[] = [
     section: "Tools",
     keywords: "midi learn link knob fader hardware remote control",
     run: () =>
-      void withState(t("Could not link the control"), async (state) => {
+      void withState("Could not link the control", async (state) => {
         if (!state.lastTweaked) {
           toast(t("Move a control on screen first"))
           return
@@ -80,7 +80,7 @@ const CONTROLLER_ACTIONS: Action[] = [
     section: "Tools",
     keywords: "takeover hold until hardware reaches value soft",
     run: () =>
-      void withState(t("Could not change pickup mode"), async (state) => {
+      void withState("Could not change pickup mode", async (state) => {
         const next = await backend.controllerSettingsSet({
           ...state.settings,
           pickup: !state.settings.pickup,
@@ -94,7 +94,7 @@ const CONTROLLER_ACTIONS: Action[] = [
     section: "Transport",
     keywords: "midi keyboard record notes piano roll arm",
     run: () =>
-      void withState(t("Could not change note recording"), async (state) => {
+      void withState("Could not change note recording", async (state) => {
         const next = await backend.noteRecordArm(!state.noteRecord.armed)
         toast(
           next.noteRecord.armed

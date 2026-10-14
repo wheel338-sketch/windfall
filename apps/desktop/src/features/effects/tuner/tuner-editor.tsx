@@ -9,7 +9,7 @@ import { ParamControl, type EffectParamsOf } from "@/features/params"
 import { clamp } from "@/lib/units"
 
 import type { EditorProps } from "../editor-props"
-import { formatNumber, translatedText as t } from "@/lib/i18n"
+import { translatedText as t } from "@/lib/i18n"
 
 /** How far the needle travels either side of the note, in cents. */
 export const TUNER_RANGE_CENTS = 50
@@ -38,7 +38,7 @@ export function describeReading(reading: TunerReading | null): {
       note: "–",
       cents: "",
       frequency: "",
-      spoken: t("No steady pitch"),
+      spoken: "No steady pitch",
       needle: null,
       inTune: false,
     }
@@ -46,12 +46,12 @@ export function describeReading(reading: TunerReading | null): {
   const note = noteName(reading.midiNote)
   const cents = formatCents(reading.cents)
   const inTune = Math.abs(reading.cents) <= IN_TUNE_CENTS
-  const side = inTune ? t("in tune") : reading.cents > 0 ? t("sharp") : t("flat")
+  const side = inTune ? "in tune" : reading.cents > 0 ? "sharp" : "flat"
   return {
     note,
     cents,
-    frequency: `${formatNumber(reading.frequencyHz, { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false })} Hz`,
-    spoken: [note, cents, side].join(", "),
+    frequency: `${reading.frequencyHz.toFixed(1)} Hz`,
+    spoken: `${note}, ${cents}, ${side}`,
     needle:
       (clamp(reading.cents, -TUNER_RANGE_CENTS, TUNER_RANGE_CENTS) +
         TUNER_RANGE_CENTS) /
@@ -164,7 +164,7 @@ export function TunerReadout({ slot, reference }: { slot: string; reference?: Re
           <span>{t("in tune")}</span>
           <span>{t("sharp +")}{TUNER_RANGE_CENTS} ¢</span>
         </div>
-        <AnalyzerStatusLine slot={slot} location={t("this track, one note at a time")} />
+        <AnalyzerStatusLine slot={slot} location="this track, one note at a time" />
       </div>
       <div className="flex shrink-0 flex-col justify-center rounded-md border border-border/80 bg-chassis/50 px-2 py-2">
         {reference}

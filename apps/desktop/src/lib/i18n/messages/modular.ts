@@ -134,9 +134,6 @@ export const modularEn = {
   "{name}: missing; choose a replacement file": "{name}: missing; choose a replacement file",
   "{nodeName} {nodeId} input {portName}": "{nodeName} {nodeId} input {portName}",
   "{nodeName} {nodeId} output {portName}": "{nodeName} {nodeId} output {portName}",
-  "Rack preset loaded": "Rack preset loaded",
-  "Saved {name}": "Saved {name}",
-  "Rack preset file saved": "Rack preset file saved",
 } as const
 
 export const modularEs = {
@@ -273,7 +270,4 @@ export const modularEs = {
   "{name}: missing; choose a replacement file": "{name}: ausente; elige un archivo de reemplazo",
   "{nodeName} {nodeId} input {portName}": "{nodeName} {nodeId}, entrada {portName}",
   "{nodeName} {nodeId} output {portName}": "{nodeName} {nodeId}, salida {portName}",
-  "Rack preset loaded": "Preajuste de rack cargado",
-  "Saved {name}": "{name} guardado",
-  "Rack preset file saved": "Archivo de preajuste de rack guardado",
 } satisfies Record<keyof typeof modularEn, Message>

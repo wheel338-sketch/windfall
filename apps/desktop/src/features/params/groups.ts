@@ -144,7 +144,7 @@ export function paramGroups(descriptor: ParamDescriptor): ParamGroupPlan[] {
       title =
         group.infos.length > 1 && shared.length > 0
           ? sentence(shared)
-          : t("General")
+          : "General"
     }
     const labels = shortLabels(group.infos, title)
     return {

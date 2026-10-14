@@ -78,9 +78,8 @@ export function createLibraryMock(
       }
     }
   } catch {
-    damaged = translatedText(
+    damaged =
       "Could not read browser library metadata. Repair or remove windfall.mock.browser-library in this browser's storage before saving favorites or tags. The original value has been preserved."
-    )
     metadata = Object.create(null)
   }
 

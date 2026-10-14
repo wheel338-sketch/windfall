@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 import * as React from "react"
 
-import { message, plainNumber } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
 import { StepButton } from "./step-button"
@@ -63,7 +62,7 @@ type StepGridProps = Omit<
   stepLabel?: (step: number) => string
 }
 
-const defaultStepLabel = (step: number) => message("Step {index}", { index: plainNumber(step + 1) })
+const defaultStepLabel = (step: number) => `Step ${step + 1}`
 
 /**
  * One row of a step sequencer. Click toggles a step; dragging paints the

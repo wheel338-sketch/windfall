@@ -66,7 +66,7 @@ import { ChordReadout } from "./chords/readout-control"
 import { ScaleHighlightControl } from "./scale/control"
 import { useTypingKeyboardStore } from "./typing-keyboard"
 import { useStepEntryStore } from "./step-entry"
-import { message, translatedText as t, useActionTitle } from "@/lib/i18n"
+import { translatedText as t } from "@/lib/i18n"
 
 type RollButtonProps = {
   action: string
@@ -86,8 +86,8 @@ function RollButton({ action: id, icon }: RollButtonProps) {
     action ? isChecked(action, state) : false
   )
   const shortcut = useShortcutLabel(id)
-  const title = useActionTitle(id, action?.title ?? "")
-  const hint = useHint(shortcut ? message("{help} ({shortcut})", { help: title, shortcut }) : title)
+  const title = action?.title ?? id
+  const hint = useHint(shortcut ? `${title} (${shortcut})` : title)
 
   return (
     <Tooltip>
@@ -304,7 +304,7 @@ function ArticulationPicker() {
           <NumberField
             size="sm" aria-label={t("Portamento duration")} value={glideTicks}
             onValueChange={setGlideTicks} min={1} max={245760} step={1}
-            coarseStep={60} unit={t("ticks")} className="w-24"
+            coarseStep={60} unit="ticks" className="w-24"
           />
           <Button
             variant="outline"

@@ -71,7 +71,7 @@ export async function instantiateSim(): Promise<Sim> {
     } catch {
       // The trap below is all there is to report.
     }
-    crashed = message("The WebAssembly document crashed, and stays unusable until the page is reloaded: {reason}", { reason: said || String(trap) })
+    crashed = `The WebAssembly document crashed, and stays unusable until the page is reloaded: ${said || String(trap)}`
     return new Error(crashed)
   }
 

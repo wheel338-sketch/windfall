@@ -8,17 +8,17 @@ import type { EditorProps } from "./editor-props"
 import { localizeBackendText, translatedText as t } from "@/lib/i18n"
 
 export function MusicLightingEditor({ bind }: EditorProps<EffectParamsOf<"musicLighting">>) {
-  const [message,setMessage]=useState(() => t("Checking local lighting service..."))
+  const [message,setMessage]=useState("Checking local lighting service...")
   const [connected,setConnected]=useState(false)
   async function refresh() {
-    if(!backend.musicLightingStatus){setMessage(t("Music lighting requires the desktop app and a local Chroma REST service."));return}
+    if(!backend.musicLightingStatus){setMessage("Music lighting requires the desktop app and a local Chroma REST service.");return}
     try {const status=await backend.musicLightingStatus();setConnected(status.connected);setMessage(status.message)}
     catch(error){setConnected(false);setMessage(errorMessage(error))}
   }
   useEffect(()=>{
     let current=true
     const read=async()=>{
-      if(!backend.musicLightingStatus){if(current)setMessage(t("Music lighting requires the desktop app and a local Chroma REST service."));return}
+      if(!backend.musicLightingStatus){if(current)setMessage("Music lighting requires the desktop app and a local Chroma REST service.");return}
       try {const status=await backend.musicLightingStatus();if(current){setConnected(status.connected);setMessage(status.message)}}
       catch(error){if(current){setConnected(false);setMessage(errorMessage(error))}}
     }

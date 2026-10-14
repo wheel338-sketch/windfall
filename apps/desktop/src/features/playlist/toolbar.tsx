@@ -50,7 +50,7 @@ import { nextPlaylistSnapScale } from "./playlist-snap-scale"
 import { nextPlaylistTool } from "./playlist-tool-step"
 import { SNAP_MODES, type SnapMode } from "./snap"
 import { usePlaylistStore } from "./store"
-import { translatedText as t, message, useActionTitle } from "@/lib/i18n"
+import { translatedText as t, message } from "@/lib/i18n"
 
 const TOOL_ICONS: Record<Tool, IconSvgElement> = {
   draw: PencilEdit01Icon,
@@ -64,14 +64,14 @@ const TOOL_ICONS: Record<Tool, IconSvgElement> = {
 }
 
 const TOOL_ABOUT: Record<Tool, string> = {
-  get draw() { return t("click to place what is picked on the left, drag clips to move or resize, click in an automation clip to add a point") },
-  get paint() { return t("drag to lay what is picked on the left down back to back") },
-  get select() { return t("drag a box around clips, then move, copy or delete them") },
-  get erase() { return t("click or drag across clips to delete them") },
-  get mute() { return t("click or drag across clips to mute or unmute them") },
-  get slip() { return t("drag a clip's content left or right inside its fixed start and end") },
-  get playback() { return t("click or drag to seek the transport on the playlist grid") },
-  get slice() { return t("drag a vertical line, then release to split every clip crossing it") },
+  draw: "click to place what is picked on the left, drag clips to move or resize, click in an automation clip to add a point",
+  paint: "drag to lay what is picked on the left down back to back",
+  select: "drag a box around clips, then move, copy or delete them",
+  erase: "click or drag across clips to delete them",
+  mute: "click or drag across clips to mute or unmute them",
+  slip: "drag a clip's content left or right inside its fixed start and end",
+  playback: "click or drag to seek the transport on the playlist grid",
+  slice: "drag a vertical line, then release to split every clip crossing it",
 }
 
 type IconActionProps = {
@@ -98,9 +98,12 @@ function IconAction({
 }: IconActionProps) {
   const action = useAction(id)
   const shortcut = useShortcutLabel(id)
-  const title = useActionTitle(id, action?.title ?? "").replace(/…$/, "")
-  const named = shortcut ? message("{help} ({shortcut})", { help: title, shortcut }) : title
-  const hint = useHint(about ? message("{name}: {value}", { name: named, value: about }) : named)
+  const title = action?.title.replace(/…$/, "") ?? id
+  const hint = useHint(
+    [title, shortcut ? ` (${shortcut})` : "", about ? `: ${about}` : ""].join(
+      ""
+    )
+  )
 
   return (
     <Tooltip>
@@ -225,7 +228,7 @@ function SnapMenu() {
             <Button
               variant="outline"
               size="sm"
-              aria-label={message("Snap: {currentLabel}", { currentLabel: current?.label ?? t("Snap") })}
+              aria-label={message("Snap: {currentLabel}", { currentLabel: current?.label ?? snap })}
               className="gap-1.5 px-1.5"
               {...hint}
             />
@@ -351,13 +354,13 @@ function SongControls() {
         action="playlist.loopSong"
         icon={RepeatIcon}
         pressed={loop}
-        about={t("at the end of the last clip, start again from the top")}
+        about="at the end of the last clip, start again from the top"
       />
       <IconAction
         action="playlist.follow"
         icon={Navigation03Icon}
         pressed={follow}
-        about={t("scroll along while the song plays")}
+        about="scroll along while the song plays"
       />
     </div>
   )
@@ -379,7 +382,7 @@ export function PlaylistToolbar({ metrics }: { metrics: GridMetrics }) {
           action="playlist.patterns"
           icon={LeftToRightListBulletIcon}
           pressed={pickerOpen}
-          about={t("show or hide the patterns, sounds and automations to place")}
+          about="show or hide the patterns, sounds and automations to place"
         />
         <Tools />
         <StepToggle />
@@ -387,13 +390,13 @@ export function PlaylistToolbar({ metrics }: { metrics: GridMetrics }) {
         <IconAction
           action="playlist.zoomToFit"
           icon={FitToScreenIcon}
-          about={t("show the whole song")}
+          about="show the whole song"
         />
         <IconAction
           action="playlist.tallTracks"
           icon={ArrowVerticalIcon}
           pressed={tall}
-          about={t("make the tracks tall enough to draw automation curves in. Alt+wheel sets any height")}
+          about="make the tracks tall enough to draw automation curves in. Alt+wheel sets any height"
         />
         <OverlapWarning metrics={metrics} />
         <SongControls />

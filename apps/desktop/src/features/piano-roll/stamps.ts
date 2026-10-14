@@ -130,13 +130,13 @@ export function placeStamp(
     velocity < 0 ||
     velocity > 1
   ) {
-    return fail(t("The position, length or velocity is invalid."))
+    return fail("The position, length or velocity is invalid.")
   }
   if (
     !stamp.intervals.length ||
     stamp.intervals.some((interval) => !Number.isInteger(interval))
   )
-    return fail(t("The stamp has no valid pattern."))
+    return fail("The stamp has no valid pattern.")
   const intervals =
     stamp.layout === "descending"
       ? [...stamp.intervals].reverse()
@@ -150,7 +150,7 @@ export function placeStamp(
   }))
   if (notes.some((note) => note.key < 0 || note.key > 127))
     return fail(
-      t("The whole stamp must fit inside MIDI keys 0–127. Choose a lower root.")
+      "The whole stamp must fit inside MIDI keys 0–127. Choose a lower root."
     )
   if (
     notes.some(
@@ -160,7 +160,7 @@ export function placeStamp(
     )
   )
     return fail(
-      t("The whole stamp must fit inside the maximum pattern length. Choose an earlier position or shorter notes.")
+      "The whole stamp must fit inside the maximum pattern length. Choose an earlier position or shorter notes."
     )
   return { notes, error: null }
 }

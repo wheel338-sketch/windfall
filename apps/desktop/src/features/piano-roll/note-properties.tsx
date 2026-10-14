@@ -172,7 +172,7 @@ function PropertyForm({ request }: { request: Request }) {
       }}>
         <Field>
           <FieldLabel>{t("Articulation")}</FieldLabel>
-          <Select items={[{ value: "keep", label: t("Keep each note's articulation") }, ...NOTE_ARTICULATIONS]} value={articulation} disabled={pending} onValueChange={(value) => {
+          <Select value={articulation} disabled={pending} onValueChange={(value) => {
             if (value === "keep" || isNoteArticulation(value)) { setArticulation(value); setArticulationTouched(value !== "keep") }
           }}>
             <SelectTrigger aria-label={t("Note articulation")}><SelectValue /></SelectTrigger>

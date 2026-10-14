@@ -99,7 +99,7 @@ export function sampleRateOptions(
   return withDefault(sampleRatesFor(device), stored, formatSampleRate)
 }
 export function outputChannelOptions(device: AudioDevice | undefined, stored: number | null | undefined): Option<number>[] {
-  return withDefault(device?.outputChannels ?? [], stored, (channels) => message("{count} output channels", { count: channels }))
+  return withDefault(device?.outputChannels ?? [], stored, (channels) => `${channels} output ${channels === 1 ? "channel" : "channels"}`)
 }
 
 /** `sampleRate` is the one in use, to say what each size costs in latency. */
@@ -110,8 +110,8 @@ export function bufferOptions(
 ): Option<number>[] {
   return withDefault(bufferSizesFor(device), stored, (frames) =>
     sampleRate
-      ? message("{count} samples, {latency}", { count: frames, latency: latencyMs(frames, sampleRate) })
-      : message("{count} samples", { count: frames })
+      ? `${frames} samples, ${latencyMs(frames, sampleRate)}`
+      : `${frames} samples`
   )
 }
 

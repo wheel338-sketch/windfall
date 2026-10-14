@@ -8,7 +8,6 @@ import type {
   TransportState,
 } from "@/bindings"
 import { reportError } from "@/lib/errors"
-import { translatedText as t } from "@/lib/i18n"
 import { backend } from "@/lib/ipc"
 
 export const DEFAULT_METRONOME: MetronomeSettings = { enabled: false, gain: 0.25, accent: true }
@@ -52,7 +51,7 @@ async function run(work: () => Promise<TransportState>, what?: string) {
 
 /** Reads the transport from the backend. Used once, at startup. */
 export function refreshTransport(): Promise<void> {
-  return run(() => backend.transportState(), t("Could not read the transport"))
+  return run(() => backend.transportState(), "Could not read the transport")
 }
 
 export function play(): Promise<void> {

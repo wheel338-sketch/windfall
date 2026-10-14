@@ -79,13 +79,6 @@ export const kitDemoEn = {
   "{name} pan": "{name} pan",
   "{size}, bipolar": "{size}, bipolar",
   "{size}, unipolar": "{size}, unipolar",
-  "Move a control": "Move a control",
-  "Tempo {tempo} BPM": "Tempo {tempo} BPM",
-  "Master {gain}": "Master {gain}",
-  "Gain {gain}": "Gain {gain}",
-  "Mix {mix}": "Mix {mix}",
-  "Note on {note} at {velocity}%": "Note on {note} at {velocity}%",
-  "Note off {note}": "Note off {note}",
 } as const
 
 export const kitDemoEs = {
@@ -167,11 +160,4 @@ export const kitDemoEs = {
   "{name} pan": "Panorama de {name}",
   "{size}, bipolar": "{size}, bipolar",
   "{size}, unipolar": "{size}, unipolar",
-  "Move a control": "Mueve un control",
-  "Tempo {tempo} BPM": "Tempo de {tempo} BPM",
-  "Master {gain}": "Máster {gain}",
-  "Gain {gain}": "Ganancia {gain}",
-  "Mix {mix}": "Mezcla {mix}",
-  "Note on {note} at {velocity}%": "Nota activada {note} al {velocity}%",
-  "Note off {note}": "Nota desactivada {note}",
 } satisfies Record<keyof typeof kitDemoEn, Message>

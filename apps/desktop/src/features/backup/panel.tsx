@@ -11,7 +11,7 @@ import { backend, errorSource } from "@/lib/ipc"
 import { useProjectStore } from "@/lib/store/project"
 import { getProjectGeneration, useProjectGeneration } from "@/lib/store/replaced"
 import { EMPTY_BACKUP, rememberBackup, useBackupConfig, useBackupJob, type FolderBackupConfig } from "./store"
-import { translatedText as t, localizeBackendText, message } from "@/lib/i18n"
+import { translatedText as t, localizeBackendText } from "@/lib/i18n"
 
 export function FolderBackupPanel() {
   const path = useProjectStore((state) => state.path)
@@ -55,7 +55,7 @@ export function FolderBackupPanel() {
       if (localGeneration !== getProjectGeneration()) throw new Error(t("The project changed before backup started."))
       const row = await backend.backupSave(config.folder, config.head, config.keep, catalog.generation)
       if (localGeneration === getProjectGeneration()) configure({ ...config, head: row.id })
-      useBackupJob.setState({ result: t("Portable backup created and checksum recorded.") })
+      useBackupJob.setState({ result: "Portable backup created and checksum recorded." })
     } catch (error) { useBackupJob.setState({ error: errorSource(error) }) }
     finally { useBackupJob.setState({ busy: false }) }
   }
@@ -63,10 +63,10 @@ export function FolderBackupPanel() {
     if (!config.folder || job.busy) return
     useBackupJob.setState({ busy: true, error: null, result: null })
     try {
-      const target = await backend.pickProjectArchivePath(message("Restored {version}", { version: row.id.slice(0, 8) }))
+      const target = await backend.pickProjectArchivePath(`Restored ${row.id.slice(0, 8)}`)
       if (!target) return
       const restored = await backend.backupRestore(config.folder, row.id, target)
-      useBackupJob.setState({ result: message("Verified backup restored to {path}", { path: restored }) })
+      useBackupJob.setState({ result: `Verified backup restored to ${restored}` })
       await openProjectPath(restored)
     } catch (error) { useBackupJob.setState({ error: errorSource(error) }) }
     finally { useBackupJob.setState({ busy: false }) }

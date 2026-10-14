@@ -10,7 +10,7 @@ import { MAX_AUDIO_CLIPS } from "@/lib/units"
 
 import type { GridMetrics } from "../metrics"
 import { seekSong } from "../ops"
-import { message, plainNumber, translatedText as t } from "@/lib/i18n"
+import { message, translatedText as t } from "@/lib/i18n"
 
 /** Where audio clips will be silent, and what to say about it. */
 export type SilentClips = {
@@ -41,7 +41,7 @@ export function useSilentClips(): SilentClips | null {
     return {
       tick: overAt,
       bar,
-      text: message("More than {max} audio clips overlap at bar {bar}; the extra ones will be silent", { max: plainNumber(MAX_AUDIO_CLIPS), bar: plainNumber(bar) }),
+      text: `More than ${MAX_AUDIO_CLIPS} audio clips overlap at bar ${bar}; the extra ones will be silent`,
     }
   }, [playlist, signature])
 }

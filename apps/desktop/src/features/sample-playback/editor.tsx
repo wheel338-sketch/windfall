@@ -160,7 +160,7 @@ export function SamplePlaybackEditor({ channel }: { channel: InstrumentChannel }
     </>}
     {params.type === "waveRide" && <FieldGroup>
       <Field><FieldLabel>{t("Curve note")}</FieldLabel><Select<string> value={curveKey === null ? "shared" : String(curveKey)} onValueChange={(v) => { if (v != null) setCurveKey(v === "shared" ? null : Number(v)) }}>
-        <SelectTrigger aria-label={t("Curve note")}><SelectValue>{curveKey === null ? t("Shared curve") : <>{t("Key")}{" "}{curveKey}</>}</SelectValue></SelectTrigger><SelectContent><SelectGroup><SelectItem value="shared">{t("Shared curve")}</SelectItem>
+        <SelectTrigger aria-label={t("Curve note")}><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="shared">{t("Shared curve")}</SelectItem>
           {Array.from({ length: 128 }, (_, key) => <SelectItem key={key} value={String(key)}>{t("Key")}{" "}{key}</SelectItem>)}
         </SelectGroup></SelectContent></Select></Field>
       <CurveEditor key={`${channel.id}:${curveKey}`} curve={curve} onChange={(next) => save(curveKey === null ? { ...asset, curve: next }

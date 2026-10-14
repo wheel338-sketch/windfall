@@ -64,13 +64,13 @@ function sound(changes: Changes): SynthSettings {
 export const SYNTH_PRESETS: readonly SynthPreset[] = [
   {
     id: "init",
-    get name() { return t("Init") },
+    name: "Init",
     get description() { return t("One saw oscillator with the filter open: a blank page") },
     params: descriptor.defaults,
   },
   {
     id: "softPad",
-    get name() { return t("Soft pad") },
+    name: "Soft pad",
     get description() { return t("Slow, wide and warm, for held chords") },
     params: sound({
       unisonVoices: 5,
@@ -96,7 +96,7 @@ export const SYNTH_PRESETS: readonly SynthPreset[] = [
   },
   {
     id: "pluck",
-    get name() { return t("Pluck") },
+    name: "Pluck",
     get description() { return t("A short, bright note that closes fast, for arpeggios") },
     params: sound({
       "filter.slope": "db24",
@@ -118,7 +118,7 @@ export const SYNTH_PRESETS: readonly SynthPreset[] = [
   },
   {
     id: "bass",
-    get name() { return t("Bass") },
+    name: "Bass",
     get description() { return t("One note at a time with a square an octave down and some grit") },
     params: sound({
       "oscillators.1.waveform": "square",
@@ -143,7 +143,7 @@ export const SYNTH_PRESETS: readonly SynthPreset[] = [
   },
   {
     id: "lead",
-    get name() { return t("Lead") },
+    name: "Lead",
     get description() { return t("A sliding solo voice with a touch of vibrato") },
     params: sound({
       "oscillators.1.waveform": "pulse",
@@ -166,7 +166,7 @@ export const SYNTH_PRESETS: readonly SynthPreset[] = [
   },
   {
     id: "keys",
-    get name() { return t("Keys") },
+    name: "Keys",
     get description() { return t("A struck note that fades while held and answers to touch") },
     params: sound({
       "oscillators.0.waveform": "triangle",
@@ -189,7 +189,7 @@ export const SYNTH_PRESETS: readonly SynthPreset[] = [
   },
   {
     id: "brass",
-    get name() { return t("Brass") },
+    name: "Brass",
     get description() { return t("Two saws that open up as each note swells") },
     params: sound({
       "oscillators.1.level": 0.8,
@@ -212,7 +212,7 @@ export const SYNTH_PRESETS: readonly SynthPreset[] = [
   },
   {
     id: "sub",
-    get name() { return t("Sub") },
+    name: "Sub",
     get description() { return t("A plain sine for the very bottom, one note at a time") },
     params: sound({
       "oscillators.0.waveform": "sine",
