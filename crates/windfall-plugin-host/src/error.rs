@@ -7,34 +7,34 @@ use crate::state::InvalidState;
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum PluginError {
     /// The file could not be loaded as a plugin of its format.
-    #[error("{}", windfall_core::notice!("pluginHost.error.load", detail = windfall_core::notice::term(_0.to_string())))]
+    #[error("{}", windfall_core::notice!("pluginHost.error.load", detail = windfall_core::notice::term(_0)))]
     Load(String),
     /// The file holds no plugin with the id asked for.
-    #[error("{}", windfall_core::notice!("pluginHost.error.notFound", detail = windfall_core::notice::term(_0.to_string())))]
+    #[error("{}", windfall_core::notice!("pluginHost.error.notFound", detail = windfall_core::notice::term(_0)))]
     NotFound(String),
     /// The plugin refused to be created.
-    #[error("{}", windfall_core::notice!("pluginHost.error.create", detail = windfall_core::notice::term(_0.to_string())))]
+    #[error("{}", windfall_core::notice!("pluginHost.error.create", detail = windfall_core::notice::term(_0)))]
     Create(String),
     /// The plugin describes ports the host cannot feed.
-    #[error("{}", windfall_core::notice!("pluginHost.error.layout", detail = windfall_core::notice::term(_0.to_string())))]
+    #[error("{}", windfall_core::notice!("pluginHost.error.layout", detail = windfall_core::notice::term(_0)))]
     Layout(String),
     /// The plugin refused to be activated.
-    #[error("{}", windfall_core::notice!("pluginHost.error.activate", detail = windfall_core::notice::term(_0.to_string())))]
+    #[error("{}", windfall_core::notice!("pluginHost.error.activate", detail = windfall_core::notice::term(_0)))]
     Activate(String),
     /// Native lifecycle refused to establish an inactive processor.
-    #[error("{}", windfall_core::notice!("pluginHost.error.deactivate", detail = windfall_core::notice::term(_0.to_string())))]
+    #[error("{}", windfall_core::notice!("pluginHost.error.deactivate", detail = windfall_core::notice::term(_0)))]
     Deactivate(String),
     /// The plugin is active already and has a processor out.
     #[error("{}", windfall_core::notice!("pluginHost.error.alreadyActive"))]
     AlreadyActive,
     /// The plugin could not save or load its state.
-    #[error("{}", windfall_core::notice!("pluginHost.error.state", detail = windfall_core::notice::term(_0.to_string())))]
+    #[error("{}", windfall_core::notice!("pluginHost.error.state", detail = windfall_core::notice::term(_0)))]
     State(&'static str),
     /// The saved state is not one this host wrote.
     #[error(transparent)]
     InvalidState(#[from] InvalidState),
     /// The host cannot run plugins of this format in this build.
-    #[error("{}", windfall_core::notice!("pluginHost.error.unsupported", detail = windfall_core::notice::term(_0.to_string())))]
+    #[error("{}", windfall_core::notice!("pluginHost.error.unsupported", detail = windfall_core::notice::term(_0)))]
     Unsupported(&'static str),
 }
 

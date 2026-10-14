@@ -38,9 +38,9 @@ pub type Result<T> = std::result::Result<T, AnalysisError>;
 
 #[derive(Debug, Error)]
 pub enum AnalysisError {
-    #[error("{}", windfall_core::notice!("analysis.error.invalid", detail = windfall_core::notice::term(_0.to_string())))]
+    #[error("{}", windfall_core::notice!("analysis.error.invalid", detail = windfall_core::notice::term(_0)))]
     Invalid(&'static str),
-    #[error("{}", windfall_core::notice!("analysis.error.budget", detail = windfall_core::notice::term(_0.to_string())))]
+    #[error("{}", windfall_core::notice!("analysis.error.budget", detail = windfall_core::notice::term(_0)))]
     Budget(&'static str),
     #[error("{}", windfall_core::notice!("analysis.error.cancelled"))]
     Cancelled,
@@ -66,7 +66,7 @@ pub enum AnalysisError {
     ModelSize,
     #[error("{}", windfall_core::notice!("analysis.error.collision"))]
     Collision,
-    #[error("{}", windfall_core::notice!("analysis.error.adapter", detail = windfall_core::notice::term(_0.to_string())))]
+    #[error("{}", windfall_core::notice!("analysis.error.adapter", detail = windfall_core::notice::term(_0)))]
     Adapter(String),
     #[error("{}", windfall_core::notice!("analysis.error.io", detail = windfall_core::notice::term(_0.to_string())))]
     Io(#[from] std::io::Error),

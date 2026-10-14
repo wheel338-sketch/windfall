@@ -196,6 +196,23 @@ take {}", the automation names "{} track volume" / "{} track pan", and
   shares with English (`clip`, `swing`, `tempo`, `color`, `audio`,
   `ping-pong`, `pogo`, `plugin`) and the parameter-only codes were added to
   `sameAsEnglish` with their reasons. `f3`: 12 files, 48 / 0.
+- Checkpoint commit `3afc3b1f`.
+- `f4`: the whole frontend suite, 537 files, 6,496 / 21. The failures read
+  stored history labels and backend refusals as raw text, which are now
+  coded (the playlist's labels carry their count; settings and scripts are
+  `history.changeSetting` / `history.changeScript`; refusals reach a toast
+  as an element that says them in the language shown). Those tests now read
+  them as the interface shows them (`historyLabelText`, `nativeMessage`,
+  `errorMessage`, and a new `toastWords` in the test harness). Two product
+  findings: an id inside a coded message was grouped like a count
+  ("channel 12,345", "12.345" in Spanish); the values that number a thing
+  (`id`, `handle`, `channel`, `clip`, `effect`, `output`, `pattern`,
+  `track`) are now written as they are, with a test. And the mock backend
+  capitalised a coded message ("Windfall-message:…"), which then could
+  not be read; it leaves one as it is.
+- `f5`, `f6`: the failed files again, 21 files, 268 / 0; lint and
+  typecheck clean. Checkpoint commit `533c84b7`; simulator rebuilt after
+  the FL event rename (`s3`, `s4`).
 
 ## Gates
 

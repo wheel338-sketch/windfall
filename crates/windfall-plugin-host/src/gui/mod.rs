@@ -127,7 +127,7 @@ pub enum EditorError {
     /// The plugin's parent API is not available on this target/window system.
     #[error("{}", windfall_core::notice!("pluginHost.editor.unsupportedPlatform"))]
     UnsupportedPlatform,
-    #[error("{}", windfall_core::notice!("pluginHost.editor.failed", detail = windfall_core::notice::term(_0.to_string())))]
+    #[error("{}", windfall_core::notice!("pluginHost.editor.failed", detail = windfall_core::notice::term(_0)))]
     Failed(String),
 }
 

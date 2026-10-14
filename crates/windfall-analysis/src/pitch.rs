@@ -12,11 +12,11 @@ pub type PitchResult<T> = std::result::Result<T, PitchError>;
 
 #[derive(Debug, Error)]
 pub enum PitchError {
-    #[error("{}", windfall_core::notice!("analysis.pitch.invalid", detail = windfall_core::notice::term(_0.to_string())))]
+    #[error("{}", windfall_core::notice!("analysis.pitch.invalid", detail = windfall_core::notice::term(_0)))]
     Invalid(&'static str),
     #[error("{}", windfall_core::notice!("analysis.pitch.overflow"))]
     Overflow,
-    #[error("{}", windfall_core::notice!("analysis.pitch.limit", detail = windfall_core::notice::term(_0.to_string())))]
+    #[error("{}", windfall_core::notice!("analysis.pitch.limit", detail = windfall_core::notice::term(_0)))]
     Limit(&'static str),
     #[error("{}", windfall_core::notice!("analysis.pitch.allocation"))]
     Allocation,

@@ -367,7 +367,7 @@ impl PresetTables {
         {
             return Err(windfall_core::notice!(
                 "presets.ownerCount",
-                role = windfall_core::notice::term(&role)
+                role = windfall_core::notice::term(role)
             )
             .to_string());
         }

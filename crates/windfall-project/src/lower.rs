@@ -948,7 +948,7 @@ impl Transaction<'_> {
                 });
                 return Ok(windfall_core::notice!(
                     "history.changeSetting",
-                    name = windfall_core::notice::term(&info.name)
+                    name = windfall_core::notice::term(info.name)
                 )
                 .to_string());
             }
@@ -5573,7 +5573,7 @@ fn setting_label(descriptors: &[ParamInfo], param: u32) -> String {
     match descriptors.get(param as usize) {
         Some(info) => windfall_core::notice!(
             "history.changeSetting",
-            name = windfall_core::notice::term(&info.name)
+            name = windfall_core::notice::term(info.name)
         )
         .to_string(),
         None => "Change setting".to_owned(),

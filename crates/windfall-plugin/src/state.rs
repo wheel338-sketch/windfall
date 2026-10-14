@@ -378,7 +378,7 @@ impl Program {
                     "pluginExport.soundFontInstrument",
                     instrument = channel.name,
                     source = format!("{:?}", source),
-                    reason = windfall_core::notice::term(reason.to_string())
+                    reason = windfall_core::notice::term(&reason)
                 )
                 .to_string();
                 pool.insert_unavailable_soundfont(asset, message.clone());
@@ -419,7 +419,7 @@ impl Program {
                             windfall_core::notice!(
                                 "pluginExport.rackSoundFont",
                                 instrument = node.name,
-                                reason = windfall_core::notice::term(reason.to_string())
+                                reason = windfall_core::notice::term(&reason)
                             )
                             .to_string(),
                         );

@@ -1184,9 +1184,6 @@ pub(super) fn unmapped(device: &str, field: &str) -> Unmapped {
     }
 }
 
-/// How the import review words a decoded sound control that has no stand-in
-/// control. Lines that end with it are filed as dropped, not approximated.
-
 /// The code of the review line that names a decoded sound control without a
 /// stand-in control. Such a line is filed as dropped, not approximated.
 const OMITTED: &str = "flp.native.fieldOmitted";

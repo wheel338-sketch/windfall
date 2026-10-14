@@ -104,7 +104,7 @@ fn missing_corrupt_and_budget_refused_banks_report_identity_and_only_silence_the
         let state = Publication::new(mixed);
         state.activate(48_000.0).unwrap();
         assert!(
-            windfall_core::english::english(&state.preparation_error().unwrap()).contains("silent")
+            windfall_core::english::english(state.preparation_error().unwrap()).contains("silent")
         );
         let engine = unsafe { state.audio() }.unwrap();
         engine.midi(0, 60, 127);

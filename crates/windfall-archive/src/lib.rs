@@ -60,7 +60,7 @@ pub enum Error {
     Cancelled,
     #[error("{0}")]
     Invalid(String),
-    #[error("{}", windfall_core::notice!("archive.error.missing", detail = windfall_core::notice::term(_0.to_string())))]
+    #[error("{}", windfall_core::notice!("archive.error.missing", detail = windfall_core::notice::term(_0)))]
     Missing(String),
     #[error("{}", windfall_core::notice!("archive.error.io", detail = windfall_core::notice::term(_0.to_string())))]
     Io(#[from] io::Error),
