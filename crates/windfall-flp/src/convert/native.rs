@@ -487,6 +487,14 @@ fn effect_layout(name: &str, size: usize) -> Option<(EffectKind, Layout)> {
                 l.map(s, t, -25600.0, 25600.0, Some(n));
                 l.formula(s, |v| v / 12800.0);
             }
+            // Signed in the public dataset (-4096..4096): read as such.
+            for f in l
+                .fields
+                .iter_mut()
+                .filter(|f| matches!(f.name.as_str(), "delay" | "dephase"))
+            {
+                f.range = (-4096.0, 4096.0);
+            }
             (EffectKind::StereoMatrix, l)
         }
         "fruity soft clipper" => {
@@ -2190,7 +2198,7 @@ mod open_list {
             "Fruity Delay 2",
             "Fruity Parametric EQ 2",
         ] {
-            let state = vec![0_u8; 600];
+            let state = [0_u8; 600];
             let lines = reports(name, &state);
             let filed: Vec<&str> = lines
                 .iter()
