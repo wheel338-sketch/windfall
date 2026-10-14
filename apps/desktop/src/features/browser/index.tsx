@@ -45,7 +45,7 @@ export default function BrowserPanel() {
 
   return (
     <Tabs defaultValue="library" className="h-full min-h-0 gap-0">
-      <TabsList aria-label={t("Browser view")} className="m-1 h-auto shrink-0 flex-wrap">
+      <TabsList aria-label={t("Browser view")} className="m-1 h-auto shrink-0 flex-wrap group-data-horizontal/tabs:h-auto [&_[role=tab]]:h-6">
         <TabsTrigger value="library">{t("Library")}</TabsTrigger>
         <TabsTrigger value="project">{t("Project")}</TabsTrigger>
         <TabsTrigger value="plugins">{t("Plugins")}</TabsTrigger>

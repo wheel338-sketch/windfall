@@ -100,7 +100,7 @@ export function TransportBar() {
       <div
         role="toolbar"
         aria-label={t("Transport")}
-        className="flex h-12 shrink-0 items-center gap-2 overflow-hidden border-b bg-chassis px-2"
+        className="flex min-h-12 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 overflow-hidden border-b bg-chassis px-2 py-1.5"
       >
         <PlayControls />
         <ActionButton
@@ -143,7 +143,10 @@ export function TransportBar() {
           </ActionButton>
         </div>
 
-        <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
+        {/* In a window too narrow for one row, the meter and readouts move
+            to a second row whole rather than being drawn over the pattern
+            selector or squeezed out. */}
+        <div className="flex min-w-72 flex-1 items-center justify-end gap-3 overflow-hidden">
           <MasterMeterSlot />
           <PerformanceReadout />
         </div>
