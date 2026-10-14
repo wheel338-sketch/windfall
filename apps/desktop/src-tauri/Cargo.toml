@@ -29,6 +29,8 @@ windfall-codec.workspace = true
 windfall-factory.workspace = true
 windfall-midi.workspace = true
 windfall-plugin-host.workspace = true
+# GPL-3.0-or-later workspace crate: the MCP protocol layer and tools. No SDK.
+windfall-mcp.workspace = true
 # GPL-3.0-or-later workspace engine export/package library; no external crate.
 windfall-plugin = { path = "../../../crates/windfall-plugin" }
 serde.workspace = true

@@ -249,6 +249,109 @@ async fn phone_remote_set(
     blocking(move || session.phone_remote_set(address.as_deref())).await
 }
 #[tauri::command]
+async fn mcp_state(
+    session: State<'_, Session>,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
+) -> Result<windfall_ipc::McpSettings, String> {
+    let _window_call = caller.enter(&window, "mcp_state")?;
+    let session = session.inner().clone();
+    blocking(move || Ok(session.mcp_state())).await
+}
+#[tauri::command]
+async fn mcp_configure(
+    session: State<'_, Session>,
+    update: windfall_ipc::McpSettingsUpdate,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
+) -> Result<windfall_ipc::McpSettings, String> {
+    let _window_call = caller.enter(&window, "mcp_configure")?;
+    let session = session.inner().clone();
+    blocking(move || session.mcp_configure(update)).await
+}
+#[tauri::command]
+async fn mcp_regenerate_token(
+    session: State<'_, Session>,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
+) -> Result<windfall_ipc::McpSettings, String> {
+    let _window_call = caller.enter(&window, "mcp_regenerate_token")?;
+    let session = session.inner().clone();
+    blocking(move || session.mcp_regenerate_token()).await
+}
+#[tauri::command]
+fn mcp_panel(
+    session: State<'_, Session>,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
+) -> Result<windfall_ipc::McpPanel, String> {
+    let _window_call = caller.enter(&window, "mcp_panel")?;
+    Ok(session.mcp_panel())
+}
+#[tauri::command]
+async fn mcp_approve(
+    session: State<'_, Session>,
+    id: String,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
+) -> Result<windfall_ipc::McpPanel, String> {
+    let _window_call = caller.enter(&window, "mcp_approve")?;
+    let session = session.inner().clone();
+    blocking(move || session.mcp_approve(&id)).await
+}
+#[tauri::command]
+fn mcp_reject(
+    session: State<'_, Session>,
+    id: String,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
+) -> Result<windfall_ipc::McpPanel, String> {
+    let _window_call = caller.enter(&window, "mcp_reject")?;
+    session.mcp_reject(&id)
+}
+#[tauri::command]
+fn mcp_dismiss(
+    session: State<'_, Session>,
+    id: String,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
+) -> Result<windfall_ipc::McpPanel, String> {
+    let _window_call = caller.enter(&window, "mcp_dismiss")?;
+    Ok(session.mcp_dismiss(&id))
+}
+#[tauri::command]
+fn mcp_trust(
+    session: State<'_, Session>,
+    agent: String,
+    trusted: bool,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
+) -> Result<windfall_ipc::McpPanel, String> {
+    let _window_call = caller.enter(&window, "mcp_trust")?;
+    Ok(session.mcp_trust(&agent, trusted))
+}
+#[tauri::command]
+fn mcp_focus(
+    session: State<'_, Session>,
+    focus: windfall_ipc::McpFocus,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
+) -> Result<(), String> {
+    let _window_call = caller.enter(&window, "mcp_focus")?;
+    session.mcp_focus(focus);
+    Ok(())
+}
+#[tauri::command]
+fn mcp_cancel_render(
+    session: State<'_, Session>,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
+) -> Result<(), String> {
+    let _window_call = caller.enter(&window, "mcp_cancel_render")?;
+    session.mcp_cancel_render();
+    Ok(())
+}
+#[tauri::command]
 async fn backup_versions(
     session: State<'_, Session>,
     folder: String,
@@ -2343,6 +2446,16 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         crate::files_commands::plugins_insert,
         phone_remote_state,
         phone_remote_set,
+        mcp_state,
+        mcp_configure,
+        mcp_regenerate_token,
+        mcp_panel,
+        mcp_approve,
+        mcp_reject,
+        mcp_dismiss,
+        mcp_trust,
+        mcp_focus,
+        mcp_cancel_render,
         backup_versions,
         backup_save,
         backup_restore,
