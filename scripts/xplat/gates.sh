@@ -2,8 +2,8 @@
 # The repository's Rust and UI gates for Linux and macOS, in the order the
 # Windows gates run them, with the owned plugin fixtures built first so the
 # fixture-backed tests run instead of skipping. Used by the Linux container
-# (scripts/linux/xplat.sh) and the macOS/Linux workflow
-# (.github/workflows/xplat.yml).
+# (scripts/linux/xplat.sh); written for macOS too, where nothing has been
+# supported yet.
 #
 #   scripts/xplat/gates.sh LOG_FOLDER [STEP...]
 #
@@ -66,7 +66,7 @@ for name in "${selected[@]}"; do
     fixtures) step fixtures cargo build --manifest-path crates/windfall-plugin-host/test-plugins/Cargo.toml --target-dir target ;;
     native-bins) step native-bins cargo build -p windfall-desktop -p windfall-plugin -p windfall-plugin-host --bins --lib ;;
     # The instruments' CPU-deadline tests hold a synth to a share of one
-    # performance core. On shared hosted runners (XPLAT_CPU_BUDGET=report)
+    # performance core. On shared machines (XPLAT_CPU_BUDGET=report)
     # they run as their own step and are recorded without deciding the
     # gate; everywhere else they gate with the rest.
     test-workspace)
@@ -87,8 +87,8 @@ for name in "${selected[@]}"; do
     ui-install) step ui-install pnpm --dir apps/desktop install --frozen-lockfile ;;
     typecheck) step typecheck pnpm --dir apps/desktop typecheck ;;
     lint) step lint pnpm --dir apps/desktop lint ;;
-    # Hosted CI runners have 3-4 vCPUs; VITEST_WORKERS=2 keeps the UI tests
-    # inside their own timeouts there.
+    # On machines with few cores, VITEST_WORKERS=2 keeps the UI tests inside
+    # their own timeouts.
     vitest) step vitest pnpm --dir apps/desktop exec vitest run --maxWorkers="${VITEST_WORKERS:-4}" ;;
     frontend-build) step frontend-build pnpm --dir apps/desktop build ;;
     # The desktop crate's build script checks that every bundled resource

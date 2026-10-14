@@ -8,11 +8,15 @@ import { createHash } from "node:crypto"
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const target = process.env.TAURI_ENV_TARGET_TRIPLE || process.env.WINDFALL_PLUGIN_TARGET
 const universal = target === "universal-apple-darwin"
+// One Cargo job unless the builder says otherwise (WINDFALL_RUNTIME_JOBS):
+// a workstation building beside other work stays usable.
+const jobs = process.env.WINDFALL_RUNTIME_JOBS ?? "1"
+if (!/^[1-9][0-9]?$/.test(jobs)) throw new Error("WINDFALL_RUNTIME_JOBS must be a number from 1 to 99")
 const targets = universal ? ["aarch64-apple-darwin", "x86_64-apple-darwin"] : [target]
 for (const buildTarget of targets) {
 const args = buildTarget ? ["--target", buildTarget] : []
 for (const artifact of [["-p", "windfall-plugin", "--lib"], ["-p", "windfall-plugin-host", "--bin", "windfall-plugin-audio"]]) {
-  const result = spawnSync("cargo", ["build", "--release", "--jobs", "1", "--target-dir", path.join(root, "target"), ...args, ...artifact], { cwd: root, stdio: "inherit", windowsHide: true })
+  const result = spawnSync("cargo", ["build", "--release", "--jobs", jobs, "--target-dir", path.join(root, "target"), ...args, ...artifact], { cwd: root, stdio: "inherit", windowsHide: true })
   if (result.status !== 0) throw new Error("Windfall plugin runtime/helper build failed")
 }
 }

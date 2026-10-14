@@ -18,16 +18,28 @@ fn create(
 fn independent_vst3_no_editor_class_keeps_explicit_refusal() {
     let (_module, mut instance) = create(3);
     assert!(!instance.has_editor());
-    assert_eq!(
-        instance.open_editor(&EditorOptions::default()),
-        // Windows and Linux (X11) host VST3 editors, so a plugin without
-        // an editor view is refused as having none.
-        Err(if cfg!(any(windows, target_os = "linux")) {
-            EditorError::NoEditor
-        } else {
-            EditorError::UnsupportedPlatform
-        })
-    );
+    let opened = instance.open_editor(&EditorOptions::default());
+    if cfg!(target_os = "macos") {
+        assert_eq!(opened, Err(cocoa_off_main_thread()));
+    } else {
+        assert_eq!(
+            opened,
+            // Windows and Linux (X11) host VST3 editors, so a plugin without
+            // an editor view is refused as having none.
+            Err(if cfg!(any(windows, target_os = "linux")) {
+                EditorError::NoEditor
+            } else {
+                EditorError::UnsupportedPlatform
+            })
+        );
+    }
+}
+
+/// Cocoa views live on the application's main thread, and libtest runs each
+/// test on a thread of its own, so the macOS host refuses before it asks the
+/// plugin for a view.
+fn cocoa_off_main_thread() -> EditorError {
+    EditorError::Failed("Cocoa editor requires the application main thread".into())
 }
 
 #[test]
@@ -190,6 +202,8 @@ fn lifecycle_gain_offsets_transport_state_and_restart() {
         // The fixture draws an editor on Windows only; the X11 host asks
         // for a view and is given none.
         assert_eq!(opened, Err(EditorError::NoEditor));
+    } else if cfg!(target_os = "macos") {
+        assert_eq!(opened, Err(cocoa_off_main_thread()));
     } else {
         assert_eq!(opened, Err(EditorError::UnsupportedPlatform));
     }
