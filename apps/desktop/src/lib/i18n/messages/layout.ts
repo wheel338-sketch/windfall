@@ -29,6 +29,7 @@ export const layoutEn = {
   "smp": "smp",
   "stopped working.": "stopped working.",
   "to hear it loop.": "to hear it loop.",
+  "Not saved to a file yet": "Not saved to a file yet",
 } as const
 
 export const layoutEs = {
@@ -60,4 +61,5 @@ export const layoutEs = {
   "smp": "muestras",
   "stopped working.": "dejó de funcionar.",
   "to hear it loop.": "para oírlo en bucle.",
+  "Not saved to a file yet": "Aún no guardado en un archivo",
 } satisfies Record<keyof typeof layoutEn, Message>

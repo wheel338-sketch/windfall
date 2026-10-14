@@ -356,3 +356,96 @@ the list for Fruity Soft Clipper (`postgain`) and that it equals the dropped
 lines; `import-dialog.test.tsx` "names the omitted controls of each device
 in the review, and says nothing when none are". FLP suite 209 / 0
 (`s4-flp2`); review tests 7 / 0 (`s4-ui3`).
+
+### Step 2, Rust part (commit `4b8ff021` and after)
+
+**The mechanism (item 6, first two guards).** `crates/windfall-ipc/src/ui_messages.rs`
+now declares, beside the append-only code list, the parameters each code is
+shown with (`UI_MESSAGE_PARAMS`, `ui_message_params`). `ui_message` refuses,
+in debug and test builds, a message that lacks one of its declared
+parameters. Tests:
+
+- Rust, `every_code_declares_its_parameters_and_the_registry_only_grows`:
+  one declaration per code in the same order, parameter names sorted, unique
+  and alphanumeric, and the first and last code of each release of the
+  registry pinned by position (0, 56, 57 and 81 of 82), which is what keeps
+  it append-only. `a_message_without_one_of_its_declared_parameters_is_refused_in_tests`.
+- UI, `native-messages.test.ts`: every Rust code has an entry in every
+  language (already there), and now every entry, in every plural form, uses
+  exactly the parameters Rust declares. It reads the Rust table as the
+  formatter leaves it.
+
+**First coded families (item 1, partly).** 25 codes, 28 sites: templates
+(9), browser folders (4), plugin database (4), scores (3), mixer presets
+(5). Each has an English entry, which is the text the backend used to build,
+and a Spanish one. A nested cause is a parameter: what the operating system
+or a library said is shown as it came, and a cause that is itself a coded
+message (the plugin database's "not being saved" wraps its own read error)
+is put into words too (`nativeMessage` decodes a parameter that is an
+envelope). Six tests that asserted the English words of these messages now
+assert the code (`browser.rs`, `plugin_database.rs`, `mixer_presets_qa.rs`,
+`files_qa.rs`).
+
+**The third guard: no bare prose (item 6).** The mechanism chosen is a test
+over the desktop crate's own source, `apps/desktop/src-tauri/src/message_guard.rs`,
+not a type at the command boundary: the crate has 238 commands and about 700
+functions returning `Result<_, String>`, and a new error type there would
+need `From<String>` to compile, which lets prose through again. The test
+does two things. It checks that every `ui_message("code", json!({…}))` in
+the crate names a registered code and gives each declared parameter. And it
+finds every sentence with values in it that is still built with `format!`
+and requires that set to equal `uncoded_messages.txt`: a new one fails until
+it is coded or listed as internal with a reason; a coded one fails until its
+line is removed. So the list can only shrink, and what is left is exact.
+
+**What is left on item 1, exactly.** The hand-off listed 136 sites by a
+pattern. The guard's own scan of the tree as it is now finds 150 distinct
+parameterised sentences; triaged: 6 are not shown to anybody (the
+assistant's model instruction, three file names, two HTTP lines) and are
+listed as internal with their reasons; 28 sites are coded; **116 are still
+built in English** and are listed, file by file, in the backlog section of
+`uncoded_messages.txt`. Until each is coded a Spanish user sees it as
+`Diagnóstico nativo: <English>`.
+
+**Item 2, the core crates: inventoried, not converted.** The same scan over
+`crates/*` (non-test code): windfall-project 190 sentences in 21 files
+(almost all `check.rs` and the command lowering: what is wrong with a
+project file, and why an edit was refused), windfall-flp 110 (the lines of
+the import review), windfall-plugin-host 26, windfall-engine 22,
+windfall-plugin 22, windfall-codec 21, windfall-midi 17 (already mapped to
+codes at the boundary by `midi_error_message` and friends), windfall-ipc 10,
+windfall-sim 4, and one each in analysis, dsp and factory. Besides these,
+24 error types implement `Display` by hand. The approach I would take, and
+took for the one family that is done (MIDI, before this round): where a
+crate's error is an enum, map its variants to codes in `windfall-ipc`, so
+the core crates stay free of interface concerns; where a crate builds a
+sentence (project validation, the import review), give the IPC type a code
+and parameters beside the text. None of that is done in this round beyond
+what already existed.
+
+**Item 3, history labels, backend half.** Not changed in Rust. The static
+labels are translated at display by key and the two made from a setting
+name by pattern (see the frontend part); nothing in the backend stores a
+code. A label the backend builds some other way in future would be shown in
+English; `history-labels.test.ts` fails if `lower.rs` gains a literal label
+without a catalog entry.
+
+**Item 7, the real window.** `scripts/language-switch-window-smoke.mjs` (new)
+drives the debug desktop window with the software audio sink: it adds a
+channel in English, switches to Spanish through the settings dialog, checks
+the menu bar, a menu, the status bar, a dialog, a backend refusal (a
+template named like a factory one, which arrives as `templates.factoryName`
+with its name), a descriptor-made instrument editor and the history, checks
+the project and its history are unchanged, switches back and checks again.
+The Spanish it expects is read from the catalogs. Its first runs found two
+things:
+
+- The status bar said "Not saved to a file yet" (and would have said
+  "Edited") in English in a Spanish window: the two were assigned to a
+  variable as plain literals, which the static guard cannot see. They go
+  through the catalog now, and the smoke checks the status bar.
+- The profile directory of a smoke keeps the language choice; the smoke now
+  starts from a new one each run.
+
+The remount on a language change held in the real window: the project, its
+generation and its history were identical before, during and after.

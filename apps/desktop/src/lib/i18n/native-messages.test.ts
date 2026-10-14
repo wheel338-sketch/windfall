@@ -25,7 +25,8 @@ describe("native coded message localization", () => {
   it("shows every code with exactly the parameters Rust declares for it, in every language", () => {
     const table = rustSource.match(/pub const UI_MESSAGE_PARAMS: &\[\(&str, &\[&str\]\)\] = &\[([\s\S]*?)\n\];/)
     expect(table).not.toBeNull()
-    const declared = new Map([...table![1].matchAll(/\("([^"]+)", &\[([^\]]*)\]\)/g)]
+    // Entries may be wrapped over several lines by the formatter.
+    const declared = new Map([...table![1].matchAll(/\(\s*"([^"]+)",\s*&\[([^\]]*)\],?\s*\)/g)]
       .map((match) => [match[1], [...match[2].matchAll(/"([^"]+)"/g)].map((name) => name[1]).sort()] as const))
     expect(declared.size).toBeGreaterThan(80)
     expect([...declared.keys()].sort()).toEqual(Object.keys(nativeEn).filter((code) => !code.startsWith("native.")).sort())

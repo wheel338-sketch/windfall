@@ -112,9 +112,7 @@ function SaveState() {
   const dirty = useDirty()
   const path = useProjectPath()
 
-  let label = t("Saved")
-  if (path === null) label = "Not saved to a file yet"
-  else if (dirty) label = "Edited"
+  const label = path === null ? t("Not saved to a file yet") : dirty ? t("Edited") : t("Saved")
 
   return (
     <div
