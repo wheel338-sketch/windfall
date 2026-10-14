@@ -133,13 +133,17 @@ it("reviews a project the importer really converted: its counts and its omitted 
       `${category.exact} exact · ${category.approximated} approximate · ${category.placeholders} placeholders · ${category.dropped} omitted`
     )
   }
-  // Each omitted field is a dropped line of its category: the clipper's
-  // post gain among the effects, the synth's three switch kinds among the
-  // channels.
-  const count = (section: string) =>
-    report.categories.find((c) => c.section === section)?.dropped ?? 0
-  expect(count("effects")).toBeGreaterThanOrEqual(1)
-  expect(count("channels")).toBeGreaterThanOrEqual(5)
+  // Each omitted field is a dropped line of its category, not part of an
+  // approximated one: the clipper's post gain among the effects, the
+  // synth's five switches among the channels.
+  const omittedLines = (section: string) =>
+    report.categories
+      .find((c) => c.section === section)
+      ?.lines.filter(
+        (line) => line.outcome === "dropped" && line.text.includes("omitted:")
+      ).length ?? 0
+  expect(omittedLines("effects")).toBe(1)
+  expect(omittedLines("channels")).toBe(5)
   const omitted = screen.getByRole("region", { name: "Omitted controls" })
   const items = within(omitted)
     .getAllByRole("listitem")
