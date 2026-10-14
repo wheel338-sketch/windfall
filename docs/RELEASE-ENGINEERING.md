@@ -80,7 +80,43 @@ macOS outside-App-Store distribution requires an operator-owned Developer ID App
 
 Linux requires an agreed signing/distribution policy and verifier for the exact Debian package/manifest plus repository trust. No Linux signing key/account is configured here.
 
-Auto-update is a separate runtime/config window. It needs an operator-approved HTTPS update host, public updater key and secret references `TAURI_SIGNING_PRIVATE_KEY` / `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, matched channels and immutable artifact URLs. Tauri updater signatures are distinct from OS code signing. Neither update URL nor key is invented, and the updater plugin/runtime is not installed by this packet. Offline/corrupt/downgrade handling, rollback and project-format safety must be tested before an updater is enabled.
+Auto-update is configured from 1.0.1; see "Publishing an update" below. Tauri updater signatures are distinct from OS code signing: the installer stays Authenticode-unsigned.
+
+## Publishing an update (Windows, from 1.0.1)
+
+Windfall updates itself from GitHub Releases. The configuration lives in one place, the `plugins.updater` block of `apps/desktop/src-tauri/tauri.conf.json`:
+
+- `pubkey`: the updater public key (`windfall-updater.key.pub`, base64 as Tauri stores it). Every release must be signed with the matching private key, which is kept outside the repository (`C:/Users/ewhee/.windfall-release/windfall-updater.key` on the release machine).
+- `endpoints[0]`: the stable channel, `https://github.com/wheel338-sketch/windfall/releases/latest/download/latest.json`. GitHub serves the newest non-draft, non-prerelease release's asset there. There is no preview channel.
+- `requireSignedVersion: true`: a signature must name the version it was made for, so an old signed installer cannot be replayed under a higher version number.
+
+The app checks at start-up at most once a day (Settings → Updates turns it off) and from Help → Check for updates. It accepts only a higher, non-prerelease version whose manifest declares `windfall.channel: "stable"` and the app's project format, downloads with a size cap, verifies the minisign signature, then installs through the shutdown path (unsaved-work prompt, audio and plugins stopped, rollback if cancelled or refused) and relaunches.
+
+Release steps:
+
+1. Bump the version (workspace `Cargo.toml`, `Cargo.lock`, `apps/desktop/package.json`, `tauri.conf.json`, `crates/windfall-plugin/src/clap.rs`) and commit.
+2. Build with the key. From Git Bash after `source scripts/msvc-env.sh`, prebuild the plugin runtime (`cargo build --release -p windfall-plugin --lib` and `cargo build --release -p windfall-plugin-host --bin windfall-plugin-audio`), then:
+
+   ```bash
+   export TAURI_SIGNING_PRIVATE_KEY="$(cat C:/Users/ewhee/.windfall-release/windfall-updater.key)"
+   export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""
+   pnpm --dir apps/desktop tauri build --ci --bundles nsis
+   ```
+
+   Do not pass `--no-sign`: it skips the updater signature too. Without the key the build fails ("A public key has been found, but no private key"); unsigned development bundles still build with `--no-sign`. The build writes `target/release/bundle/nsis/Windfall_VERSION_x64-setup.exe` and `…-setup.exe.sig`.
+3. Write the manifest. The script verifies the signature against the embedded key (key id, Ed25519 signature, signed version and file name) before it writes anything:
+
+   ```bash
+   node scripts/release/update-manifest.mjs      --installer target/release/bundle/nsis/Windfall_VERSION_x64-setup.exe      --notes-file docs/RELEASE-NOTES-VERSION.md
+   ```
+
+   It writes `latest.json` beside the installer: `version`, `notes`, `pub_date`, `platforms.windows-x86_64.{signature,url}` with the URL `https://github.com/wheel338-sketch/windfall/releases/download/vVERSION/Windfall_VERSION_x64-setup.exe`, and `windfall.{channel,projectFormatVersion}`.
+4. Create the GitHub release `vVERSION` as a draft, upload the installer, its `.sig` and `latest.json` (in that order, asset names exactly as built), then publish it as the latest release, not a prerelease. `releases/latest/download/latest.json` moves to the new release only when it is published, so it never points at an installer that is not there yet.
+5. Check: `curl -sL https://github.com/wheel338-sketch/windfall/releases/latest/download/latest.json` returns the new version, and an installed previous version finds it from Help → Check for updates.
+
+To test against another host, build with an override instead of editing the committed file: `pnpm --dir apps/desktop tauri build --ci --bundles nsis --config override.json`, where `override.json` sets `plugins.updater.endpoints` (HTTPS, or literal loopback HTTP such as `http://127.0.0.1:18765/latest.json`). `scripts/auto-update-window-smoke.mjs` runs the end-to-end check this way with a separate product identity; see `docs/qa/2026-10-14-auto-update.md`.
+
+Windfall 1.0.0 shipped without an updater configuration, so its users must install 1.0.1 by hand once. Updates work from 1.0.1 onwards. A lost private key cannot be replaced without another manual install, because installed versions trust only the embedded public key.
 
 ## Local commands and handoff
 

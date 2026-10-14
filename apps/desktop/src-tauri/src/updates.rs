@@ -288,9 +288,14 @@ pub async fn update_check(
             });
         }
     };
+    // Offline, a refused connection or a missing manifest: said as a failed
+    // check, with the transport's own words as its cause.
     let Some(manifest) =
         crate::update_transfer::fetch(endpoint, crate::update_transfer::MANIFEST_CAP, |_, _| {})
-            .await?
+            .await
+            .map_err(|error| {
+                windfall_ipc::ui_message("updates.checkFailed", serde_json::json!({"error": error}))
+            })?
     else {
         return Ok(CheckResult {
             configured: true,
@@ -366,7 +371,13 @@ async fn bounded_verified_download(
         crate::update_transfer::PACKAGE_CAP,
         progress,
     )
-    .await?
+    .await
+    .map_err(|error| {
+        windfall_ipc::ui_message(
+            "updates.downloadFailed",
+            serde_json::json!({"error": error}),
+        )
+    })?
     .ok_or("Update package is empty")?;
     verify_bounded_bytes(&mut update, bytes).await
 }
