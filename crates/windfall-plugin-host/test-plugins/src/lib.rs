@@ -78,6 +78,10 @@ pub(crate) enum Kind {
     /// Its `init` ends the process.
     InitCrash,
     Dynamic,
+    /// The sine instrument with a note dialect parameter. It plays the
+    /// dialect it had when activated and asks for a restart when the
+    /// parameter changes while it runs: CLAP notes at 0, MIDI only at 1.
+    SwitchingSine,
 }
 
 struct Spec {
@@ -259,6 +263,12 @@ const SPECS: &[Spec] = &[
         id: c"org.windfall.test.dynamic",
         name: c"Test Dynamic Capabilities",
         features: EFFECT,
+    },
+    Spec {
+        kind: Kind::SwitchingSine,
+        id: c"org.windfall.test.switching-sine",
+        name: c"Test Switching Sine",
+        features: INSTRUMENT,
     },
 ];
 

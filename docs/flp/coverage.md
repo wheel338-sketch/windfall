@@ -412,7 +412,7 @@ Processor` `effect_on`, `Effector` `bypass` (the effect slot's enable);
   Fruity Delay 3, SimSynth) and Effector `effect`, whose selector order no
   public source gives.
 
-### Omitted: decoded sound controls with no stand-in control
+### Omitted: decoded sound controls with no stand-in control (round seven; superseded by the round-eight list below)
 
 The end state of the import row (`docs/qa/README.md`, decisions of
 2026-10-13) is that a described field whose stand-in has no matching control
@@ -473,3 +473,137 @@ Outside the field tables, reported per channel: SimSynth `osc1..3_warm`
 (the public converter maps it to a six-voice unison), `lfo_trackamp` and
 `chorus_on`; and the channel LFO's `predelay` and `attack`, which the public
 sources give only as a percentage with no time unit, and its tempo-sync flag.
+
+## 2026-10-14 round eight: matching controls carried, every omission pinned (written, not built or tested)
+
+The round-eight audit found decoded fields pinned as omitted although their
+stand-in has a matching control, and omissions outside the native table that
+were folded into an "approximated" line or missing from the list. The rule
+now checked by a test is the one in `docs/qa/README.md` (decisions of
+2026-10-13, revised): a described field stays omitted only while the
+stand-in has no control that could carry it, judged against the stand-in's
+own descriptors.
+
+### Given a stand-in control in round eight
+
+| Device and field | Stand-in control | Value scaling | Source of the rule |
+|---|---|---|---|
+| Pitch Shifter `wet` | Pitch Shift `mix` | `wet / 10000`, clamped 0..1 | the public definition (marked unfinished) gives no range; 0..10000 is the range the public dataset gives the mix of Frequency Shifter and the amount of Spreader, effects of the same generation |
+| Pitch Shifter `formant_correction` | `mode` (Voice when on) | any value but 0 is on | named in the public definition; the stand-in's Voice mode is the formant-preserving one |
+| Vintage Phaser `color_freq` | Stage Phaser `colorHz` | linear fit of 0..650000 to 200..12000 Hz | dataset range, fitted like the sweep's ends |
+| Vintage Phaser `mod_tempo` | `sync`, with `cycleBeats` = import tempo / 60 / fitted rate (1/8..16) | any value but 0 is on | the dataset names the switch; the synced cycle plays the fitted rate at the import tempo |
+| Vintage Chorus `mod_tempo_sync` | Bucket Chorus `sync`, `cycleBeats` as above | any value but 0 is on | same |
+| Fruity Chorus `wetonly` | Chorus `mix` = 1 (wet only) above 512, the stand-in's 0.5 below | 0..1024, number 11 (its automation follows the same rule) | dataset "Wet Only" |
+| Fruity Stereo Shaper `delay` | Stereo Matrix `rightDelayMs` (positive) or `leftDelayMs` (negative) | abs(delay) / 4096 of 50 ms | dataset range -4096..4096, no unit or side; `delay` and `dephase` are now read signed |
+| Fruity PanOMatic `lfo_target` | which depth `lfo_amount` drives: 0 `depth` (pan), 1 `volumeDepth`, 2 both | the dataset names an "LFO Target" of 0..2 and none of its values; these are the three ways one amount can drive the stand-in's two depths, 0 being how the amount was read before; automation of the amount follows the target (pan only for "both") | dataset |
+| BassDrum `peak` | Layer Kick `pitchDropSemitones` | `12 log2(peak / base)`, 0..60, only when both are positive | `peak` and `base` read in hertz, as `base` has been since round six |
+| Fruity Vocoder `num_bands` | Vocoder `bandCount` | clamped to the stand-in's 16..32 | the band count of the public variable record |
+| Pitcher `key_on.0..11` | Pitch Correct `root` and `scale` | when the enabled pitch classes (C first) are exactly the chromatic, major, minor or pentatonic scale on some root (first scale, then lowest root); otherwise the stand-in stays chromatic and the review says so | public layout; the stand-in's scales |
+| Fruity Reeverb 2 `predelay` | Reverb `preDelayMs` | linear fit of 0..384 to 0..250 ms | dataset range (DawVert divides by 38.4 into a unit it does not state) |
+| Fruity Reeverb 2 `mod` | `modulation` | `mod / 2048` | dataset range, "Mod Depth" 0..2048 |
+| Fruity Reeverb `predelay` | `preDelayMs` | taken in milliseconds (0..250) | dataset range; DawVert carries it over unchanged |
+| Fruity Delay 2 `time_stereo_offset` | Delay `stereoOffsetMs` | linear fit of -512..512 to -50..50 ms | dataset range (DawVert divides by 512) |
+| Fruity Delay 2 `fb_cut` | `highCutHz` | linear fit of 0..128 to 500..20000 Hz | dataset range; the same disclosed fit as Fruity Delay 3's `feedback_cutoff` |
+| Fruity Delay `cutoff` | `highCutHz` | linear fit of 0..1024 to 500..20000 Hz | same |
+| Fruity Delay `tempo` | `timeMs` (not synced) | with the knob up, the steps are counted at its own tempo, `60 + 220 * tempo / 1024` BPM | DawVert `universal__n_flstudio.py` (`set_steps_nonsync`) |
+
+Tests: `crates/windfall-flp/tests/round8_controls.rs` (per device: the
+imported value, the audible effect against a reference worked out in the
+test, and save and reopen).
+
+### Omitted fields outside the native table, now filed as omitted
+
+Each is a "dropped" line of its category, counted as omitted and listed by
+device under "Omitted controls"; none is part of an approximated line any
+more. SimSynth `osc1..3_warm`, `lfo_trackamp`, `chorus_on`; 3x Osc
+`osc1..3_ofs`, `osc1..3_detune`, `phase_rand`, `osc1..3_invert`, `osc3_am`;
+Fruity Reeverb 2 `bass`, `cross`, `stereo`, `mod_speed`, `tempo_predelay`,
+`mid_side`; Fruity Reeverb `color`; Fruity Delay 2 `input_pan`; Fruity
+Parametric EQ 2 `1..7_order`; and on a channel, under "Channel envelope",
+"Channel LFO", "Channel arpeggiator", "Channel note echo" and "Channel time
+stretch": envelope `predelay`, `hold`, `attack_tension`, `decay_tension`,
+`release_tension`, `tempo_sync`; LFO `predelay`, `attack`, `tempo_sync`;
+arpeggiator `chord`, `repeat`, `slide`; note echo `ping_pong`, `fat_mode`,
+`pan`; time stretch `formant`. The channel's fields are filed when they are
+in use (a predelay of 100 is none), the device fields whenever the device is.
+
+### The pinned list
+
+`convert/native.rs`, module `open_list`:
+
+- `decoded_fields_without_a_stand_in_control_are_exactly_the_recorded_list`
+  pins every omitted field, native and channel alike, each with a reason.
+- `every_omitted_field_was_checked_against_the_controls_of_its_stand_in`
+  works out, from each table device's stand-in descriptors, the controls none
+  of its decoded fields sets, and requires them to equal a reviewed line
+  saying why no omitted field fits them; outside the table each reviewed
+  control must be one the stand-in has, and the channel's own stand-ins are
+  destructured field by field, so a field added to them does not compile
+  until it is reviewed.
+- `devices_outside_the_table_report_exactly_their_recorded_omissions`.
+
+269 omitted families on 43 devices: 222 on 32 devices of the native table
+and 47 on 11 elsewhere. A family written `name.#` or `bank_#_e/name` stands
+for each index of that control. `fruit kick` and `fruity kick` are two names
+of one device. The reason for each row is in the test.
+
+| Device | Count | Fields |
+|---|---|---|
+| bassdrum | 16 | `attack`, `butt`, `click_cut`, `click_freq`, `drive`, `noise_a`, `noise_d`, `noise_filter`, `noise_mix`, `noise_pitch`, `noise_s`, `noise_start`, `var_base`, `var_peak`, `var_phase`, `var_slide_time` |
+| effector | 7 | `input_level`, `mod_rate`, `mod_shape`, `output_gain`, `tempo`, `x_mod`, `y_mod` |
+| frequency shifter | 8 | `feedback`, `lr_phase`, `mixer_track`, `shape_left`, `shape_right`, `start_phase`, `stereo`, `type` |
+| fruit kick | 1 | `osc_dist` |
+| fruity chorus | 5 | `crosscutoff`, `crosstype`, `lfo1_wave`, `lfo2_wave`, `lfo3_wave` |
+| fruity delay 3 | 16 | `delay_type`, `diffusion_level`, `diffusion_spread`, `dry`, `feedback_bits`, `feedback_reso`, `feedback_sample_rate`, `feedbackdist_knee`, `feedbackdist_symmetry`, `feedbackdist_type`, `keep_pitch`, `mod_cutoff`, `smoothing`, `stereo`, `tone`, `wet_input` |
+| fruity delay bank | 4 | `2x_oversampling`, `bank_#_e/feedback_leave_first_echo`, `bank_#_e/grain_div`, `bank_#_e/grain_sh` |
+| fruity dx10 | 4 | `mod2_velsen`, `mod_thru`, `mod_velsen`, `waveform` |
+| fruity fast dist | 2 | `mix`, `type` |
+| fruity flanger | 2 | `cross`, `dry` |
+| fruity flangus | 2 | `cross`, `dry` |
+| fruity free filter | 1 | `center` |
+| fruity granulizer | 10 | `depth`, `hold`, `hold_2`, `key_to`, `loop`, `pan`, `speed`, `trans_hold`, `trans_mode`, `wave_spacing` |
+| fruity kick | 1 | `osc_dist` |
+| fruity limiter | 28 | `comp_att_curve`, `comp_rel`, `comp_sus`, `limiter_att_curve`, `limiter_rel_curve`, `limiter_safety`, `limiter_sus`, `noise_gain`, `s_comp_att`, `s_comp_att_curve`, `s_comp_knee`, `s_comp_ratio`, `s_comp_rel`, `s_comp_sus`, `s_comp_thres`, `s_gain`, `s_limiter_att`, `s_limiter_att_curve`, `s_limiter_ceil`, `s_limiter_rel`, `s_limiter_rel_curve`, `s_limiter_sus`, `s_noise_gain`, `s_noise_rel`, `s_noise_thres`, `s_sat`, `sat`, `sidechain_number` |
+| fruity multiband compressor | 11 | `filter_type`, `gain`, `hi_knee`, `hi_state`, `limiter`, `low_knee`, `low_state`, `mid_freq_h`, `mid_freq_l`, `mid_knee`, `mid_state` |
+| fruity phaser | 3 | `freq_range`, `gain`, `num_stages` |
+| fruity slicer | 2 | `fitlen`, `stretchtype` |
+| fruity soft clipper | 1 | `postgain` |
+| fruity stereo enhancer | 2 | `prepost`, `vol` |
+| fruity stereo shaper | 3 | `dephase`, `iodiff`, `prepost` |
+| fruity vocoder | 11 | `bands.#`, `filter`, `freq_bandwidth`, `freq_invert`, `freq_max`, `freq_min`, `freq_scale`, `hold`, `left_right`, `mix_car`, `mix_mod` |
+| fruity waveshaper | 1 | `removedc` |
+| pitch shifter | 9 | `channel`, `delay`, `delay_mode`, `density`, `duration`, `feedback`, `jitter`, `pitch_mode`, `rand` |
+| pitcher | 18 | `bypass.#`, `bypass_all`, `finetune`, `formant`, `gender`, `harmonize`, `harmonize_vel`, `min_freq`, `octaves`, `ref_chan`, `selector_key`, `selector_type`, `stereo`, `use_midi`, `voice1_pan`, `voice2_pan`, `voice3_pan`, `voice4_pan` |
+| plucked! | 3 | `norm_decay`, `release`, `wide` |
+| slicex | 6 | `crossfade`, `layering`, `master_lfo_level`, `master_random_level`, `mod_x`, `mod_y` |
+| soundgoodizer | 1 | `mode` |
+| spreader | 4 | `low_bypass`, `mono`, `postfx`, `prefx` |
+| transient processor | 5 | `attack_shape`, `gain`, `release_shape`, `split_balance`, `split_freq` |
+| vintage chorus | 10 | `delay_feedback`, `delay_hp`, `delay_time2`, `invert_wet`, `mod_phase_start`, `mod_shape_sine`, `mono_input`, `noise`, `noise_gain`, `noise_gate` |
+| vintage phaser | 25 | `color_gain`, `delay_feedback`, `delay_hp`, `delay_keeppitch`, `delay_lp`, `delay_mix`, `delay_on`, `delay_stereo`, `delay_tempo`, `delay_time`, `feedback_hp`, `input_hp`, `levels_mono`, `levels_noise`, `levels_noise_gate`, `lfo_pull`, `lfo_scale`, `mod_phase_start`, `mod_shape_sine`, `mod_tension`, `phaser_freq`, `phaser_hq`, `phaser_manual`, `rate_freq1`, `rate_freq2` |
+| simsynth | 5 | `osc1_warm`, `osc2_warm`, `osc3_warm`, `lfo_trackamp`, `chorus_on` |
+| 3x osc | 11 | `osc1_ofs`, `osc1_detune`, `osc2_ofs`, `osc2_detune`, `osc3_ofs`, `osc3_detune`, `phase_rand`, `osc1_invert`, `osc2_invert`, `osc3_invert`, `osc3_am` |
+| fruity reeverb 2 | 6 | `bass`, `cross`, `stereo`, `mod_speed`, `tempo_predelay`, `mid_side` |
+| fruity reeverb | 1 | `color` |
+| fruity delay 2 | 1 | `input_pan` |
+| fruity parametric eq 2 | 7 | `1_order` to `7_order` |
+| channel envelope | 6 | `predelay`, `hold`, `attack_tension`, `decay_tension`, `release_tension`, `tempo_sync` |
+| channel lfo | 3 | `predelay`, `attack`, `tempo_sync` |
+| channel arpeggiator | 3 | `chord`, `repeat`, `slide` |
+| channel note echo | 3 | `ping_pong`, `fat_mode`, `pan` |
+| channel time stretch | 1 | `formant` |
+
+Kept omitted although a stand-in control has a similar name, with the
+reviewed reason (all in the test): Fruity Delay 3 `delay_type` and `stereo`
+(the dataset gives no values, or no width, to set the stand-in's mode from),
+Fruity Reeverb 2 `stereo` (no range for a width), Parametric EQ 2 orders (no
+slope or meaning of the sign for the cut slopes), 3x Osc stereo detune (the
+stand-in's unison detune is for all oscillators together), SimSynth warmth (a
+unison in the public converter; the stand-in has none), Pitch Shifter
+`pitch_mode` (no values; formant correction sets the mode), Pitcher
+`selector_key`/`selector_type` (no value list; the scale comes from
+`key_on`), the channel LFO `predelay` (no public time rule for the start
+delay), Fruity Delay Bank `grain_div` (no note value for the division),
+Fruity Vocoder `left_right` (the stand-in's second signal is the sidechain
+key) and Fruity Multiband Compressor `mid_freq_l`/`mid_freq_h` (the bands
+meet at the two crossovers, which `low_freq` and `hi_freq` carry).

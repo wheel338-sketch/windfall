@@ -173,6 +173,7 @@ impl Builder<'_> {
                     )
                     .to_string(),
                 );
+                self.report.omit("Channel time stretch", &["formant"]);
             }
         }
     }
@@ -576,6 +577,7 @@ impl Builder<'_> {
                     windfall_core::notice!("flp.voice.arpMapped", channel = channel.iid)
                         .to_string(),
                 );
+                let mut omitted = Vec::new();
                 for (unsupported, value) in [
                     ("chord", params.arp_chord.filter(|v| *v != u32::MAX)),
                     ("repeat", params.arp_repeat.filter(|v| *v > 1)),
@@ -593,8 +595,10 @@ impl Builder<'_> {
                             )
                             .to_string(),
                         );
+                        omitted.push(unsupported);
                     }
                 }
+                self.report.omit("Channel arpeggiator", &omitted);
                 if direction == 4 {
                     self.report.say(
                         section,
@@ -627,7 +631,9 @@ impl Builder<'_> {
                     .to_string(),
                 );
             }
-            for (flag, name) in [(2, "ping-pong"), (4, "fat mode")] {
+            let mut omitted = Vec::new();
+            for (flag, name, field) in [(2, "ping-pong", "ping_pong"), (4, "fat mode", "fat_mode")]
+            {
                 if params.delay_flags.is_some_and(|v| v & flag != 0) {
                     self.report.say(
                         section,
@@ -640,8 +646,10 @@ impl Builder<'_> {
                         .to_string(),
                     );
                     outcome = Outcome::Approximated;
+                    omitted.push(field);
                 }
             }
+            self.report.omit("Channel note echo", &omitted);
         }
         if let Some(echo) = channel.echo.filter(|e| e.feedback != 0 && e.repeats != 0) {
             settings.echo.enabled = true;
@@ -672,8 +680,12 @@ impl Builder<'_> {
                     )
                     .to_string(),
                 );
+                self.report.omit("Channel note echo", &["pan"]);
             }
         }
+        // One use of each device per channel in the review's list.
+        let mut envelope_omitted = Vec::new();
+        let mut lfo_omitted = Vec::new();
         for (index, env) in channel.envelopes.iter().enumerate() {
             let target = match index {
                 0 => "pan",
@@ -717,22 +729,25 @@ impl Builder<'_> {
                 );
             }
             if env.enabled {
-                for (name, value) in [
-                    ("predelay", env.predelay.saturating_sub(100)),
-                    ("hold", env.hold.saturating_sub(100)),
+                for (name, field, value) in [
+                    ("predelay", "predelay", env.predelay.saturating_sub(100)),
+                    ("hold", "hold", env.hold.saturating_sub(100)),
                     (
                         "attack tension",
+                        "attack_tension",
                         env.attack_tension.unwrap_or(0).unsigned_abs(),
                     ),
                     (
                         "decay tension",
+                        "decay_tension",
                         env.decay_tension.unwrap_or(0).unsigned_abs(),
                     ),
                     (
                         "release tension",
+                        "release_tension",
                         env.release_tension.unwrap_or(0).unsigned_abs(),
                     ),
-                    ("tempo sync", env.flags & 1),
+                    ("tempo sync", "tempo_sync", env.flags & 1),
                 ] {
                     if value != 0 {
                         outcome = Outcome::Approximated;
@@ -748,6 +763,9 @@ impl Builder<'_> {
                             )
                             .to_string(),
                         );
+                        if !envelope_omitted.contains(&field) {
+                            envelope_omitted.push(field);
+                        }
                     }
                 }
             }
@@ -799,13 +817,18 @@ impl Builder<'_> {
                         .to_string(),
                     );
                 }
-                for (name, value) in [
+                for (name, field, value) in [
                     (
+                        "predelay",
                         "predelay",
                         env.lfo_predelay.unwrap_or(100).saturating_sub(100),
                     ),
-                    ("attack", env.lfo_attack.unwrap_or(100).saturating_sub(100)),
-                    ("tempo sync", env.flags & 2),
+                    (
+                        "attack",
+                        "attack",
+                        env.lfo_attack.unwrap_or(100).saturating_sub(100),
+                    ),
+                    ("tempo sync", "tempo_sync", env.flags & 2),
                 ] {
                     if value != 0 {
                         self.report.say(
@@ -820,11 +843,16 @@ impl Builder<'_> {
                             )
                             .to_string(),
                         );
+                        if !lfo_omitted.contains(&field) {
+                            lfo_omitted.push(field);
+                        }
                     }
                 }
                 outcome = Outcome::Approximated;
             }
         }
+        self.report.omit("Channel envelope", &envelope_omitted);
+        self.report.omit("Channel LFO", &lfo_omitted);
         if self
             .apply(
                 section,

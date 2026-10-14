@@ -370,6 +370,15 @@ pub(super) fn instrument(name: &str, state: &[u8]) -> Option<InstrumentParams> {
             );
         }
     }
+    if name.trim().eq_ignore_ascii_case("BassDrum")
+        && let Some(drop) = bassdrum_drop(&l, state)
+        && let Some(i) = kind
+            .descriptors()
+            .iter()
+            .position(|p| p.id == "pitchDropSemitones")
+    {
+        params.set(i, drop);
+    }
     if matches!(
         name.trim().to_ascii_lowercase().as_str(),
         "fruit kick" | "fruity kick"
@@ -387,6 +396,61 @@ pub(super) fn instrument(name: &str, state: &[u8]) -> Option<InstrumentParams> {
         }
     }
     Some(params.sanitized())
+}
+
+/// BassDrum's sweep runs from `peak` down to `base`, both read in hertz
+/// like `base` itself: the stand-in's drop is 12 log2(peak / base)
+/// semitones, within its 0..60. Nothing is set unless both are positive.
+fn bassdrum_drop(l: &Layout, state: &[u8]) -> Option<f32> {
+    let bytes = l.payload(state)?;
+    let read = |name: &str| l.fields.iter().find(|f| f.name == name)?.read(bytes);
+    let (base, peak) = (read("base")?, read("peak")?);
+    (base > 0.0 && peak > 0.0).then(|| (12.0 * (peak / base).log2()).clamp(0.0, 60.0) as f32)
+}
+
+/// The pitch classes of the stand-in's scales above their root, C = bit 0,
+/// in the order of its `scale` choice (`PitchScale` in windfall-dsp).
+const PITCH_SCALES: [u16; 4] = [0x0fff, 0x0ab5, 0x05ad, 0x0295];
+
+/// Pitcher's twelve enabled keys, C first, as the pitch classes they allow.
+fn pitcher_keys(l: &Layout, state: &[u8]) -> Option<u16> {
+    let bytes = l.payload(state)?;
+    let mut keys = 0_u16;
+    for key in 0..12 {
+        let on = l
+            .fields
+            .iter()
+            .find(|f| f.name == format!("key_on.{key}"))?
+            .read(bytes)?;
+        if on != 0.0 {
+            keys |= 1 << key;
+        }
+    }
+    Some(keys)
+}
+
+/// The stand-in's root and scale with exactly these pitch classes: all
+/// twelve are the chromatic scale; otherwise the first scale, then the
+/// lowest root, that matches. None when no scale does.
+fn pitcher_scale(keys: u16) -> Option<(u8, usize)> {
+    if keys == 0x0fff {
+        return Some((0, 0));
+    }
+    for (scale, mask) in PITCH_SCALES.iter().enumerate().skip(1) {
+        for root in 0..12_u8 {
+            let rotated = (0..12).fold(0_u16, |rotated, step| {
+                if mask & (1 << step) != 0 {
+                    rotated | 1 << ((step + u16::from(root)) % 12)
+                } else {
+                    rotated
+                }
+            });
+            if rotated == keys {
+                return Some((root, scale));
+            }
+        }
+    }
+    None
 }
 
 fn effect_layout(name: &str, size: usize) -> Option<(EffectKind, Layout)> {
@@ -422,6 +486,14 @@ fn effect_layout(name: &str, size: usize) -> Option<(EffectKind, Layout)> {
             ] {
                 l.map(s, t, -25600.0, 25600.0, Some(n));
                 l.formula(s, |v| v / 12800.0);
+            }
+            // Signed in the public dataset (-4096..4096): read as such.
+            for f in l
+                .fields
+                .iter_mut()
+                .filter(|f| matches!(f.name.as_str(), "delay" | "dephase"))
+            {
+                f.range = (-4096.0, 4096.0);
             }
             (EffectKind::StereoMatrix, l)
         }
@@ -522,6 +594,11 @@ fn effect_layout(name: &str, size: usize) -> Option<(EffectKind, Layout)> {
             ] {
                 l.map(s, t, 0.0, max, Some(n));
             }
+            // "Wet Only" (0..1024, number 11): above half the stand-in plays
+            // wet only (mix 1, which it documents as wet only); below, its
+            // even mix of 0.5 stays, as before this field was read.
+            l.map("wetonly", "mix", 0.0, 1024.0, Some(11));
+            l.formula("wetonly", |v| if v > 512.0 { 1.0 } else { 0.5 });
             (EffectKind::Chorus, l)
         }
         "fruity flanger" => {
@@ -928,6 +1005,10 @@ fn effect_layout(name: &str, size: usize) -> Option<(EffectKind, Layout)> {
             }
             l.map("mode", "mode", 0.0, 2.0, None);
             l.formula("mode", |v| v);
+            // A switch without a public range: any value but zero is on.
+            // The synced cycle is set from the fitted rate below.
+            l.map("mod_tempo_sync", "sync", 0.0, f64::from(u32::MAX), None);
+            l.formula("mod_tempo_sync", |v| if v != 0.0 { 1.0 } else { 0.0 });
             (EffectKind::VintageChorus, l)
         }
         "vintage phaser" => {
@@ -941,9 +1022,16 @@ fn effect_layout(name: &str, size: usize) -> Option<(EffectKind, Layout)> {
                 ("mod_speed", "rateHz", 245760.0),
                 ("mod_phase_lr", "stereoPhase", 6000.0),
                 ("levels_mix", "mix", 100.0),
+                // The dataset's range for the feedback color, fitted like
+                // the sweep's minimum and maximum to the stand-in's range.
+                ("color_freq", "colorHz", 650000.0),
             ] {
                 l.map(s, t, 0.0, max, None);
             }
+            // A switch without a public range: any value but zero is on.
+            // The synced cycle is set from the fitted rate below.
+            l.map("mod_tempo", "sync", 0.0, f64::from(u32::MAX), None);
+            l.formula("mod_tempo", |v| if v != 0.0 { 1.0 } else { 0.0 });
             (EffectKind::VintagePhaser, l)
         }
         "fruity multiband compressor" => {
@@ -992,6 +1080,24 @@ fn effect_layout(name: &str, size: usize) -> Option<(EffectKind, Layout)> {
             l.formula("pitch", |v| v / 100.0);
             l.map("formant", "formantSemitones", -1200.0, 1200.0, None);
             l.formula("formant", |v| v / 100.0);
+            // The unfinished public definition gives `wet` no range. It is
+            // read as 0..10000, the range the public dataset gives the mix
+            // of Frequency Shifter and the amount of Spreader, effects of
+            // the same generation, and clamped to the stand-in's 0..1. Any
+            // value is admitted, so a larger one cannot void the layout.
+            l.map("wet", "mix", f64::from(i32::MIN), f64::from(i32::MAX), None);
+            l.formula("wet", |v| (v / 10000.0).clamp(0.0, 1.0));
+            // A formant correction switch: on (any value but zero) keeps the
+            // voice's formants while it is shifted, which is what the
+            // stand-in's Voice mode does; off plays its full-mix mode.
+            l.map(
+                "formant_correction",
+                "mode",
+                f64::from(i32::MIN),
+                f64::from(i32::MAX),
+                None,
+            );
+            l.formula("formant_correction", |v| if v != 0.0 { 1.0 } else { 0.0 });
             for (offset, name) in [
                 (70, "display_speed"),
                 (73, "display_on"),
@@ -1096,6 +1202,74 @@ pub(super) fn effect(name: &str, state: &[u8], tempo: f64) -> Option<Translated>
             (f64::from(word(5).unwrap_or(0)) / 192.0 * 60000.0 / tempo) as f32,
         );
     }
+    if name == "pitcher"
+        && let Some((root, scale)) = pitcher_keys(&l, state).and_then(pitcher_scale)
+    {
+        set("root", f32::from(root));
+        set("scale", scale as f32);
+    }
+    if name == "fruity stereo shaper" && state.len() >= 24 {
+        // Signed -4096..4096 in the public dataset, with no unit or side:
+        // a positive delay holds the right side back, a negative one the
+        // left, by |delay| / 4096 of the stand-in's 50 ms.
+        let delay = f64::from(word(5).unwrap_or(0)).clamp(-4096.0, 4096.0);
+        let ms = (delay.abs() / 4096.0 * 50.0) as f32;
+        set("leftDelayMs", if delay < 0.0 { ms } else { 0.0 });
+        set("rightDelayMs", if delay > 0.0 { ms } else { 0.0 });
+    }
+    let mut links: Vec<ParamLink> = l
+        .fields
+        .iter()
+        .filter_map(|f| f.link(kind.descriptors()))
+        .collect();
+    if name == "fruity panomatic" && state.len() >= 24 {
+        // "LFO Target", 0..2 in the public dataset, which names none of the
+        // three values. The stand-in has two depths, pan and volume, and
+        // these are the three ways one amount can drive them: 0 pan (as
+        // the amount was read before), 1 volume, 2 both.
+        let target = word(3).unwrap_or(0);
+        let amount = kind
+            .descriptors()
+            .iter()
+            .position(|p| p.id == "depth")
+            .and_then(|i| params.get(i))
+            .unwrap_or(0.0);
+        let mut set = |id: &str, v: f32| {
+            if let Some(i) = kind.descriptors().iter().position(|p| p.id == id) {
+                params.set(i, v);
+            }
+        };
+        match target {
+            1 => {
+                set("depth", 0.0);
+                set("volumeDepth", amount);
+                // Automation of the amount moves the volume depth instead.
+                for link in links.iter_mut().filter(|link| link.fl_param == 4) {
+                    link.id = "volumeDepth";
+                }
+            }
+            2 => set("volumeDepth", amount),
+            _ => set("volumeDepth", 0.0),
+        }
+    }
+    if matches!(name.as_str(), "vintage chorus" | "vintage phaser") {
+        // Synced, the fitted rate becomes the cycle that plays it at the
+        // import tempo: tempo / 60 / rate beats, within the stand-in's
+        // 1/8 to 16.
+        let value = |id: &str| {
+            kind.descriptors()
+                .iter()
+                .position(|p| p.id == id)
+                .and_then(|i| params.get(i))
+        };
+        if value("sync").is_some_and(|sync| sync != 0.0) {
+            let rate = f64::from(value("rateHz").unwrap_or(0.0)).max(1e-6);
+            let beats = (tempo / 60.0 / rate).clamp(0.125, 16.0) as f32;
+            if let Some(i) = kind.descriptors().iter().position(|p| p.id == "cycleBeats") {
+                params.set(i, beats);
+            }
+        }
+    }
     if name == "fruity waveshaper" {
         waveshaper_curve(&mut params, state);
     }
@@ -1104,11 +1278,7 @@ pub(super) fn effect(name: &str, state: &[u8], tempo: f64) -> Option<Translated>
         notes: vec![
             "public native state translated; range-only controls use a disclosed linear fit to stand-in ranges, not acoustic equivalence; original blob retained",
         ],
-        links: l
-            .fields
-            .iter()
-            .filter_map(|f| f.link(kind.descriptors()))
-            .collect(),
+        links,
     })
 }
 
@@ -1180,6 +1350,18 @@ pub(super) fn unmapped(device: &str, field: &str) -> Unmapped {
             Elsewhere("when set, delay_time is taken in steps at the import tempo")
         }
         ("tuner", "reactivity" | "bass") => Display,
+        ("fruity stereo shaper", "delay") => Elsewhere(
+            "a positive delay holds the right side back and a negative one the left, by |delay| / 4096 of the stand-in's 50 ms",
+        ),
+        ("fruity panomatic", "lfo_target") => {
+            Elsewhere("0 sends the LFO amount to the pan depth, 1 to the volume depth, 2 to both")
+        }
+        ("bassdrum", "peak") => {
+            Elsewhere("with base it gives pitchDropSemitones = 12 log2(peak / base)")
+        }
+        ("pitcher", field) if field.starts_with("key_on.") => Elsewhere(
+            "the twelve enabled keys set root and scale when they form one of the stand-in's scales",
+        ),
         _ => Open,
     }
 }
@@ -1187,6 +1369,80 @@ pub(super) fn unmapped(device: &str, field: &str) -> Unmapped {
 /// The code of the review line that names a decoded sound control without a
 /// stand-in control. Such a line is filed as dropped, not approximated.
 const OMITTED: &str = "flp.native.fieldOmitted";
+
+/// Described fields outside the native layout table that the stand-in has
+/// no control for, by the device the review lists them under (in lower
+/// case). The converter files each one it decodes as omitted, and the test
+/// at the end of this file pins them with the table's fields.
+pub(super) const OMITTED_ELSEWHERE: &[(&str, &[&str])] = &[
+    (
+        "simsynth",
+        &[
+            "osc1_warm",
+            "osc2_warm",
+            "osc3_warm",
+            "lfo_trackamp",
+            "chorus_on",
+        ],
+    ),
+    (
+        "3x osc",
+        &[
+            "osc1_ofs",
+            "osc1_detune",
+            "osc2_ofs",
+            "osc2_detune",
+            "osc3_ofs",
+            "osc3_detune",
+            "phase_rand",
+            "osc1_invert",
+            "osc2_invert",
+            "osc3_invert",
+            "osc3_am",
+        ],
+    ),
+    (
+        "channel envelope",
+        &[
+            "predelay",
+            "hold",
+            "attack_tension",
+            "decay_tension",
+            "release_tension",
+            "tempo_sync",
+        ],
+    ),
+    (
+        "fruity reeverb 2",
+        &[
+            "bass",
+            "cross",
+            "stereo",
+            "mod_speed",
+            "tempo_predelay",
+            "mid_side",
+        ],
+    ),
+    ("fruity reeverb", &["color"]),
+    ("fruity delay 2", &["input_pan"]),
+    (
+        "fruity parametric eq 2",
+        &[
+            "1_order", "2_order", "3_order", "4_order", "5_order", "6_order", "7_order",
+        ],
+    ),
+    ("channel lfo", &["predelay", "attack", "tempo_sync"]),
+    ("channel arpeggiator", &["chord", "repeat", "slide"]),
+    ("channel note echo", &["ping_pong", "fat_mode", "pan"]),
+    ("channel time stretch", &["formant"]),
+];
+
+/// Whether `field` of `device` is in [`OMITTED_ELSEWHERE`].
+pub(super) fn omitted_elsewhere(device: &str, field: &str) -> bool {
+    OMITTED_ELSEWHERE
+        .iter()
+        .any(|(known, fields)| known.eq_ignore_ascii_case(device.trim()) && fields.contains(&field))
+}
 
 /// The field an omitted line of [`reports`] is about, for the list of
 /// omitted controls the review shows by device.
@@ -1231,7 +1487,95 @@ pub(super) fn reports(name: &str, state: &[u8]) -> Vec<String> {
         }
         for (i,field) in "osc1_on osc1_o1 osc1_o2 osc1_warm osc2_on osc2_o1 osc2_o2 osc2_warm osc3_on osc3_o1 osc3_o2 osc3_warm lfo_on lfo_retrigger svf_on unk_6 lfo_trackamp unk_7 chorus_on unk_8".split_whitespace().enumerate(){
             let raw=state.get(436+i*4..440+i*4).and_then(|b|b.try_into().ok()).map(u32::from_le_bytes);
-            lines.push(windfall_core::notice!("flp.native.simsynthFlag", device = name, field = field, value = format!("{:?}", raw), offset = 436+i*4).to_string());
+            // The three oscillator synth has no warmth (detuned copy),
+            // amplitude tracking or chorus of its own.
+            lines.push(if omitted_elsewhere(&key, field) {
+                windfall_core::notice!("flp.native.fieldOmitted", device = name, field = field, value = format!("{:?}", raw)).to_string()
+            } else {
+                windfall_core::notice!("flp.native.simsynthFlag", device = name, field = field, value = format!("{:?}", raw), offset = 436+i*4).to_string()
+            });
+        }
+        return lines;
+    }
+    // Devices the effect translation reads by number (`effects`): the
+    // words and bytes of the public layout that it does not carry.
+    let elsewhere: &[(usize, bool, &str)] = match key.as_str() {
+        "fruity reeverb 2" => &[
+            (8, false, "bass"),
+            (9, false, "cross"),
+            (10, false, "stereo"),
+            (14, false, "mod_speed"),
+            (64, true, "tempo_predelay"),
+            (65, true, "mid_side"),
+        ],
+        "fruity reeverb" => &[(6, false, "color")],
+        "fruity delay 2" => &[(0, false, "input_pan")],
+        "fruity parametric eq 2" => &[
+            (29, false, "1_order"),
+            (30, false, "2_order"),
+            (31, false, "3_order"),
+            (32, false, "4_order"),
+            (33, false, "5_order"),
+            (34, false, "6_order"),
+            (35, false, "7_order"),
+        ],
+        _ => &[],
+    };
+    if !elsewhere.is_empty() {
+        let numbers = crate::plugin::Numbers(state);
+        return elsewhere
+            .iter()
+            .filter_map(|&(at, byte, field)| {
+                let v = if byte {
+                    i64::from(numbers.byte(at)?)
+                } else {
+                    i64::from(numbers.get(at)?)
+                };
+                Some(windfall_core::notice!("flp.native.fieldOmitted", device = name, field = field, value = v).to_string())
+            })
+            .collect();
+    }
+    if key == "3x osc" {
+        // DawVert fl_studio.ddef `3x_osc`: per oscillator pan, shape,
+        // coarse, fine, offset, stereo detune and (not the third) mix
+        // level, then phase_rand, three invert bytes and osc3_am. Shape,
+        // tuning, pan and the mix levels are carried (see `synth`); these
+        // have no control on the subtractive synth that stands in.
+        let numbers = crate::plugin::Numbers(state);
+        let mut lines = Vec::new();
+        for osc in 0..3 {
+            for (offset, field) in [(4, "ofs"), (5, "detune")] {
+                if let Some(v) = numbers.get(1 + osc * 7 + offset) {
+                    lines.push(
+                        windfall_core::notice!(
+                            "flp.native.fieldOmitted",
+                            device = name,
+                            field = format!("osc{}_{field}", osc + 1),
+                            value = v
+                        )
+                        .to_string(),
+                    );
+                }
+            }
+        }
+        if let Some(v) = numbers.get(21) {
+            lines.push(
+                windfall_core::notice!("flp.native.fieldOmitted", device = name, field = "phase_rand", value = v)
+                    .to_string(),
+            );
+        }
+        for (offset, field) in [
+            (88, "osc1_invert"),
+            (89, "osc2_invert"),
+            (90, "osc3_invert"),
+            (91, "osc3_am"),
+        ] {
+            if let Some(v) = numbers.byte(offset) {
+                lines.push(
+                    windfall_core::notice!("flp.native.fieldOmitted", device = name, field = field, value = v)
+                        .to_string(),
+                );
+            }
         }
         return lines;
     }
@@ -1449,6 +1793,30 @@ pub(super) fn reports(name: &str, state: &[u8]) -> Vec<String> {
         reports
             .push(windfall_core::notice!("flp.native.bandDelayBanks", device = name).to_string());
     }
+    if key == "pitcher"
+        && let Some(keys) = pitcher_keys(&l, state)
+    {
+        let names = [
+            "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+        ];
+        let listed = (0..12)
+            .filter(|key| keys & (1 << key) != 0)
+            .map(|key| names[key])
+            .collect::<Vec<_>>()
+            .join(" ");
+        reports.push(match pitcher_scale(keys) {
+            Some((root, scale)) => format!(
+                "{name}: enabled keys [{listed}] -> root={} scale={} (the stand-in's {} scale on {}).",
+                root,
+                scale,
+                ["chromatic", "major", "minor", "pentatonic"][scale],
+                names[usize::from(root)]
+            ),
+            None => format!(
+                "{name}: enabled keys [{listed}] form none of the stand-in's scales (chromatic, major, minor, pentatonic on any root); it corrects to the chromatic scale and the original state is kept."
+            ),
+        });
+    }
     if key == "fruity free filter" {
         reports.push(windfall_core::notice!("flp.native.freeFilter", device = name).to_string());
     }
@@ -1527,6 +1895,10 @@ fn dynamic_layout(name: &str, state: &[u8]) -> Option<(EffectKind, Layout)> {
             return None;
         }
         let mut l = Layout::words("version num_bands filter reserved");
+        // The source's band count, which may be up to 128, played with as
+        // many bands as the stand-in has: 16 to 32.
+        l.map("num_bands", "bandCount", 0.0, 128.0, None);
+        l.formula("num_bands", |v| v.clamp(16.0, 32.0));
         l.fields.push(Field {
             offset: 16,
             scalar: Scalar::Byte,
@@ -1704,9 +2076,9 @@ mod open_list {
     use super::*;
     use std::collections::{BTreeMap, BTreeSet};
 
-    /// Every layout the importer knows, with a state long enough to build
-    /// the variable ones.
-    fn layouts() -> Vec<(String, Layout)> {
+    /// Every layout the importer knows, with its stand-in's controls and a
+    /// state long enough to build the variable ones.
+    fn layouts() -> Vec<(String, &'static [ParamInfo], Layout)> {
         let names: Vec<String> = super::super::synth::DEFAULT_INSTRUMENTS
             .iter()
             .map(|(n, _)| n.to_string())
@@ -1743,15 +2115,15 @@ mod open_list {
             }
             let mut state = vec![0_u8; 100];
             state[4] = 2;
-            if let Some(layout) = instrument_layout(&key, 0)
-                .map(|(_, layout)| layout)
+            if let Some((descriptors, layout)) = instrument_layout(&key, 0)
+                .map(|(kind, layout)| (kind.descriptors(), layout))
                 .or_else(|| {
                     effect_layout(&key, 0)
                         .or_else(|| dynamic_layout(&key, &state))
-                        .map(|(_, layout)| layout)
+                        .map(|(kind, layout)| (kind.descriptors(), layout))
                 })
             {
-                found.push((key, layout));
+                found.push((key, descriptors, layout));
             }
         }
         found
@@ -1774,126 +2146,1274 @@ mod open_list {
         }
     }
 
-    fn open() -> BTreeMap<String, BTreeSet<String>> {
-        let mut open: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-        for (device, layout) in layouts() {
+    /// A stand-in control with every index replaced, so a row stands for
+    /// all of them: `units.3.filter.q` is `units.#.filter.q`.
+    fn control(id: &str) -> String {
+        id.split('.')
+            .map(|part| {
+                if !part.is_empty() && part.chars().all(|c| c.is_ascii_digit()) {
+                    "#"
+                } else {
+                    part
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(".")
+    }
+
+    /// Every decoded field that is omitted, by device: the table's fields
+    /// without a stand-in control and the ones filed outside the table.
+    fn omitted() -> BTreeMap<String, BTreeSet<String>> {
+        let mut omitted: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        for (device, _, layout) in layouts() {
             for field in layout.fields.iter().filter(|f| f.target.is_empty()) {
                 if unmapped(&device, &field.name) == Unmapped::Open {
-                    open.entry(device.clone())
+                    omitted
+                        .entry(device.clone())
                         .or_default()
                         .insert(family(&field.name));
                 }
             }
         }
-        open
+        for (device, fields) in OMITTED_ELSEWHERE {
+            for field in *fields {
+                omitted
+                    .entry(device.to_string())
+                    .or_default()
+                    .insert(family(field));
+            }
+        }
+        omitted
+    }
+
+    /// The stand-in of a device outside the table, where it is one of the
+    /// processors; the channel's own envelope, LFO, arpeggiator, note echo
+    /// and time stretch are pinned field by field in the test below.
+    fn stand_in_elsewhere(device: &str) -> Option<&'static [ParamInfo]> {
+        Some(match device {
+            "simsynth" => InstrumentKind::TripleOsc.descriptors(),
+            "3x osc" => InstrumentKind::SubtractiveSynth.descriptors(),
+            "fruity reeverb 2" | "fruity reeverb" => EffectKind::Reverb.descriptors(),
+            "fruity delay 2" => EffectKind::Delay.descriptors(),
+            "fruity parametric eq 2" => EffectKind::Eq.descriptors(),
+            _ => return None,
+        })
     }
 
     #[test]
     fn decoded_fields_without_a_stand_in_control_are_exactly_the_recorded_list() {
-        let actual = open();
+        let actual = omitted();
         for (device, fields) in &actual {
             println!(
                 "OPEN|{device}|{}",
                 fields.iter().cloned().collect::<Vec<_>>().join(" ")
             );
         }
-        let expected: BTreeMap<String, BTreeSet<String>> = EXPECTED
-            .iter()
-            .map(|(device, fields)| {
-                (
-                    device.to_string(),
-                    fields.split_whitespace().map(String::from).collect(),
-                )
-            })
-            .collect();
+        let mut expected: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        for (device, field, reason) in EXPECTED {
+            assert!(
+                !reason.trim().is_empty(),
+                "{device}.{field} gives no reason"
+            );
+            assert!(
+                expected
+                    .entry(device.to_string())
+                    .or_default()
+                    .insert(field.to_string()),
+                "{device}.{field} is listed twice"
+            );
+        }
         assert_eq!(actual, expected);
-        // The two devices completed in round seven have nothing left.
+        // The two devices completed in round seven have nothing left, and
+        // the six round eight maps have taken their fields off the list.
         assert!(!actual.contains_key("multiband delay"));
+        assert!(!actual.contains_key("fruity panomatic"));
     }
 
-    /// Device, then its decoded sound controls that still have no stand-in
-    /// control. Removing a field from this table is how one gets finished.
-    const EXPECTED: &[(&str, &str)] = &[
+    #[test]
+    fn every_omitted_field_was_checked_against_the_controls_of_its_stand_in() {
+        // The README's rule: a described field stays omitted only while the
+        // stand-in has no control that could carry it. Each device with an
+        // omitted field has a review of the stand-in controls none of its
+        // decoded fields sets, saying why none of its omitted fields fits
+        // them. In the table those controls are worked out here from the
+        // stand-in's own descriptors, so a control added to a stand-in, or
+        // a field that stops setting one, fails this test until reviewed.
+        let omitted = omitted();
+        let mut reviewed: BTreeMap<&str, (BTreeSet<String>, &str)> = BTreeMap::new();
+        for &(device, controls, why) in UNSET {
+            assert!(!why.trim().is_empty(), "{device} gives no reason");
+            let controls = controls.split_whitespace().map(String::from).collect();
+            assert!(
+                reviewed.insert(device, (controls, why)).is_none(),
+                "{device} is reviewed twice"
+            );
+        }
+        assert_eq!(
+            reviewed.keys().copied().collect::<BTreeSet<_>>(),
+            omitted.keys().map(String::as_str).collect::<BTreeSet<_>>(),
+            "every device with an omitted field, and no other, is reviewed"
+        );
+        let mut in_table = BTreeSet::new();
+        for (device, descriptors, layout) in layouts() {
+            let Some((controls, _)) = reviewed.get(device.as_str()) else {
+                continue;
+            };
+            in_table.insert(device.clone());
+            let set: BTreeSet<String> = layout
+                .fields
+                .iter()
+                .filter(|f| !f.target.is_empty())
+                .map(|f| control(&f.target))
+                .collect();
+            let unset: BTreeSet<String> = descriptors
+                .iter()
+                .map(|p| control(p.id))
+                .filter(|c| !set.contains(c))
+                .collect();
+            assert_eq!(&unset, controls, "{device}: the controls no field sets");
+        }
+        for (device, (controls, _)) in &reviewed {
+            if in_table.contains(*device) {
+                continue;
+            }
+            if let Some(descriptors) = stand_in_elsewhere(device) {
+                let known: BTreeSet<String> = descriptors.iter().map(|p| control(p.id)).collect();
+                for c in controls {
+                    assert!(known.contains(c), "{device}: the stand-in has no {c}");
+                }
+            } else {
+                assert!(device.starts_with("channel "), "{device} has no stand-in");
+            }
+        }
+        // The channel's own stand-ins, every field named: one added later
+        // stops this from compiling until its review below is updated.
+        let windfall_project::ModulationEnvelope {
+            enabled: _,
+            attack_ms: _,
+            decay_ms: _,
+            sustain: _,
+            release_ms: _,
+            depth: _,
+        } = Default::default();
+        let windfall_project::TargetLfo {
+            enabled: _,
+            shape: _,
+            rate_hz: _,
+            depth: _,
+            delay_ms: _,
+            retrigger: _,
+        } = Default::default();
+        let windfall_project::ArpeggiatorSettings {
+            mode: _,
+            rate: _,
+            gate: _,
+            range_octaves: _,
+        } = Default::default();
+        let windfall_project::NoteEchoSettings {
+            enabled: _,
+            time: _,
+            feedback: _,
+            pitch_semitones: _,
+            repeats: _,
+        } = Default::default();
+    }
+
+    #[test]
+    fn devices_outside_the_table_report_exactly_their_recorded_omissions() {
+        // The ones whose state `reports` reads; the channel's own fields
+        // are filed by the voice conversion and tested on whole projects.
+        for name in [
+            "SimSynth",
+            "3x Osc",
+            "Fruity Reeverb 2",
+            "Fruity Reeverb",
+            "Fruity Delay 2",
+            "Fruity Parametric EQ 2",
+        ] {
+            let state = [0_u8; 600];
+            let lines = reports(name, &state);
+            let filed: Vec<String> = lines.iter().filter_map(|line| omitted_field(line)).collect();
+            let recorded = OMITTED_ELSEWHERE
+                .iter()
+                .find(|(device, _)| device.eq_ignore_ascii_case(name))
+                .map(|(_, fields)| fields.to_vec())
+                .unwrap_or_default();
+            assert_eq!(filed, recorded, "{name}");
+            for line in &lines {
+                assert_eq!(
+                    outcome(line) == crate::report::Outcome::Dropped,
+                    omitted_field(line).is_some(),
+                    "{line}"
+                );
+            }
+        }
+    }
+
+    const NO_GAIN: &str = "the stand-in has no output or input level of its own";
+    const WARMTH: &str = "the public converter makes warmth a six-voice unison; the three oscillator stand-in has no unison, and its detune moves its one voice (carried by the fine tuning)";
+    const NO_LFO_SHAPE: &str = "the stand-in's modulation is a fixed sine; it has no shape control";
+    const NO_SECOND_STAGE: &str =
+        "a second (s_) stage: the stand-in has one limiter, one compressor and one gate";
+    const NO_CURVE: &str = "the stand-in's attack and release have no curve control";
+    const NO_DELAY_SECTION: &str =
+        "part of the device's own delay section; the stand-in phaser has no delay";
+    const NO_NOISE: &str = "the stand-in adds no noise and has no gate";
+    const NO_VELOCITY: &str = "the stand-in's operators have no velocity sensitivity";
+    const ROUTING: &str =
+        "where the device sits in the chain (pre/post): the stand-in has one place in its slot";
+    const NO_VOICE: &str = "the stand-in corrects one voice; it has no harmony voice controls";
+    const NO_PER_KEY: &str =
+        "the stand-in corrects every key the same way; it has no per-key switch";
+    const NO_SLICE_FX: &str = "the stand-in plays its slices without modulation sources";
+    const NO_NOISE_LAYER: &str = "the stand-in's kick has no noise layer";
+    const NO_RANDOM: &str = "the stand-in plays the same hit every time; it has no variation";
+    const NO_CROSSOVER: &str =
+        "a crossover or crossfeed between the voices or sides; the stand-in has none";
+    const NO_DRY: &str = "a dry level of its own: the stand-in's mix crossfades the wet level, which is carried, with the dry signal";
+    const NO_WAVE: &str = "the stand-in has one wave for its sweep and no shape control";
+    const NO_GRAIN_CONTROL: &str = "a grain playback control the stand-in's cloud has no counterpart for (it reads from one position with spray and density)";
+    const NO_TIME_STRETCH: &str = "the stand-in plays its slices at their pitch; it has no stretch";
+    const NO_FEEDBACK_SHAPE: &str = "the stand-in's feedback has no distortion, bit depth, rate reduction, resonance or diffusion stage";
+    const ENVELOPE_SHAPE: &str = "Windfall's channel envelope is attack, decay, sustain and release with a depth; it has no predelay, hold, curve tension or tempo sync";
+    const LFO_SHAPE: &str = "Windfall's channel LFO has a shape, rate, depth, start delay and retrigger; it has no attack or tempo sync, and the public readers give the channel LFO's predelay no time rule (DawVert's conversion of it is commented out), so it cannot be read as the start delay in milliseconds";
+    const ARPEGGIATOR: &str = "Windfall's arpeggiator has a mode, rate, gate and octave range; it has no chords, repeats or slide";
+    const NOTE_ECHO: &str = "Windfall's note echo has a time, feedback, pitch and repeats; it has no ping-pong, fat mode or echo pan";
+
+    /// Device, then one of its decoded sound controls that has no stand-in
+    /// control (a family stands for its indexed siblings), and why.
+    /// Removing a row is how a field gets finished.
+    const EXPECTED: &[(&str, &str, &str)] = &[
         (
             "bassdrum",
-            "attack butt click_cut click_freq drive noise_a noise_d noise_filter noise_mix noise_pitch noise_s noise_start peak var_base var_peak var_phase var_slide_time",
+            "attack",
+            "the stand-in kick has no attack control; its onset is fixed",
+        ),
+        (
+            "bassdrum",
+            "butt",
+            "named without a unit or rule; the stand-in has no body control it could set",
+        ),
+        (
+            "bassdrum",
+            "click_cut",
+            "the stand-in's click has a level (click_amount) and no filter",
+        ),
+        (
+            "bassdrum",
+            "click_freq",
+            "the stand-in's click has a level (click_amount) and no filter",
+        ),
+        ("bassdrum", "drive", "the stand-in kick has no drive"),
+        ("bassdrum", "noise_a", NO_NOISE_LAYER),
+        ("bassdrum", "noise_d", NO_NOISE_LAYER),
+        ("bassdrum", "noise_filter", NO_NOISE_LAYER),
+        ("bassdrum", "noise_mix", NO_NOISE_LAYER),
+        ("bassdrum", "noise_pitch", NO_NOISE_LAYER),
+        ("bassdrum", "noise_s", NO_NOISE_LAYER),
+        ("bassdrum", "noise_start", NO_NOISE_LAYER),
+        ("bassdrum", "var_base", NO_RANDOM),
+        ("bassdrum", "var_peak", NO_RANDOM),
+        ("bassdrum", "var_phase", NO_RANDOM),
+        ("bassdrum", "var_slide_time", NO_RANDOM),
+        ("effector", "input_level", NO_GAIN),
+        (
+            "effector",
+            "mod_rate",
+            "the stand-in rack has no modulation source",
         ),
         (
             "effector",
-            "input_level mod_rate mod_shape output_gain tempo x_mod y_mod",
+            "mod_shape",
+            "the stand-in rack has no modulation source",
+        ),
+        ("effector", "output_gain", NO_GAIN),
+        (
+            "effector",
+            "tempo",
+            "\"Tempo Reduce\": the stand-in rack has no tempo divider",
+        ),
+        (
+            "effector",
+            "x_mod",
+            "the stand-in's X and Y are set directly (x_param, y_param) and not modulated",
+        ),
+        (
+            "effector",
+            "y_mod",
+            "the stand-in's X and Y are set directly (x_param, y_param) and not modulated",
         ),
         (
             "frequency shifter",
-            "feedback lr_phase mixer_track shape_left shape_right start_phase stereo type",
+            "feedback",
+            "the stand-in shifter has a shift and a mix only",
         ),
-        ("fruit kick", "osc_dist"),
         (
-            "fruity chorus",
-            "crosscutoff crosstype lfo1_wave lfo2_wave lfo3_wave wetonly",
+            "frequency shifter",
+            "lr_phase",
+            "the stand-in shifter has a shift and a mix only",
+        ),
+        (
+            "frequency shifter",
+            "mixer_track",
+            "a sidechain source track; the stand-in has no sidechain",
+        ),
+        (
+            "frequency shifter",
+            "shape_left",
+            "the stand-in shifter has a shift and a mix only",
+        ),
+        (
+            "frequency shifter",
+            "shape_right",
+            "the stand-in shifter has a shift and a mix only",
+        ),
+        (
+            "frequency shifter",
+            "start_phase",
+            "the stand-in shifter has a shift and a mix only",
+        ),
+        (
+            "frequency shifter",
+            "stereo",
+            "the stand-in shifter has a shift and a mix only",
+        ),
+        (
+            "frequency shifter",
+            "type",
+            "the stand-in shifter has a shift and a mix only",
+        ),
+        (
+            "fruit kick",
+            "osc_dist",
+            "the stand-in kick has no distortion; level is the output level",
+        ),
+        ("fruity chorus", "crosscutoff", NO_CROSSOVER),
+        ("fruity chorus", "crosstype", NO_CROSSOVER),
+        ("fruity chorus", "lfo1_wave", NO_LFO_SHAPE),
+        ("fruity chorus", "lfo2_wave", NO_LFO_SHAPE),
+        ("fruity chorus", "lfo3_wave", NO_LFO_SHAPE),
+        (
+            "fruity delay 3",
+            "delay_type",
+            "a type switch without values in the public dataset; the stand-in's mode (stereo, ping-pong, inverted) cannot be read from it",
+        ),
+        ("fruity delay 3", "diffusion_level", NO_FEEDBACK_SHAPE),
+        ("fruity delay 3", "diffusion_spread", NO_FEEDBACK_SHAPE),
+        ("fruity delay 3", "dry", NO_DRY),
+        ("fruity delay 3", "feedback_bits", NO_FEEDBACK_SHAPE),
+        ("fruity delay 3", "feedback_reso", NO_FEEDBACK_SHAPE),
+        ("fruity delay 3", "feedback_sample_rate", NO_FEEDBACK_SHAPE),
+        ("fruity delay 3", "feedbackdist_knee", NO_FEEDBACK_SHAPE),
+        ("fruity delay 3", "feedbackdist_symmetry", NO_FEEDBACK_SHAPE),
+        ("fruity delay 3", "feedbackdist_type", NO_FEEDBACK_SHAPE),
+        (
+            "fruity delay 3",
+            "keep_pitch",
+            "the stand-in's time changes are not pitch-preserving or pitch-following by choice",
         ),
         (
             "fruity delay 3",
-            "delay_type diffusion_level diffusion_spread dry feedback_bits feedback_reso feedback_sample_rate feedbackdist_knee feedbackdist_symmetry feedbackdist_type keep_pitch mod_cutoff smoothing stereo tone wet_input",
+            "mod_cutoff",
+            "the stand-in's modulation moves the time only",
+        ),
+        (
+            "fruity delay 3",
+            "smoothing",
+            "the stand-in's time glide is fixed",
+        ),
+        (
+            "fruity delay 3",
+            "stereo",
+            "a stereo width (0..6000); the stand-in delay has no width control",
+        ),
+        (
+            "fruity delay 3",
+            "tone",
+            "a tone tilt; the stand-in's cuts are carried by feedback_cutoff and its low cut has no public field",
+        ),
+        (
+            "fruity delay 3",
+            "wet_input",
+            "the input level of the wet path; the stand-in has no input level",
         ),
         (
             "fruity delay bank",
-            "2x_oversampling bank_#_e/feedback_leave_first_echo bank_#_e/grain_div bank_#_e/grain_sh",
+            "2x_oversampling",
+            "the stand-in runs at the host rate; it has no oversampling switch",
         ),
-        ("fruity dx10", "mod2_velsen mod_thru mod_velsen waveform"),
-        ("fruity fast dist", "mix type"),
-        ("fruity flanger", "cross dry"),
-        ("fruity flangus", "cross dry"),
-        ("fruity free filter", "center"),
+        (
+            "fruity delay bank",
+            "bank_#_e/feedback_leave_first_echo",
+            "the stand-in's units have no first-echo exception in their feedback",
+        ),
+        (
+            "fruity delay bank",
+            "bank_#_e/grain_div",
+            "a grain divider (0..4096) the public layout names without a note value; the stand-in's division is the synced echo time, which feedback_time carries",
+        ),
+        (
+            "fruity delay bank",
+            "bank_#_e/grain_sh",
+            "a grain shape the stand-in's units have no counterpart for",
+        ),
+        ("fruity dx10", "mod2_velsen", NO_VELOCITY),
+        (
+            "fruity dx10",
+            "mod_thru",
+            "the stand-in's modulators are not heard directly",
+        ),
+        ("fruity dx10", "mod_velsen", NO_VELOCITY),
+        (
+            "fruity dx10",
+            "waveform",
+            "a carrier waveform with no public rule; the stand-in's operator-4 feedback belongs to another operator",
+        ),
+        (
+            "fruity fast dist",
+            "mix",
+            "the stand-in distortion has no mix",
+        ),
+        (
+            "fruity fast dist",
+            "type",
+            "the stand-in's shape is carried by threshold; it has no type switch",
+        ),
+        ("fruity flanger", "cross", NO_CROSSOVER),
+        ("fruity flanger", "dry", NO_DRY),
+        ("fruity flangus", "cross", NO_CROSSOVER),
+        ("fruity flangus", "dry", NO_DRY),
+        (
+            "fruity free filter",
+            "center",
+            "the stand-in filter has no centering switch",
+        ),
+        ("fruity granulizer", "depth", NO_GRAIN_CONTROL),
+        ("fruity granulizer", "hold", NO_GRAIN_CONTROL),
+        ("fruity granulizer", "hold_2", NO_GRAIN_CONTROL),
         (
             "fruity granulizer",
-            "depth hold hold_2 key_to loop pan speed trans_hold trans_mode wave_spacing",
+            "key_to",
+            "what the keyboard plays (0..3, values not named publicly); the stand-in plays pitch from the key around its root",
         ),
-        ("fruity kick", "osc_dist"),
+        ("fruity granulizer", "loop", NO_GRAIN_CONTROL),
+        ("fruity granulizer", "pan", "the stand-in cloud has no pan"),
+        (
+            "fruity granulizer",
+            "speed",
+            "a scan speed through the sample; the stand-in reads from one position",
+        ),
+        ("fruity granulizer", "trans_hold", NO_GRAIN_CONTROL),
+        ("fruity granulizer", "trans_mode", NO_GRAIN_CONTROL),
+        ("fruity granulizer", "wave_spacing", NO_GRAIN_CONTROL),
+        (
+            "fruity kick",
+            "osc_dist",
+            "the stand-in kick has no distortion; level is the output level",
+        ),
+        ("fruity limiter", "comp_att_curve", NO_CURVE),
         (
             "fruity limiter",
-            "comp_att_curve comp_rel comp_sus limiter_att_curve limiter_rel_curve limiter_safety limiter_sus noise_gain s_comp_att s_comp_att_curve s_comp_knee s_comp_ratio s_comp_rel s_comp_sus s_comp_thres s_gain s_limiter_att s_limiter_att_curve s_limiter_ceil s_limiter_rel s_limiter_rel_curve s_limiter_sus s_noise_gain s_noise_rel s_noise_thres s_sat sat sidechain_number",
+            "comp_rel",
+            "the stand-in has one release for limiter and compressor, carried by limiter_rel",
+        ),
+        (
+            "fruity limiter",
+            "comp_sus",
+            "the stand-in compressor has no sustain",
+        ),
+        ("fruity limiter", "limiter_att_curve", NO_CURVE),
+        ("fruity limiter", "limiter_rel_curve", NO_CURVE),
+        (
+            "fruity limiter",
+            "limiter_safety",
+            "the stand-in limiter has no safety switch",
+        ),
+        (
+            "fruity limiter",
+            "limiter_sus",
+            "the stand-in limiter has no sustain",
+        ),
+        (
+            "fruity limiter",
+            "noise_gain",
+            "the stand-in gate has a threshold and release only",
+        ),
+        ("fruity limiter", "s_comp_att", NO_SECOND_STAGE),
+        ("fruity limiter", "s_comp_att_curve", NO_SECOND_STAGE),
+        ("fruity limiter", "s_comp_knee", NO_SECOND_STAGE),
+        ("fruity limiter", "s_comp_ratio", NO_SECOND_STAGE),
+        ("fruity limiter", "s_comp_rel", NO_SECOND_STAGE),
+        ("fruity limiter", "s_comp_sus", NO_SECOND_STAGE),
+        ("fruity limiter", "s_comp_thres", NO_SECOND_STAGE),
+        ("fruity limiter", "s_gain", NO_SECOND_STAGE),
+        ("fruity limiter", "s_limiter_att", NO_SECOND_STAGE),
+        ("fruity limiter", "s_limiter_att_curve", NO_SECOND_STAGE),
+        ("fruity limiter", "s_limiter_ceil", NO_SECOND_STAGE),
+        ("fruity limiter", "s_limiter_rel", NO_SECOND_STAGE),
+        ("fruity limiter", "s_limiter_rel_curve", NO_SECOND_STAGE),
+        ("fruity limiter", "s_limiter_sus", NO_SECOND_STAGE),
+        ("fruity limiter", "s_noise_gain", NO_SECOND_STAGE),
+        ("fruity limiter", "s_noise_rel", NO_SECOND_STAGE),
+        ("fruity limiter", "s_noise_thres", NO_SECOND_STAGE),
+        ("fruity limiter", "s_sat", NO_SECOND_STAGE),
+        (
+            "fruity limiter",
+            "sat",
+            "the stand-in limiter has no saturation",
+        ),
+        (
+            "fruity limiter",
+            "sidechain_number",
+            "a sidechain source number; the stand-in limiter has no sidechain",
         ),
         (
             "fruity multiband compressor",
-            "filter_type gain hi_knee hi_state limiter low_knee low_state mid_freq_h mid_freq_l mid_knee mid_state",
+            "filter_type",
+            "the stand-in's crossover filters have one fixed type",
         ),
-        ("fruity panomatic", "lfo_target"),
-        ("fruity phaser", "freq_range gain num_stages"),
-        ("fruity slicer", "fitlen stretchtype"),
-        ("fruity soft clipper", "postgain"),
-        ("fruity stereo enhancer", "prepost vol"),
-        ("fruity stereo shaper", "delay dephase iodiff prepost"),
+        (
+            "fruity multiband compressor",
+            "gain",
+            "the stand-in has a makeup gain per band (carried) and no overall gain",
+        ),
+        (
+            "fruity multiband compressor",
+            "hi_knee",
+            "the stand-in's bands have no knee",
+        ),
+        (
+            "fruity multiband compressor",
+            "hi_state",
+            "a band on/solo/bypass state; the stand-in's bands are always on",
+        ),
+        (
+            "fruity multiband compressor",
+            "limiter",
+            "the stand-in has no output limiter; its sidechain switch is an external key",
+        ),
+        (
+            "fruity multiband compressor",
+            "low_knee",
+            "the stand-in's bands have no knee",
+        ),
+        (
+            "fruity multiband compressor",
+            "low_state",
+            "a band on/solo/bypass state; the stand-in's bands are always on",
+        ),
+        (
+            "fruity multiband compressor",
+            "mid_freq_h",
+            "the stand-in's bands meet at its two crossovers, carried by low_freq and hi_freq; the mid band has no edges of its own",
+        ),
+        (
+            "fruity multiband compressor",
+            "mid_freq_l",
+            "the stand-in's bands meet at its two crossovers, carried by low_freq and hi_freq; the mid band has no edges of its own",
+        ),
+        (
+            "fruity multiband compressor",
+            "mid_knee",
+            "the stand-in's bands have no knee",
+        ),
+        (
+            "fruity multiband compressor",
+            "mid_state",
+            "a band on/solo/bypass state; the stand-in's bands are always on",
+        ),
+        (
+            "fruity phaser",
+            "freq_range",
+            "a range switch for the sweep; the stand-in's sweep is set by minHz and maxHz, which are carried",
+        ),
+        ("fruity phaser", "gain", NO_GAIN),
+        (
+            "fruity phaser",
+            "num_stages",
+            "the stand-in phaser has a fixed number of stages",
+        ),
+        ("fruity slicer", "fitlen", NO_TIME_STRETCH),
+        ("fruity slicer", "stretchtype", NO_TIME_STRETCH),
+        (
+            "fruity soft clipper",
+            "postgain",
+            "the stand-in has no output gain; its knee is the curve's softness",
+        ),
+        ("fruity stereo enhancer", "prepost", ROUTING),
+        ("fruity stereo enhancer", "vol", NO_GAIN),
+        (
+            "fruity stereo shaper",
+            "dephase",
+            "a phase offset between the sides; the stand-in's matrix and delays have no phase control",
+        ),
+        (
+            "fruity stereo shaper",
+            "iodiff",
+            "the public dataset names it \"In/Out Difference\" with no range or rule; the stand-in has nothing it could set",
+        ),
+        ("fruity stereo shaper", "prepost", ROUTING),
         (
             "fruity vocoder",
-            "bands.# filter freq_bandwidth freq_invert freq_max freq_min freq_scale hold left_right mix_car mix_mod num_bands",
+            "bands.#",
+            "per-band levels; the stand-in's bands are all at one level",
         ),
-        ("fruity waveshaper", "removedc"),
+        (
+            "fruity vocoder",
+            "filter",
+            "a filter type for the bands; the stand-in's band filters are fixed",
+        ),
+        (
+            "fruity vocoder",
+            "freq_bandwidth",
+            "the stand-in's band widths follow its band count",
+        ),
+        (
+            "fruity vocoder",
+            "freq_invert",
+            "the stand-in's bands are not inverted",
+        ),
+        (
+            "fruity vocoder",
+            "freq_max",
+            "the stand-in's bands span a fixed range",
+        ),
+        (
+            "fruity vocoder",
+            "freq_min",
+            "the stand-in's bands span a fixed range",
+        ),
+        (
+            "fruity vocoder",
+            "freq_scale",
+            "the stand-in's bands span a fixed range",
+        ),
+        (
+            "fruity vocoder",
+            "hold",
+            "the stand-in's envelopes have an attack and release (carried) and no hold",
+        ),
+        (
+            "fruity vocoder",
+            "left_right",
+            "which input side is the modulator: the stand-in takes its second signal from the sidechain key, not one side of the input",
+        ),
+        (
+            "fruity vocoder",
+            "mix_car",
+            "the carrier heard in the output; the stand-in's mix crossfades with the input only",
+        ),
+        (
+            "fruity vocoder",
+            "mix_mod",
+            "the modulator heard in the output; the stand-in's mix crossfades with the input only",
+        ),
+        (
+            "fruity waveshaper",
+            "removedc",
+            "the stand-in has no DC filter",
+        ),
         (
             "pitch shifter",
-            "channel delay delay_mode density duration feedback formant_correction jitter pitch_mode rand wet",
+            "channel",
+            "a source channel; the stand-in has no sidechain",
+        ),
+        (
+            "pitch shifter",
+            "delay",
+            "the stand-in shifter has no delay section",
+        ),
+        (
+            "pitch shifter",
+            "delay_mode",
+            "the stand-in shifter has no delay section",
+        ),
+        (
+            "pitch shifter",
+            "density",
+            "the stand-in's grains are fixed",
+        ),
+        (
+            "pitch shifter",
+            "duration",
+            "the stand-in's grains are fixed",
+        ),
+        (
+            "pitch shifter",
+            "feedback",
+            "the stand-in shifter has no delay section",
+        ),
+        ("pitch shifter", "jitter", "the stand-in's grains are fixed"),
+        (
+            "pitch shifter",
+            "pitch_mode",
+            "a mode switch with no values in the unfinished public definition; formant correction already chooses the stand-in's mode",
+        ),
+        ("pitch shifter", "rand", "the stand-in's grains are fixed"),
+        ("pitcher", "bypass.#", NO_PER_KEY),
+        (
+            "pitcher",
+            "bypass_all",
+            "bypass switches the slot, not a control; the public layout gives no rule tying it to the slot",
         ),
         (
             "pitcher",
-            "bypass.# bypass_all finetune formant gender harmonize harmonize_vel key_on.# min_freq octaves ref_chan selector_key selector_type stereo use_midi voice1_pan voice2_pan voice3_pan voice4_pan",
+            "finetune",
+            "the stand-in's tuning is its reference (hz, carried); it has no further fine tune",
         ),
-        ("plucked!", "norm_decay release wide"),
+        (
+            "pitcher",
+            "formant",
+            "the stand-in corrector has no formant control",
+        ),
+        (
+            "pitcher",
+            "gender",
+            "the stand-in corrector has no formant control",
+        ),
+        ("pitcher", "harmonize", NO_VOICE),
+        ("pitcher", "harmonize_vel", NO_VOICE),
+        ("pitcher", "min_freq", "the stand-in tracks a fixed range"),
+        ("pitcher", "octaves", NO_VOICE),
+        (
+            "pitcher",
+            "ref_chan",
+            "a MIDI reference channel; the stand-in is not played from MIDI",
+        ),
+        (
+            "pitcher",
+            "selector_key",
+            "a key selector (a float with no value list in the public layout); the scale is read from the twelve key_on switches",
+        ),
+        (
+            "pitcher",
+            "selector_type",
+            "a scale selector (a float with no value list in the public layout); the scale is read from the twelve key_on switches",
+        ),
+        (
+            "pitcher",
+            "stereo",
+            "the stand-in corrects both sides alike",
+        ),
+        (
+            "pitcher",
+            "use_midi",
+            "the stand-in is not played from MIDI",
+        ),
+        ("pitcher", "voice1_pan", NO_VOICE),
+        ("pitcher", "voice2_pan", NO_VOICE),
+        ("pitcher", "voice3_pan", NO_VOICE),
+        ("pitcher", "voice4_pan", NO_VOICE),
+        (
+            "plucked!",
+            "norm_decay",
+            "the stand-in's decay is in seconds for every key; it has no normalizing switch",
+        ),
+        (
+            "plucked!",
+            "release",
+            "\"Short Release\": the stand-in's release follows its decay",
+        ),
+        ("plucked!", "wide", "\"Widen\": the stand-in pluck is mono"),
         (
             "slicex",
-            "crossfade layering master_lfo_level master_random_level mod_x mod_y",
+            "crossfade",
+            "the stand-in deck has no crossfade between slices",
         ),
-        ("soundgoodizer", "mode"),
-        ("spreader", "low_bypass mono postfx prefx"),
+        ("slicex", "layering", NO_SLICE_FX),
+        ("slicex", "master_lfo_level", NO_SLICE_FX),
+        ("slicex", "master_random_level", NO_SLICE_FX),
+        ("slicex", "mod_x", NO_SLICE_FX),
+        ("slicex", "mod_y", NO_SLICE_FX),
+        (
+            "soundgoodizer",
+            "mode",
+            "which of four characters plays; the stand-in has one amount and no character switch",
+        ),
+        (
+            "spreader",
+            "low_bypass",
+            "the stand-in spreads the whole range",
+        ),
+        (
+            "spreader",
+            "mono",
+            "a mono check switch; the stand-in has none",
+        ),
+        ("spreader", "postfx", ROUTING),
+        ("spreader", "prefx", ROUTING),
         (
             "transient processor",
-            "attack_shape gain release_shape split_balance split_freq",
+            "attack_shape",
+            "the stand-in's attack has no shape control",
+        ),
+        ("transient processor", "gain", NO_GAIN),
+        (
+            "transient processor",
+            "release_shape",
+            "the stand-in's sustain has no shape control",
+        ),
+        (
+            "transient processor",
+            "split_balance",
+            "the stand-in shapes the whole range; it has no split",
+        ),
+        (
+            "transient processor",
+            "split_freq",
+            "the stand-in shapes the whole range; it has no split",
         ),
         (
             "vintage chorus",
-            "delay_feedback delay_hp delay_time2 invert_wet mod_phase_start mod_shape_sine mod_tempo_sync mono_input noise noise_gain noise_gate",
+            "delay_feedback",
+            "the stand-in bucket chorus has no feedback",
+        ),
+        (
+            "vintage chorus",
+            "delay_hp",
+            "a high-pass in the delay; the stand-in's tone is a low-pass",
+        ),
+        (
+            "vintage chorus",
+            "delay_time2",
+            "a second delay line's time; the stand-in has one line, whose sweep depth is not a second time",
+        ),
+        (
+            "vintage chorus",
+            "invert_wet",
+            "the stand-in bucket chorus has no wet inversion",
+        ),
+        (
+            "vintage chorus",
+            "mod_phase_start",
+            "the stand-in's sweep starts where it is; it has no start phase",
+        ),
+        ("vintage chorus", "mod_shape_sine", NO_WAVE),
+        (
+            "vintage chorus",
+            "mono_input",
+            "the stand-in takes both sides",
+        ),
+        ("vintage chorus", "noise", NO_NOISE),
+        ("vintage chorus", "noise_gain", NO_NOISE),
+        ("vintage chorus", "noise_gate", NO_NOISE),
+        (
+            "vintage phaser",
+            "color_gain",
+            "the level of the feedback color; the stand-in's color is a frequency (color_freq, carried)",
+        ),
+        ("vintage phaser", "delay_feedback", NO_DELAY_SECTION),
+        ("vintage phaser", "delay_hp", NO_DELAY_SECTION),
+        ("vintage phaser", "delay_keeppitch", NO_DELAY_SECTION),
+        ("vintage phaser", "delay_lp", NO_DELAY_SECTION),
+        ("vintage phaser", "delay_mix", NO_DELAY_SECTION),
+        ("vintage phaser", "delay_on", NO_DELAY_SECTION),
+        ("vintage phaser", "delay_stereo", NO_DELAY_SECTION),
+        ("vintage phaser", "delay_tempo", NO_DELAY_SECTION),
+        ("vintage phaser", "delay_time", NO_DELAY_SECTION),
+        (
+            "vintage phaser",
+            "feedback_hp",
+            "a high-pass in the feedback; the stand-in's feedback color is a low-pass",
         ),
         (
             "vintage phaser",
-            "color_freq color_gain delay_feedback delay_hp delay_keeppitch delay_lp delay_mix delay_on delay_stereo delay_tempo delay_time feedback_hp input_hp levels_mono levels_noise levels_noise_gate lfo_pull lfo_scale mod_phase_start mod_shape_sine mod_tempo mod_tension phaser_freq phaser_hq phaser_manual rate_freq1 rate_freq2",
+            "input_hp",
+            "the stand-in has no input high-pass",
+        ),
+        (
+            "vintage phaser",
+            "levels_mono",
+            "the stand-in takes both sides",
+        ),
+        ("vintage phaser", "levels_noise", NO_NOISE),
+        ("vintage phaser", "levels_noise_gate", NO_NOISE),
+        (
+            "vintage phaser",
+            "lfo_pull",
+            "the stand-in's sweep is a sine with no pull",
+        ),
+        (
+            "vintage phaser",
+            "lfo_scale",
+            "the stand-in's sweep spans minHz to maxHz, which are carried",
+        ),
+        (
+            "vintage phaser",
+            "mod_phase_start",
+            "the stand-in's sweep starts where it is; it has no start phase",
+        ),
+        ("vintage phaser", "mod_shape_sine", NO_WAVE),
+        (
+            "vintage phaser",
+            "mod_tension",
+            "the stand-in's sweep is a sine with no tension",
+        ),
+        (
+            "vintage phaser",
+            "phaser_freq",
+            "a manual frequency for a phaser that does not sweep; the stand-in always sweeps between minHz and maxHz",
+        ),
+        (
+            "vintage phaser",
+            "phaser_hq",
+            "a quality switch the public layout gives no stage count for; the stand-in's stages are not set from it",
+        ),
+        (
+            "vintage phaser",
+            "phaser_manual",
+            "a manual (no sweep) switch; the stand-in always sweeps",
+        ),
+        (
+            "vintage phaser",
+            "rate_freq1",
+            "rate ranges of the device's own; the stand-in's rate is carried by mod_speed",
+        ),
+        (
+            "vintage phaser",
+            "rate_freq2",
+            "rate ranges of the device's own; the stand-in's rate is carried by mod_speed",
+        ),
+        ("simsynth", "osc1_warm", WARMTH),
+        ("simsynth", "osc2_warm", WARMTH),
+        ("simsynth", "osc3_warm", WARMTH),
+        (
+            "simsynth",
+            "lfo_trackamp",
+            "the stand-in's LFO does not follow the amplitude",
+        ),
+        ("simsynth", "chorus_on", "the stand-in synth has no chorus"),
+        (
+            "3x osc",
+            "osc1_ofs",
+            "an oscillator phase offset; the stand-in's oscillators have no phase control",
+        ),
+        (
+            "3x osc",
+            "osc1_detune",
+            "a per-oscillator stereo detune; the stand-in's unison detune and spread apply to all oscillators together",
+        ),
+        (
+            "3x osc",
+            "osc2_ofs",
+            "an oscillator phase offset; the stand-in's oscillators have no phase control",
+        ),
+        (
+            "3x osc",
+            "osc2_detune",
+            "a per-oscillator stereo detune; the stand-in's unison detune and spread apply to all oscillators together",
+        ),
+        (
+            "3x osc",
+            "osc3_ofs",
+            "an oscillator phase offset; the stand-in's oscillators have no phase control",
+        ),
+        (
+            "3x osc",
+            "osc3_detune",
+            "a per-oscillator stereo detune; the stand-in's unison detune and spread apply to all oscillators together",
+        ),
+        (
+            "3x osc",
+            "phase_rand",
+            "the stand-in's oscillators start at a fixed phase",
+        ),
+        (
+            "3x osc",
+            "osc1_invert",
+            "the stand-in's oscillator levels are not signed",
+        ),
+        (
+            "3x osc",
+            "osc2_invert",
+            "the stand-in's oscillator levels are not signed",
+        ),
+        (
+            "3x osc",
+            "osc3_invert",
+            "the stand-in's oscillator levels are not signed",
+        ),
+        (
+            "3x osc",
+            "osc3_am",
+            "oscillator 3 modulating the others' level at audio rate; the stand-in's LFOs move the volume at low rates only",
+        ),
+        (
+            "fruity reeverb 2",
+            "bass",
+            "\"Bass Multi\": the stand-in's decay is the same for every frequency",
+        ),
+        (
+            "fruity reeverb 2",
+            "cross",
+            "the crossover for the bass multiplier; the stand-in has none",
+        ),
+        (
+            "fruity reeverb 2",
+            "stereo",
+            "\"Stereo Separation\" with no range in the public dataset, so no width can be read from it",
+        ),
+        (
+            "fruity reeverb 2",
+            "mod_speed",
+            "the stand-in's modulation has a depth (carried by mod) and no rate",
+        ),
+        (
+            "fruity reeverb 2",
+            "tempo_predelay",
+            "the stand-in's pre-delay is in milliseconds and does not follow the tempo",
+        ),
+        (
+            "fruity reeverb 2",
+            "mid_side",
+            "the stand-in takes left and right",
+        ),
+        (
+            "fruity reeverb",
+            "color",
+            "the stand-in reverb has no color control",
+        ),
+        (
+            "fruity delay 2",
+            "input_pan",
+            "the stand-in delay has no input pan",
+        ),
+        (
+            "fruity parametric eq 2",
+            "1_order",
+            "a band order (-3..3) with no slope in dB per octave and no meaning for its sign in the public sources; the stand-in's cut slopes cannot be read from it",
+        ),
+        (
+            "fruity parametric eq 2",
+            "2_order",
+            "a band order (-3..3) with no slope in dB per octave and no meaning for its sign in the public sources; the stand-in's cut slopes cannot be read from it",
+        ),
+        (
+            "fruity parametric eq 2",
+            "3_order",
+            "a band order (-3..3) with no slope in dB per octave and no meaning for its sign in the public sources; the stand-in's cut slopes cannot be read from it",
+        ),
+        (
+            "fruity parametric eq 2",
+            "4_order",
+            "a band order (-3..3) with no slope in dB per octave and no meaning for its sign in the public sources; the stand-in's cut slopes cannot be read from it",
+        ),
+        (
+            "fruity parametric eq 2",
+            "5_order",
+            "a band order (-3..3) with no slope in dB per octave and no meaning for its sign in the public sources; the stand-in's cut slopes cannot be read from it",
+        ),
+        (
+            "fruity parametric eq 2",
+            "6_order",
+            "a band order (-3..3) with no slope in dB per octave and no meaning for its sign in the public sources; the stand-in's cut slopes cannot be read from it",
+        ),
+        (
+            "fruity parametric eq 2",
+            "7_order",
+            "a band order (-3..3) with no slope in dB per octave and no meaning for its sign in the public sources; the stand-in's cut slopes cannot be read from it",
+        ),
+        ("channel envelope", "predelay", ENVELOPE_SHAPE),
+        ("channel envelope", "hold", ENVELOPE_SHAPE),
+        ("channel envelope", "attack_tension", ENVELOPE_SHAPE),
+        ("channel envelope", "decay_tension", ENVELOPE_SHAPE),
+        ("channel envelope", "release_tension", ENVELOPE_SHAPE),
+        ("channel envelope", "tempo_sync", ENVELOPE_SHAPE),
+        ("channel lfo", "predelay", LFO_SHAPE),
+        ("channel lfo", "attack", LFO_SHAPE),
+        ("channel lfo", "tempo_sync", LFO_SHAPE),
+        ("channel arpeggiator", "chord", ARPEGGIATOR),
+        ("channel arpeggiator", "repeat", ARPEGGIATOR),
+        ("channel arpeggiator", "slide", ARPEGGIATOR),
+        ("channel note echo", "ping_pong", NOTE_ECHO),
+        ("channel note echo", "fat_mode", NOTE_ECHO),
+        ("channel note echo", "pan", NOTE_ECHO),
+        (
+            "channel time stretch",
+            "formant",
+            "a formant offset in semitones; the stand-in's stretch has a formant-preservation switch only",
+        ),
+    ];
+
+    /// Device, the stand-in's controls none of its decoded fields sets
+    /// (indexes as `#`), and why none of its omitted fields fits them. In
+    /// the table the controls are checked to be exactly these; outside it,
+    /// to be the stand-in's own.
+    const UNSET: &[(&str, &str, &str)] = &[
+        (
+            "bassdrum",
+            "pitchDropSemitones sampleStart sampleTune",
+            "the pitch drop is set from peak and base by rule; the sample layer's tune and start have no BassDrum field (its sample is the file reference)",
+        ),
+        (
+            "effector",
+            "amount feedback loopBeats model pitchSemitones xyEnabled",
+            "XY is switched on by rule; the treatment, its amount, feedback, slice length and pitch jump have no public field (the effect selector's order is not public)",
+        ),
+        ("frequency shifter", "", "every control is set"),
+        (
+            "fruit kick",
+            "level pitchDropSemitones",
+            "the drop is set from max_freq and min_freq by rule; no field is an output level (osc_dist is distortion)",
+        ),
+        ("fruity chorus", "", "every control is set"),
+        (
+            "fruity delay 3",
+            "division lowCutHz mode sync",
+            "sync and the time are set by the tempo_sync rule; the division is only used while synced; no field is a low cut or one of the stand-in's modes",
+        ),
+        (
+            "fruity delay bank",
+            "units.#.division units.#.feedbackFilter.gainDb units.#.filter.gainDb",
+            "the division is only used while synced, where feedback_time carries the time; the shelf and peak gains have no field (filter_gain and fbfilter_gain are carried as the filters' gains)",
+        ),
+        (
+            "fruity dx10",
+            "algorithm feedback gain",
+            "the algorithm is set by rule; no field is operator 4's feedback or an output gain",
+        ),
+        ("fruity fast dist", "", "every control is set"),
+        ("fruity flanger", "", "every control is set"),
+        (
+            "fruity flangus",
+            "cycleBeats feedback rate2Hz sync toneHz",
+            "the device has one speed (carried as the first rate), no feedback, tone or tempo sync field, and cross is a crossfeed, not feedback",
+        ),
+        ("fruity free filter", "", "every control is set"),
+        (
+            "fruity granulizer",
+            "level pitch releaseMs rootKey seed",
+            "no field is a level, pitch offset, release, root key or seed; key_to selects what the keyboard plays, not a root",
+        ),
+        (
+            "fruity kick",
+            "level pitchDropSemitones",
+            "the drop is set from max_freq and min_freq by rule; no field is an output level (osc_dist is distortion)",
+        ),
+        ("fruity limiter", "", "every control is set"),
+        (
+            "fruity multiband compressor",
+            "sidechain",
+            "the stand-in's sidechain switch selects an external key; the device's limiter field is an output limiter",
+        ),
+        ("fruity phaser", "", "every control is set"),
+        (
+            "fruity slicer",
+            "baseKey level sliceStarts.#",
+            "the slice starts are read by the slice reader; no field is a base key or level",
+        ),
+        (
+            "fruity soft clipper",
+            "knee",
+            "the knee is the curve's softness; postgain is an output level",
+        ),
+        (
+            "fruity stereo enhancer",
+            "bassHz bassLock mix",
+            "no field is a mono-bass crossover or a mix; vol is an output level",
+        ),
+        (
+            "fruity stereo shaper",
+            "leftDelayMs mode rightDelayMs",
+            "the delays are set from the delay field by rule; the mode stays stereo, the coordinates of the four gains",
+        ),
+        (
+            "fruity vocoder",
+            "carrierHz gain keyIsCarrier synthCarrier",
+            "no field selects a synth carrier or its pitch, and gain scales the vocoded signal, not the carrier or modulator heard beside it; left_right picks sides of one input, not the sidechain key",
+        ),
+        (
+            "fruity waveshaper",
+            "curve.# oversampling",
+            "the curve is set from the drawn points by rule; no field is an oversampling choice",
+        ),
+        ("pitch shifter", "", "every control is set"),
+        (
+            "pitcher",
+            "amount mix root scale",
+            "root and scale are set from key_on by rule; no field is a correction amount or a mix",
+        ),
+        (
+            "plucked!",
+            "level pickPosition",
+            "no field is a level or a pick position",
+        ),
+        (
+            "slicex",
+            "baseKey releaseMs slices.#.gain slices.#.pitch slices.#.reverse sliceStarts.#",
+            "the slices and their starts are read by the slice reader; no header field is a base key or release",
+        ),
+        ("soundgoodizer", "", "every control is set"),
+        (
+            "spreader",
+            "haasMs mix",
+            "no field is a Haas delay or a mix",
+        ),
+        (
+            "transient processor",
+            "listen",
+            "listen chooses what is heard (attack, body); no field is that",
+        ),
+        (
+            "vintage chorus",
+            "cycleBeats depthMs toneHz",
+            "the cycle is set from the rate when synced by rule; no field is a sweep depth or a low-pass tone (delay_time2 is a second line, delay_hp a high-pass)",
+        ),
+        (
+            "vintage phaser",
+            "cycleBeats stages stagger",
+            "the cycle is set from the rate when synced by rule; no field gives a stage count or stagger (phaser_hq has no count)",
+        ),
+        ("simsynth", "", "every control is set"),
+        (
+            "3x osc",
+            "ampVelocity filter.cutoffHz filter.drive filter.envelopeOctaves filter.keyTracking filter.mode filter.resonance filter.slope filter.velocity filterEnvelope.attackMs filterEnvelope.decayMs filterEnvelope.releaseMs filterEnvelope.sustain gain glideMs lfos.#.amp lfos.#.cutoffOctaves lfos.#.pitchSemitones lfos.#.pulseWidth lfos.#.rateHz lfos.#.shape oscillators.#.pulseWidth pan unisonDetuneCents unisonSpread unisonVoices",
+            "the device has no filter, LFO, pulse width, glide or velocity field of its own (the channel's are converted with the channel); unison detune and spread apply to all oscillators while each stereo detune is per oscillator; the LFOs' volume depth is a low-rate movement, not oscillator 3's audio-rate modulation",
+        ),
+        (
+            "fruity reeverb 2",
+            "width",
+            "Stereo Separation would be the width, but the public dataset gives it no range",
+        ),
+        (
+            "fruity reeverb",
+            "earlyLevel modulation width",
+            "the device has no early level, modulation or width field; color is a tone",
+        ),
+        (
+            "fruity delay 2",
+            "lowCutHz modDepthMs modRateHz saturation",
+            "no field is a low cut, modulation or saturation; input_pan is a pan",
+        ),
+        (
+            "fruity parametric eq 2",
+            "highCut.slope lowCut.slope",
+            "the cut slopes would take the band orders, but the public sources give the orders no slope in dB per octave or meaning for their sign",
+        ),
+        (
+            "channel envelope",
+            "",
+            "every field of the channel envelope is set",
+        ),
+        (
+            "channel lfo",
+            "delayMs",
+            "the start delay would take the predelay, but the public readers give the channel LFO's predelay no time rule",
+        ),
+        (
+            "channel arpeggiator",
+            "",
+            "every field of the arpeggiator is set",
+        ),
+        (
+            "channel note echo",
+            "",
+            "every field of the note echo is set",
+        ),
+        (
+            "channel time stretch",
+            "formants",
+            "the formant-preservation switch is a switch; a formant offset in semitones cannot be read as one",
         ),
     ];
 }

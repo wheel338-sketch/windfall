@@ -39,3 +39,64 @@ export function flpFixture() {
   bytes.set(events, 22)
   return bytes
 }
+
+/**
+ * Original synthetic fixture dedicated to CC0-1.0; no Image-Line bytes. A
+ * SimSynth channel and a Fruity Soft Clipper on the master, saved as FL
+ * Studio 9 writes them: both have decoded fields their Windfall stand-ins
+ * have no control for (the synth's warmth, track-amp and chorus switches,
+ * the clipper's post gain).
+ */
+export function flpOmittedFixture() {
+  const events: number[] = []
+  const byte = (id: number, value: number) => events.push(id, value & 255)
+  const word = (id: number, value: number) =>
+    events.push(id, value & 255, (value >> 8) & 255)
+  const dword = (id: number, value: number) =>
+    events.push(
+      id,
+      value & 255,
+      (value >>> 8) & 255,
+      (value >>> 16) & 255,
+      (value >>> 24) & 255
+    )
+  const data = (id: number, bytes: number[]) => {
+    events.push(id)
+    let length = bytes.length
+    for (;;) {
+      const low = length & 0x7f
+      length >>= 7
+      if (length === 0) {
+        events.push(low)
+        break
+      }
+      events.push(low | 0x80)
+    }
+    events.push(...bytes)
+  }
+  const text = (id: number, value: string) =>
+    data(id, [...new TextEncoder().encode(value), 0])
+  text(199, "9.0.0")
+  word(66, 120)
+  word(64, 0)
+  byte(21, 2)
+  text(201, "SimSynth")
+  // 45 doubles, 76 reserved bytes and twenty flag words.
+  data(213, Array.from({ length: 516 }, () => 0))
+  text(204, "Master")
+  text(201, "Fruity Soft Clipper")
+  // threshold 100, postgain 64.
+  data(213, [100, 0, 0, 0, 64, 0, 0, 0])
+  word(98, 0)
+  dword(147, 0xffffffff)
+  const bytes = new Uint8Array(22 + events.length)
+  const header = new DataView(bytes.buffer)
+  bytes.set(new TextEncoder().encode("FLhd"))
+  header.setUint32(4, 6, true)
+  header.setUint16(10, 1, true)
+  header.setUint16(12, 96, true)
+  bytes.set(new TextEncoder().encode("FLdt"), 14)
+  header.setUint32(18, events.length, true)
+  bytes.set(events, 22)
+  return bytes
+}

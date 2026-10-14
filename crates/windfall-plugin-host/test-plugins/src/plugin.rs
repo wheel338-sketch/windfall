@@ -106,6 +106,9 @@ pub(crate) struct Main {
 pub(crate) struct Plugin {
     clap: clap_plugin,
     dynamic_changed: std::sync::atomic::AtomicBool,
+    /// The note dialect a switching sine plays since its activation (1 for
+    /// MIDI only), or `u32::MAX` while it is not active.
+    switch_latched: std::sync::atomic::AtomicU32,
     pub host: *const clap_host,
     pub kind: Kind,
     /// Parameter values and readings, as the bits of an `f64`, so both
@@ -164,6 +167,7 @@ pub(crate) fn create(
     let values = std::array::from_fn(|_| AtomicU64::new(0));
     let plugin = Box::new(Plugin {
         dynamic_changed: std::sync::atomic::AtomicBool::new(false),
+        switch_latched: std::sync::atomic::AtomicU32::new(u32::MAX),
         clap: clap_plugin {
             desc: descriptor,
             plugin_data: ptr::null_mut(),
@@ -258,6 +262,11 @@ unsafe extern "C" fn activate(
     audio.bridge_delay.reset();
     audio.bridge_notes.fill(false);
     let plugin = unsafe { Plugin::from_raw(plugin) };
+    if plugin.kind == Kind::SwitchingSine {
+        plugin
+            .switch_latched
+            .store(u32::from(plugin.value(slot::MODE) > 0.5), Ordering::Release);
+    }
     if plugin.kind == Kind::BridgeIdleHang
         && let Some(callback) = unsafe { (*plugin.host).request_callback }
     {
@@ -270,7 +279,11 @@ unsafe extern "C" fn activate(
     true
 }
 
-unsafe extern "C" fn deactivate(_plugin: *const clap_plugin) {}
+unsafe extern "C" fn deactivate(plugin: *const clap_plugin) {
+    // SAFETY: the host passes the plugin it was given.
+    let plugin = unsafe { Plugin::from_raw(plugin) };
+    plugin.switch_latched.store(u32::MAX, Ordering::Release);
+}
 
 unsafe extern "C" fn start_processing(_plugin: *const clap_plugin) -> bool {
     true
@@ -480,7 +493,7 @@ unsafe extern "C" fn process(
             | Kind::BridgeControlledProcessError => process_bridge_delayed(plugin, audio, block),
             Kind::BridgeNoteProbe => process_bridge_note_probe(audio, block),
             Kind::BridgeProcessHang => crate::bridge_behaviors::hang(),
-            Kind::Sine | Kind::MidiSine => process_sine(plugin, audio, block),
+            Kind::Sine | Kind::MidiSine | Kind::SwitchingSine => process_sine(plugin, audio, block),
             Kind::Swap => process_stereo(block, |left, right| (right, left)),
             Kind::Sidechain => process_sidechain(block),
             Kind::MultiSidechain => process_multi_sidechain(block),
@@ -846,6 +859,21 @@ pub(crate) unsafe fn handle_param_event(
                     }
                 }
                 plugin.set_value(param.slot, value);
+                // A running switching sine keeps its dialect until the host
+                // restarts it, and asks for that (from any thread in CLAP).
+                let latched = plugin.switch_latched.load(Ordering::Acquire);
+                if plugin.kind == Kind::SwitchingSine
+                    && event.param_id == ext::DIALECT_ID
+                    && latched != u32::MAX
+                    && latched != u32::from(value > 0.5)
+                {
+                    // SAFETY: the host pointer is the plugin's own host.
+                    unsafe {
+                        if let Some(restart) = (*plugin.host).request_restart {
+                            restart(plugin.host);
+                        }
+                    }
+                }
             }
         }
         CLAP_EVENT_NOTE_ON if plugin.kind == Kind::Gain => {
@@ -1021,7 +1049,8 @@ unsafe fn process_sine(
     if out_left.is_null() || out_right.is_null() {
         return CLAP_PROCESS_ERROR;
     }
-    let midi_only = plugin.kind == Kind::MidiSine;
+    let midi_only = plugin.kind == Kind::MidiSine
+        || plugin.kind == Kind::SwitchingSine && plugin.switch_latched.load(Ordering::Acquire) == 1;
 
     // SAFETY: the event lists are the host's.
     let mut incoming = unsafe { Incoming::new(block.in_events) };

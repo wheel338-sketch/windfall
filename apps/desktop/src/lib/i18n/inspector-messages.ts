@@ -1,7 +1,7 @@
 export const inspectorEn = {
   "In the plugin, per note": "In the plugin, per note",
   "On the channel, after the plugin": "On the channel, after the plugin",
-  "The project pan law applies to every note. A property routed on the channel is applied to the whole output of this instrument after the plugin, and follows the most recent note that sounds.": "The project pan law applies to every note. A property routed on the channel is applied to the whole output of this instrument after the plugin, and follows the most recent note that sounds.",
+  "The project pan law applies to every note. A property routed on the channel is applied to the whole output of this instrument after the plugin, and follows the most recent note that sounds; notes that overlap share it.": "The project pan law applies to every note. A property routed on the channel is applied to the whole output of this instrument after the plugin, and follows the most recent note that sounds; notes that overlap share it.",
   "The note capabilities of this plugin are not known yet, or a note uses an invalid MIDI channel. Apply once the instrument is running.": "The note capabilities of this plugin are not known yet, or a note uses an invalid MIDI channel. Apply once the instrument is running.",
   "Note MIDI channel {channel}": "Note MIDI channel {channel}",
   "Pan route: {pan}; Volume route: {volume}": "Pan route: {pan}; Volume route: {volume}",
@@ -632,7 +632,7 @@ export const inspectorEn = {
 export const inspectorEs = {
   "In the plugin, per note": "En el plugin, por nota",
   "On the channel, after the plugin": "En el canal, después del plugin",
-  "The project pan law applies to every note. A property routed on the channel is applied to the whole output of this instrument after the plugin, and follows the most recent note that sounds.": "La ley de panorama del proyecto se aplica a todas las notas. Una propiedad encaminada al canal se aplica a toda la salida de este instrumento después del plugin y sigue a la nota más reciente que suena.",
+  "The project pan law applies to every note. A property routed on the channel is applied to the whole output of this instrument after the plugin, and follows the most recent note that sounds; notes that overlap share it.": "La ley de panorama del proyecto se aplica a todas las notas. Una propiedad encaminada al canal se aplica a toda la salida de este instrumento después del plugin y sigue a la nota más reciente que suena; las notas que se solapan la comparten.",
   "The note capabilities of this plugin are not known yet, or a note uses an invalid MIDI channel. Apply once the instrument is running.": "Aún no se conocen las capacidades de nota de este plugin, o una nota usa un canal MIDI no válido. Aplica cuando el instrumento esté en marcha.",
   "Note MIDI channel {channel}": "Canal MIDI de nota {channel}",
   "Pan route: {pan}; Volume route: {volume}": "Ruta de panorama: {pan}; ruta de volumen: {volume}",

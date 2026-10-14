@@ -62,12 +62,21 @@ impl Metadata {
 pub(super) struct Departure {
     requested: AtomicBool,
     departed: AtomicBool,
+    /// The helper gave its plugin back for re-admission, so the unit cannot
+    /// play on: the request stands until a replacement takes over or the
+    /// owner withdraws it.
+    held: AtomicBool,
     blocks: AtomicU64,
 }
 impl Departure {
     /// Asks the unit to fade out and waits, for as long as audio keeps
     /// running and at most `longest`, until it has. True when it did.
+    /// A unit that already faded out for a standing request has nothing
+    /// more to do.
     pub fn leave(&self, longest: Duration) -> bool {
+        if self.requested.load(Ordering::Acquire) && self.departed.load(Ordering::Acquire) {
+            return true;
+        }
         self.departed.store(false, Ordering::Release);
         self.requested.store(true, Ordering::Release);
         let deadline = std::time::Instant::now() + longest;
@@ -93,6 +102,7 @@ impl Departure {
     }
     /// Withdraws the request: the unit fades back in and plays on.
     pub fn stay(&self) {
+        self.held.store(false, Ordering::Release);
         self.requested.store(false, Ordering::Release);
     }
 }
@@ -132,7 +142,24 @@ impl Record {
         }
         Ok(())
     }
+    /// Reads what the plugin offers now. The helper takes its plugin out of
+    /// processing for that and a replacement helper plays on, so first the
+    /// output fades out and each sounding note's ramp is left where the
+    /// replacement finds it (`Runtime::bridge_audio`).
     pub fn readmit(
+        &self,
+        desired: &[PluginParameter],
+    ) -> Result<(Vec<u8>, super::capabilities::Readmission), String> {
+        self.departure.held.store(true, Ordering::Release);
+        self.departure.leave(Duration::from_millis(150));
+        let result = self.readmit_now(desired);
+        if result.is_err() {
+            // The helper may still play: it fades back in.
+            self.departure.stay();
+        }
+        result
+    }
+    fn readmit_now(
         &self,
         desired: &[PluginParameter],
     ) -> Result<(Vec<u8>, super::capabilities::Readmission), String> {
@@ -567,9 +594,13 @@ impl HostedEffect for Audio {
                 .departed
                 .store(!sounding || self.process.departed(), Ordering::Release);
             // A replacement that never took over must not leave this unit
-            // silent: after two seconds it plays on.
+            // silent: after two seconds it plays on. One whose plugin was
+            // given back for re-admission cannot, and waits for its
+            // replacement however long the document takes to prepare it.
             self.leaving_frames = self.leaving_frames.saturating_add(left.len());
-            if self.leaving_frames > 2 * self.process.sample_rate() as usize {
+            if self.leaving_frames > 2 * self.process.sample_rate() as usize
+                && !self.departure.held.load(Ordering::Acquire)
+            {
                 self.departure.stay();
             }
         } else if self.leaving {

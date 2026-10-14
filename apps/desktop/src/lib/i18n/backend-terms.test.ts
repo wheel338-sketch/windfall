@@ -75,8 +75,9 @@ const FAMILIES: [string, string[]][] = [
   ["FL parts read only up to a limit", [...captured(flpParse, /self\.over\("([^"]+)"\)/g), ...captured(flpParse, /over_cap\.entry\("([^"]+)"\)/g)]],
   ["FL envelope and LFO targets and fields, arpeggiator and echo settings", [
     ...literalsBetween(flpVoice, /let target = match index \{/, "};"),
-    ...captured(flpVoice, /\(\s*"([a-zA-Z -]+)",\s*(?:env|params|p)\./g),
-    ...captured(flpVoice, /\(\d+, "([a-z -]+)"\)/g),
+    // `(name, value)` or, where the review lists the field as omitted, `(name, field, value)`.
+    ...captured(flpVoice, /\(\s*"([a-zA-Z -]+)",\s*(?:"[a-z_]+",\s*)?(?:env|params|p)\./g),
+    ...captured(flpVoice, /\(\d+, "([a-z -]+)"(?:, "[a-z_]+")?\)/g),
   ]],
   ["FL project fields with no place yet", captured(flpMod, /filled\(&settings\.\w+\), "([^"]+)"\)/g)],
 ]
