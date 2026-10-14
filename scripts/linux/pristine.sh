@@ -3,10 +3,11 @@
 # by `scripts/linux/xplat.sh pristine`: is everything Windfall's packages
 # load present once they are installed the way a user installs them?
 #
-#   AppImage first, on the clean system with only its documented host
-#   requirement installed: ALSA's libasound2, which AppImages leave to the
-#   host on purpose (linuxdeploy's exclude list) so the host's ALSA setup
-#   applies; every desktop distribution has it. Extracted (no FUSE), every
+#   AppImage first, on the clean system with only the libraries AppImages
+#   leave to the host on purpose (linuxdeploy's exclude list: they must match
+#   the host's sound, graphics and font stack) installed: ALSA, X11/xcb,
+#   GL/EGL/GBM/DRM, Wayland, fontconfig, freetype, harfbuzz and fribidi.
+#   Every X11 or Wayland desktop has them. Extracted (no FUSE), every
 #   ELF file through ldd with the AppImage's own libraries, then the app
 #   started without a display (it must get as far as GTK refusing to open
 #   one, not stop at a missing library). gdk-pixbuf's image loaders are
@@ -47,9 +48,11 @@ started_to_gtk() { # the app run with no display: which error stops it
 }
 
 image=$(ls "$artifacts"/*.AppImage | head -1)
-note "== Ubuntu $release: $(basename "$image"), extracted, with the host's ALSA only"
+note "== Ubuntu $release: $(basename "$image"), extracted, with only the desktop host libraries"
 alsa=libasound2; [ "$release" = 24.04 ] && alsa=libasound2t64
-apt-get install -y --no-install-recommends "$alsa" > "$out/apt-alsa.log" 2>&1 || { note "   $alsa could not be installed"; status=1; }
+host_libraries="$alsa libx11-6 libx11-xcb1 libxcb1 libgl1 libegl1 libgbm1 libdrm2 libwayland-client0 libfontconfig1 libfreetype6 libharfbuzz0b libfribidi0"
+note "   host: $host_libraries"
+apt-get install -y --no-install-recommends $host_libraries > "$out/apt-host.log" 2>&1 || { note "   the host libraries could not be installed"; status=1; }
 work=$(mktemp -d)
 cp "$image" "$work/Windfall.AppImage"; chmod +x "$work/Windfall.AppImage"
 (cd "$work" && ./Windfall.AppImage --appimage-extract > /dev/null)
