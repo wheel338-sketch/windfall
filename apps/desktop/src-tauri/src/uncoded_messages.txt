@@ -87,6 +87,143 @@ windfall-dsp/src/asset.rs | at most {MAX_CURVE_POINTS} effect curve points
 # the lines of the factory loop index the generator writes (JSON)
 windfall-factory/src/loops.rs | {{\"id\":\"{}\",\"name\":\"{}\",\"path\":\"{}\",\"genre\":\"{}\",\"tempo\":{},\"key\":{},\"mode\":\"minor\",\"bars\":{},\"provenance\":\"{}\"}}
 windfall-factory/src/loops.rs | {{\"schema\":1,\"loops\":[{}]}}\n
+# --- MCP server (begin) ---
+# a JSON-RPC error of the MCP protocol, read by the MCP client program, never shown in the interface
+windfall-mcp/src/http.rs | Header mismatch: MCP-Protocol-Version must be {version}, as the body's _meta says
+windfall-mcp/src/http.rs | Header mismatch: Mcp-Method must be {method}
+windfall-mcp/src/http.rs | Header mismatch: Mcp-Name must be {named}
+windfall-mcp/src/protocol.rs | Method not found: {method}
+windfall-mcp/src/protocol.rs | Resource not found: {uri}
+windfall-mcp/src/protocol.rs | Unknown tool: {name}
+windfall-mcp/src/protocol.rs | {MAX_RUNNING} requests of this agent are already running
+# a JSON-RPC error the stdio bridge writes to the MCP client program that started it
+windfall-mcp/src/bridge.rs | Windfall answered HTTP {status} with no JSON-RPC message
+# the MCP endpoint's address, a URL pasted into a client's configuration
+session/mcp.rs | http://127.0.0.1:{}/mcp
+# text sent to the AI agent connected over MCP, in tool results and tool schemas, never shown in the interface; the approval panel says a proposal's changes through the catalog instead
+session/mcp.rs | the region lasts up to {seconds:.0} seconds, longer than maxSeconds ({:.0}); render a shorter region
+session/mcp.rs | the render ran past maxSeconds ({:.0}); render a shorter region
+windfall-mcp/src/approvals.rs | proposal {id} belongs to another agent
+windfall-mcp/src/approvals.rs | proposal {id} is waiting for the user to apply it in Windfall; this agent may not apply without asking
+windfall-mcp/src/approvals.rs | proposal {id} is {}, not pending
+windfall-mcp/src/approvals.rs | there is no proposal {id}
+windfall-mcp/src/approvals.rs | {MAX_WAITING} proposals are already waiting for the user; wait for a decision or withdraw one first
+windfall-mcp/src/args.rs | argument {key} is required
+windfall-mcp/src/args.rs | argument {key} must be a list
+windfall-mcp/src/args.rs | argument {key} must be a number, not {value}
+windfall-mcp/src/args.rs | argument {key} must be a whole number from {} to {}, not {value}
+windfall-mcp/src/args.rs | argument {key} must be an id, a whole number, not {value}
+windfall-mcp/src/args.rs | argument {key} must be at most {max} bytes of text with no control characters
+windfall-mcp/src/args.rs | argument {key} must be text, not {value}
+windfall-mcp/src/args.rs | argument {key} must be true or false, not {value}
+windfall-mcp/src/args.rs | argument {key} must hold 1 to {max} items, not {}
+windfall-mcp/src/args.rs | item {index} of {key} must be an object
+windfall-mcp/src/args.rs | the arguments must be an object, not {other}
+windfall-mcp/src/args.rs | unknown arguments {unknown:?}; this tool takes {allowed:?}
+windfall-mcp/src/args.rs | {key} must hold ids, whole numbers, not {value}
+windfall-mcp/src/edits.rs | add automation {id} with {} points from {} to {}
+windfall-mcp/src/edits.rs | add channel {id} playing {} into {}
+windfall-mcp/src/edits.rs | add playlist track {id}
+windfall-mcp/src/edits.rs | add {} as effect {id} on mixer track {}
+windfall-mcp/src/edits.rs | add {} at {} for {} ticks
+windfall-mcp/src/edits.rs | automation {} moves another target; leave automationId out to make a new one
+windfall-mcp/src/edits.rs | change clip {id} at {}
+windfall-mcp/src/edits.rs | change note {id} ({} at {})
+windfall-mcp/src/edits.rs | command {index} is not a Windfall command: {error}
+windfall-mcp/src/edits.rs | create pattern {id} {:?} of {} steps
+windfall-mcp/src/edits.rs | lengthen pattern {} from {} to {} steps
+windfall-mcp/src/edits.rs | level {linear:.3} is outside 0 to {MAX_GAIN} (silence to +6 dB)
+windfall-mcp/src/edits.rs | level {other} must be a number or decibels such as \"-6 dB\"
+windfall-mcp/src/edits.rs | mix {value} must be from 0 (dry) to 1 (effect only)
+windfall-mcp/src/edits.rs | mixer track {}
+windfall-mcp/src/edits.rs | mixer track {} already holds {} effects, the most a track holds
+windfall-mcp/src/edits.rs | mixer track {} has no effect {id}
+windfall-mcp/src/edits.rs | mixer track {} has no send to mixer track {}
+windfall-mcp/src/edits.rs | move {} (effect {}) to slot {index} of mixer track {}
+windfall-mcp/src/edits.rs | note {id} is updated twice
+windfall-mcp/src/edits.rs | noteIds must hold ids, not {value}
+windfall-mcp/src/edits.rs | pan {value} must be from -1 (left) to 1 (right)
+windfall-mcp/src/edits.rs | parameter {wanted} must be a name, an id or an index
+windfall-mcp/src/edits.rs | place a clip on playlist track {} at {}
+windfall-mcp/src/edits.rs | place it on playlist track {} from {}
+windfall-mcp/src/edits.rs | remove clips {ids:?}
+windfall-mcp/src/edits.rs | remove the send from mixer track {} to mixer track {}
+windfall-mcp/src/edits.rs | remove {} (effect {}) from mixer track {}
+windfall-mcp/src/edits.rs | remove {} notes of channel {} from pattern {}
+windfall-mcp/src/edits.rs | rename or recolour {target} {id}
+windfall-mcp/src/edits.rs | replace the {} points of automation {} with {}
+windfall-mcp/src/edits.rs | route channel {} from mixer track {} to mixer track {}
+windfall-mcp/src/edits.rs | route mixer track {} to mixer track {}
+windfall-mcp/src/edits.rs | send mixer track {} to mixer track {} at {level:.3}
+windfall-mcp/src/edits.rs | set channel {id} muted to {value}
+windfall-mcp/src/edits.rs | set channel {id} pan to {value}
+windfall-mcp/src/edits.rs | set channel {id} volume to {value}
+windfall-mcp/src/edits.rs | set effect {} enabled to {value}
+windfall-mcp/src/edits.rs | set effect {} mix to {mix}
+windfall-mcp/src/edits.rs | set mixer track {id} muted to {value}
+windfall-mcp/src/edits.rs | set mixer track {id} pan to {value}
+windfall-mcp/src/edits.rs | set mixer track {id} volume to {value}
+windfall-mcp/src/edits.rs | set the meter from {} to {}
+windfall-mcp/src/edits.rs | set the tempo from {} to {tempo} bpm
+windfall-mcp/src/edits.rs | set {} from {} to {number}
+windfall-mcp/src/edits.rs | steps may hold x (on), X (accent), . or - (off), _ (leave as it is), spaces and |, not {other:?}
+windfall-mcp/src/edits.rs | tempoBpm must be from {MIN_TEMPO_BPM} to {MAX_TEMPO_BPM}
+windfall-mcp/src/edits.rs | the steps run past step {MAX_PATTERN_STEPS}, the end of the longest pattern
+windfall-mcp/src/edits.rs | there is no automation {automation}
+windfall-mcp/src/edits.rs | there is no automation {id}
+windfall-mcp/src/edits.rs | there is no clip {id}; list_clips lists them
+windfall-mcp/src/edits.rs | there is no note {id} in this pattern and channel
+windfall-mcp/src/edits.rs | there is no playlist track {id}
+windfall-mcp/src/edits.rs | there is no setting {index}; there are {}
+windfall-mcp/src/edits.rs | there is no setting {text:?}; similar ids: {similar:?}. get_parameters lists them all
+windfall-mcp/src/edits.rs | transposing note {id} leaves the MIDI range
+windfall-mcp/src/edits.rs | turn off {} steps
+windfall-mcp/src/edits.rs | turn on {} steps with {}
+windfall-mcp/src/edits.rs | value {number} is outside {} to {}
+windfall-mcp/src/edits.rs | value {raw} must be a number
+windfall-mcp/src/edits.rs | velocity {number} must be from 0 to 1, or a MIDI velocity from 2 to 127
+windfall-mcp/src/edits.rs | velocity {value} must be a number
+windfall-mcp/src/edits.rs | {bars} bars are longer than the longest pattern, {MAX_PATTERN_STEPS} steps
+windfall-mcp/src/edits.rs | {error}; the commands a proposal may hold are listed in the tool's description
+windfall-mcp/src/edits.rs | {other} must be true or false
+windfall-mcp/src/edits.rs | {text:?} is not a level; write a factor such as 0.5 or decibels such as \"-6 dB\"
+windfall-mcp/src/edits.rs | {text:?} is not a {what}; list_instruments_and_effects lists them
+windfall-mcp/src/edits.rs | {text:?} names {} settings; use one of the ids {:?}
+windfall-mcp/src/edits.rs | {} has no choice {text:?}; its choices are {:?}
+windfall-mcp/src/edits.rs | {} is a toggle: give true or false
+windfall-mcp/src/edits.rs | {} takes a choice label or an index from 0 to {}
+windfall-mcp/src/edits.rs | {} takes a number, not {value}
+windfall-mcp/src/edits.rs | {} takes whole numbers
+windfall-mcp/src/edits.rs | {} takes {} to {} ({}); {number} is outside
+windfall-mcp/src/music.rs | length {number} must be a whole number of ticks, at least 1
+windfall-mcp/src/music.rs | length {other} must be a note value such as \"1/8\" or a number of ticks
+windfall-mcp/src/music.rs | pitch {number} is outside the MIDI range 0 to 127
+windfall-mcp/src/music.rs | pitch {other} must be a note name such as C4 or a MIDI number
+windfall-mcp/src/music.rs | position {number} must be a whole number of ticks
+windfall-mcp/src/music.rs | position {other} must be text such as \"2:1:0\" or a number of ticks
+windfall-mcp/src/music.rs | position {text:?} cannot be used: {error}
+windfall-mcp/src/music.rs | position {} is past the end this grid holds ({} ticks)
+windfall-mcp/src/music.rs | {text:?} is not a colour; write #RRGGBB, such as \"#3FA7D6\"
+windfall-mcp/src/music.rs | {text:?} is not a length; write a note value such as \"1/4\", \"1/8.\" or \"1/16t\", a duration bars:beats:ticks such as \"0:2:0\", or ticks
+windfall-mcp/src/music.rs | {text:?} is not a meter; write beats/unit with 1 to 16 beats over 2, 4, 8 or 16, such as \"3/4\"
+windfall-mcp/src/music.rs | {text:?} is not a note name between C-1 and G9; write a name such as C4, F#3 or Bb2, or a MIDI number from 0 to 127
+windfall-mcp/src/music.rs | {text:?} is not a position; write bar:beat:tick counting bars and beats from 1, such as \"3:2:0\"
+windfall-mcp/src/summary.rs | channel {channel} is a sampler and has no instrument settings
+windfall-mcp/src/summary.rs | mixer track {track} has no effect {effect}
+windfall-mcp/src/summary.rs | there is no channel {id}; get_project_summary lists the channels
+windfall-mcp/src/summary.rs | there is no mixer track {id}; get_project_summary lists the mixer tracks in use
+windfall-mcp/src/summary.rs | there is no pattern {id}; get_project_summary lists the patterns
+windfall-mcp/src/summary.rs | there is no playlist track {track}
+windfall-mcp/src/summary.rs | {}, a built-in instrument with {} settings
+windfall-mcp/src/summary.rs | {}, a built-in mixer effect with {} settings
+windfall-mcp/src/tools.rs | maxSeconds must be from 1 to {MAX_RENDER_SECONDS}
+windfall-mcp/src/tools.rs | proposal {id} belongs to another agent
+windfall-mcp/src/tools.rs | proposal {id} is gone
+windfall-mcp/src/tools.rs | region {other} must be \"song\", {{\"from\", \"to\"}} or {{\"patternId\", \"loops\"}}
+windfall-mcp/src/tools.rs | there is no proposal {id}
+windfall-mcp/src/tools.rs | {description} A note value (\"1/4\", \"1/8.\" dotted, \"1/8t\" triplet, \"3/16\"), a duration bars:beats:ticks counted from 0 such as \"1:0:0\", or ticks.
+windfall-mcp/src/tools.rs | {description} Write bar:beat:tick with bars and beats counted from 1, such as \"2:3:0\", or a number of ticks (960 a quarter note).
+# --- MCP server (end) ---
 
 # Not messages: names the project keeps as data once they are made. Each
 # comes after a comment line giving the reason.

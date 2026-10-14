@@ -5569,6 +5569,7 @@ dependencies = [
  "windfall-factory",
  "windfall-flp",
  "windfall-ipc",
+ "windfall-mcp",
  "windfall-midi",
  "windfall-plugin",
  "windfall-plugin-host",
@@ -5635,6 +5636,18 @@ dependencies = [
  "windfall-flp",
  "windfall-midi",
  "windfall-project",
+]
+
+[[package]]
+name = "windfall-mcp"
+version = "1.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "windfall-core",
+ "windfall-dsp",
+ "windfall-project",
+ "windfall-stretch",
 ]
 
 [[package]]

@@ -13,6 +13,7 @@ mod commands;
 pub mod events;
 mod files_commands;
 pub mod library;
+pub mod mcp;
 #[cfg(test)]
 mod message_guard;
 mod panel_layout;

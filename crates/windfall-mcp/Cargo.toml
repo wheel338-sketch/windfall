@@ -1,0 +1,24 @@
+[package]
+name = "windfall-mcp"
+description = "Windfall's Model Context Protocol adapter: project tools over checked command proposals"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+# The protocol layer is written here against the published specification
+# instead of with the `rmcp` SDK: Windfall serves one loopback endpoint from
+# a std::net thread (as the phone remote does), and the SDK's server brings
+# tokio, hyper and axum with it. Everything here is workspace code.
+[dependencies]
+windfall-core.workspace = true
+windfall-dsp.workspace = true
+windfall-project.workspace = true
+windfall-stretch.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

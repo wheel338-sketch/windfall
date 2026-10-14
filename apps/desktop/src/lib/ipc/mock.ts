@@ -1,6 +1,7 @@
 import { unavailableAnalysis } from "@/features/analysis/unavailable"
 import { UNSUPPORTED_PRESET, isPresetPath, isProprietaryPreset } from "@/features/preset-render/types"
 import { unavailableRemoteContent } from "./remote-content"
+import { unavailableMcp } from "./mcp"
 import { NATIVE_ONLY, unavailableLogger } from "@/features/audio-logger/types"
 import { unavailableAnalyzer } from "@/features/analyzers/types"
 import type {
@@ -663,6 +664,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     kind: "mock",
     updateCall: async () => { throw new Error(t("Updates require the installed desktop application.")) },
     ...unavailableRemoteContent(),
+    ...unavailableMcp(),
     ...unavailableAnalysis(),
     ...mockMixerPresetLibrary(),
     ...mockNativeFiles(),

@@ -21,6 +21,7 @@ windfall-codec = { path = "crates/windfall-codec" }
 windfall-engine = { path = "crates/windfall-engine" }
 windfall-factory = { path = "crates/windfall-factory" }
 windfall-midi = { path = "crates/windfall-midi" }
+windfall-mcp = { path = "crates/windfall-mcp" }
 windfall-flp = { path = "crates/windfall-flp" }
 windfall-plugin-host = { path = "crates/windfall-plugin-host" }
 windfall-stretch = { path = "crates/windfall-stretch" }

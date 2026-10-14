@@ -2,6 +2,7 @@ import { Channel, invoke } from "@tauri-apps/api/core"
 import { message, translatedText } from "@/lib/i18n"
 import { reportError } from "@/lib/errors"
 import { nativeRemoteContent } from "./remote-content"
+import { nativeMcp } from "./mcp"
 import { listen } from "@tauri-apps/api/event"
 import { getCurrentWindow } from "@tauri-apps/api/window"
 import { open, save } from "@tauri-apps/plugin-dialog"
@@ -177,6 +178,7 @@ export function createTauriBackend(): Backend {
     performanceTakeReplay: (index, generation, revision) => call("performance_take_replay", { index, generation, revision }),
     performanceTakeExport: (index, path, generation, revision) => call("performance_take_export", { index, path, generation, revision }),
     ...nativeRemoteContent(call),
+    ...nativeMcp(call, on),
     analyzerCapability: () => call("analyzer_capability"),
     analyzerSubscribe: (slot, handler) => {
       // One channel per slot. Events that arrive after the slot stopped

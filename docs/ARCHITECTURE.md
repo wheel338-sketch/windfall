@@ -373,6 +373,14 @@ Tauri commands. Arguments are camelCase. A failed call rejects with a plain stri
 | `import_midi` | `token: number` | `DispatchResult`. Appends the reviewed channels, patterns, playlist and optional tempo automation as one checked "Import MIDI" undo step. Allocates against the current document, so intervening edits are preserved. Rejects expired reviews and invalid batches without changing the project or history. Factory drum samples use the normal sample loader. |
 | `midi_discard` | `token: number` | Releases a cancelled review, if still current. Does not edit the document. |
 | `export_midi` | `path: string`, `options: MidiExportOptions` | `string`, the saved path. Writes pattern or song MIDI atomically from a checked snapshot; adds `.mid` if absent and accepts `.mid`/`.midi`. Supports formats 0/1, 480/960 PPQ, running status and swing. No audio is rendered. |
+| `mcp_state` | | `McpSettings`: whether the MCP server is on and listening, its port, URL, bearer token and the executable the stdio bridge runs as. Makes the per-install token on first use. See docs/MCP.md. |
+| `mcp_configure` | `update: McpSettingsUpdate` | `McpSettings`. Turns the server on (binding `127.0.0.1:port`) or off. Off withdraws waiting proposals and ends every agent's allowance. Rejects a port below 1024 and a port another program holds. |
+| `mcp_regenerate_token` | | `McpSettings` with a new token; what the old one opened is closed. |
+| `mcp_panel` | | `McpPanel`: proposals, agents and whether an agent's render runs. |
+| `mcp_approve`, `mcp_reject`, `mcp_dismiss` | `id: string` | `McpPanel`. Approve applies the proposal through `proposal_apply`'s path: one undo step labelled with the agent's name, refused while recording and once stale. |
+| `mcp_trust` | `agent: string`, `trusted: boolean` | `McpPanel`. Lets an agent apply its own proposals without asking, until Windfall quits or the server is turned off. |
+| `mcp_focus` | `focus: McpFocus` | Reports the selected channel, mixer track and centre view while the server listens. |
+| `mcp_cancel_render` | | Stops an agent's render. |
 
 Events the shell emits to every window:
 
@@ -384,6 +392,7 @@ Events the shell emits to every window:
 | `engine:status` | `EngineStatus` | When the audio device changes or fails. |
 | `export:progress` | `ExportProgress` | While exporting. `path` is the path exactly as the UI sent it, also when stems are written under other names. `fraction` runs over the whole export, every pass of a stem export included. The last event, with `done` set, has in `droppedClips` how many audio clips are not in the file because more than 128 would have played at once; it is 0 on every event before. Only the last event has one of these: `error`, why the export failed; `cancelled: true`, after `export_cancel`; or `files`, what was written, as `{ path, track, frames, bytes }` with the mix first (`track: null`) and the stems after it in mixer order. |
 | `midi:note` | `MidiHardwareNote` | For every note of a MIDI input that the audition destination accepted: `{ channel, key, velocity }`, with `velocity` 0 for a release. The UI keeps these in its played-note log, which "Dump played notes" places on the shared snap. A note the engine refuses is not reported. |
+| `mcp:panel` | `McpPanel` | When an agent files a proposal, one is decided, an agent's allowance changes or an agent's render starts or ends. |
 | `project:warnings` | `string[]` | After a project loads with problems, such as a missing sample file, and after `samples_reload`. |
 
 Runtime types that grew with effects, all in `windfall-ipc`:

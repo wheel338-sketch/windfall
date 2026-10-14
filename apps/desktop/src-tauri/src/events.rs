@@ -17,6 +17,8 @@ pub enum Event {
     ExportProgress(ExportProgress),
     /// A note from a MIDI input that the audition destination took.
     MidiHardwareNote(windfall_ipc::MidiHardwareNote),
+    /// The MCP server's proposals, agents and render changed.
+    McpPanel(windfall_ipc::McpPanel),
     /// Transient caller correlation, outside generated musical/project types.
     ExportRequestProgress {
         request: String,
@@ -36,6 +38,7 @@ impl Event {
             Event::ExportProgress(_) => "export:progress",
             Event::ExportRequestProgress { .. } => "export:progress",
             Event::MidiHardwareNote(_) => "midi:note",
+            Event::McpPanel(_) => "mcp:panel",
         }
     }
 
@@ -58,6 +61,7 @@ impl Event {
                 serde_json::to_string(&Payload { request, progress })
             }
             Event::MidiHardwareNote(note) => serde_json::to_string(note),
+            Event::McpPanel(panel) => serde_json::to_string(panel),
         }
     }
 }

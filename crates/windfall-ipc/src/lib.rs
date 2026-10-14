@@ -35,6 +35,8 @@ pub use files::*;
 pub use remote_content::*;
 mod assistant;
 pub use assistant::*;
+mod mcp;
+pub use mcp::*;
 pub use windfall_project::PlayMode;
 use windfall_project::{AutomationId, EffectId, PatternId, TrackId};
 

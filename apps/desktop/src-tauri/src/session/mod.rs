@@ -88,6 +88,7 @@ mod flp;
 mod input_monitor;
 mod library;
 mod loop_content;
+mod mcp;
 mod midi;
 mod midi_hardware;
 mod mixer_presets;
@@ -217,6 +218,9 @@ struct Inner {
     extractions: Mutex<extractions::Extractions>,
     backup_job: Mutex<Option<Arc<AtomicBool>>>,
     phone_remote: Mutex<Option<phone_remote::Server>>,
+    /// The MCP server: its listener, proposals and allowances. Its locks are
+    /// never held together with `state`.
+    mcp: crate::mcp::Service,
     analysis: analysis_jobs::Service,
     /// Live analyzer slots and captures. Locked after `state`, before the
     /// engine's controller; the realtime thread takes it without `state`.
@@ -487,6 +491,7 @@ impl Session {
                 archive_job: Mutex::new(None),
                 backup_job: Mutex::new(None),
                 phone_remote: Mutex::new(None),
+                mcp: crate::mcp::Service::default(),
                 analysis,
                 analyzers: analyzers::Service::new(),
                 midi_hardware: Mutex::new(None),

@@ -75,6 +75,14 @@ impl SettingsStore {
             .unwrap_or(Path::new("."))
             .join("assistant-connection.json")
     }
+    /// The MCP server's switch, port and bearer token. The stdio bridge
+    /// reads it from another process, so it is a file of its own.
+    pub fn mcp_file(&self) -> PathBuf {
+        self.file
+            .parent()
+            .unwrap_or(Path::new("."))
+            .join(crate::mcp::config::FILE)
+    }
     /// A separate per-user library file; library edits never rewrite device settings.
     pub fn library_file(&self) -> PathBuf {
         self.file

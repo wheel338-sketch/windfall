@@ -42,6 +42,7 @@ import { Workspace } from "./workspace"
 import { PluginManager } from "@/features/plugins/manager"
 import { TouchControllersWindow } from "@/features/touch-controllers/window"
 import { AssistantPanel } from "@/features/assistant/panel"
+import { McpPanelHost } from "@/features/mcp/panel"
 import { ScriptEditor } from "@/features/assistant/script-editor"
 import { RecordingDialog } from "@/features/transport/recording-dialog"
 import { UpdateHost } from "@/features/updates/notice"
@@ -134,6 +135,7 @@ export function AppShell() {
           <FlpImportDialog />
           <RetainedSoundsDialog />
           <AnalyzerSmokeHost />
+          <McpPanelHost />
         </LanguageBoundary>
         <CommandPalette />
         <SettingsDialog />

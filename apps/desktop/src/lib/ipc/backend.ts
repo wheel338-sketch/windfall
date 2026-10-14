@@ -41,6 +41,7 @@ import type { PanelId } from "@/lib/store/ui"
 import type { ProjectFilesBackend } from "./files"
 import type { MixerPresetLibraryBackend } from "./mixer-presets"
 import type { RemoteContentBackend } from "./remote-content"
+import type { McpBackend } from "./mcp"
 import { localizeBackendText, translatedText as t } from "@/lib/i18n"
 import type { Language } from "@/lib/i18n"
 
@@ -77,7 +78,7 @@ export type AudioClipPlace = {
  * the shell needs. A failed call rejects with an `Error` whose message is
  * plain text that can be shown to the user.
  */
-export interface Backend extends AnalysisBackend, PresetRenderBackend, MixerPresetLibraryBackend, AnalyzerBackend, ProjectFilesBackend, RemoteContentBackend {
+export interface Backend extends AnalysisBackend, PresetRenderBackend, MixerPresetLibraryBackend, AnalyzerBackend, ProjectFilesBackend, RemoteContentBackend, McpBackend {
   updateCall<T>(command: string, args: Record<string, unknown>): Promise<T>
   musicLightingStatus?(): Promise<{connected: boolean; message: string}>
   sampleInstrumentLoadBank?(channel: ChannelId, expected: import("@/bindings").SampleInstrumentAsset | null,

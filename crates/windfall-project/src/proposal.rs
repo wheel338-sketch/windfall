@@ -39,12 +39,30 @@ impl CommandProposal {
         }
         for command in &self.commands {
             match command {
+                // Tempo and meter only: the project's name, notes and
+                // timebase are not a proposal's to change.
                 Command::UpdateSettings { patch }
                     if patch
                         == &(SettingsPatch {
                             tempo_bpm: patch.tempo_bpm,
+                            time_signature: patch.time_signature,
                             ..SettingsPatch::default()
                         }) => {}
+                // Arrangement and chain edits for the MCP tools. Each is a
+                // checked Command with its own bounds (effect slots, mixer
+                // size, automation points, song length); the byte limit
+                // below bounds clip and point lists.
+                Command::AddMixerTrack { .. }
+                | Command::AddEffect { .. }
+                | Command::RemoveEffect { .. }
+                | Command::MoveEffect { .. }
+                | Command::AddPlaylistTrack { .. }
+                | Command::UpdatePlaylistTrack { .. }
+                | Command::AddClips { .. }
+                | Command::UpdateClips { .. }
+                | Command::RemoveClips { .. }
+                | Command::AddAutomation { .. }
+                | Command::SetAutomationPoints { .. } => (),
                 Command::AddPattern { .. }
                 | Command::UpdatePattern { .. }
                 | Command::AddChannel { .. }

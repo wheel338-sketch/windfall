@@ -136,6 +136,8 @@ pub fn start(app: &AppHandle) -> Result<Session, Box<dyn Error>> {
     session.spawn_controllers()?;
     session.spawn_autosave(AUTOSAVE_INTERVAL)?;
     session.spawn_audio_logger()?;
+    // Listens again only when the user left the MCP server on.
+    session.mcp_restore();
     Ok(session)
 }
 
