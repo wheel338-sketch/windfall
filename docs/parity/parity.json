@@ -3277,10 +3277,10 @@
       "summary": "Reads notes, clips, automation, routing and sample references out of an FL project file.",
       "windfall_name": "FL project import",
       "phase": 4,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": null,
-      "notes": "Desktop picker prepares a reviewed conversion with category reports, bounded sample searches, missing-audio warnings, unsaved-project confirmation and stale-request guards. Unsupported plugin bytes and metadata persist in .windfall files and an Imported sounds report. Two real FL 20.8.4 reader projects verified; other versions remain unverified. Sound mappings and some timing/automation are approximate; proprietary restoration and identical playback remain unavailable. See docs/flp/coverage.md. QA 2026-10-13: SOFTWARE: Execute decoded public native controls that currently report `no corresponding stand-in control`, including Multiband Delay's16-band/eight-bank delay/volume/pan state (only bank1 bands0..2 currently execute) and 3x Osc pulse-width/delay/band/high controls. Add the matching target state/DSP/descriptor mappings and measured independent control/PCM/reopen fixtures; source archival/per-field warnings do not complete known-layout translation. SCOPE: Unnamed instrument automation numbers, absent controller formula serialization/smoothing units, unknown nonlinear interiors and devices/tails with no public semantic layout remain opaque with the named per-item source-evidence warnings, as docs/qa/README.md allows; no numbers/equations are fabricated. Evidence: docs/qa/2026-10-13-round6-acceptance.md."
+      "notes": "Desktop picker prepares a reviewed conversion with category reports, bounded sample searches, missing-audio warnings, unsaved-project confirmation and stale-request guards. Unsupported plugin bytes and metadata persist in .windfall files and an Imported sounds report. Two real FL 20.8.4 reader projects verified; other versions remain unverified. Sound mappings and some timing/automation are approximate; proprietary restoration and identical playback remain unavailable. See docs/flp/coverage.md. Software complete, QA 2026-10-14: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation on the path the app takes. External checks outstanding: a corpus of real FL Studio project files, and listening against FL Studio itself. Several value scalings are Windfall's disclosed reading of unstated public ranges (listed in `coverage.md`). SCOPE: README decision `fmt-flp-import` (revised after the round-eight audit): adding controls to stand-ins is not part of the row; device state without a public layout stays opaque with a warning. Evidence: docs/qa/2026-10-14-round8-acceptance.md."
     },
     {
       "id": "fmt-cloud-backup",
@@ -3841,10 +3841,10 @@
       "summary": "Per-project choices for meter, timing resolution and how panning affects level.",
       "windfall_name": "Project settings",
       "phase": 2,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": null,
-      "notes": "Tempo, time signature and swing. QA 2026-10-13: SOFTWARE: Preserve the running ramp (current value, target, remaining time) and sounding-note owner identity across a route change when a plugin gains or loses pan, volume or note-instance capability mid-note, with a block-boundary crossfade and measured click bounds for CLAP and VST3, in-process and bridged; extend controller-gesture coverage for plugins declaring per-note channels. SCOPE: applying one property of a single note in the plugin and the complementary property of the same note in the host is not attempted (a plugin returns one summed output); see the 2026-10-13 decisions in docs/qa/README.md. Evidence: docs/qa/2026-10-13-round6-acceptance.md."
+      "notes": "Tempo, time signature and swing. Software complete, QA 2026-10-14: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation on the path the app takes. External checks outstanding: third-party CLAP and VST3 plugins that change their note capabilities while running (only owned fixtures here), and how they apply their own per-note pan. SCOPE: README decision `wf-project-settings` (revised after the round-eight audit): one summed output; per-note host processing inside it not attempted; the channel-applied property follows the most recent sounding note. Evidence: docs/qa/2026-10-14-round8-acceptance.md."
     },
     {
       "id": "wf-midi-settings",
@@ -4096,7 +4096,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": null,
-      "notes": "QA 2026-10-13: SOFTWARE: Replace6086 guarded source occurrences with registry messages/reactive display metadata; complete10862 repeated descriptor/language-address omissions for processor/parameter/choice/generated-group labels in both shipped catalogs. Extend append-only Rust codes+parameters beyond MIDI to project/recording/path/plugin/helper/import/update/history/status/refusal families; retain coded references through all toasts/reviews/dialogs, semantic menus/readouts and native create-time/reactive captions, with locale-aware counts/numbers/dates/time and unchanged authored names. Whole-app and descriptor zero-omission guards still fail; no prose was bulk allowlisted. Counts are occurrence/address totals, not distinct strings. Evidence: docs/qa/2026-10-13-round6-acceptance.md."
+      "notes": " QA 2026-10-14: SOFTWARE: some sentences Windfall writes itself still reach a Spanish window in English (piano-roll and playlist status hints, snap-menu descriptions, transport-mode tooltip, keymap preset description, mixer track-preset and rack-preset statuses, backup results, mastering field errors, the playlist overlap warning, controller error toast titles, stem-separation statuses, about 100 analysis error sentences and the default unavailable reason, and a damaged MIDI file opened as a score); the interface guard does not follow component state, store fields or helper-passed text. Raised by the independent audit of the round-eight recommendations. Evidence: docs/qa/2026-10-14-round8-acceptance.md."
     },
     {
       "id": "wf-help-tutorials",
