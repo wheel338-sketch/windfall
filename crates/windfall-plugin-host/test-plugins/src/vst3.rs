@@ -26,7 +26,7 @@ fn cid(index: i32) -> TUID {
 }
 /// How many classes the factory offers. New ones are appended, so the
 /// positions and ids of the earlier ones do not move.
-const CLASSES: i32 = 29;
+const CLASSES: i32 = 30;
 /// The auxiliary input buses of the multi-detector class, after its main
 /// stereo bus: their names and speaker arrangements (left; left and right;
 /// left, right and both surrounds).
@@ -96,6 +96,7 @@ impl IPluginFactoryTrait for Factory {
                         "VST3 Project Expression Probe",
                         "VST3 Volume Expression Probe",
                         "VST3 Live Expression Switch",
+                        "VST3 Restarting Expression Switch",
                     ][index as usize],
                 ),
             });
@@ -130,14 +131,18 @@ impl IPluginFactoryTrait for Factory {
                     || class == cid(24)
                     || class == cid(26)
                     || class == cid(27)
-                    || class == cid(28),
+                    || class == cid(28)
+                    || class == cid(29),
                 expression_probe: class == cid(23)
                     || class == cid(26)
                     || class == cid(27)
-                    || class == cid(28),
-                project_expression_probe: class == cid(26) || class == cid(28),
-                live_expression: class == cid(28),
+                    || class == cid(28)
+                    || class == cid(29),
+                project_expression_probe: class == cid(26) || class == cid(28) || class == cid(29),
+                live_expression: class == cid(28) || class == cid(29),
                 live_withheld: std::sync::atomic::AtomicU32::new(0),
+                restarting_switch: class == cid(29),
+                latched_withheld: std::sync::atomic::AtomicU32::new(0),
                 volume_expression_probe: class == cid(27),
                 midi_mapping: class == cid(24),
                 midi_bend: std::array::from_fn(|_| {
@@ -150,7 +155,7 @@ impl IPluginFactoryTrait for Factory {
                 refuse: class == cid(6),
                 notify: class == cid(7),
                 recovery_failure: class == cid(8),
-                multi_params: class == cid(9) || class == cid(28),
+                multi_params: class == cid(9) || class == cid(28) || class == cid(29),
                 bridge_delayed: class == cid(10)
                     || class == cid(11)
                     || (13..21).any(|i| class == cid(i)),
@@ -239,10 +244,11 @@ impl IPluginFactory2Trait for Factory {
                         "VST3 Project Expression Probe",
                         "VST3 Volume Expression Probe",
                         "VST3 Live Expression Switch",
+                        "VST3 Restarting Expression Switch",
                     ][index as usize],
                 ),
                 classFlags: 0,
-                subCategories: chars(if matches!(index, 2 | 12 | 23 | 24 | 26 | 27 | 28) {
+                subCategories: chars(if matches!(index, 2 | 12 | 23 | 24 | 26 | 27 | 28 | 29) {
                     "Instrument|Synth"
                 } else {
                     "Fx|Tools"
@@ -275,6 +281,14 @@ struct Component {
     /// the frame of the parameter point.
     live_expression: bool,
     live_withheld: std::sync::atomic::AtomicU32,
+    /// Class 29 offers the same as class 28, but its controller follows
+    /// parameters 8 and 9 itself: when either crosses one half while the
+    /// plugin runs it announces the change (`kNoteExpressionChanged`), and
+    /// its processor keeps what it offered at activation until it is
+    /// restarted. A host that does not follow the change live restarts it.
+    restarting_switch: bool,
+    /// What class 29 withholds from its activation on.
+    latched_withheld: std::sync::atomic::AtomicU32,
     /// Volume per note, and no pan: the mirror of the plain expression probe.
     volume_expression_probe: bool,
     midi_mapping: bool,
@@ -482,6 +496,13 @@ impl IComponentTrait for Component {
             unsafe {
                 self.notify_owner(4);
             }
+        }
+        if state != 0 && self.restarting_switch {
+            self.latched_withheld.store(
+                self.live_withheld
+                    .load(std::sync::atomic::Ordering::Relaxed),
+                std::sync::atomic::Ordering::Relaxed,
+            );
         }
         self.active
             .store(state != 0, std::sync::atomic::Ordering::Relaxed);
@@ -980,7 +1001,14 @@ impl IAudioProcessorTrait for Component {
                 continue;
             }
             let expression_pcm = if self.expression_probe {
-                if self.live_expression {
+                if self.restarting_switch {
+                    let withheld = self
+                        .latched_withheld
+                        .load(std::sync::atomic::Ordering::Relaxed);
+                    audio
+                        .expressions
+                        .withhold(withheld & 1 != 0, withheld & 2 != 0);
+                } else if self.live_expression {
                     audio
                         .expressions
                         .withhold(audio.extra[0] > 0.5, audio.extra[1] > 0.5);
@@ -1309,6 +1337,25 @@ impl IEditControllerTrait for Component {
         {
             self.extra[(id - 8) as usize]
                 .store(value.to_bits(), std::sync::atomic::Ordering::Relaxed);
+            if self.restarting_switch {
+                let [pan, volume] = self.extra.each_ref().map(|value| {
+                    f64::from_bits(value.load(std::sync::atomic::Ordering::Relaxed)) > 0.5
+                });
+                let withheld = u32::from(pan) | u32::from(volume) << 1;
+                // An inactive plugin is asked what it offers when it is
+                // activated; a running one says so at once.
+                if self
+                    .live_withheld
+                    .swap(withheld, std::sync::atomic::Ordering::Relaxed)
+                    != withheld
+                    && self.active.load(std::sync::atomic::Ordering::Relaxed)
+                    && let Some(handler) = unsafe { &*self.handler.get() }
+                {
+                    unsafe {
+                        handler.restartComponent(64);
+                    }
+                }
+            }
             return kResultOk;
         }
         if id != 7 || !value.is_finite() || !(0.0..=1.0).contains(&value) {

@@ -25,12 +25,15 @@ it("shows which route each property takes and explains the channel route, then u
     expect(screen.getByText(routes(IN_PLUGIN, ON_CHANNEL))).toBeVisible()
     expect(screen.getByText(/The project pan law applies to every note/)).toBeVisible()
     expect(screen.getByText(/follows the most recent note that sounds/)).toBeVisible()
+    // Overlapping notes share the channel's property: one output, one value.
+    expect(screen.getByText(/notes that overlap share it/)).toBeVisible()
     expect(screen.queryByText(/cannot apply the project law/)).toBeNull()
     act(()=>setLanguage("es"))
     expect(screen.getByText(/Panorama: Disponible; volumen: No disponible/)).toBeVisible()
     expect(screen.getByText("Capacidades nativas de nota de Authored instrument")).toBeVisible()
     expect(screen.getByText("Ruta de panorama: En el plugin, por nota; ruta de volumen: En el canal, después del plugin")).toBeVisible()
     expect(screen.getByText(/La ley de panorama del proyecto se aplica a todas las notas/)).toBeVisible()
+    expect(screen.getByText(/las notas que se solapan la comparten/)).toBeVisible()
     query.mockResolvedValue({projectPanLaw:true,instances:true,nativePan:Array(16).fill(true),nativeVolume:Array(16).fill(true)})
     // With both properties in the plugin there is nothing left to explain.
     await waitFor(()=>expect(screen.queryByText(/La ley de panorama del proyecto se aplica/)).toBeNull(),{timeout:2000})

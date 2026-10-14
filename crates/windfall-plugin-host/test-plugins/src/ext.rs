@@ -30,6 +30,8 @@ use crate::plugin::{Plugin, SINE_LATENCY, handle_param_event, slot};
 
 pub(crate) const GAIN_ID: u32 = 7;
 const MODE_ID: u32 = 9;
+/// The switching sine's note dialect: 0 CLAP notes, 1 MIDI only.
+pub(crate) const DIALECT_ID: u32 = 2;
 
 /// The tail the sidechain plugin reports, in samples.
 const SIDECHAIN_TAIL: u32 = 4_800;
@@ -102,6 +104,29 @@ const SINE_PARAMS: &[ParamDef] = &[ParamDef {
     default: 0.5,
     flags: CLAP_PARAM_IS_AUTOMATABLE,
 }];
+
+const SWITCHING_PARAMS: &[ParamDef] = &[
+    ParamDef {
+        id: 1,
+        slot: slot::LEVEL,
+        name: "Level",
+        module: "",
+        min: 0.0,
+        max: 1.0,
+        default: 0.5,
+        flags: CLAP_PARAM_IS_AUTOMATABLE,
+    },
+    ParamDef {
+        id: DIALECT_ID,
+        slot: slot::MODE,
+        name: "Note dialect",
+        module: "",
+        min: 0.0,
+        max: 1.0,
+        default: 0.0,
+        flags: CLAP_PARAM_IS_AUTOMATABLE | CLAP_PARAM_IS_STEPPED,
+    },
+];
 
 const DYNAMIC_PARAMS: &[ParamDef] = &[
     ParamDef {
@@ -190,6 +215,7 @@ pub(crate) fn params_of(kind: Kind) -> &'static [ParamDef] {
         | Kind::BridgeStateBoundary
         | Kind::BridgeControlledProcessError => &GAIN_PARAMS[..1],
         Kind::Sine | Kind::MidiSine => SINE_PARAMS,
+        Kind::SwitchingSine => SWITCHING_PARAMS,
         _ => &[],
     }
 }
@@ -376,6 +402,7 @@ fn state_slots(kind: Kind) -> &'static [usize] {
             slot::MAIN_THREAD_CALLS,
         ],
         Kind::Gain => &[slot::GAIN, slot::MODE],
+        Kind::SwitchingSine => &[slot::LEVEL, slot::MODE],
         _ => &[slot::LEVEL],
     }
 }
@@ -549,8 +576,12 @@ fn ports_of(kind: Kind, is_input: bool) -> &'static [Port] {
     match kind {
         Kind::MultiSidechain if is_input => WITH_THREE_KEYS,
         Kind::MultiSidechain => STEREO_SEPARATE,
-        Kind::Sine | Kind::MidiSine | Kind::BridgeNoteProbe if is_input => NONE,
-        Kind::Sine | Kind::MidiSine | Kind::BridgeNoteProbe | Kind::Swap => STEREO_SEPARATE,
+        Kind::Sine | Kind::MidiSine | Kind::SwitchingSine | Kind::BridgeNoteProbe if is_input => {
+            NONE
+        }
+        Kind::Sine | Kind::MidiSine | Kind::SwitchingSine | Kind::BridgeNoteProbe | Kind::Swap => {
+            STEREO_SEPARATE
+        }
         Kind::Sidechain => WITH_EXTRA,
         Kind::Mono => MONO_IN_PLACE,
         _ => STEREO_IN_PLACE,
@@ -650,7 +681,11 @@ unsafe extern "C" fn note_ports_count(plugin: *const clap_plugin, is_input: bool
                 1
             }
         }
-        Kind::Gain | Kind::Sine | Kind::MidiSine | Kind::BridgeNoteProbe if is_input => 1,
+        Kind::Gain | Kind::Sine | Kind::MidiSine | Kind::SwitchingSine | Kind::BridgeNoteProbe
+            if is_input =>
+        {
+            1
+        }
         _ => 0,
     }
 }
@@ -676,6 +711,14 @@ unsafe extern "C" fn note_ports_get(
             CLAP_NOTE_DIALECT_CLAP | CLAP_NOTE_DIALECT_MIDI
         }
         Kind::MidiSine if is_input && index == 0 => CLAP_NOTE_DIALECT_MIDI,
+        // What the switching sine will play once it is (re)activated.
+        Kind::SwitchingSine if is_input && index == 0 => {
+            if unsafe { Plugin::from_raw(plugin) }.value(slot::MODE) > 0.5 {
+                CLAP_NOTE_DIALECT_MIDI
+            } else {
+                CLAP_NOTE_DIALECT_CLAP | CLAP_NOTE_DIALECT_MIDI
+            }
+        }
         _ => return false,
     };
     info.id = index;
@@ -767,6 +810,7 @@ pub(crate) fn get(kind: Kind, id: &CStr) -> *const c_void {
             Kind::Dynamic
                 | Kind::Gain
                 | Kind::Sine
+                | Kind::SwitchingSine
                 | Kind::BridgeDelayed
                 | Kind::BridgeProcessHang
                 | Kind::BridgeIdleHang
@@ -787,6 +831,7 @@ pub(crate) fn get(kind: Kind, id: &CStr) -> *const c_void {
             Kind::Dynamic
                 | Kind::Sine
                 | Kind::MidiSine
+                | Kind::SwitchingSine
                 | Kind::BridgeDelayed
                 | Kind::BridgeProcessHang
                 | Kind::BridgeIdleHang

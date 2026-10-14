@@ -21,7 +21,7 @@ export function NativeNoteCapabilities({ binding }: { binding: PluginBinding }) 
     })}</p>
     <p>{message("Pan route: {pan}; Volume route: {volume}", { pan: t(noteRoutes(capabilities, channel).pan === "plugin" ? "In the plugin, per note" : "On the channel, after the plugin"), volume: t(noteRoutes(capabilities, channel).volume === "plugin" ? "In the plugin, per note" : "On the channel, after the plugin") })}</p>
     {capabilities?.projectPanLaw === false && <Alert><AlertDescription>{t("Per-note project pan laws are unavailable in this hosting mode")}</AlertDescription></Alert>}
-    {panLawSupported(capabilities, channel) && (noteRoutes(capabilities, channel).pan === "channel" || noteRoutes(capabilities, channel).volume === "channel") && <p>{t("The project pan law applies to every note. A property routed on the channel is applied to the whole output of this instrument after the plugin, and follows the most recent note that sounds.")}</p>}
+    {panLawSupported(capabilities, channel) && (noteRoutes(capabilities, channel).pan === "channel" || noteRoutes(capabilities, channel).volume === "channel") && <p>{t("The project pan law applies to every note. A property routed on the channel is applied to the whole output of this instrument after the plugin, and follows the most recent note that sounds; notes that overlap share it.")}</p>}
     </div>)}
     {capabilities?.refusal && <Alert><AlertDescription>{t(capabilities.refusal)}</AlertDescription></Alert>}
     {error && <Alert><AlertDescription>{message("Native capability query failed: {error}", { error })}</AlertDescription></Alert>}

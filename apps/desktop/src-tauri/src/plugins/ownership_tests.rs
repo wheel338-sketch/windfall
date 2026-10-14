@@ -303,7 +303,7 @@ pub(crate) fn fixtures(indices: &[usize]) -> (Arc<Runtime>, Vec<PluginBinding>) 
     let path = fixture_file();
     let module = PluginHost::windfall().load(path).unwrap();
     let runtime = Arc::new(Runtime::new().unwrap());
-    let instrument = |index: usize| matches!(index, 2 | 23 | 24 | 26 | 27 | 28);
+    let instrument = |index: usize| matches!(index, 2 | 23 | 24 | 26 | 27 | 28 | 29);
     let entries: Vec<_> = indices
         .iter()
         .map(|&index| {

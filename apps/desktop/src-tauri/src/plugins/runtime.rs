@@ -1028,6 +1028,25 @@ impl Runtime {
     pub(crate) fn selected_token(&self, target: PluginTarget) -> Option<u64> {
         selected(&self.selection, target)
     }
+    /// The departure of the helper that plays `target`, and whether its
+    /// plugin asked to be re-admitted.
+    #[cfg(all(test, windows))]
+    pub(super) fn selected_bridge(
+        &self,
+        target: PluginTarget,
+    ) -> Option<(Arc<super::bridge::Departure>, bool)> {
+        self.call(move |owner| {
+            Ok(selected(&owner.selection, target)
+                .and_then(|token| owner.bridges.get(&token))
+                .map(|record| {
+                    (
+                        record.departure.clone(),
+                        record.control.readmission_requested(),
+                    )
+                }))
+        })
+        .unwrap()
+    }
     #[cfg(all(test, windows))]
     pub(crate) fn fixture_parameter(&self, target: PluginTarget, id: u32) -> Option<f64> {
         self.call(move |owner| {
@@ -2009,9 +2028,11 @@ impl Runtime {
                 audio.share_carry(carry);
             }
             // The plugin of the helper that plays this target changed what
-            // it can do, and this helper replaces it. With the replacement
-            // ready, the old one fades its output out and leaves each
-            // sounding note's ramp where the new helper finds it.
+            // it can do, and this helper replaces it. The old one faded its
+            // output out and left each sounding note's ramp where the new
+            // helper finds it before it gave its plugin back for
+            // re-admission (`Record::readmit`); this returns at once then,
+            // and fades it out now on any other path.
             if !offline
                 && let Some(old) = selected(&owner.selection, binding.target)
                     .and_then(|token| owner.bridges.get(&token))
