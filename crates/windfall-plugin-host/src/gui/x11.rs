@@ -285,10 +285,8 @@ impl Window {
                                     } else {
                                         (*info).mm_width
                                     };
-                                    density = super::scaling::physical_monitor_scale(
-                                        (*crtc).width,
-                                        mm,
-                                    );
+                                    density =
+                                        super::scaling::physical_monitor_scale((*crtc).width, mm);
                                 }
                                 XRRFreeCrtcInfo(crtc);
                             }

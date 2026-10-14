@@ -67,6 +67,8 @@ case "$command" in
     docker cp "$id:/src/target/release/bundle/deb/." "$out/" || true
     docker cp "$id:/src/target/release/bundle/appimage/." "$out/" || true
     docker cp "$id:/src/target/xplat-logs" "$out/logs" || true
+    mkdir -p "$out/fixtures"
+    docker cp "$id:/src/target/debug/libwindfall_test_plugins.so" "$out/fixtures/" || true
     docker rm "$id" >/dev/null
     rm -rf "$out"/*.AppDir "$out"/Windfall.AppDir "$out"/build_appimage.sh 2>/dev/null || true
     ls -la "$out"
