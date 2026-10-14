@@ -4,45 +4,15 @@
 
 Windfall is a free, open-source digital audio workstation in the style of FL Studio. It is a native desktop app: the audio engine is Rust, the window is Tauri 2, and the interface is React with shadcn.
 
-It is early. `WINDFALL_PLAN.md` describes the whole plan, and `docs/parity/PARITY.md` tracks every FL Studio feature and whether Windfall has it yet.
+Windfall 1.0.0 is the first stable release. It has a channel rack and step sequencer, a piano roll, a playlist, a mixer with effect chains, sends and sidechains, dozens of built-in instruments and effects, CLAP and VST3 plugin hosting, audio and MIDI recording, export to WAV, FLAC, OGG, MP3, WavPack and M4A, stem separation with a model you supply, a small scripting language, FL Studio project import, and an English or Spanish interface. [The release notes](docs/RELEASE-NOTES-1.0.0.md) list what is in it and its known limitations, and [the parity tracker](docs/parity/PARITY.md) lists every FL Studio feature and how Windfall covers it.
 
-Windfall is not affiliated with Image-Line. It contains no FL Studio code, samples, presets or artwork.
+Windfall is not affiliated with Image-Line. It contains no FL Studio code, samples, presets or artwork. It is licensed under GPL-3.0.
 
-Audio export supports WAV, FLAC, OGG and MP3, with mixer stems and cancellation. Desktop workflows include MIDI import/export, reviewed FL Studio project conversion with retained unsupported sound data, and independent playlist time-stretch and pitch controls.
+## Download
 
-The Windows app supports live MIDI input with sustain, an explicit audition channel and optional live-note output. Note recording, controller mapping and sequenced hardware output remain unfinished. See `docs/MIDI-HARDWARE.md`.
+Windows 10 and 11 (64-bit) users can download the installer from [GitHub Releases](https://github.com/wheel338-sketch/windfall/releases). The installer is not code-signed yet, so Windows SmartScreen may warn before running it; choose **More info** and then **Run anyway**. macOS and Linux builds are not published yet; the code builds on those systems from source.
 
-Selected audio clips can be trimmed, extracted, normalized, reversed, faded, silenced or cut in the native audio editor. Edits create a new WAV and one undo step. Reviewed grid/transient slicing creates clips linked to the original source; playable slice mapping remains unfinished. See `docs/AUDIO-EDITOR.md` and `docs/SLICER.md`.
-
-The piano roll includes selected-note quantize, legato/staccato, grid and custom-pattern chop, compatible glue, arpeggiate, flam, rhythm reshaping, strum, time/pitch flip, pitch-range and velocity tools with atomic undo. Independent rhythm review and combined native/UI/artifact checks passed. Opt-in scale guidance and pitch snap accompany one-click chord/scale stamps. Reviewed cancellation handles scale changes, history intent, pending right-clicks and rejected presses; native-window focus verification remains unfinished. The transport includes reviewed tap tempo. Portamento and further piano tools remain unfinished. See `docs/PIANO-TOOLS.md`, `docs/PIANO-RHYTHM.md`, `docs/PIANO-SCALES.md` and `docs/TAP-TEMPO.md`.
-
-The playlist supports song meter changes, named and navigation markers, selected playback and linear selected export, with region zoom. Checked MIDI and FLP song maps, native bar anchors, replacement guards and export tails passed composed native checks; the accessible timeline controls passed the shared-WASM UI suite. Per-pattern timelines, alternative arrangements, linked tracks, grouping, scrubbing, WAV marker metadata and variable-meter clip snapping remain unfinished. See `docs/TIMELINE-REGIONS.md`.
-
-The sample browser indexes bounded folder trees, searches paths with Boolean and wildcard queries, and stores local favorites and tags. Refreshed file imports use checked source tokens. Reviewed imports guard project replacement during file picking and import replies, preserve loaded file versions across Windows casing aliases, and recover restored missing samples without a musical edit. Composed native and UI checks passed. See `docs/BROWSER-LIBRARY.md`.
-
-Channel samplers support forward and ping-pong loops with editable points, note release, undo and saved project settings. Native spectral preparation adds independent duration and pitch within an explicit MIDI key range and a 256 MiB retained-bank budget. Keys outside that range are silent; browser preparation is unavailable. Reviewed preparation and import publication preserve exact source handles, pending decoders, history and audible state on refusal. See `docs/SAMPLER-LOOPS.md` and `docs/SAMPLER-STRETCH.md`.
-
-Mixer chains include balance, DC removal, channel mute, polarity, stereo matrix with channel delays, soft clipping and oversampled distortion. Reviewed insertion, routing-compensation, restoration and native-owner repairs passed composed native checks. Their documented graph and prepared-history bounds remain. See `docs/UTILITY-EFFECTS.md` and `docs/UTILITY-REPAIRS.md`.
-
-Mixer chains also include a resonant lowpass, a seven-mode filter and a bass shelf, with generated controls and checked persistence and automation. Reference signal, live/offline/stem, serial restoration and composed UI checks passed, followed by clean independent standards and specification reviews. Physical listening and other-platform verification remain unfinished. See `docs/FILTER-FAMILY.md`.
-
-The DSP library now has an eight-unit echo bank and a sixteen-band delay foundation. Reference signals and fallible preparation checks passed after integration. Mixer registration, controls and host memory admission are still being built. See `docs/DELAY-FAMILY.md`.
-
-The engine has a bounded analyzer foundation with off-thread spectrum, stereo statistics and time history. Independent source reviews and composed native tests passed. Audio tap routing, source selection and analyzer views are still being built. See `docs/ANALYZER-TAPS.md`.
-
-The Windows app hosts CLAP and VST3 instruments and effects with a plugin manager, parameter automation and saved state. Native state capture defers during recording, preserves current note/parameter intent during ownership exchange, and reports native lifecycle refusal. Review and native regressions closed save-before-drain capture, bundle binary validation, multi-channel panic, document-adoption and VST3 parameter-overflow cases. Native VST3 editor windows and installed external plugins remain unverified. Native hosting on macOS/Linux remains unfinished. The isolated audio/state helper passed leaf review and combined native checks; desktop routing and document/export integration are now under implementation. Production activation also requires moving native preparation and retirement outside project-publication locks. See `docs/plugins/desktop-integration.md`, `docs/plugins/vst3-desktop.md`, `docs/plugins/runtime-repairs.md` and `docs/plugins/process-bridge.md`.
-
-Microphone/line recording writes a take to an ordinary audio clip with undo and project persistence. Input must match the output sample rate; monitoring, automatic latency alignment and hardware microphone verification remain unfinished. See `docs/RECORDING.md`.
-
-Native file actions include portable ZIP projects with project, plugin-state and audio assets, plus collision-safe numbered project publication. Independent review and combined native checks passed for bounded archive validation, final numbered destinations, concurrent carried-audio publication and exact history-source preservation. Historical references to external files still require those original files. See `docs/PORTABLE-PROJECTS.md` and `docs/PORTABLE-REPAIRS.md`.
-
-Settings provides persisted 75–200% application scaling with shared canvas and input coordinates. Independent browser review and composed UI checks passed, including small-window browser scrolling and capped piano canvas alignment. Native third-party editor scaling remains unfinished. See `docs/UI-SCALING.md`.
-
-## Run it
-
-Windows users can download the installer from [GitHub Releases](https://github.com/erivgout/windfall/releases). The first release is `v0.1.0-alpha.1`; this private repository and its downloads require repository access.
-
-That installer remains fixed at its release tag. Subsequent development features described above require a source build.
+## Build from source
 
 You need Rust, Node 24 or newer, and pnpm. On Windows you also need the Visual Studio C++ build tools, and on Linux the WebKitGTK and ALSA development packages that the CI workflow installs.
 
@@ -64,10 +34,10 @@ To work on the interface without building the engine, `pnpm dev` runs it in a br
 | `crates/windfall-core`              | Audio buffer and unit helpers shared by everything                                                            |
 | `crates/windfall-project`           | Project model, edit commands, undo history, `.windfall` file format                                           |
 | `crates/windfall-archive`           | Portable ZIP schema, bounded validation and staged audio extraction                                           |
-| `crates/windfall-analysis`          | Bounded native analysis jobs, pinned model imports and reviewed asset publication; app attachment in progress |
+| `crates/windfall-analysis`          | Analysis jobs: denoise, dereverb, pitch and tempo tools, audio-to-MIDI, stem separation |
 | `crates/windfall-engine`            | Realtime audio engine, offline renderer and bounded analyzer foundation                                       |
 | `crates/windfall-flp`               | Reads FL Studio projects and converts musical structure with an import report                                 |
-| `crates/windfall-codec`             | Reads WAV, AIFF, FLAC, MP3 and OGG; writes WAV, FLAC, OGG and MP3                                             |
+| `crates/windfall-codec`             | Reads WAV, AIFF, FLAC, MP3, OGG and WavPack; writes WAV, FLAC, OGG, MP3, WavPack and M4A                    |
 | `crates/windfall-midi`              | Reads and writes MIDI files; project import plans and playlist export                                         |
 | `crates/windfall-dsp`               | Effects and synth DSP                                                                                         |
 | `crates/windfall-plugin-host`       | CLAP/VST3 audio hosting, isolated scanning and Windows native editors                                         |

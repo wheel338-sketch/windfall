@@ -73,9 +73,11 @@ Uninstalling leaves your project files where you saved them.
   the publisher is unknown; choose "More info" and then "Run anyway" if you
   trust the download. Compare the file with the published SHA-256 checksum.
 - There is no automatic update in this release.
-- Some text is still shown in English when the interface is set to Spanish,
-  mostly messages that come from the operating system or from libraries,
-  and the Spanish has not been reviewed by a native speaker.
+- Some text is still shown in English when the interface is set to Spanish:
+  several analysis and stem-separation messages, some piano-roll and
+  playlist hints and status lines, and messages that come from the operating
+  system or from libraries. The Spanish has not been reviewed by a native
+  speaker.
 - Testing with real audio interfaces, MIDI hardware and third-party plugins
   has been limited. Windfall's own tests use software devices and plugins
   written for testing; please report problems with your hardware or plugins.
