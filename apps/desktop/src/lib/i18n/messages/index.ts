@@ -50,6 +50,7 @@ import { stageEn, stageEs } from "./stage"
 import { toolsEn, toolsEs } from "./tools"
 import { touchControllersEn, touchControllersEs } from "./touch-controllers"
 import { transportEn, transportEs } from "./transport"
+import { updatesEn, updatesEs } from "./updates"
 import { videoEn, videoEs } from "./video"
 import { visualizerEn, visualizerEs } from "./visualizer"
 
@@ -107,6 +108,7 @@ export const areaEn = {
   ...toolsEn,
   ...touchControllersEn,
   ...transportEn,
+  ...updatesEn,
   ...videoEn,
   ...visualizerEn,
 } as const
@@ -164,6 +166,7 @@ export const areaEs = {
   ...toolsEs,
   ...touchControllersEs,
   ...transportEs,
+  ...updatesEs,
   ...videoEs,
   ...visualizerEs,
 } satisfies Record<keyof typeof areaEn, unknown>

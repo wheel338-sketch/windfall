@@ -7,7 +7,8 @@ export type UpdateInfo = { token: number; version: string; notes: string; channe
 export type UpdateProgress = { downloaded: number; total: number | null; verified: boolean }
 export type UpdateCheck = { configured: boolean; reason: string | null; update: UpdateInfo | null }
 export type UpdateApi = {
-  check(channel: UpdateChannel): Promise<UpdateCheck>
+  /** `background` is the check Windfall makes by itself at start-up. */
+  check(channel: UpdateChannel, background?: boolean): Promise<UpdateCheck>
   download(token: number, progress: (progress: UpdateProgress) => void): Promise<void>
   begin(token: number): Promise<{ dirty: boolean; path: string | null }>
   cancel(token: number): Promise<void>
@@ -19,7 +20,7 @@ async function call<T>(command: string, args: Record<string, unknown>): Promise<
   catch (error) { throw new Error(errorMessage(error), { cause: error }) }
 }
 export const nativeUpdateApi: UpdateApi = {
-  check: (channel) => call("update_check", { channel }),
+  check: (channel, background = false) => call("update_check", { channel, background }),
   download: (token, receive) => {
     const progress = new Channel<UpdateProgress>()
     progress.onmessage = receive

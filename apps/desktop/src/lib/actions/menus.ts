@@ -255,7 +255,7 @@ export const MENUS: MenuSpec[] = [
   },
   {
     get title() { return t("Help") },
-    entries: ["help.gettingStarted", "help.shortcuts", "help.about", "help.assistant", "tools.scripts"],
+    entries: ["help.gettingStarted", "help.shortcuts", "help.checkUpdates", "help.about", "help.assistant", "tools.scripts"],
   },
 ]
 

@@ -44,6 +44,7 @@ import { TouchControllersWindow } from "@/features/touch-controllers/window"
 import { AssistantPanel } from "@/features/assistant/panel"
 import { ScriptEditor } from "@/features/assistant/script-editor"
 import { RecordingDialog } from "@/features/transport/recording-dialog"
+import { UpdateHost } from "@/features/updates/notice"
 import { useDetachedScope } from "./detached-scope"
 
 /** The most room a toast takes across, however long its message. */
@@ -137,6 +138,9 @@ export function AppShell() {
         <CommandPalette />
         <SettingsDialog />
         <MidiDialogs />
+        {/* Not remounted on a language change: it may hold the shell's
+            shutdown while the unsaved-project prompt is open. */}
+        <UpdateHost />
         <Overlays />
       </ValueContextMenus>
     </TooltipProvider>

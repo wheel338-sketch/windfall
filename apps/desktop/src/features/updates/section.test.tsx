@@ -3,11 +3,17 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { useProjectStore } from "@/lib/store/project"
 import { useTransportStore } from "@/lib/store/transport"
 import { UpdatesSection } from "./section"
+import { UpdateDecision } from "./notice"
+import { resetUpdates, setUpdateApi } from "./store"
 import type { UpdateApi, UpdateProgress } from "./native"
 import { setLanguage } from "@/lib/i18n"
 
 const original = useProjectStore.getState()
-afterEach(() => { useProjectStore.setState(original); useTransportStore.setState({ playing: false }); localStorage.removeItem("windfall.update-channel"); setLanguage("en") })
+afterEach(() => { useProjectStore.setState(original); useTransportStore.setState({ playing: false }); resetUpdates(); localStorage.clear(); setLanguage("en") })
+function mount(api: UpdateApi) {
+  setUpdateApi(api)
+  return render(<><UpdatesSection /><UpdateDecision /></>)
+}
 function fixture(): UpdateApi {
   return {
     check: vi.fn(async () => ({ configured: true, reason: null, update: { token: 1, version: "0.2.0", notes: "Release notes", channel: "stable" as const, projectFormat: 1 } })),
@@ -20,7 +26,7 @@ function fixture(): UpdateApi {
 describe("signed desktop update surface", () => {
   it("retranslates retained availability and native errors without checking again", async () => {
     const api = fixture()
-    render(<UpdatesSection api={api} />)
+    mount(api)
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Check for updates" })))
     expect(screen.getByText("Version 0.2.0 is available.")).toBeVisible()
     act(() => setLanguage("es"))
@@ -36,7 +42,7 @@ describe("signed desktop update surface", () => {
   })
   it("requires verification and freezes before the save/discard/cancel decision", async () => {
     const api = fixture(); useProjectStore.setState({ dirty: false })
-    render(<UpdatesSection api={api} />)
+    mount(api)
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Check for updates" })))
     expect(screen.getByText("Release notes")).toBeVisible()
     const install = screen.getByRole("button", { name: "Install and restart" })
@@ -53,7 +59,7 @@ describe("signed desktop update surface", () => {
   })
   it("shows offline and corrupt-signature failures, permits retry and never installs", async () => {
     const api = fixture(); vi.mocked(api.check).mockRejectedValueOnce(new Error("Offline"))
-    render(<UpdatesSection api={api} />)
+    mount(api)
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Check for updates" })))
     expect(screen.getByRole("alert")).toHaveTextContent("Offline")
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Check for updates" })))
@@ -65,7 +71,7 @@ describe("signed desktop update surface", () => {
   })
   it("does not enable installation when a download completes without verification", async () => {
     const api = fixture(); vi.mocked(api.download).mockResolvedValue(undefined)
-    render(<UpdatesSection api={api} />)
+    mount(api)
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Check for updates" })))
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Download and verify" })))
     expect(screen.getByRole("alert")).toHaveTextContent("not verified")
@@ -73,7 +79,7 @@ describe("signed desktop update surface", () => {
   })
   it("reports unconfigured operator values without claiming the app is up to date", async () => {
     const api = fixture(); vi.mocked(api.check).mockResolvedValue({ configured: false, reason: "Missing operator public key", update: null })
-    render(<UpdatesSection api={api} />)
+    mount(api)
     fireEvent.click(screen.getByRole("button", { name: "Check for updates" }))
     await waitFor(() => expect(screen.getByText("Missing operator public key")).toBeVisible())
     expect(screen.queryByText("You are up to date.")).toBeNull()
@@ -82,7 +88,7 @@ describe("signed desktop update surface", () => {
 })
 
 it("cancels the frozen decision and rolls back installer failure before retry", async () => {
-  const api=fixture();useProjectStore.setState({dirty:true});render(<UpdatesSection api={api}/>);
+  const api=fixture();useProjectStore.setState({dirty:true});mount(api);
   await act(async()=>fireEvent.click(screen.getByRole("button",{name:"Check for updates"})));
   await act(async()=>fireEvent.click(screen.getByRole("button",{name:"Download and verify"})));
   await act(async()=>fireEvent.click(screen.getByRole("button",{name:"Install and restart"})));

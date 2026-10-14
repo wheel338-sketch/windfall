@@ -10,6 +10,7 @@ import { openAudioLogger } from "@/features/audio-logger/logger-store"
 import { toast } from "sonner"
 import { version } from "../../../package.json"
 import { openGettingStarted } from "@/features/help/getting-started-store"
+import { checkFromMenu } from "@/features/updates/store"
 import {
   canArchive,
   portableUnavailable,
@@ -579,6 +580,13 @@ export const BUILTIN_ACTIONS: Action[] = [
     section: "Help",
     keywords: "keys keymap",
     run: () => ui().openDialog("palette"),
+  },
+  {
+    id: "help.checkUpdates",
+    ...dynamicTitle("Check for updates…", {}),
+    section: "Help",
+    keywords: "update upgrade new version release download install",
+    run: () => void checkFromMenu(),
   },
   {
     id: "help.about",

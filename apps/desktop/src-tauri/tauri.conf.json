@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Windfall",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "identifier": "org.windfall.Windfall",
   "build": {
     "frontendDist": "../dist",
@@ -48,8 +48,11 @@
   "plugins": {
     "updater": {
       "dangerousInsecureTransportProtocol": true,
-      "pubkey": "",
-      "endpoints": [],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNGRDE0MjU2NDdGRjFBNDgKUldSSUd2OUhWa0xSUDdhSHdhVFQ2QlRZM0xVMk1KSjdBZkhpaThxZjVlSkJOQjVwcGd1Q2lFbkUK",
+      "endpoints": [
+        "https://github.com/wheel338-sketch/windfall/releases/latest/download/latest.json"
+      ],
+      "requireSignedVersion": true,
       "windows": { "installMode": "passive" }
     }
   }

@@ -58,6 +58,7 @@ export const actionMessages: Record<string, MessageKey> = {
   "options.keymapFl": "Use FL Studio shortcuts",
   "help.gettingStarted": "Getting started",
   "help.shortcuts": "Keyboard shortcuts",
+  "help.checkUpdates": "Check for updates…",
   "help.about": "About Windfall",
   "mixer.addTrack": "Add mixer track"
 }

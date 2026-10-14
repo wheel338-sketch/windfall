@@ -132,11 +132,9 @@ fn policy(
     {
         return Err("This update changes or omits the project format. Use a separately reviewed manual upgrade.".into());
     }
-    if signature.trim().is_empty()
-        || download.scheme() != "https"
-        || !download.username().is_empty()
-        || download.password().is_some()
-    {
+    // The same rule as the endpoint: HTTPS, or literal loopback HTTP for a
+    // local test host. The package is still verified against the key.
+    if signature.trim().is_empty() || validate_endpoint(download).is_err() {
         return Err(
             "Update must have a signature and an HTTPS download URL without credentials.".into(),
         );
@@ -201,19 +199,37 @@ pub(crate) fn validate_endpoint(endpoint: &url::Url) -> Result<(), &'static str>
     Ok(())
 }
 
+/// The public key and the channel's endpoint template, from the
+/// `plugins.updater` block of `tauri.conf.json`: the one place they are set.
+/// The stable channel is its first endpoint. There is no preview channel
+/// yet. A test build points at another host with `tauri build --config`.
+fn configured_source(
+    config: &tauri::Config,
+    channel: UpdateChannel,
+) -> Result<(String, String), String> {
+    let updater = config.plugins.0.get("updater");
+    let text = |pointer: &str| {
+        updater
+            .and_then(|updater| updater.pointer(pointer))
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|text| !text.is_empty())
+            .map(str::to_owned)
+    };
+    let key = text("/pubkey").ok_or("This build has no updater public key.")?;
+    let endpoint = match channel {
+        UpdateChannel::Stable => text("/endpoints/0"),
+        UpdateChannel::Preview => None,
+    }
+    .ok_or("This build has no update address for the selected channel.")?;
+    Ok((key, endpoint))
+}
+
 fn operator_configuration(
     app: &AppHandle,
     channel: UpdateChannel,
-) -> Result<(&'static str, url::Url), String> {
-    let key = option_env!("WINDFALL_UPDATE_PUBLIC_KEY")
-        .filter(|key| !key.trim().is_empty())
-        .ok_or("Operator must provide WINDFALL_UPDATE_PUBLIC_KEY at build time.")?;
-    let endpoint = match channel {
-        UpdateChannel::Stable => option_env!("WINDFALL_UPDATE_STABLE_URL"),
-        UpdateChannel::Preview => option_env!("WINDFALL_UPDATE_PREVIEW_URL"),
-    }
-    .filter(|endpoint| !endpoint.trim().is_empty())
-    .ok_or("Operator must provide the selected channel's HTTPS update endpoint at build time.")?;
+) -> Result<(String, url::Url), String> {
+    let (key, endpoint) = configured_source(app.config(), channel)?;
     let platform = tauri_plugin_updater::target().ok_or("Unsupported update platform")?;
     let (target, arch) = platform.split_once('-').ok_or("Invalid update platform")?;
     use tauri::utils::config::BundleType;
@@ -227,7 +243,7 @@ fn operator_configuration(
         _ => "unknown",
     };
     let endpoint = expand_endpoint(
-        endpoint,
+        &endpoint,
         &app.package_info().version.to_string(),
         target,
         arch,
@@ -242,6 +258,7 @@ pub async fn update_check(
     window: WebviewWindow,
     state: State<'_, Updates>,
     channel: UpdateChannel,
+    background: Option<bool>,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<CheckResult, String> {
     let _window_call = caller.enter(&window, "update_check")?;
@@ -250,6 +267,15 @@ pub async fn update_check(
     let _busy = state.begin()?;
     if lock(&state.shutdown).is_some() {
         return Err("Resolve the pending installation decision first".into());
+    }
+    // A development build is not an installed release: it never checks by
+    // itself, so a test run does not reach the release host. Asked, it does.
+    if background == Some(true) && cfg!(debug_assertions) {
+        return Ok(CheckResult {
+            configured: false,
+            reason: Some("Development builds do not check for updates by themselves.".into()),
+            update: None,
+        });
     }
     *lock(&state.pending) = None;
     let (key, endpoint) = match operator_configuration(&app, channel) {
@@ -708,7 +734,7 @@ mod tests {
         // Never print signer stdout: it includes the temporary private key.
     }
     #[test]
-    fn generated_key_packages_use_the_production_verifier_and_reject_corruption_truncation_and_wrong_keys()
+    fn generated_key_packages_use_the_production_verifier_and_reject_corruption_truncation_wrong_keys_and_versions()
      {
         use std::ffi::OsStr;
         let folder = tempfile::tempdir().unwrap();
@@ -725,26 +751,44 @@ mod tests {
                 path.as_os_str(),
             ]);
         }
-        let package = folder.path().join("package.bin");
         let bytes = b"Windfall signed package fixture: exact bounded bytes".to_vec();
-        std::fs::write(&package, &bytes).unwrap();
-        signer(&[
-            OsStr::new("signer"),
-            OsStr::new("sign"),
-            OsStr::new("--private-key-path"),
-            key.as_os_str(),
-            OsStr::new("--password"),
-            OsStr::new(""),
-            package.as_os_str(),
-        ]);
-        let signature = std::fs::read_to_string(package.with_extension("bin.sig")).unwrap();
+        // The manifest announces 9.9.9. The committed configuration requires
+        // the signature to name the version, so the same bytes signed for no
+        // version, or for another one, are refused like a wrong key.
+        let signatures: Vec<(Option<&str>, String)> = [Some("9.9.9"), None, Some("9.9.8")]
+            .into_iter()
+            .enumerate()
+            .map(|(index, version)| {
+                let package = folder.path().join(format!("package-{index}.bin"));
+                std::fs::write(&package, &bytes).unwrap();
+                let mut args = vec![
+                    OsStr::new("signer"),
+                    OsStr::new("sign"),
+                    OsStr::new("--private-key-path"),
+                    key.as_os_str(),
+                    OsStr::new("--password"),
+                    OsStr::new(""),
+                ];
+                if let Some(version) = version {
+                    args.extend([OsStr::new("--app-version"), OsStr::new(version)]);
+                }
+                args.push(package.as_os_str());
+                signer(&args);
+                let signature = std::fs::read_to_string(package.with_extension("bin.sig"));
+                (version, signature.unwrap())
+            })
+            .collect();
         let app = tauri::test::mock_builder()
             .plugin(tauri_plugin_updater::Builder::new().build())
             .build(tauri::generate_context!())
             .unwrap();
+        let publics = [key.with_extension("pub"), wrong.with_extension("pub")];
+        let cases = publics
+            .iter()
+            .flat_map(|public| signatures.iter().map(move |signature| (public, signature)));
         tauri::async_runtime::block_on(async {
-            for public in [key.with_extension("pub"), wrong.with_extension("pub")] {
-                let key_text = std::fs::read_to_string(&public).unwrap();
+            for (public, (version, signature)) in cases {
+                let key_text = std::fs::read_to_string(public).unwrap();
                 let manifest=serde_json::to_vec(&serde_json::json!({"version":"9.9.9","url":"https://updates.invalid/package","signature":signature})).unwrap();
                 let reply = crate::update_transfer::Reply::new(manifest).unwrap();
                 let updater = app
@@ -761,7 +805,7 @@ mod tests {
                     .build()
                     .unwrap();
                 let update = updater.check().await.unwrap().unwrap();
-                let correct = public == key.with_extension("pub");
+                let correct = *public == key.with_extension("pub") && *version == Some("9.9.9");
                 let accepted = verify_bounded_bytes(&mut update.clone(), bytes.clone()).await;
                 if correct {
                     assert_eq!(accepted.unwrap(), bytes);
@@ -878,6 +922,62 @@ mod tests {
             )
             .is_err()
         );
+        for download in [
+            "http://127.0.0.1:8765/Windfall_0.2.0_x64-setup.exe",
+            "http://[::1]/package",
+        ] {
+            let download = url::Url::parse(download).unwrap();
+            assert!(
+                policy(
+                    "0.1.0",
+                    "0.2.0",
+                    UpdateChannel::Stable,
+                    &stable,
+                    "s",
+                    &download
+                )
+                .is_ok()
+            );
+        }
+        for download in [
+            "http://localhost/package",
+            "https://user:secret@updates.example.invalid/package",
+        ] {
+            let download = url::Url::parse(download).unwrap();
+            assert!(
+                policy(
+                    "0.1.0",
+                    "0.2.0",
+                    UpdateChannel::Stable,
+                    &stable,
+                    "s",
+                    &download
+                )
+                .is_err()
+            );
+        }
+    }
+    #[test]
+    fn the_committed_configuration_has_the_key_and_the_stable_release_host_only() {
+        let config: tauri::Config =
+            serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        let config = &config;
+        let (key, endpoint) = configured_source(config, UpdateChannel::Stable).unwrap();
+        // The key is the base64 of a minisign public key file.
+        assert!(key.starts_with("dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6"));
+        assert_eq!(
+            endpoint,
+            "https://github.com/wheel338-sketch/windfall/releases/latest/download/latest.json"
+        );
+        let expanded = expand_endpoint(&endpoint, "1.0.1", "windows", "x86_64", "nsis").unwrap();
+        assert_eq!(expanded.as_str(), endpoint);
+        assert!(configured_source(config, UpdateChannel::Preview).is_err());
+        let updater = &config.plugins.0["updater"];
+        assert_eq!(updater["requireSignedVersion"], serde_json::json!(true));
+        assert_eq!(updater["endpoints"].as_array().map(Vec::len), Some(1));
+        let mut empty = config.clone();
+        empty.plugins.0.remove("updater");
+        assert!(configured_source(&empty, UpdateChannel::Stable).is_err());
     }
     #[test]
     fn update_operations_are_serialized_and_recover_after_failure() {

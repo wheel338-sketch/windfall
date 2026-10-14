@@ -22,10 +22,14 @@ pub(crate) async fn fetch(
 ) -> Result<Option<Vec<u8>>, String> {
     super::updates::validate_endpoint(&url).map_err(str::to_owned)?;
     let loopback_http = url.scheme() == "http";
+    // An installer of tens of megabytes on a slow line takes minutes; a
+    // stalled transfer is still ended by the read timeout.
+    let whole = if cap > MANIFEST_CAP { 30 * 60 } else { 60 };
     let client = reqwest::Client::builder()
         .redirect(super::updates::update_redirect_policy())
         .connect_timeout(Duration::from_secs(10))
-        .timeout(Duration::from_secs(120));
+        .read_timeout(Duration::from_secs(30))
+        .timeout(Duration::from_secs(whole));
     let client = if loopback_http {
         client.no_proxy()
     } else {
