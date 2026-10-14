@@ -70,7 +70,7 @@ describe("Settings > AI agents (MCP)", () => {
     expect(mcpConfigure).not.toHaveBeenCalled()
   })
 
-  it("shows a refused bind and the native capability error, in Spanish too", async () => {
+  it("shows a refused bind while turned on, in Spanish too", async () => {
     setBackend({ ...app.backend, kind: "tauri", mcpState: async () => ({ ...OFF, enabled: true, error: "Windfall could not listen on that port. Another program may be using it; choose another port." }) })
     setLanguage("es")
     render(<McpSettingsSection />)

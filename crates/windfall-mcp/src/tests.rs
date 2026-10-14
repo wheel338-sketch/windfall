@@ -946,7 +946,7 @@ fn get_is_not_served_and_delete_ends_a_session() {
         .unwrap()
         .1
         .clone();
-    let mut delete = post(&legacy_ping(), &[("mcp-session-id", &session)]);
+    let mut delete = post(&legacy_ping(), &[("mcp-session-id", session.as_str())]);
     delete.method = "DELETE".into();
     assert_eq!(respond(&server, &host, &delete).status, 204);
     assert!(!server.knows_session(&session));
@@ -2277,7 +2277,7 @@ fn raw_commands_keep_the_proposal_registry() {
         ),
         (json!({"type": "batch", "commands": []}), "registry"),
         (
-            json!({"type": "addSample", "name": "x", "path": {"type": "external", "path": "C:/x.wav"}}),
+            json!({"type": "addSample", "name": "x", "path": {"kind": "external", "path": "C:/x.wav"}}),
             "registry",
         ),
         (

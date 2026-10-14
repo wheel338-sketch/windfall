@@ -116,7 +116,9 @@ fn new_ids<T: Ord + Copy>(
     after: impl Iterator<Item = T>,
 ) -> Vec<T> {
     let old: BTreeSet<T> = before.collect();
-    after.filter(|id| !old.contains(id)).collect()
+    // Ids are allocated in order, so sorted is the order they were made in.
+    let made: BTreeSet<T> = after.filter(|id| !old.contains(id)).collect();
+    made.into_iter().collect()
 }
 
 fn effect_ids(project: &Project) -> impl Iterator<Item = u32> + '_ {

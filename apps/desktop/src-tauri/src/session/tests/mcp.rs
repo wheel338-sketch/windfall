@@ -275,7 +275,13 @@ fn the_endpoint_serves_mcp_over_loopback_with_its_token_only() {
     let list = json!({"jsonrpc": "2.0", "id": 2, "method": "tools/list"});
     let (status, _, body) = exchange(
         port,
-        &client_request(port, &token, &list, Some("2025-06-18"), Some(&session)),
+        &client_request(
+            port,
+            &token,
+            &list,
+            Some("2025-06-18"),
+            Some(session.as_str()),
+        ),
     );
     assert_eq!(status, 200);
     assert!(body["result"]["tools"].as_array().unwrap().len() > 20);
