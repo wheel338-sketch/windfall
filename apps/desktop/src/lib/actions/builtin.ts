@@ -8,6 +8,7 @@ import {
 } from "@/features/transport/recording-store"
 import { openAudioLogger } from "@/features/audio-logger/logger-store"
 import { toast } from "sonner"
+import { version } from "../../../package.json"
 import { openGettingStarted } from "@/features/help/getting-started-store"
 import {
   canArchive,
@@ -585,7 +586,7 @@ export const BUILTIN_ACTIONS: Action[] = [
     section: "Help",
     keywords: "version license",
     run: () => {
-      toast("Windfall 0.1.0", {
+      toast(`Windfall ${version}`, {
         description: t("A free, open source DAW. GPL-3.0."),
       })
     },
