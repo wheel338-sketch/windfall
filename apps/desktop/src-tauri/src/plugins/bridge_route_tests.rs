@@ -269,6 +269,9 @@ fn migrate(
     migration
 }
 
+/// What one unit and its neutral twin played.
+type Played<'a> = (&'a [[f32; 2]], &'a [[f32; 2]]);
+
 /// Every frame of a hand-over against the model. The unit that left and its
 /// neutral twin played `heard` and `plain` from the note on, with the pan
 /// ramp started at frame 256 and the request to leave at frame 320; the unit
@@ -278,9 +281,10 @@ fn migrate(
 fn judge_handover(
     law: PanLaw,
     label: &str,
-    [(heard, plain), (arrived, arrived_plain)]: [(&[[f32; 2]], &[[f32; 2]]); 2],
+    played: [Played<'_>; 2],
     delays: [(usize, usize); 2],
 ) -> Migration {
+    let [(heard, plain), (arrived, arrived_plain)] = played;
     let [(bridge, native), (second_bridge, second_native)] = delays;
     let mut heard = heard.to_vec();
     let mut aligned = heard[bridge..bridge + 640].to_vec();
@@ -611,10 +615,9 @@ fn restart_through_the_app(
         request = runtime
             .drain()
             .into_iter()
-            .filter(|update| {
+            .rfind(|update| {
                 matches!(update.update, Update::Capture { target: wanted, .. } if wanted == target)
             })
-            .last()
             .or(request);
         if let Some((departure, true)) = runtime.selected_bridge(target)
             && request.is_some()
@@ -798,7 +801,11 @@ fn a_vst3_plugin_that_restarts_itself_mid_note_hands_the_ramp_over_on_the_apps_o
     let (_runtime, bindings) = fixtures(&[29]);
     let offers = bindings[0].clone();
     let mut cases = Vec::new();
-    for (what, ids) in [("pan", vec![8]), ("volume", vec![9]), ("both", vec![8, 9])] {
+    for (what, ids) in [
+        ("pan", &[8][..]),
+        ("volume", &[9][..]),
+        ("both", &[8, 9][..]),
+    ] {
         cases.push((
             format!("VST3 {what} lost"),
             offers.clone(),
@@ -806,7 +813,7 @@ fn a_vst3_plugin_that_restarts_itself_mid_note_hands_the_ramp_over_on_the_apps_o
         ));
         cases.push((
             format!("VST3 {what} returns"),
-            with_values(&offers, &ids, 1.0),
+            with_values(&offers, ids, 1.0),
             ids.iter().map(|id| (*id, 0.0)).collect(),
         ));
     }
