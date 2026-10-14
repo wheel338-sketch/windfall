@@ -8,11 +8,12 @@
 use serde_json::Value;
 
 /// Rounding the platform's math library may introduce: sixteen f32 epsilons
-/// relative, plus 1e-8 absolute for values cancelled down near zero. Linux
-/// (glibc) measured at most about 2 epsilons on ordinary values and 4e-9
-/// absolute near zero.
+/// relative, plus 1e-7 (-140 dB) absolute for values cancelled down near
+/// zero. Measured: Linux (glibc, x86-64) at most about 2 epsilons on
+/// ordinary values and 4e-9 absolute near zero; macOS (Apple Silicon)
+/// 2.2e-8 absolute on spectrum bins near zero.
 fn rounding_only(expected: f64, actual: f64) -> bool {
-    let bound = 16.0 * f64::from(f32::EPSILON) * expected.abs().max(actual.abs()) + 1e-8;
+    let bound = 16.0 * f64::from(f32::EPSILON) * expected.abs().max(actual.abs()) + 1e-7;
     (expected - actual).abs() <= bound
 }
 
@@ -76,6 +77,15 @@ fn only_float_rounding_is_allowed_off_windows() {
         serde_json::json!({"level": 10.061794, "tiny": -3.258884e-5, "name": "a", "on": true});
     let rounded =
         serde_json::json!({"level": 10.061796, "tiny": -3.2592565e-5, "name": "a", "on": true});
+    // macOS's largest: a spectrum bin of 3.5e-3 off by 2.2e-8.
+    let mut found = Vec::new();
+    differences(
+        &serde_json::json!(0.0035287067),
+        &serde_json::json!(0.0035286844),
+        "",
+        &mut found,
+    );
+    assert!(found.is_empty(), "{found:?}");
     let mut found = Vec::new();
     differences(&expected, &rounded, "", &mut found);
     assert!(found.is_empty(), "{found:?}");

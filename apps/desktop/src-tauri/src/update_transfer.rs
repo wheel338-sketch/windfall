@@ -103,7 +103,15 @@ fn read_request(
             return Err(std::io::Error::from(std::io::ErrorKind::TimedOut));
         }
         stream.set_read_timeout(Some(remaining.min(Duration::from_secs(1))))?;
-        stream.read_exact(&mut byte)?;
+        match stream.read_exact(&mut byte) {
+            Ok(()) => {}
+            // A read that times out is WouldBlock on Unix and TimedOut on
+            // Windows; either way the deadline has run out.
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                return Err(std::io::Error::from(std::io::ErrorKind::TimedOut));
+            }
+            Err(error) => return Err(error),
+        }
         request.push(byte[0]);
     }
     if !request.ends_with(b"\r\n\r\n") {

@@ -132,6 +132,10 @@ fn retired_owner_is_terminal_and_does_not_drop_a_sibling_pending_ticket() {
 }
 
 #[test]
+#[cfg_attr(
+    target_os = "macos",
+    ignore = "macOS hosts plugins on the app's Cocoa main thread, which a unit test does not have"
+)]
 fn manager_publishes_unconfirmed_ack_warning_until_terminal_completion() {
     let folder = tempfile::tempdir().unwrap();
     let manager = crate::plugins::PluginManager::new(folder.path()).unwrap();
@@ -182,6 +186,10 @@ fn status_snapshot_keeps_ack_warning_visible_despite_other_status_producers() {
 }
 
 #[test]
+#[cfg_attr(
+    target_os = "macos",
+    ignore = "macOS hosts plugins on the app's Cocoa main thread, which a unit test does not have"
+)]
 fn pending_ack_completion_preserves_a_scanner_failure_from_the_pending_interval() {
     let folder = tempfile::tempdir().unwrap();
     let manager = crate::plugins::PluginManager::new(folder.path()).unwrap();

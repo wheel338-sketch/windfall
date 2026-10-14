@@ -6,6 +6,9 @@ mod editor;
 #[path = "vst3_expression.rs"]
 mod expression;
 mod native_thread;
+// macOS loads a VST3 only through the SDK's bundleEntry/bundleExit.
+#[cfg(target_os = "macos")]
+mod bundle_entry;
 use native_thread::CreatorThread;
 use std::ffi::c_void;
 use std::ptr;

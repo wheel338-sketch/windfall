@@ -242,7 +242,7 @@ fn export_validated(
             }
             fs::copy(binary, &target).map_err(|e| e.to_string())?;
             if verify_copies {
-                export_runtime::probe(&target, stamp)?;
+                verify_copy(binary, &target, stamp)?;
             }
         }
         let resources = stage.join("Windfall.vst3/Contents/Resources");
@@ -370,6 +370,27 @@ fn publish_new_directory(stage: &Path, destination: &Path) -> Result<(), String>
         // Windows MoveFileEx without REPLACE_EXISTING refuses existing targets.
         fs::rename(stage, destination).map_err(|e| e.to_string())
     }
+}
+/// Checks a staged copy of the (already probed) runtime. macOS cannot unload
+/// a Rust dylib, so loading the staged file would leave its image resident
+/// under the stage's path; a later load of the published bundle, the same
+/// file renamed, would get that image back and look for its stamp in the
+/// vanished stage. There the copy is compared byte for byte with the probed
+/// source instead; elsewhere it is loaded and its stamp read.
+fn verify_copy(source: &Path, copy: &Path, stamp: &Stamp) -> Result<(), String> {
+    if cfg!(target_os = "macos") {
+        let same = fs::read(source).map_err(|e| e.to_string())?
+            == fs::read(copy).map_err(|e| e.to_string())?;
+        return if same {
+            Ok(())
+        } else {
+            Err(
+                windfall_core::notice!("pluginExport.runtimeCopyDiffers", path = copy.display())
+                    .to_string(),
+            )
+        };
+    }
+    export_runtime::probe(copy, stamp).map(|_| ())
 }
 /// Publication where the filesystem has no rename that refuses an existing
 /// target: the destination folder is created exclusively (so an existing
