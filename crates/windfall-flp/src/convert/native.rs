@@ -2221,6 +2221,7 @@ mod open_list {
     }
 
     const NO_GAIN: &str = "the stand-in has no output or input level of its own";
+    const WARMTH: &str = "the public converter makes warmth a six-voice unison; the three oscillator stand-in has no unison, and its detune moves its one voice (carried by the fine tuning)";
     const NO_LFO_SHAPE: &str = "the stand-in's modulation is a fixed sine; it has no shape control";
     const NO_SECOND_STAGE: &str =
         "a second (s_) stage: the stand-in has one limiter, one compressor and one gate";
@@ -2943,21 +2944,9 @@ mod open_list {
             "rate_freq2",
             "rate ranges of the device's own; the stand-in's rate is carried by mod_speed",
         ),
-        (
-            "simsynth",
-            "osc1_warm",
-            "warmth adds a detuned copy of the oscillator; the stand-in's detune moves its only copy and is carried by the fine tuning",
-        ),
-        (
-            "simsynth",
-            "osc2_warm",
-            "warmth adds a detuned copy of the oscillator; the stand-in's detune moves its only copy and is carried by the fine tuning",
-        ),
-        (
-            "simsynth",
-            "osc3_warm",
-            "warmth adds a detuned copy of the oscillator; the stand-in's detune moves its only copy and is carried by the fine tuning",
-        ),
+        ("simsynth", "osc1_warm", WARMTH),
+        ("simsynth", "osc2_warm", WARMTH),
+        ("simsynth", "osc3_warm", WARMTH),
         (
             "simsynth",
             "lfo_trackamp",
