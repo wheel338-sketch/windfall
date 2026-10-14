@@ -781,7 +781,11 @@ fn restart_through_the_app(
 
 /// Each switch through the app, under each law, against the same hand-over
 /// with offline helpers set up by hand.
-fn restarts_through_the_app(cases: &[(String, PluginBinding, Vec<(u32, f32)>)]) {
+/// One switch the plugin makes itself: what it is, the binding it starts
+/// from, and the parameter values that make it ask for a restart.
+type Restart = (String, PluginBinding, Vec<(u32, f32)>);
+
+fn restarts_through_the_app(cases: &[Restart]) {
     for (what, before, switch) in cases {
         for law in LAWS {
             let name = format!("{what} through the app");
