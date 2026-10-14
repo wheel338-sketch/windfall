@@ -137,6 +137,7 @@ export const sameAsEnglish: Readonly<Record<string, string>> = {
     "{device} · {channel} · {control}", "{owner} · {target}", "{owner} · {parameter}", "{device}: {left} / {right}",
     "{name}, {place}", "{root} {quality}", "{root} {quality} / {bass}", "{root} {scale}", "{id} ({name})",
     "{input} · {layout}", "{index}. {title}", "{name} · FL Studio", "Moss: {pose}", "Color {group} · MIDI {group2}",
+    "text.term", "text.sentence", "flp.native.fieldElsewhere", "project.check.ownerProblem",
   ]),
   ...each("Spanish music software counts in ticks, clips, cents, pads and bytes too; the rest is parameters and punctuation.", [
     "{value}{value2} cents", "{value} ticks", "{tick} ticks", " (ticks {start}–{end})", "Ticks {start}–{end}{active}",
@@ -146,10 +147,10 @@ export const sameAsEnglish: Readonly<Record<string, string>> = {
   ]),
   ...each("Spanish spells this word the same way.", [
     "general", "General", "vocal", "Regular", "Balance", "Base", "Bipolar", "Color", "Detector", "Normal", "Pedal",
-    "Nasal", "Triple", "Natural", "Control", "Tempo", "Solo", ...numbered("Pedal", 11),
+    "Nasal", "Triple", "Natural", "Control", "Tempo", "Solo", "color", "tempo", "audio", ...numbered("Pedal", 11),
   ]),
   ...each("Established term that Spanish-speaking producers use unchanged.", [
-    "Plugins", "Mono legato", "Vol", "1x12 combo", "Combo", "Ducking", "Flanger", "Fuzz", "Notch", "Overdrive", "Post",
+    "Plugins", "plugin", "clip", "swing", "ping-pong", "pogo", "Mono legato", "Vol", "1x12 combo", "Combo", "Ducking", "Flanger", "Fuzz", "Notch", "Overdrive", "Post",
     "Pre", "Scratch", "Twin", "Vocoder", "Wah", "Legato", "Multisampler", "Tom", "Chorus", "Drive", "Phaser", "Stack",
     "2 Color", "Mod", "Scoop", "Fader", "Sampler", "Blues", "Drop 2", "Flam", "Groove", "Staccato", "Swing",
     "Portamento", "Pads", ...numbered("Pad", 16),

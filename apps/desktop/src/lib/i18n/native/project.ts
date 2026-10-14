@@ -439,7 +439,7 @@ export const nativeProjectEs = {
   "scripts.parameterBounds": "el parámetro {name} está fuera de sus límites",
   "scripts.unknownWord": "nombre desconocido o número no finito: {word}",
   "project.timeline.markerName": "un marcador necesita un nombre de 1 a {max} bytes",
-  "project.timeline.tooManyItems": "una línea de tiempo contiene como máximo {max} compases y {max} marcadores",
+  "project.timeline.tooManyItems": "una línea de tiempo contiene como máximo {max} cambios de compás y otros tantos marcadores",
   "project.timeline.range": "un intervalo de la línea de tiempo necesita 0 <= inicio < final <= {max} pulsos",
   "project.notFound": "{kind} {id}: no existe",
   "project.load.readFailed": "no se ha podido leer {path}: {error}",

@@ -234,7 +234,7 @@ function AudioSection() {
       >
         {!status && t("Waiting for the audio engine.")}
         {status?.running && runningSummary(status)}
-        {status?.running && status.error && ` ${localizeBackendText(status.error)}`}
+        {status?.running && status.error && <>{" "}{localizeBackendText(status.error)}</>}
         {status?.running &&
           fixed === null &&
           t(" A smaller buffer lowers latency and raises CPU load.")}

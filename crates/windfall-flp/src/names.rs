@@ -112,7 +112,7 @@ pub fn event_name(id: u8) -> Option<&'static str> {
         164 => "pattern length",
         192 => "channel name (legacy)",
         193 => "pattern name",
-        194 => "title",
+        194 => "project title",
         195 => "comments",
         196 => "sample path",
         197 => "web link",

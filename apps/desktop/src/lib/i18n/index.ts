@@ -105,7 +105,9 @@ export function dynamicMessage(source: DynamicActionMessage, language = currentL
 }
 
 export function localizeBackendText(text: string): string {
-  const native = nativeMessage(text)
+  // One coded message, unless it is the first of several joined together.
+  const end = text.startsWith(NATIVE_MESSAGE_PREFIX) ? jsonObjectEnd(text, NATIVE_MESSAGE_PREFIX.length) : -1
+  const native = end < 0 || end === text.length ? nativeMessage(text) : null
   // A message shown on its own starts with a capital, as the backend's
   // English sentences always did; one inside another keeps its case.
   if (native !== null) return native.charAt(0).toLocaleUpperCase(locales[currentLanguage()]) + native.slice(1)
