@@ -406,12 +406,14 @@ try {
   const applyDisabled = await app.evaluate(`[...document.querySelectorAll(${JSON.stringify(`${card(stale.label)} button`)})].find((b) => b.textContent.trim() === "Apply")?.disabled === true`)
   check("the panel says the proposal is stale and Apply is disabled", applyDisabled, await app.evaluate(`document.querySelector(${JSON.stringify(card(stale.label))}).innerText`))
   const staleCursor = (await history()).cursor
-  const forced = await app.invoke("mcp_approve", { id:stale.proposalId })
-  check("applying the stale proposal anyway is refused (by command)", Boolean(forced.error) && (await laneNotes()).length === 4 && (await history()).cursor === staleCursor, forced)
   const staleSeen = structured(inspect("get_proposal stale", http, { method:"tools/call", tool:"get_proposal", headers:bearer, args:{ proposalId:stale.proposalId } }).json)
-  check("the agent is told its proposal is stale", staleSeen?.stale === true || staleSeen?.status?.state === "failed", staleSeen)
+  check("the agent is told its proposal is stale", staleSeen?.stale === true && staleSeen?.status?.state === "pending", staleSeen)
   const staleApply = inspect("apply_proposal stale", http, { method:"tools/call", tool:"apply_proposal", headers:bearer, args:{ proposalId:stale.proposalId } })
   check("the agent cannot apply it itself", failure(staleApply.json) !== null && (await laneNotes()).length === 4, failure(staleApply.json))
+  const forced = await app.invoke("mcp_approve", { id:stale.proposalId })
+  check("applying the stale proposal anyway is refused (by command)", Boolean(forced.error) && (await laneNotes()).length === 4 && (await history()).cursor === staleCursor, forced)
+  const staleAfter = structured(inspect("get_proposal stale after", http, { method:"tools/call", tool:"get_proposal", headers:bearer, args:{ proposalId:stale.proposalId } }).json)
+  check("after the refused apply the agent sees it failed as stale", staleAfter?.status?.state === "failed" && /stale/.test(staleAfter.status.error), staleAfter)
 
   // --- A rejected proposal. ---
   const rejected = structured(inspect("add_notes rejected", http, { method:"tools/call", tool:"add_notes", headers:bearer, args:{ patternId, channelId:channel.id, notes:more, title:"Another passing note" } }).json)
