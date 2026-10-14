@@ -118,26 +118,34 @@ or when it needs an asset the project does not have (a trained model).
   those files stay unsupported with an explicit message. The capability is
   completed with Windfall's own synth and speech presets rendering into a
   sampler channel as samples.
-- `fmt-flp-import`: the row is what the plan promises: notes, clips,
-  automation, routing, controllers and sample references are read out of the
-  project. Device state is carried onto Windfall's stand-in instrument or effect
-  wherever the public open-source readers describe the field AND the stand-in
-  has a matching control. A described field whose stand-in has no such control
-  is named in the import review as omitted, with the opaque state kept, and the
-  full list is pinned by a test (233 control families on 33 devices as of
-  2026-10-13, listed in `docs/flp/coverage.md`). Adding those controls to the
-  stand-ins is not part of the import row: the plan (`WINDFALL_PLAN.md`,
-  "Identical sound from any FL project file") says a project only sounds the
-  same where a Windfall equivalent exists, and the roadmap (F1) says to extend
-  conversion only for supported targets and keep exact, approximate and omitted
-  counts honest. Device state with no public layout stays opaque with a
-  per-device warning.
-- `wf-project-settings`: a hosted plugin delivers one summed output, so the
-  host cannot apply a per-note property to one note inside it. When a plugin
-  offers a native per-note route for pan or volume, that route is used; a
-  property the plugin has no per-note route for is applied at the channel level
-  after the plugin, and the capability panel says so. Splitting one note's pan
-  to the plugin and the same note's volume to the host ("mixed per-note
-  routes") is not attempted. What remains required is that a route change
-  caused by a plugin gaining or losing a capability mid-note continues the
-  running ramp from its current value without a click.
+- `fmt-flp-import` (revised after the round-eight audit): the row is what the
+  plan promises: notes, clips, automation, routing, controllers and sample
+  references are read out of the project. Device and channel state is carried
+  onto Windfall's stand-in wherever the public open-source readers describe
+  the field and the stand-in has a matching control, judged against the
+  stand-in's actual parameter list, not the importer's own classification. Every
+  described field that still has no matching control (native device fields,
+  channel envelope/LFO fields and synth switches alike) is counted and named as
+  omitted in the import review, per device, with the opaque state kept, and one
+  test pins that complete list and checks each entry against the stand-in's
+  parameters. Adding new controls to the stand-ins is not part of the import
+  row: the plan (`WINDFALL_PLAN.md`, "Identical sound from any FL project
+  file") says a project only sounds the same where a Windfall equivalent
+  exists, and the roadmap (F1) says to extend conversion only for supported
+  targets and keep exact, approximate and omitted counts honest. Device state
+  with no public layout stays opaque with a per-device warning.
+- `wf-project-settings` (revised after the round-eight audit): a hosted plugin
+  delivers one summed output, so the host cannot process one note inside it.
+  Pan and volume each take exactly one route: where the plugin offers a native
+  per-note route the plugin applies that property per note; otherwise the host
+  applies it once at the channel level after the plugin. A note can therefore
+  have its pan applied in the plugin and its volume on the channel (or the
+  reverse). A property applied on the channel follows the most recent sounding
+  note, so overlapping notes share it; per-note host processing of individual
+  notes inside the summed output is not attempted. The project pan law is
+  applied once in every arrangement, assuming the plugin applies its own
+  per-note pan linearly as declared; how third-party plugins behave is an
+  external check. A route change caused by a plugin gaining or losing a
+  capability while notes sound must continue each running ramp from its
+  current value without a click, on the path the app actually takes (in
+  process, in a replaced helper process, and in the same unit).
