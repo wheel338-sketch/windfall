@@ -40,7 +40,7 @@ function EngineStatus() {
       <>
         <Dot className="bg-ok" />
         <span className="truncate text-foreground/85">
-          {status.host} {status.device}
+          {t(status.host)} {status.device === null ? null : t(status.device)}
         </span>
         <span className="shrink-0 font-readout">
           {formatSampleRate(status.sampleRate)}

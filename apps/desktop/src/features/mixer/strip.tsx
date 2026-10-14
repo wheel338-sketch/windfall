@@ -158,7 +158,7 @@ function MuteButtons({ track, small }: { track: StripTrack; small: boolean }) {
 /** Where the master goes: the sound card. Opens the audio settings. */
 function MasterOutput() {
   const device = useEngineStore((state) =>
-    state.status?.running ? state.status.device : null
+    state.status?.running && state.status.device !== null ? t(state.status.device) : null
   )
   const hint = useHint(
     t("The master plays to the audio output. Click to choose a device")

@@ -116,7 +116,7 @@ function Choice<T extends string | number>({
 
 /** What the engine made of the request, in words. */
 function runningSummary(status: EngineStatus): string {
-  const device = status.device ?? t("the default device")
+  const device = status.device === null ? t("the default device") : t(status.device)
   return message("Running on {device} at {sampleRate} with {outputChannels} output channels and a callback buffer of {bufferFrames} samples: {latencyMs} ms per buffer.", { device, sampleRate: formatSampleRate(status.sampleRate), outputChannels: plainNumber(status.outputChannels ?? 2), bufferFrames: plainNumber(status.bufferFrames), latencyMs: status.latencyMs.toFixed(1) })
 }
 
