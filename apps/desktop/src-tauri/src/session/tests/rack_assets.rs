@@ -232,6 +232,7 @@ fn hosted_fixture(vst3: bool) {
                 Some(rig.project().plugin(target).unwrap().clone()),
                 true
             )
+            .map_err(|error| windfall_core::english::english(&error))
             .unwrap_err()
             .contains("no editor"),
         "the owned delayed fixture has no GUI; ownership must reach that explicit capability error"

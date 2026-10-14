@@ -146,9 +146,15 @@ take {}", the automation names "{} track volume" / "{} track pan", and
 - Window, `scripts/language-switch-window-smoke.mjs`: two more checks in the
   real window while it is Spanish — opening a project file whose tempo breaks
   the format's rule shows the refusal in Spanish, and the FL Studio import
-  review of a file with a 600 bpm tempo shows its line in Spanish. The OS file
-  picker is the one thing not used: the smoke answers the app's request to
-  open it through the DevTools network domain with the file's path.
+  review of a file with a 600 bpm tempo shows its line in Spanish. Both files
+  are chosen in the operating system's own file dialog: the smoke finds the
+  dialog by its Spanish title (the native dialog class only), puts the path
+  into its file name box and sends it OK, with the dialog's own window
+  messages. The refusal is checked word for word: said once, from the code.
+- UI, `native-messages.test.ts` also: an id is written as it is and a count
+  grouped; a message sent as a sentence ends with one full stop.
+  `mock.test.ts`: a shell refusal is put into words once, from what the
+  shell sent.
 
 ## Running record
 
@@ -213,6 +219,31 @@ take {}", the automation names "{} track volume" / "{} track pan", and
 - `f5`, `f6`: the failed files again, 21 files, 268 / 0; lint and
   typecheck clean. Checkpoint commit `533c84b7`; simulator rebuilt after
   the FL event rename (`s3`, `s4`).
+- `f7`: whole frontend suite, 537 files, 6,518 / 0 / 0, 454 s.
+- `c1` to `c4`: strict lint. Findings were `term(x.to_string())` where `x`
+  already was text, needless borrows and a stray doc comment; clean at
+  `c4`. Checkpoint `dff9c7f0`.
+- `t1`, `w1`: Tauri debug build and the language window. The new checks
+  took several tries to reach the real file dialog. Tauri's `invoke` and the
+  object holding it cannot be replaced from the page, and the DevTools
+  network domain does not see its calls. Keystrokes did not reach the dialog
+  from a background process, and UI Automation shows its controls only as
+  panes. The dialog's own window messages work (`WM_SETTEXT` on the file
+  name box, `WM_COMMAND IDOK`). The window then showed a product fault no
+  unit test had: a refusal from the shell read
+  "Diagnóstico nativo: El archivo del proyecto está dañado: …". The
+  desktop's IPC wrapper puts a refusal into words when the call fails and
+  keeps what the shell sent as the error's cause; the toast put those words
+  into words again, and a nested message is not recognised as already said.
+  `errorSource` now takes a coded message from the cause, so it is said
+  once, when shown (test in `mock.test.ts`). `t2`, `w1` again: 16 checks,
+  all pass, the refusal word for word. Checkpoint `8eba2772`.
+- The same window showed the status bar's "Memory sink (no audio device)"
+  in English: Windfall's own device names are now put through the catalog
+  in the status bar, the master strip, the settings dialog and the external
+  output field (names of real devices are not catalog keys and stay as
+  they are). `f9`: 72 files, 625 / 0; lint and typecheck clean. Commit
+  `1d69b88b`.
 
 ## Gates
 

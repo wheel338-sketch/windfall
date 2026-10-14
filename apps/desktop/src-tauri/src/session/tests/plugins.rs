@@ -1435,6 +1435,7 @@ fn n4_role(vst3: bool, instrument: bool) {
                 Some(rig.project().plugin(target).unwrap().clone()),
                 true
             )
+            .map_err(|error| windfall_core::english::english(&error))
             .unwrap_err()
             .contains("no editor")
     );
