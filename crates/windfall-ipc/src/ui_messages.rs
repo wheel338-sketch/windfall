@@ -881,6 +881,13 @@ pub const UI_MESSAGE_CODES: &[&str] = &[
     "project.plugin.effect",
     "project.plugin.rack",
     "text.sentence",
+    "flp.native.pitcherScale",
+    "flp.native.pitcherNoScale",
+    "plugin.panel.title",
+    "plugin.panel.stateFile",
+    "plugin.panel.load",
+    "plugin.panel.queued",
+    "plugin.panel.hostFirst",
 ];
 
 /// The parameters each code is shown with, in the order of
@@ -1853,6 +1860,16 @@ pub const UI_MESSAGE_PARAMS: &[(&str, &[&str])] = &[
     ("project.plugin.effect", &["effect"]),
     ("project.plugin.rack", &["channel"]),
     ("text.sentence", &["text"]),
+    (
+        "flp.native.pitcherScale",
+        &["device", "keys", "root", "rootName", "scale", "scaleName"],
+    ),
+    ("flp.native.pitcherNoScale", &["device", "keys"]),
+    ("plugin.panel.title", &[]),
+    ("plugin.panel.stateFile", &[]),
+    ("plugin.panel.load", &[]),
+    ("plugin.panel.queued", &[]),
+    ("plugin.panel.hostFirst", &[]),
 ];
 
 /// The parameters `code` is shown with, or `None` for an unregistered code.
@@ -2133,10 +2150,12 @@ mod tests {
             (81, "mixerPresets.deleteFailed"),
             (82, "text.term"),
             (859, "text.sentence"),
+            (860, "flp.native.pitcherScale"),
+            (866, "plugin.panel.hostFirst"),
         ] {
             assert_eq!(UI_MESSAGE_CODES[index], code);
         }
-        assert_eq!(UI_MESSAGE_CODES.len(), 860);
+        assert_eq!(UI_MESSAGE_CODES.len(), 867);
     }
 
     #[test]

@@ -28,7 +28,7 @@ vst3 = "=0.3.0"
 
 [target.'cfg(windows)'.dependencies]
 # MIT OR Apache-2.0; already locked. Native control-panel embedding only.
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_LibraryLoader", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Gdi"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Globalization", "Win32_System_LibraryLoader", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Gdi"] }
 
 [lints]
 workspace = true

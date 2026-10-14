@@ -552,6 +552,7 @@ export function createTauriBackend(): Backend {
     },
 
     setWindowTitle: (title) => getCurrentWindow().setTitle(title),
+    rememberLanguage: (language) => call("remember_language", { language }),
 
     onCloseRequested(guard) {
       const window = getCurrentWindow()

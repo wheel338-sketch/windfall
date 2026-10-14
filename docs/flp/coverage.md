@@ -474,7 +474,7 @@ Outside the field tables, reported per channel: SimSynth `osc1..3_warm`
 `chorus_on`; and the channel LFO's `predelay` and `attack`, which the public
 sources give only as a percentage with no time unit, and its tempo-sync flag.
 
-## 2026-10-14 round eight: matching controls carried, every omission pinned (written, not built or tested)
+## 2026-10-14 round eight: matching controls carried, every omission pinned (built and tested)
 
 The round-eight audit found decoded fields pinned as omitted although their
 stand-in has a matching control, and omissions outside the native table that

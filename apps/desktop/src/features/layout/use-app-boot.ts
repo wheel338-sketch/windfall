@@ -1,7 +1,7 @@
 import { useEffect } from "react"
 
 import { watchAutomatedEdits } from "@/features/automation/notice"
-import { connectLanguage, message, translatedText, useLanguageStore } from "@/lib/i18n"
+import { connectLanguage, message, translatedText, useLanguageStore, type Language } from "@/lib/i18n"
 import { connectNativeEditorScale } from "@/features/plugins/editor-scale"
 import { installKeymap } from "@/lib/actions"
 import { syncRecentActions } from "@/lib/actions/builtin"
@@ -33,6 +33,7 @@ export function useAppBoot({ guardClose }: BootOptions) {
   useEffect(() => {
     const stop = [
       connectLanguage(),
+      rememberLanguage(),
       connectNativeEditorScale(),
       connectStores(),
       registerAllActions(),
@@ -49,6 +50,24 @@ export function useAppBoot({ guardClose }: BootOptions) {
       for (const off of stop) off()
     }
   }, [guardClose])
+}
+
+/**
+ * Tells the shell the interface language now and whenever it changes. The
+ * shell keeps it in the app's settings, where Windfall running as a plugin
+ * inside another program reads it for its panel.
+ */
+export function rememberLanguage(): () => void {
+  const remember = (language: Language) => {
+    // Not something the user did or can fix, so it is logged, not shown.
+    backend.rememberLanguage(language).catch((error: unknown) => {
+      console.warn("Could not remember the interface language:", errorMessage(error))
+    })
+  }
+  remember(useLanguageStore.getState().language)
+  return useLanguageStore.subscribe((state, before) => {
+    if (state.language !== before.language) remember(state.language)
+  })
 }
 
 /** Puts the project name in the window title, with a mark for unsaved edits. */

@@ -2167,6 +2167,7 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         audio_logger_state,
         audio_logger_configure,
         audio_logger_dump,
+        remember_language,
         document_snapshot,
         window_document_snapshot,
         dispatch,
@@ -2605,6 +2606,21 @@ async fn audio_logger_state(
     let _window_call = caller.enter(&window, "audio_logger_state")?;
     let session = session.inner().clone();
     blocking(move || Ok(session.audio_logger_state())).await
+}
+#[tauri::command]
+async fn remember_language(
+    session: State<'_, Session>,
+    language: crate::settings::InterfaceLanguage,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
+) -> Result<(), String> {
+    let _window_call = caller.enter(&window, "remember_language")?;
+    let session = session.inner().clone();
+    blocking(move || {
+        session.remember_language(language);
+        Ok(())
+    })
+    .await
 }
 #[tauri::command]
 async fn audio_logger_configure(

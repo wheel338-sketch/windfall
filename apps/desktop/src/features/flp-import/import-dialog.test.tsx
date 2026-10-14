@@ -6,6 +6,7 @@ import type { FlpImportPreview } from "@/bindings"
 import type { MockBackend } from "@/lib/ipc/mock"
 import { dispatch, useProjectStore } from "@/lib/store/project"
 import { useUiStore } from "@/lib/store/ui"
+import { nativeMessage, setLanguage } from "@/lib/i18n"
 import { startTestApp } from "@/test/harness"
 import { FlpImportDialog } from "./import-dialog"
 import { ImportedSoundsButton, RetainedSoundsDialog } from "./retained-dialog"
@@ -93,6 +94,7 @@ it("names the omitted controls of each device in the review, and says nothing wh
         omittedControls: [
           { device: "Fruity Limiter", instances: 2, fields: ["ceiling", "knee"] },
           { device: "Pitcher", instances: 1, fields: ["speed"] },
+          { device: "Channel envelope", instances: 1, fields: ["hold"] },
         ],
         moreOmittedDevices: 1,
       },
@@ -104,9 +106,22 @@ it("names the omitted controls of each device in the review, and says nothing wh
   expect(items.map((item) => item.textContent)).toEqual([
     "Fruity Limiter × 2: ceiling, knee",
     "Pitcher: speed",
+    "Channel envelope: hold",
     "1 more device has omitted controls.",
   ])
   expect(omitted).toHaveTextContent("original state is kept with the project")
+  // Windfall's own channel devices are named in the language shown; a
+  // plugin's product name and its field names stay as they are.
+  act(() => setLanguage("es"))
+  await userEvent.click(screen.getByRole("button", { name: /Review again|Revisar de nuevo/ }))
+  const omitidos = await screen.findByRole("region", { name: "Controles omitidos" })
+  expect(within(omitidos).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+    "Fruity Limiter × 2: ceiling, knee",
+    "Pitcher: speed",
+    "Envolvente del canal: hold",
+    "1 dispositivo más tiene controles omitidos.",
+  ])
+  act(() => setLanguage("en"))
   reported.mockRestore()
 })
 
@@ -140,7 +155,9 @@ it("reviews a project the importer really converted: its counts and its omitted 
     report.categories
       .find((c) => c.section === section)
       ?.lines.filter(
-        (line) => line.outcome === "dropped" && line.text.includes("omitted:")
+        (line) =>
+          line.outcome === "dropped" &&
+          (nativeMessage(line.text, "en") ?? line.text).includes("omitted")
       ).length ?? 0
   expect(omittedLines("effects")).toBe(1)
   expect(omittedLines("channels")).toBe(5)

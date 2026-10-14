@@ -22,6 +22,7 @@ struct Inner {
     input_method: *mut c_void,
     input_context: *mut c_void,
     state: Rc<Publication>,
+    words: Words,
     path: String,
     status: String,
 }
@@ -31,7 +32,16 @@ impl Inner {
             XClearWindow(self.display, self.window);
             XSetForeground(self.display, self.gc, 0xffffff);
             let text = |label: &str, x, y| {
-                let bytes = label.as_bytes();
+                // Core X fonts are Latin-1, which has every letter of the
+                // panel's languages; a dash stands for a long dash.
+                let bytes: Vec<u8> = label
+                    .chars()
+                    .map(|c| match c {
+                        '—' | '–' => b'-',
+                        c if u32::from(c) < 256 => c as u8,
+                        _ => b'?',
+                    })
+                    .collect();
                 XDrawString(
                     self.display,
                     self.window,
@@ -42,25 +52,18 @@ impl Inner {
                     bytes.len().min(4096) as i32,
                 );
             };
-            text("Windfall - 16 stereo outputs", 12, 25);
-            text("Exported program state file (windfall-state.json):", 12, 52);
+            text(&self.words.title(), 12, 25);
+            text(&self.words.state_file(), 12, 52);
             XDrawRectangle(self.display, self.window, self.gc, 12, 64, 408, 28);
             text(&self.path, 18, 83);
             XDrawRectangle(self.display, self.window, self.gc, 430, 64, 118, 28);
-            text("Load program", 438, 83);
+            text(&self.words.load(), 438, 83);
             text(&self.status, 12, 122);
             XFlush(self.display);
         }
     }
     fn load(&mut self) {
-        self.status = super::load_program(&self.state, &self.path)
-            .err()
-            .unwrap_or_else(|| {
-                super::status_text(
-                    &self.state,
-                    "Program queued. Host transport and tempo drive playback.",
-                )
-            });
+        self.status = self.words.loaded(&self.state, &self.path);
     }
     fn poll(&mut self) {
         if token() != self.owner {
@@ -213,6 +216,7 @@ pub struct Panel {
 }
 impl Panel {
     pub fn open(parent: *mut c_void, state: Rc<Publication>) -> Result<Self, String> {
+        let words = Words::chosen();
         if parent.is_null() {
             return Err("Missing host X11 window id".into());
         }
@@ -273,11 +277,9 @@ impl Panel {
                 input_method,
                 input_context,
                 state: state.clone(),
+                words,
                 path: String::new(),
-                status: super::status_text(
-                    &state,
-                    "Host transport, tempo and meter take precedence over the document.",
-                ),
+                status: super::status_text(&state, words.host_first(), words),
             }));
             inner.borrow().draw();
             Ok(Self { timer: None, inner })

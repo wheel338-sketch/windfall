@@ -7,8 +7,28 @@ use ffi::*;
 use std::{ffi::CString, ptr};
 struct Context {
     state: Rc<Publication>,
+    words: Words,
     path: Obj,
     status: Obj,
+}
+/// The first of the user's preferred languages, such as `es-ES`.
+pub(crate) fn preferred_language() -> Option<String> {
+    unsafe {
+        let class = objc_getClass(c"NSLocale".as_ptr());
+        if class.is_null() {
+            return None;
+        }
+        let languages = send(class, c"preferredLanguages");
+        if languages.is_null() {
+            return None;
+        }
+        let first = send(languages, c"firstObject");
+        if first.is_null() {
+            return None;
+        }
+        let bytes = send(first, c"UTF8String").cast::<c_char>();
+        (!bytes.is_null()).then(|| CStr::from_ptr(bytes).to_string_lossy().into_owned())
+    }
 }
 pub struct Panel {
     view: Obj,
@@ -31,14 +51,7 @@ unsafe extern "C" fn load(target: Obj, _: Obj, _: Obj) {
             return;
         }
         let path = CStr::from_ptr(bytes).to_string_lossy();
-        let label = super::load_program(&context.state, &path)
-            .err()
-            .unwrap_or_else(|| {
-                super::status_text(
-                    &context.state,
-                    "Program queued. Host transport and tempo drive playback.",
-                )
-            });
+        let label = context.words.loaded(&context.state, &path);
         let text = string(&label);
         object(context.status, c"setStringValue:", text);
         void(text, c"release");
@@ -122,6 +135,7 @@ impl Panel {
             }
             let mut context = Box::new(Context {
                 state,
+                words: Words::chosen(),
                 path: ptr::null_mut(),
                 status: ptr::null_mut(),
             });
@@ -167,7 +181,7 @@ impl Panel {
             control(
                 c"NSTextField",
                 view,
-                "Windfall — 16 stereo outputs",
+                &context.words.title(),
                 12.0,
                 140.0,
                 530.0,
@@ -177,7 +191,7 @@ impl Panel {
             control(
                 c"NSTextField",
                 view,
-                "Exported program state file (windfall-state.json):",
+                &context.words.state_file(),
                 12.0,
                 112.0,
                 530.0,
@@ -188,7 +202,7 @@ impl Panel {
             let button = control(
                 c"NSButton",
                 view,
-                "Load program",
+                &context.words.load(),
                 430.0,
                 78.0,
                 118.0,
@@ -198,10 +212,7 @@ impl Panel {
             context.status = control(
                 c"NSTextField",
                 view,
-                &super::status_text(
-                    &context.state,
-                    "Host transport, tempo and meter take precedence over the document.",
-                ),
+                &super::status_text(&context.state, context.words.host_first(), context.words),
                 12.0,
                 12.0,
                 530.0,

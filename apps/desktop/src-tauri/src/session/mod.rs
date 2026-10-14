@@ -580,6 +580,13 @@ impl Session {
         lock(&self.inner.settings)
     }
 
+    /// Keeps the interface language in the settings file, where Windfall
+    /// running as a plugin inside another program reads it for its panel.
+    pub fn remember_language(&self, language: crate::settings::InterfaceLanguage) {
+        self.store()
+            .update(|settings| settings.language = Some(language.code().to_owned()));
+    }
+
     fn controller(&self) -> &Controller {
         &self.inner.controller
     }

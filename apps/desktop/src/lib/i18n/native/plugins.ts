@@ -55,6 +55,11 @@ export const nativePluginsEn = {
   "pluginHost.invalidState": "the saved plugin state is damaged or was written by a newer version",
   "pluginHost.scannerUnavailable": "the plugin scanner could not be started: {detail}",
   "pluginHost.protocol": "invalid bridge {detail}",
+  "plugin.panel.title": "Windfall — 16 stereo outputs",
+  "plugin.panel.stateFile": "Exported program state file (windfall-state.json):",
+  "plugin.panel.load": "Load program",
+  "plugin.panel.queued": "Program queued. Host transport and tempo drive playback.",
+  "plugin.panel.hostFirst": "Host transport, tempo and meter take precedence over the document.",
 } as const
 
 export const nativePluginsEs = {
@@ -113,4 +118,9 @@ export const nativePluginsEs = {
   "pluginHost.invalidState": "el estado guardado del plugin está dañado o lo escribió una versión más reciente",
   "pluginHost.scannerUnavailable": "no se ha podido iniciar el analizador de plugins: {detail}",
   "pluginHost.protocol": "puente no válido: {detail}",
+  "plugin.panel.title": "Windfall — 16 salidas estéreo",
+  "plugin.panel.stateFile": "Archivo de estado del programa exportado (windfall-state.json):",
+  "plugin.panel.load": "Cargar programa",
+  "plugin.panel.queued": "Programa en cola. El transporte y el tempo del host controlan la reproducción.",
+  "plugin.panel.hostFirst": "El transporte, el tempo y el compás del host tienen prioridad sobre el documento.",
 } satisfies Record<keyof typeof nativePluginsEn, string | { one: string; other: string }>

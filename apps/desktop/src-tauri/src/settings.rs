@@ -32,6 +32,27 @@ pub struct Settings {
     pub recent_projects: Vec<String>,
     /// What the audio logger keeps in the background.
     pub audio_logger: windfall_ipc::AudioLoggerSettings,
+    /// The interface language the user chose (`en`, `es`), kept here so
+    /// that Windfall running as a plugin inside another program shows its
+    /// panel in it too. Kept as text, so a language a newer version adds
+    /// does not make an older one drop the whole file.
+    pub language: Option<String>,
+}
+
+/// A language the interface is shown in, as the settings file keeps it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum InterfaceLanguage {
+    En,
+    Es,
+}
+impl InterfaceLanguage {
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::En => "en",
+            Self::Es => "es",
+        }
+    }
 }
 
 /// The settings and the file they are kept in.
@@ -164,6 +185,30 @@ mod tests {
         let file = folder.join(name);
         fs::write(&file, b"{}").unwrap();
         file
+    }
+
+    #[test]
+    fn the_interface_language_is_kept_where_the_exported_plugin_reads_it() {
+        let folder = tempfile::tempdir().unwrap();
+        let file = folder.path().join(SETTINGS_FILE);
+        // A file written before the language was kept has none.
+        fs::write(&file, "{\"recentProjects\": []}").unwrap();
+        let mut store = SettingsStore::load(file.clone());
+        assert_eq!(store.settings().language, None);
+        store.update(|settings| settings.language = Some(InterfaceLanguage::Es.code().to_owned()));
+        // The plugin reads the top-level `language` of this file.
+        let json: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&file).unwrap()).unwrap();
+        assert_eq!(json["language"], "es");
+        assert_eq!(
+            SettingsStore::load(file).settings().language.as_deref(),
+            Some("es")
+        );
+        assert_eq!(
+            serde_json::from_str::<InterfaceLanguage>("\"en\"").unwrap(),
+            InterfaceLanguage::En
+        );
+        assert!(serde_json::from_str::<InterfaceLanguage>("\"fr\"").is_err());
     }
 
     #[test]

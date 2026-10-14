@@ -91,7 +91,7 @@ function Review({ preview }: { preview: FlpImportPreview }) {
           <ul className="flex flex-col gap-1 pl-4">
             {preview.report.omittedControls.map((device) => (
               <li key={device.device} className="wrap-anywhere">
-                <span className="font-medium">{device.device}</span>
+                <span className="font-medium">{t(device.device)}</span>
                 {device.instances > 1 ? ` × ${device.instances}` : ""}
                 {": "}
                 {device.fields.join(", ")}

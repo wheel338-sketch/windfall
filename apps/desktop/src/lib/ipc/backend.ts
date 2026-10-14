@@ -42,6 +42,7 @@ import type { ProjectFilesBackend } from "./files"
 import type { MixerPresetLibraryBackend } from "./mixer-presets"
 import type { RemoteContentBackend } from "./remote-content"
 import { localizeBackendText, translatedText as t } from "@/lib/i18n"
+import type { Language } from "@/lib/i18n"
 
 export type PluginNoteCapabilities = { projectPanLaw: boolean; instances: boolean; nativePan: boolean[]; nativeVolume: boolean[]; observedChannels?: number[]; refusal?: string | null }
 export type Unsubscribe = () => void
@@ -465,6 +466,11 @@ export interface Backend extends AnalysisBackend, PresetRenderBackend, MixerPres
   pickMidiExportPath(suggestedName: string): Promise<string | null>
 
   setWindowTitle(title: string): Promise<void>
+  /**
+   * Keeps the interface language in the app's settings file, where Windfall
+   * running as a plugin inside another program reads it for its panel.
+   */
+  rememberLanguage(language: Language): Promise<void>
   detachPanel(id: PanelId): Promise<void>
   dockPanel(id: PanelId): Promise<void>
   onPanelDocked(listener: (id: PanelId) => void): Unsubscribe

@@ -1580,6 +1580,8 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       ipc(() => {
         if (typeof window !== "undefined") window.document.title = title
       }),
+    // A browser tab has no settings file and no exported plugin to read one.
+    rememberLanguage: () => ipc(() => undefined),
 
     // A browser tab cannot wait for an answer before it closes, so the mock
     // falls back to the browser's own "leave site?" prompt.

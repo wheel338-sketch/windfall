@@ -3,6 +3,7 @@
 //! IO, device opening, controller locks or project compilation occurs in process.
 
 mod clap;
+mod language;
 mod nested;
 pub mod package;
 mod panel;

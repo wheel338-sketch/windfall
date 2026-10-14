@@ -1531,7 +1531,15 @@ pub(super) fn reports(name: &str, state: &[u8]) -> Vec<String> {
                 } else {
                     i64::from(numbers.get(at)?)
                 };
-                Some(windfall_core::notice!("flp.native.fieldOmitted", device = name, field = field, value = v).to_string())
+                Some(
+                    windfall_core::notice!(
+                        "flp.native.fieldOmitted",
+                        device = name,
+                        field = field,
+                        value = v
+                    )
+                    .to_string(),
+                )
             })
             .collect();
     }
@@ -1560,8 +1568,13 @@ pub(super) fn reports(name: &str, state: &[u8]) -> Vec<String> {
         }
         if let Some(v) = numbers.get(21) {
             lines.push(
-                windfall_core::notice!("flp.native.fieldOmitted", device = name, field = "phase_rand", value = v)
-                    .to_string(),
+                windfall_core::notice!(
+                    "flp.native.fieldOmitted",
+                    device = name,
+                    field = "phase_rand",
+                    value = v
+                )
+                .to_string(),
             );
         }
         for (offset, field) in [
@@ -1572,8 +1585,13 @@ pub(super) fn reports(name: &str, state: &[u8]) -> Vec<String> {
         ] {
             if let Some(v) = numbers.byte(offset) {
                 lines.push(
-                    windfall_core::notice!("flp.native.fieldOmitted", device = name, field = field, value = v)
-                        .to_string(),
+                    windfall_core::notice!(
+                        "flp.native.fieldOmitted",
+                        device = name,
+                        field = field,
+                        value = v
+                    )
+                    .to_string(),
                 );
             }
         }
@@ -1805,16 +1823,22 @@ pub(super) fn reports(name: &str, state: &[u8]) -> Vec<String> {
             .collect::<Vec<_>>()
             .join(" ");
         reports.push(match pitcher_scale(keys) {
-            Some((root, scale)) => format!(
-                "{name}: enabled keys [{listed}] -> root={} scale={} (the stand-in's {} scale on {}).",
-                root,
-                scale,
-                ["chromatic", "major", "minor", "pentatonic"][scale],
-                names[usize::from(root)]
-            ),
-            None => format!(
-                "{name}: enabled keys [{listed}] form none of the stand-in's scales (chromatic, major, minor, pentatonic on any root); it corrects to the chromatic scale and the original state is kept."
-            ),
+            Some((root, scale)) => windfall_core::notice!(
+                "flp.native.pitcherScale",
+                device = name,
+                keys = listed,
+                root = root,
+                scale = scale,
+                scaleName = windfall_core::notice::term(
+                    ["chromatic", "major", "minor", "pentatonic"][scale]
+                ),
+                rootName = names[usize::from(root)]
+            )
+            .to_string(),
+            None => {
+                windfall_core::notice!("flp.native.pitcherNoScale", device = name, keys = listed)
+                    .to_string()
+            }
         });
     }
     if key == "fruity free filter" {
@@ -2333,7 +2357,10 @@ mod open_list {
         ] {
             let state = [0_u8; 600];
             let lines = reports(name, &state);
-            let filed: Vec<String> = lines.iter().filter_map(|line| omitted_field(line)).collect();
+            let filed: Vec<String> = lines
+                .iter()
+                .filter_map(|line| omitted_field(line))
+                .collect();
             let recorded = OMITTED_ELSEWHERE
                 .iter()
                 .find(|(device, _)| device.eq_ignore_ascii_case(name))

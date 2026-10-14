@@ -6,6 +6,7 @@ use std::{
     ffi::{c_char, c_void},
     rc::Rc,
 };
+use windfall_core::english::{Language, in_language};
 pub fn supports(platform: *const c_char) -> bool {
     if platform.is_null() {
         return false;
@@ -40,6 +41,8 @@ pub use windows::Panel;
 mod cocoa;
 #[cfg(target_os = "macos")]
 pub use cocoa::Panel;
+#[cfg(target_os = "macos")]
+pub(crate) use cocoa::preferred_language;
 #[cfg(target_os = "linux")]
 mod x11;
 #[cfg(target_os = "linux")]
@@ -53,12 +56,45 @@ impl Panel {
     }
     pub fn visible(&self, _: bool) {}
 }
+/// What the panels say, in the language the user chose in Windfall
+/// (`crate::language`), from the interface's own catalogs: the panel's own
+/// words and every coded message it shows. A name or path somebody typed
+/// and what the operating system says stay as they are.
+#[derive(Debug, Clone, Copy)]
+struct Words(Language);
+impl Words {
+    fn chosen() -> Self {
+        Self(crate::language::chosen())
+    }
+    fn say(self, text: &str) -> String {
+        in_language(text, self.0)
+    }
+    fn title(self) -> String {
+        self.say(&windfall_core::notice!("plugin.panel.title").to_string())
+    }
+    fn state_file(self) -> String {
+        self.say(&windfall_core::notice!("plugin.panel.stateFile").to_string())
+    }
+    fn load(self) -> String {
+        self.say(&windfall_core::notice!("plugin.panel.load").to_string())
+    }
+    fn queued(self) -> String {
+        self.say(&windfall_core::notice!("plugin.panel.queued").to_string())
+    }
+    fn host_first(self) -> String {
+        self.say(&windfall_core::notice!("plugin.panel.hostFirst").to_string())
+    }
+    /// What the status line says after loading the program at `path`.
+    fn loaded(self, state: &Publication, path: &str) -> String {
+        load_program(state, path, self)
+            .err()
+            .unwrap_or_else(|| status_text(state, self.queued(), self))
+    }
+}
 /// The same bounded load transaction is used by all three native panels.
-/// What the panels show is English: the exported plugin has no interface
-/// language, so a coded message is put into its English words here.
-fn load_program(state: &Publication, path: &str) -> Result<(), String> {
+fn load_program(state: &Publication, path: &str, words: Words) -> Result<(), String> {
     let file = std::fs::File::open(path.trim()).map_err(|e| e.to_string())?;
-    load_reader(state, file).map_err(|error| windfall_core::english::english(&error))
+    load_reader(state, file).map_err(|error| words.say(&error))
 }
 fn load_reader(state: &Publication, reader: impl std::io::Read) -> Result<(), String> {
     use std::io::Read;
@@ -69,8 +105,11 @@ fn load_reader(state: &Publication, reader: impl std::io::Read) -> Result<(), St
         .map_err(|e| e.to_string())?;
     state.load_editor(crate::Program::decode(&bytes)?)
 }
-fn status_text(state: &Publication, ready: &str) -> String {
-    windfall_core::english::english(state.preparation_error().unwrap_or(ready))
+fn status_text(state: &Publication, ready: String, words: Words) -> String {
+    state
+        .preparation_error()
+        .map(|error| words.say(error))
+        .unwrap_or(ready)
 }
 #[cfg(test)]
 mod tests {
@@ -97,6 +136,22 @@ mod tests {
         );
         assert_eq!(state.capture().unwrap(), encoded);
     }
+    #[test]
+    fn the_panel_words_follow_the_language() {
+        let english = Words(Language::English);
+        let spanish = Words(Language::Spanish);
+        assert_eq!(english.load(), "Load program");
+        assert_eq!(spanish.load(), "Cargar programa");
+        assert_eq!(spanish.title(), "Windfall — 16 salidas estéreo");
+        // A refusal to load is said in the panel's language too.
+        let state = Publication::default();
+        let refused = load_program(&state, "", spanish).unwrap_err();
+        assert!(!refused.is_empty());
+        let refused = load_reader(&state, std::io::Cursor::new(b"corrupt packet"))
+            .map_err(|error| spanish.say(&error))
+            .unwrap_err();
+        assert!(!refused.contains("windfall-message:"), "{refused}");
+    }
 }
 #[cfg(windows)]
 mod windows {
@@ -111,6 +166,7 @@ mod windows {
     }
     struct Context {
         state: Rc<Publication>,
+        words: Words,
         path: HWND,
         status: HWND,
     }
@@ -140,13 +196,7 @@ mod windows {
                 let size =
                     unsafe { GetWindowTextW(context.path, text.as_mut_ptr(), text.len() as i32) };
                 let path = String::from_utf16_lossy(&text[..size.max(0) as usize]);
-                let result = load_program(&context.state, &path);
-                let label = result.err().unwrap_or_else(|| {
-                    status_text(
-                        &context.state,
-                        "Program queued. Host transport and tempo drive playback.",
-                    )
-                });
+                let label = context.words.loaded(&context.state, &path);
                 unsafe {
                     SetWindowTextW(context.status, wide(&label).as_ptr());
                 }
@@ -162,11 +212,19 @@ mod windows {
             }
         }
         pub fn open(parent: *mut c_void, state: Rc<Publication>) -> Result<Self, String> {
+            Self::open_in(parent, state, Words::chosen())
+        }
+        fn open_in(
+            parent: *mut c_void,
+            state: Rc<Publication>,
+            words: Words,
+        ) -> Result<Self, String> {
             if parent.is_null() {
                 return Err("Missing host editor parent".into());
             }
             let mut context = Box::new(Context {
                 state,
+                words,
                 path: ptr::null_mut(),
                 status: ptr::null_mut(),
             });
@@ -238,26 +296,8 @@ mod windows {
                     ptr::null(),
                 )
             };
-            child(
-                "STATIC",
-                "Windfall — 16 stereo outputs",
-                0,
-                12,
-                12,
-                530,
-                24,
-                0,
-            );
-            child(
-                "STATIC",
-                "Exported program state file (windfall-state.json):",
-                0,
-                12,
-                44,
-                530,
-                20,
-                0,
-            );
+            child("STATIC", &words.title(), 0, 12, 12, 530, 24, 0);
+            child("STATIC", &words.state_file(), 0, 12, 44, 530, 20, 0);
             context.path = child(
                 "EDIT",
                 "",
@@ -268,13 +308,10 @@ mod windows {
                 26,
                 2,
             );
-            child("BUTTON", "Load program", WS_TABSTOP, 436, 68, 112, 26, 1);
+            child("BUTTON", &words.load(), WS_TABSTOP, 436, 68, 112, 26, 1);
             context.status = child(
                 "STATIC",
-                &status_text(
-                    &context.state,
-                    "Host transport, tempo and meter take precedence over the document.",
-                ),
+                &status_text(&context.state, words.host_first(), words),
                 0,
                 12,
                 108,
@@ -304,6 +341,73 @@ mod windows {
                 UnregisterClassW(self.class.as_ptr(), self.module);
             }
             let _ = &self.context;
+        }
+    }
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        /// The text of every control of `window`, in creation order.
+        fn texts(window: HWND) -> Vec<String> {
+            let mut texts = Vec::new();
+            let mut child = unsafe { GetWindow(window, GW_CHILD) };
+            while !child.is_null() {
+                let mut text = [0u16; 512];
+                let size = unsafe { GetWindowTextW(child, text.as_mut_ptr(), text.len() as i32) };
+                texts.push(String::from_utf16_lossy(&text[..size.max(0) as usize]));
+                child = unsafe { GetWindow(child, GW_HWNDNEXT) };
+            }
+            texts
+        }
+        #[test]
+        fn the_native_panel_renders_in_spanish_and_in_english() {
+            // A hidden top-level window stands for the host's editor frame.
+            let host = unsafe {
+                CreateWindowExW(
+                    0,
+                    wide("STATIC").as_ptr(),
+                    wide("host").as_ptr(),
+                    WS_OVERLAPPED,
+                    0,
+                    0,
+                    600,
+                    200,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null(),
+                )
+            };
+            assert!(!host.is_null());
+            for (language, expected) in [
+                (
+                    Language::Spanish,
+                    [
+                        "Windfall — 16 salidas estéreo",
+                        "Archivo de estado del programa exportado (windfall-state.json):",
+                        "",
+                        "Cargar programa",
+                        "El transporte, el tempo y el compás del host tienen prioridad sobre el documento.",
+                    ],
+                ),
+                (
+                    Language::English,
+                    [
+                        "Windfall — 16 stereo outputs",
+                        "Exported program state file (windfall-state.json):",
+                        "",
+                        "Load program",
+                        "Host transport, tempo and meter take precedence over the document.",
+                    ],
+                ),
+            ] {
+                let panel =
+                    Panel::open_in(host, Rc::new(Publication::default()), Words(language)).unwrap();
+                assert_eq!(texts(panel.window), expected, "{language:?}");
+                drop(panel);
+            }
+            unsafe {
+                DestroyWindow(host);
+            }
         }
     }
 }

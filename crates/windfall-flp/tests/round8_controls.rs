@@ -7,6 +7,7 @@
 mod common;
 use common::Events;
 use std::f64::consts::{PI, TAU};
+use windfall_core::english::english;
 use windfall_dsp::{AnyEffect, AnyInstrument, EffectParams, InstrumentParams};
 use windfall_flp::{ConvertOptions, FileFormat, Header, Outcome, ReportSection, import};
 
@@ -46,6 +47,19 @@ fn instrument(name: &str, b: &[u8]) -> windfall_flp::Conversion {
     e.text(201, name);
     e.data(213, b);
     imported(&e)
+}
+/// The review as the English interface shows it, one line after another.
+fn review(c: &windfall_flp::Conversion) -> String {
+    c.report
+        .categories
+        .iter()
+        .flat_map(|category| &category.lines)
+        .map(|line| english(&line.text))
+        .collect::<Vec<_>>()
+        .join(
+            "
+",
+        )
 }
 fn effect_params(c: &windfall_flp::Conversion) -> EffectParams {
     c.project.mixer.tracks[0].effects[0].params
@@ -179,7 +193,7 @@ fn pitch_shifter_wet_and_formant_correction_import_play_and_reopen() {
     // generation's Frequency Shifter.
     assert_eq!(value(&params, "mix"), 0.25);
     assert_eq!(value(&params, "mode"), 0.0, "no correction: full mix");
-    let report = format!("{:?}", c.report);
+    let report = review(&c);
     assert!(report.contains("wet=2500 -> mix=0.25"), "{report}");
     assert!(!report.contains("wet=2500: omitted"));
     // Outside the read range it is clamped and never voids the prefix.
@@ -354,7 +368,7 @@ fn vintage_chorus_tempo_sync_keeps_the_fitted_rate_at_the_import_tempo() {
     assert_eq!(value(&synced, "sync"), 1.0);
     let beats = (120.0 / 60.0 / rate_hz).clamp(0.125, 16.0);
     assert!((f64::from(value(&synced, "cycleBeats")) - beats).abs() < 1e-5);
-    assert!(format!("{:?}", c.report).contains("mod_tempo_sync=1 -> sync=1"));
+    assert!(review(&c).contains("mod_tempo_sync=1 -> sync=1"));
     // Synced at 120 BPM it plays what the free rate plays.
     let rate = 48_000.0;
     let input = sine(440.0, rate, 48_000, 0.3);
@@ -433,7 +447,7 @@ fn stereo_shaper_delay_holds_one_side_back_by_the_stated_rule() {
             let apart = worst(out, &want);
             assert!(apart < 1e-6, "delay={delay}: {apart}");
         }
-        assert!(format!("{:?}", c.report).contains(&format!("delay={delay}: a positive delay")));
+        assert!(review(&c).contains(&format!("delay={delay}: a positive delay")));
         reopens(&c, &state);
     }
 }
@@ -536,7 +550,7 @@ fn bassdrum_peak_and_base_give_the_pitch_drop() {
     // Without a peak the stand-in keeps its own drop.
     let unset = instrument_params(&instrument("BassDrum", &bassdrum_state(100.0, 0.0)));
     assert_eq!(instrument_value(&unset, "pitchDropSemitones"), 36.0);
-    assert!(format!("{:?}", c.report).contains("peak=200: with base it gives pitchDropSemitones"));
+    assert!(review(&c).contains("peak=200: with base it gives pitchDropSemitones"));
 
     // The body's pitch starts an octave up and glides down: counted in
     // cycles between zero crossings, against the integral of
@@ -596,7 +610,7 @@ fn vocoder_band_count_is_carried_within_the_stand_in_range() {
         assert_eq!(value(&params, "bandCount"), want, "{bands} bands");
         assert_eq!(value(&params, "mix"), 1.0);
         assert!(
-            format!("{:?}", c.report).contains(&format!("num_bands={bands} -> bandCount={want}")),
+            review(&c).contains(&format!("num_bands={bands} -> bandCount={want}")),
             "{bands}"
         );
         reopens(&c, &state(bands));
@@ -604,9 +618,12 @@ fn vocoder_band_count_is_carried_within_the_stand_in_range() {
     // The count is the stand-in's own control, so what it sounds like is
     // the stand-in's (its DSP tests): here it is enough that 24 bands do
     // not play like the 16 the stand-in had before, with a modulator
-    // through the synth carrier.
+    // through the synth carrier. The stand-in's main input is its carrier
+    // and its modulator comes from the key, so with no key the main input
+    // is made the modulator ("key is carrier") and the synth carries.
     let mut params = effect_params(&effect("Fruity Vocoder", &state(24)));
     set(&mut params, "synthCarrier", 1.0);
+    set(&mut params, "keyIsCarrier", 1.0);
     let mut sixteen = params;
     set(&mut sixteen, "bandCount", 16.0);
     let rate = 48_000.0;
@@ -649,7 +666,7 @@ fn pitcher_enabled_keys_set_the_root_and_scale_they_form() {
     assert_eq!(value(&params, "scale"), 1.0, "major");
     assert!((value(&params, "tuningHz") - 440.0).abs() < 1e-3);
     assert_eq!(value(&params, "speedMs"), 0.0);
-    assert!(format!("{:?}", c.report).contains(
+    assert!(review(&c).contains(
         "enabled keys [C# D E F# G A B] -> root=2 scale=1 (the stand-in's major scale on D)"
     ));
     for (keys, root, scale) in [
@@ -666,7 +683,7 @@ fn pitcher_enabled_keys_set_the_root_and_scale_they_form() {
             "{keys:?}"
         );
         if keys.len() == 2 {
-            assert!(format!("{:?}", other.report).contains("form none of the stand-in's scales"));
+            assert!(review(&other).contains("form none of the stand-in's scales"));
         }
     }
     reopens(&c, &state);
@@ -818,7 +835,7 @@ fn delay_stereo_offset_feedback_cut_cutoff_and_own_tempo_import_play_and_reopen(
     assert_eq!(value(&params, "highCutHz"), 10_250.0);
     assert_eq!(value(&params, "feedback"), 0.25);
     assert_eq!(value(&params, "mix"), 0.5);
-    assert!(format!("{:?}", c.report).contains("its own tempo, 60 + 220 * knob BPM"));
+    assert!(review(&c).contains("its own tempo, 60 + 220 * knob BPM"));
     let mut long = vec![0.0_f32; 40_000];
     long[0] = 1.0;
     let [l, _] = play(&params, rate, 90.0, &long, &long);
@@ -856,7 +873,9 @@ fn omitted_fields_outside_the_native_table_are_counted_and_listed_by_device() {
             .category(section)
             .lines
             .iter()
-            .filter(|line| line.outcome == Outcome::Dropped && line.text.contains("omitted"))
+            .filter(|line| {
+                line.outcome == Outcome::Dropped && english(&line.text).contains("omitted")
+            })
             .count()
     };
     // The synth switches are omitted fields now, not notes of the line
@@ -876,7 +895,7 @@ fn omitted_fields_outside_the_native_table_are_counted_and_listed_by_device() {
             .category(ReportSection::Channels)
             .lines
             .iter()
-            .all(|line| !line.text.contains("warm/unison"))
+            .all(|line| !english(&line.text).contains("warm/unison"))
     );
     let c = instrument("3x Osc", &[0; 92]);
     assert_eq!(
@@ -894,8 +913,8 @@ fn omitted_fields_outside_the_native_table_are_counted_and_listed_by_device() {
             .lines
             .iter()
             .all(|line| {
-                !line.text.contains("stereo detune of its oscillators")
-                    && !line.text.contains("no longer modulates")
+                !english(&line.text).contains("stereo detune of its oscillators")
+                    && !english(&line.text).contains("no longer modulates")
             })
     );
     // The effects read by number.
