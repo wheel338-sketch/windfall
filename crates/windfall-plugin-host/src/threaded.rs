@@ -149,6 +149,8 @@ struct Threaded {
     midi_masks: [u32; 16],
     instances: bool,
     masks: [u32; 16],
+    /// Where the backend's masks can change while it runs on the worker.
+    live_masks: Option<Arc<[std::sync::atomic::AtomicU32; 16]>>,
     signals: Arc<Signals>,
     worker: Option<JoinHandle<Box<dyn ProcessorBackend>>>,
     native: Option<Box<dyn ProcessorBackend>>,
@@ -166,6 +168,7 @@ pub(crate) fn wrap(
     let midi_masks = std::array::from_fn(|channel| native.midi_expression_mask(channel as u8));
     let instances = native.supports_note_instances();
     let masks = std::array::from_fn(|channel| native.note_expression_mask(channel as u8));
+    let live_masks = native.note_expression_cells();
     let latency = native
         .additional_latency()
         .saturating_add((block as u32).saturating_mul(2));
@@ -196,6 +199,7 @@ pub(crate) fn wrap(
         midi_masks,
         instances,
         masks,
+        live_masks,
         signals,
         worker: Some(worker),
         native: None,
@@ -363,7 +367,15 @@ impl ProcessorBackend for Threaded {
         self.instances
     }
     fn note_expression_mask(&self, channel: u8) -> u32 {
-        self.masks[usize::from(channel.min(15))]
+        let channel = usize::from(channel.min(15));
+        self.live_masks
+            .as_ref()
+            .map_or(self.masks[channel], |masks| {
+                masks[channel].load(std::sync::atomic::Ordering::Relaxed)
+            })
+    }
+    fn note_expression_cells(&self) -> Option<Arc<[std::sync::atomic::AtomicU32; 16]>> {
+        self.live_masks.clone()
     }
     fn set_realtime(&mut self, realtime: bool) {
         self.realtime = realtime;

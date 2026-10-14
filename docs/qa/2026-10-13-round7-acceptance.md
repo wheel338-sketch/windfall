@@ -182,3 +182,81 @@ Commands: `cargo test --offline -p windfall-plugin-host --no-fail-fast -- --test
 above (`s3-plugins3`); `… --lib session::tests::plugin` 41 / 0 (`s3-session1`);
 `cargo clippy --offline --workspace --all-targets -- -D warnings` clean
 (`s3-clippy1`).
+
+**3.3 A capability change without replacing the unit.** A VST3 plugin can
+announce that its note expressions changed (`kNoteExpressionChanged`) without
+asking to be restarted. The host treated that flag like any other restart
+request, so in practice every capability change replaced the unit and the
+same-unit path had no native coverage. Now:
+
+- `PluginInstance::follow_note_expression_changes(true)` makes the VST3
+  instance ask its controller again on the owner thread when that flag
+  arrives and write the result to cells the running processor reads
+  (`vst3/processor.rs::note_expression_masks`, shared with the instance and
+  read through the threaded and wrapper layers). No restart is requested for
+  that flag alone. Off, the default, nothing changes: the helper process
+  keeps the default, so a bridged plugin still gets a replacement helper,
+  now with the ramp carried (3.1).
+- The desktop owner turns it on for in-process plugins. The unit already
+  published the adapter capabilities at every control boundary and re-read
+  its routes every block; with live cells that path is now reachable.
+- Fixture class 28, "VST3 Live Expression Switch" (appended; class counts
+  moved from 28 to 29): it offers pan and volume per note and can withhold
+  either while it runs. Its controller announces the change through a
+  gesture (`getParamStringByValue` marks, the idiom the fixture already uses
+  for editor gestures) with `kNoteExpressionChanged` alone; its processor
+  stops applying the property at the frame of a parameter point (8 for pan,
+  9 for volume) and starts from neutral when it offers it again.
+
+Not changed, and why it matters to an auditor: `midi_fallback` (whether a
+VST3 plugin without a tuning expression is bent through its MIDI mapping) is
+still decided at activation, and the capability panel of a *bridged* plugin
+shows what the helper negotiated at launch (a bridged live change still
+replaces the helper, which renegotiates).
+
+**Release budget for the multiband delay (second addition).** No release
+budget case existed for this effect in any suite, three-band layout
+included, so there was no "existing case" to share a limit with. The new
+case, `p2_effect_budgets::multiband_delay_three_and_sixteen_band_layouts_have_one_declared_cpu_budget`,
+measures both layouts with the P2 harness (384 kHz, blocks of 1, 64, 256
+and 2,048, the minimum of three trials on a performance core, reset
+deadline included) against one declared share of 20% of a core, the tightest
+share that suite declares. The sixteen-band workload has every band of the
+playing bank sounding with its own delay, level and pan (asserted distinct),
+feedback 0.75 to 0.85 on all three groups, the output fully wet, and the
+other seven banks holding different settings.
+
+Its first run failed, on reset and not on CPU: `reset()` took 3,343 µs
+against the 167 µs a reset may take (`target/round7-final-s3-budget1.log`).
+The delay zeroed every line in full: 32 lines of a second each, 67 MB at
+384 kHz. The three-band layout before round seven had the same defect at a
+fifth of the size, never measured; and a layout change did the same clear
+inside a block. Fixed in the DSP, not in the test: `band_delay.rs::EchoLine`
+counts what was pushed since the last clear and reads anything older as
+silence, which is what a zeroed line returns.
+`echo_line_tests::a_line_cleared_in_constant_time_reads_exactly_like_a_zeroed_one`
+compares it bit for bit with a fully zeroed `DelayLine` over more than
+10,000 reads across clears, wraps and partial fills; the existing band-delay
+references (`cargo test -p windfall-dsp --lib spatial`, 28 / 0) are
+unchanged.
+
+| Layout | Block | CPU share of one performance core | Reset |
+|---|---|---|---|
+| three bands | 64 / 256 / 2,048 | 2.9% / 2.8% / 2.7% | 0.1 µs |
+| sixteen bands | 64 / 256 / 2,048 | 11.0% / 10.9% / 10.9% | 0.1 µs |
+
+(limit 20%; one-frame blocks are reported and not judged, as for every P2
+case: 16.2% and 25.0%.) Log: `target/round7-final-s3-budget2.log`.
+
+More measurements for this step:
+
+| Test | What it measures | Result |
+|---|---|---|
+| `vst3_host::a_live_note_expression_change_is_followed_by_the_running_processor_without_a_restart` | class 28 through the host: pan, volume, both withheld and returned; followed (masks change, no restart) and not followed (restart requested, masks kept) | pass |
+| `plugins::runtime::route_tests::vst3_live_capability_change_keeps_the_unit_and_hands_the_property_to_the_channel_and_back` | the production in-process unit with class 28: a note with gain 0.6 and a pan ramp in flight; pan, volume or both withheld and offered again, four laws: routes read again at the boundary, same unit and plugin, never deactivated, no restart, no allocation at the boundary; every frame against the fixture neutral output times note gain and law gain | 12 runs: worst 4.5e-8; largest step 13% of the bound; one voice, none stuck |
+
+Commands after these changes: `cargo test --offline -p windfall-plugin-host --no-fail-fast -- --test-threads=1`
+297 / 0 / 7 (`s3-host6`); `cargo test --offline -p windfall-desktop --lib plugin -- --test-threads=1 --include-ignored`
+126 / 0 / 0 (`s3-plugins4`, includes the nine software capture opt-ins);
+`cargo clippy --offline --workspace --all-targets -- -D warnings` clean
+(`s3-clippy3`).

@@ -1285,6 +1285,10 @@ impl Runtime {
         instance
             .refresh_capabilities()
             .map_err(|error| error.to_string())?;
+        // A plugin that changes what it offers per note while it runs is
+        // followed by the unit that plays it: the routes are read again at
+        // its next block boundary, and nothing is replaced.
+        instance.follow_note_expression_changes(true);
         Ok(instance)
     }
     pub fn discover(&self, mut binding: PluginBinding) -> Result<PluginBinding, String> {

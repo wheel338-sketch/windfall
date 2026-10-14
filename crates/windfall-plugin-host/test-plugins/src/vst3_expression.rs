@@ -80,6 +80,21 @@ impl Voices {
             _ => {}
         }
     }
+    /// A property the plugin does not offer now is not applied, and starts
+    /// from its neutral value when it is offered again.
+    pub(super) fn withhold(&mut self, pan: bool, volume: bool) {
+        if !pan && !volume {
+            return;
+        }
+        for voice in self.0.iter_mut().filter(|voice| voice.id >= 0) {
+            if pan {
+                voice.pan = Voice::EMPTY.pan;
+            }
+            if volume {
+                voice.volume = Voice::EMPTY.volume;
+            }
+        }
+    }
     pub(super) fn pcm(&self) -> [f32; 2] {
         let mut result = [0.0_f64; 2];
         for voice in &self.0 {
@@ -130,7 +145,14 @@ impl INoteExpressionControllerTrait for Component {
             && bus == 0
             && (0..15).contains(&channel)
         {
-            if self.project_expression_probe { 5 } else { 4 }
+            if self.project_expression_probe {
+                5 - self
+                    .live_withheld
+                    .load(std::sync::atomic::Ordering::Relaxed)
+                    .count_ones() as i32
+            } else {
+                4
+            }
         } else {
             0
         }
@@ -149,7 +171,17 @@ impl INoteExpressionControllerTrait for Component {
             return kInvalidArgument;
         }
         let mut value: NoteExpressionTypeInfo = unsafe { std::mem::zeroed() };
-        value.typeId = if self.project_expression_probe {
+        value.typeId = if self.live_expression {
+            // Volume is type 0 and pan type 1; a withheld one is not listed.
+            let withheld = self
+                .live_withheld
+                .load(std::sync::atomic::Ordering::Relaxed);
+            [0, 1, 2, 4, 5]
+                .into_iter()
+                .filter(|kind| !(*kind == 1 && withheld & 1 != 0 || *kind == 0 && withheld & 2 != 0))
+                .nth(index as usize)
+                .unwrap_or(5)
+        } else if self.project_expression_probe {
             [0, 1, 2, 4, 5][index as usize]
         } else if self.volume_expression_probe {
             [0, 2, 4, 5][index as usize]

@@ -759,3 +759,144 @@ fn a_state_capture_during_a_sounding_note_leaves_the_audio_untouched() {
         println!("CAPTURE {label}: 4096 frames identical with and without a state capture");
     }
 }
+
+#[test]
+fn vst3_live_capability_change_keeps_the_unit_and_hands_the_property_to_the_channel_and_back() {
+    // Fixture class 28 offers pan and volume per note and can withhold
+    // either while it runs: its controller announces the change without
+    // asking for a restart, and its processor stops applying the property
+    // at the frame of the parameter point. Nothing is replaced. The unit
+    // reads the routes again at its next block boundary; a property the
+    // plugin withholds is the channel's from that frame, and one it offers
+    // again moves back over the fade. Throughout, what is heard is the
+    // fixture's neutral output times the note's gain and the law's gain.
+    const GAIN: f32 = 0.6;
+    let mut worst = 0.0_f32;
+    let mut worst_step = 0.0_f32;
+    for (what, switches) in [("pan", vec![8]), ("volume", vec![9]), ("both", vec![8, 9])] {
+        for law in LAWS {
+            let label = format!("live {what} {law:?}");
+            let (runtime, bindings) = fixtures(&[28]);
+            let binding = &bindings[0];
+            let id = NoteInstanceId(5);
+            let mut unit = runtime.instrument(binding, 48_000, 64).unwrap();
+            unit.transport(transport());
+            unit.set_note_pan_law(law);
+            let token = runtime.selected_token(binding.target).unwrap();
+            // Read from this unit's own record: its neutral twin plays the
+            // same target and never changes.
+            let routes = || {
+                runtime
+                    .call(move |owner| Ok(owner.instances[&token].note_capabilities.routes(0)))
+                    .unwrap()
+            };
+            let offered = |pan: bool, volume: bool| Routes { pan, volume };
+            assert_eq!(routes(), offered(true, true), "{label}");
+            let (_factory, mut plain_unit) = neutral(&runtime, binding, 69, 0.4);
+            unit.note_on_instance(id, 69, 0.4, -0.5, NoteExpression::NEUTRAL);
+            unit.set_note_gain(id, GAIN);
+            let mut heard = expression_audio(unit.as_mut(), 256);
+            let mut plain = expression_audio(plain_unit.as_mut(), 256);
+            unit.set_note_expression(id, 0.7, NoteExpression::NEUTRAL);
+            heard.extend(expression_audio(unit.as_mut(), 64));
+            plain.extend(expression_audio(plain_unit.as_mut(), 64));
+
+            // The plugin announces what it offers now, the owner hears it on
+            // its next turn, and the processor gets the same change as a
+            // parameter point on the first frame of the next block.
+            let switch = |unit: &mut Box<dyn HostedInstrument>, withheld: bool| {
+                let value = if withheld { 1.0 } else { 0.0 };
+                // The gesture that makes the controller announce it: 29/32
+                // offers everything, 31/32 withholds pan, 61/64 volume and
+                // 59/64 both.
+                let mark = match (withheld, switches.as_slice()) {
+                    (false, _) => 0.90625,
+                    (true, [8]) => 0.96875,
+                    (true, [9]) => 0.953125,
+                    (true, _) => 0.921875,
+                };
+                runtime
+                    .call(move |owner| {
+                        let record = owner.instances.get_mut(&token).unwrap();
+                        record.plugin.param_text(7, mark);
+                        let mut restart = false;
+                        record.plugin.idle(&mut |notification| {
+                            restart |= matches!(
+                                notification,
+                                windfall_plugin_host::PluginNotification::RestartRequested
+                            );
+                        });
+                        assert!(!restart, "a live change asks for no restart");
+                        assert!(record.plugin.is_active());
+                        Ok(())
+                    })
+                    .unwrap();
+                for id in &switches {
+                    unit.set_param(*id, value);
+                }
+                assert_eq!(
+                    crate::test_alloc::allocator_calls(|| unit.control_boundary()),
+                    0
+                );
+            };
+            switch(&mut unit, true);
+            assert_eq!(
+                routes(),
+                offered(!switches.contains(&8), !switches.contains(&9)),
+                "{label}: the routes were read again at the boundary"
+            );
+            heard.extend(expression_audio(unit.as_mut(), 512));
+            plain.extend(expression_audio(plain_unit.as_mut(), 512));
+            switch(&mut unit, false);
+            assert_eq!(routes(), offered(true, true), "{label}");
+            heard.extend(expression_audio(unit.as_mut(), 512));
+            plain.extend(expression_audio(plain_unit.as_mut(), 512));
+
+            // The same unit and the same plugin throughout, never taken back.
+            runtime
+                .call(move |owner| {
+                    assert!(owner.instances[&token].plugin.is_active());
+                    assert!(!owner.instances[&token].restart);
+                    Ok(())
+                })
+                .unwrap();
+            assert_eq!(runtime.selected_token(binding.target), Some(token));
+            assert_eq!(unit.voices(), 1, "{label}: one note, never restarted");
+
+            // The note has its gain from its first frame; the pan ramp
+            // starts at frame 256 and is never interrupted.
+            let latency = unit.latency();
+            for (t, (got, neutral)) in heard.iter().zip(&plain).enumerate() {
+                let at = t.saturating_sub(latency);
+                let gains = ramp_gains(law, at.saturating_sub(256));
+                let want = [neutral[0] * GAIN * gains.0, neutral[1] * GAIN * gains.1];
+                for side in 0..2 {
+                    worst = worst.max((got[side] - want[side]).abs());
+                    assert!(
+                        (got[side] - want[side]).abs() < 4e-6,
+                        "{label} frame {t} side {side}: {} vs {}",
+                        got[side],
+                        want[side]
+                    );
+                }
+            }
+            // No step beyond the fixture's own plus what the two ramps add.
+            let top = [law.gains(-0.5), law.gains(0.7)]
+                .iter()
+                .flat_map(|gain| [gain.0, gain.1])
+                .fold(0.0_f32, f32::max);
+            let bound = largest_step(&plain) * top + 0.4 * top * 2.0 / FADE as f32 + 1e-5;
+            let step = largest_step(&heard[1..]);
+            worst_step = worst_step.max(step / bound);
+            assert!(step <= bound, "{label}: step {step} > {bound}");
+            unit.note_off_instance(id, 69);
+            let tail = expression_audio(unit.as_mut(), 9600);
+            assert_eq!(unit.voices(), 0, "{label}: no stuck note");
+            assert!(tail[9600 - 64..].iter().all(|frame| peak(&[*frame]) < 1e-4));
+        }
+    }
+    println!(
+        "ROUTE live change in the same unit, three switches and four laws: worst {worst:.3e}, largest step {:.0}% of the bound",
+        worst_step * 100.0
+    );
+}

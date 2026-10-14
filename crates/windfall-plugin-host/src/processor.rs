@@ -130,6 +130,12 @@ pub(crate) trait ProcessorBackend: Send + 'static {
     fn note_expression_mask(&self, _channel: u8) -> u32 {
         0
     }
+    /// The cells behind [`ProcessorBackend::note_expression_mask`] where the
+    /// plugin can change what it offers per note while it runs. A wrapper
+    /// that keeps the backend on another thread reads them instead of a copy.
+    fn note_expression_cells(&self) -> Option<std::sync::Arc<[AtomicU32; 16]>> {
+        None
+    }
     fn set_sidechain_input(&mut self, _input: Option<u32>) {}
     /// Processes one block of at most the block size the plugin was
     /// activated with. `events` are sorted by time and all lie inside the

@@ -95,6 +95,7 @@ pub(crate) trait InstanceBackend {
     fn deactivation_param_value(&self, _id: u32) -> Option<f64> {
         None
     }
+    fn follow_note_expression_changes(&mut self, _follow: bool) {}
     /// The bytes the plugin's state extension writes, or `None` if it has
     /// no such extension.
     fn save_state(&mut self, limit: usize) -> Result<Option<Vec<u8>>, PluginError>;
@@ -202,6 +203,17 @@ impl PluginInstance {
             .is_none()
             .then(|| self.backend.deactivation_param_value(id))
             .flatten()
+    }
+
+    /// Whether a change in what the plugin offers per note is followed while
+    /// it runs. A plugin can announce that its note expressions changed
+    /// without asking to be restarted. With this on, the running processor's
+    /// [`note_expression_mask`](crate::PluginProcessor::note_expression_mask)
+    /// follows at the next [`idle`](Self::idle) and no restart is requested;
+    /// off, the default, such a change is a
+    /// [`PluginNotification::RestartRequested`] like any other.
+    pub fn follow_note_expression_changes(&mut self, follow: bool) {
+        self.backend.follow_note_expression_changes(follow);
     }
 
     /// How the plugin writes `value` of a parameter, such as `-6.0 dB`.

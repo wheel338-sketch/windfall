@@ -42,6 +42,11 @@ impl DelayLine {
         self.buffer.len() - GUARD
     }
 
+    /// How many samples the ring holds: the longest delay and its guard.
+    pub fn capacity(&self) -> usize {
+        self.buffer.len()
+    }
+
     /// Silences the line without freeing or allocating.
     pub fn clear(&mut self) {
         self.buffer.fill(0.0);

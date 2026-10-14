@@ -327,3 +327,53 @@ fn representative_vocal_mix_and_four_harmony_workloads_have_declared_spectral_cp
     measure(params, 0.50);
     assert_eq!(params.kind(), EffectKind::PitchCorrect);
 }
+
+#[test]
+fn multiband_delay_three_and_sixteen_band_layouts_have_one_declared_cpu_budget() {
+    use windfall_dsp::{BandBank, BandDelayParams, BandLayout};
+    // One share for the effect, whichever layout plays: the tightest this
+    // suite declares, that of the drive effects. The sixteen-band workload
+    // has every band of the playing bank sounding with a delay, level and
+    // pan of its own, long tails on all three feedback controls and the
+    // output fully wet, so no band can be skipped as silent, centred or
+    // equal to its neighbour. The other seven banks hold different settings.
+    const SHARE: f64 = 0.20;
+    let bank = |seed: usize| {
+        let mut bank = BandBank::default();
+        for band in 0..16 {
+            let step = (band * 7 + seed * 5) % 16;
+            bank.time_ms[band] = 11.0 + 61.3 * step as f32 + 3.7 * band as f32;
+            bank.level[band] = 0.55 + 0.028 * ((band * 5 + seed) % 16) as f32;
+            bank.pan[band] = -0.9 + 0.12 * ((band * 11 + seed * 3) % 16) as f32;
+        }
+        bank
+    };
+    let dense = BandDelayParams {
+        low_hz: 420.0,
+        high_hz: 4300.0,
+        time_ms: [137.0, 291.0, 463.0],
+        level: [0.9, 0.8, 0.7],
+        pan: [-0.6, 0.1, 0.7],
+        feedback: [0.85, 0.8, 0.75],
+        mix: 1.0,
+        layout: BandLayout::Three,
+        bank: 6,
+        banks: std::array::from_fn(bank),
+    };
+    for band in 0..16 {
+        let playing = dense.banks[5];
+        assert!((1.0..=1000.0).contains(&playing.time_ms[band]));
+        assert!(playing.level[band] > 0.5 && playing.pan[band].abs() > 0.01);
+        for other in 0..band {
+            assert_ne!(playing.time_ms[band], playing.time_ms[other]);
+        }
+    }
+    measure(EffectParams::BandDelay(dense), SHARE);
+    measure(
+        EffectParams::BandDelay(BandDelayParams {
+            layout: BandLayout::Sixteen,
+            ..dense
+        }),
+        SHARE,
+    );
+}

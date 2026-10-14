@@ -75,6 +75,10 @@ pub(super) struct VstInstance {
     editor: Option<super::editor::Editor>,
     controller_values: Vec<u64>,
     deactivation_values: Vec<(u32, f64, Option<f64>)>,
+    /// What the plugin offers per note, read by the running processor.
+    expression_cells: Arc<[std::sync::atomic::AtomicU32; 16]>,
+    /// A change of note expressions is followed live instead of restarting.
+    follow_expressions: bool,
 }
 struct Capabilities {
     layout: PluginLayout,
@@ -178,6 +182,8 @@ impl VstInstance {
             editor: None,
             controller_values,
             deactivation_values,
+            expression_cells: Arc::default(),
+            follow_expressions: false,
         })
     }
     fn read_capabilities(
@@ -484,6 +490,9 @@ impl InstanceBackend for VstInstance {
             }
         }
     }
+    fn follow_note_expression_changes(&mut self, follow: bool) {
+        self.follow_expressions = follow;
+    }
     fn save_state(&mut self, limit: usize) -> Result<Option<Vec<u8>>, PluginError> {
         // State is read on this thread whether or not the processor runs: a
         // save while music plays must not take the plugin away from the
@@ -638,6 +647,7 @@ impl InstanceBackend for VstInstance {
             sample_rate,
             max_block,
             consumer,
+            self.expression_cells.clone(),
         )
         .map_err(|error| {
             crate::export_runtime::last_error(&self.objects._module.path)
@@ -734,7 +744,20 @@ impl InstanceBackend for VstInstance {
                 }
             }
         }
-        let flags = self.handler.flags.swap(0, Ordering::Relaxed);
+        let mut flags = self.handler.flags.swap(0, Ordering::Relaxed);
+        // kNoteExpressionChanged: the plugin changed what it offers per note.
+        // The running processor reads these cells, so the host follows from
+        // its next block on without taking the plugin back. An inactive
+        // plugin is asked again when it is activated.
+        if flags & 64 != 0 && self.follow_expressions {
+            if active.is_some() {
+                let masks = super::processor::note_expression_masks(&self.objects);
+                for (cell, mask) in self.expression_cells.iter().zip(masks) {
+                    cell.store(mask, Ordering::Release);
+                }
+            }
+            flags &= !64;
+        }
         if self.handler.dirty.swap(false, Ordering::Relaxed) {
             notify(PluginNotification::StateChanged);
         }

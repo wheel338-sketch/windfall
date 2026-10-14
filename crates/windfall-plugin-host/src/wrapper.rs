@@ -232,6 +232,9 @@ impl ProcessorBackend for Policy {
     fn note_expression_mask(&self, channel: u8) -> u32 {
         self.native.note_expression_mask(channel)
     }
+    fn note_expression_cells(&self) -> Option<std::sync::Arc<[std::sync::atomic::AtomicU32; 16]>> {
+        self.native.note_expression_cells()
+    }
     fn additional_latency(&self) -> u32 {
         self.fixed.as_ref().map_or(0, |f| f.input[0].len() as u32)
     }

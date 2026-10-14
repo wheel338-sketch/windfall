@@ -404,3 +404,43 @@ fn mono_mean_input_duplicates_output_and_effect_adapter() {
     assert_eq!(left, [0.5; 64]);
     instance.release_effect(adapter).unwrap();
 }
+
+#[test]
+fn a_live_note_expression_change_is_followed_by_the_running_processor_without_a_restart() {
+    use windfall_plugin_host::{NoteExpressionKind as K, PluginNotification};
+    // Class 28 withholds per-note pan or volume while it runs and says so
+    // with kNoteExpressionChanged alone.
+    let both = K::Pan.mask() | K::Volume.mask();
+    for follow in [true, false] {
+        let (_module, mut instance) = create(28);
+        instance.follow_note_expression_changes(follow);
+        let processor = instance.activate(48_000.0, 64).unwrap();
+        assert_eq!(processor.note_expression_mask(0) & both, both);
+        // 31/32 withholds pan, 61/64 volume, 59/64 both, 29/32 neither.
+        for (mark, offered) in [
+            (0.96875, K::Volume.mask()),
+            (0.953125, K::Pan.mask()),
+            (0.921875, 0),
+            (0.90625, both),
+        ] {
+            instance.param_text(7, mark);
+            let mut restart = false;
+            instance.idle(&mut |notification| {
+                restart |= matches!(notification, PluginNotification::RestartRequested)
+            });
+            if follow {
+                assert!(!restart, "followed live: no restart is asked for");
+                assert_eq!(processor.note_expression_mask(0) & both, offered);
+                // Channel 16 offers nothing, whatever the switch says.
+                assert_eq!(processor.note_expression_mask(15), 0);
+            } else {
+                // Not followed: the change is a restart request as before,
+                // and the running processor keeps what it was activated with.
+                assert!(restart);
+                assert_eq!(processor.note_expression_mask(0) & both, both);
+            }
+        }
+        assert!(instance.is_active());
+        instance.deactivate(processor).unwrap();
+    }
+}

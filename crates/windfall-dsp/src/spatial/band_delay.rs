@@ -4,7 +4,7 @@
 //! of Windfall's own choosing (40 Hz to 16 kHz) and reads its delay, level and
 //! pan from one of eight banks; its bands share the three feedback controls
 //! by where their centre falls against the two crossover controls.
-use super::common::{Controls, Lowpass, Tail, audio, bounded, frames, pole, rate, tap};
+use super::common::{Controls, Lowpass, Tail, audio, bounded, frames, pole, rate};
 use crate::blocks::delay_line::DelayLine;
 use crate::effect::Effect;
 use crate::param::{ParamSet, param_set};
@@ -498,6 +498,55 @@ fn wide_centre_hz(band: usize) -> f32 {
         * if band == WIDE_BANDS - 1 { step } else { 1.0 }
 }
 
+/// One band's echoes: a delay line that is silenced in constant time.
+///
+/// Thirty-two lines of a second each are 67 MB at 384 kHz, and zeroing them
+/// took milliseconds: longer than a reset may take, and a layout change did
+/// it inside a block. Instead the line counts what was pushed since it was
+/// last cleared and reads anything older as silence. That is sample for
+/// sample what a zeroed line returns, because nothing older is ever read.
+#[derive(Debug, Clone, Default)]
+struct EchoLine {
+    line: DelayLine,
+    /// Pushes since the last clear, up to the length of the ring.
+    filled: usize,
+}
+impl EchoLine {
+    fn new(max_delay: usize) -> Self {
+        Self {
+            line: DelayLine::new(max_delay),
+            filled: 0,
+        }
+    }
+    fn clear(&mut self) {
+        self.filled = 0;
+    }
+    #[inline]
+    fn push(&mut self, sample: f32) {
+        self.line.push(sample);
+        self.filled = (self.filled + 1).min(self.line.capacity());
+    }
+    /// The echo `delay` samples back, between the two nearest samples.
+    #[inline]
+    fn tap(&self, delay: f32) -> f32 {
+        let delay = delay.clamp(1.0, self.line.max_delay().max(1) as f32);
+        let whole = delay as usize;
+        if whole < self.filled {
+            // Both samples were pushed since the line was cleared.
+            return self.line.tap_linear(delay);
+        }
+        let read = |age: usize| {
+            if age <= self.filled {
+                self.line.tap(age)
+            } else {
+                0.0
+            }
+        };
+        let (near, far) = (read(whole), read(whole + 1));
+        near + (far - near) * (delay - whole as f32)
+    }
+}
+
 pub struct BandDelay {
     params: BandDelayParams,
     controls: Controls<15>,
@@ -507,7 +556,7 @@ pub struct BandDelay {
     wide_poles: [f32; WIDE_BANDS - 1],
     /// Which of the three feedback controls each wide band follows.
     groups: [usize; WIDE_BANDS],
-    lines: [[DelayLine; 2]; WIDE_BANDS],
+    lines: [[EchoLine; 2]; WIDE_BANDS],
     tone: [[Lowpass; 2]; WIDE_BANDS],
     rate: f32,
     tail: Tail,
@@ -530,7 +579,7 @@ impl Default for BandDelay {
             wide_crossovers: [[[Lowpass::default(); 2]; WIDE_BANDS - 1]; 2],
             wide_poles: [0.0; WIDE_BANDS - 1],
             groups: [0; WIDE_BANDS],
-            lines: std::array::from_fn(|_| std::array::from_fn(|_| DelayLine::default())),
+            lines: std::array::from_fn(|_| std::array::from_fn(|_| EchoLine::default())),
             tone: [[Lowpass::default(); 2]; WIDE_BANDS],
             rate: 48_000.0,
             tail: Tail::default(),
@@ -611,10 +660,7 @@ impl BandDelay {
                 dry[ch] - cumulative[1],
             ];
             for band in 0..3 {
-                let echo = tap(
-                    &self.lines[band][ch],
-                    super::common::samples(c[2 + band], self.rate),
-                );
+                let echo = self.lines[band][ch].tap(super::common::samples(c[2 + band], self.rate));
                 let back = self.tone[band][ch].tick(echo, tone);
                 self.lines[band][ch].push(bounded(bands[band] + c[11 + band] * back));
                 let pan = c[8 + band];
@@ -648,10 +694,7 @@ impl BandDelay {
                 };
                 let input = upto - below;
                 below = upto;
-                let echo = tap(
-                    &self.lines[band][ch],
-                    super::common::samples(c[4 + band], self.rate),
-                );
+                let echo = self.lines[band][ch].tap(super::common::samples(c[4 + band], self.rate));
                 let back = self.tone[band][ch].tick(echo, tone);
                 self.lines[band][ch].push(bounded(input + c[1 + self.groups[band]] * back));
                 let pan = c[4 + 2 * WIDE_BANDS + band];
@@ -671,7 +714,7 @@ impl Effect for BandDelay {
     fn prepare(&mut self, sample_rate: f32, _max_block: usize) {
         self.rate = rate(sample_rate);
         self.lines = std::array::from_fn(|_| {
-            std::array::from_fn(|_| DelayLine::new(frames(1000.0, self.rate) + 2))
+            std::array::from_fn(|_| EchoLine::new(frames(1000.0, self.rate) + 2))
         });
         self.wide_poles = std::array::from_fn(|band| pole(wide_edge_hz(band), self.rate));
         self.controls.prepare(self.rate);
@@ -740,5 +783,50 @@ impl Effect for BandDelay {
     }
     fn delay_readiness_samples(&self) -> usize {
         self.warm_up_samples()
+    }
+}
+
+#[cfg(test)]
+mod echo_line_tests {
+    use super::*;
+
+    #[test]
+    fn a_line_cleared_in_constant_time_reads_exactly_like_a_zeroed_one() {
+        // The same pushes, reads and clears through an echo line and through
+        // a delay line that is zeroed in full. Delays run from the shortest
+        // to the longest the line admits, so reads reach before the clear,
+        // across the wrap of the ring and across a ring filled many times.
+        let mut echo = EchoLine::new(100);
+        let mut zeroed = DelayLine::new(100);
+        let mut state = 0x2545_f491_u32;
+        let mut next = || {
+            state ^= state << 13;
+            state ^= state >> 17;
+            state ^= state << 5;
+            state
+        };
+        let mut compared = 0;
+        for round in 0..40 {
+            // Rounds of every length: shorter than the ring, and many rings.
+            let pushes = [3, 17, 99, 104, 128, 129, 700][round % 7];
+            for _ in 0..pushes {
+                for _ in 0..3 {
+                    let delay = 1.0 + (next() % 100_000) as f32 / 100_000.0 * 99.0;
+                    let expected = zeroed.tap_linear(delay.clamp(1.0, zeroed.max_delay() as f32));
+                    assert_eq!(
+                        echo.tap(delay).to_bits(),
+                        expected.to_bits(),
+                        "round {round}"
+                    );
+                    compared += 1;
+                }
+                let sample = (next() % 2001) as f32 / 1000.0 - 1.0;
+                echo.push(sample);
+                zeroed.push(sample);
+            }
+            echo.clear();
+            zeroed.clear();
+        }
+        assert!(compared > 10_000);
     }
 }

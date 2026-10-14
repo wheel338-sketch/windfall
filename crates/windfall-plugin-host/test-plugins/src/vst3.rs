@@ -26,7 +26,7 @@ fn cid(index: i32) -> TUID {
 }
 /// How many classes the factory offers. New ones are appended, so the
 /// positions and ids of the earlier ones do not move.
-const CLASSES: i32 = 28;
+const CLASSES: i32 = 29;
 /// The auxiliary input buses of the multi-detector class, after its main
 /// stereo bus: their names and speaker arrangements (left; left and right;
 /// left, right and both surrounds).
@@ -95,6 +95,7 @@ impl IPluginFactoryTrait for Factory {
                         "VST3 Dynamic Capabilities",
                         "VST3 Project Expression Probe",
                         "VST3 Volume Expression Probe",
+                        "VST3 Live Expression Switch",
                     ][index as usize],
                 ),
             });
@@ -128,9 +129,15 @@ impl IPluginFactoryTrait for Factory {
                     || class == cid(23)
                     || class == cid(24)
                     || class == cid(26)
-                    || class == cid(27),
-                expression_probe: class == cid(23) || class == cid(26) || class == cid(27),
-                project_expression_probe: class == cid(26),
+                    || class == cid(27)
+                    || class == cid(28),
+                expression_probe: class == cid(23)
+                    || class == cid(26)
+                    || class == cid(27)
+                    || class == cid(28),
+                project_expression_probe: class == cid(26) || class == cid(28),
+                live_expression: class == cid(28),
+                live_withheld: std::sync::atomic::AtomicU32::new(0),
                 volume_expression_probe: class == cid(27),
                 midi_mapping: class == cid(24),
                 midi_bend: std::array::from_fn(|_| {
@@ -143,7 +150,7 @@ impl IPluginFactoryTrait for Factory {
                 refuse: class == cid(6),
                 notify: class == cid(7),
                 recovery_failure: class == cid(8),
-                multi_params: class == cid(9),
+                multi_params: class == cid(9) || class == cid(28),
                 bridge_delayed: class == cid(10)
                     || class == cid(11)
                     || (13..21).any(|i| class == cid(i)),
@@ -231,10 +238,11 @@ impl IPluginFactory2Trait for Factory {
                         "VST3 Dynamic Capabilities",
                         "VST3 Project Expression Probe",
                         "VST3 Volume Expression Probe",
+                        "VST3 Live Expression Switch",
                     ][index as usize],
                 ),
                 classFlags: 0,
-                subCategories: chars(if index == 2 || index == 12 || index == 23 || index == 24 || index == 26 || index == 27 {
+                subCategories: chars(if matches!(index, 2 | 12 | 23 | 24 | 26 | 27 | 28) {
                     "Instrument|Synth"
                 } else {
                     "Fx|Tools"
@@ -259,6 +267,14 @@ struct Component {
     instrument: bool,
     expression_probe: bool,
     project_expression_probe: bool,
+    /// Class 28 can withhold per-note pan and volume while it runs. Its
+    /// controller announces what it offers (bit 0 pan withheld, bit 1
+    /// volume) through the gesture in `getParamStringByValue`, without
+    /// asking for a restart; its processor stops applying pan when
+    /// parameter 8 goes above one half and volume when parameter 9 does, at
+    /// the frame of the parameter point.
+    live_expression: bool,
+    live_withheld: std::sync::atomic::AtomicU32,
     /// Volume per note, and no pan: the mirror of the plain expression probe.
     volume_expression_probe: bool,
     midi_mapping: bool,
@@ -964,6 +980,11 @@ impl IAudioProcessorTrait for Component {
                 continue;
             }
             let expression_pcm = if self.expression_probe {
+                if self.live_expression {
+                    audio
+                        .expressions
+                        .withhold(audio.extra[0] > 0.5, audio.extra[1] > 0.5);
+                }
                 audio.expressions.pcm()
             } else {
                 [0.0; 2]
@@ -1157,6 +1178,29 @@ impl IEditControllerTrait for Component {
     unsafe fn getParamStringByValue(&self, id: u32, value: f64, text: *mut String128) -> tresult {
         if id != 7 || text.is_null() {
             return kInvalidArgument;
+        }
+        // The live switch as its editor would throw it: the controller says
+        // at once which per-note expressions it offers now, without asking
+        // for a restart. The processor follows at the parameter point the
+        // host sends it. 29/32 offers everything, 31/32 withholds pan, 61/64
+        // volume and 59/64 both.
+        if self.live_expression {
+            let withheld = [(0.90625, 0), (0.96875, 1), (0.953125, 2), (0.921875, 3)]
+                .into_iter()
+                .find(|(mark, _)| *mark == value)
+                .map(|(_, withheld)| withheld);
+            if let Some(withheld) = withheld
+                && self
+                    .live_withheld
+                    .swap(withheld, std::sync::atomic::Ordering::Relaxed)
+                    != withheld
+                && let Some(handler) = unsafe { &*self.handler.get() }
+            {
+                // kNoteExpressionChanged alone: nothing here needs a restart.
+                unsafe {
+                    handler.restartComponent(64);
+                }
+            }
         }
         // Deterministic editor gesture through the actual registered host
         // handler. The audio probe changes only when its queued point processes.

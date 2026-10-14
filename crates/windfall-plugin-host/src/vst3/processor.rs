@@ -175,7 +175,8 @@ pub(super) struct VstProcessor {
     held: [[bool; 128]; 16],
     event_input: bool,
     instances: Box<[NativeHeld]>,
-    expression_masks: [u32; 16],
+    /// Written by the owner when the plugin changes what it offers per note.
+    expression_masks: Arc<[std::sync::atomic::AtomicU32; 16]>,
     midi_mapping: Box<[[u32; 131]; 16]>,
     midi_expression: [[Option<u32>; 7]; 16],
     midi_fallback: bool,
@@ -228,6 +229,7 @@ impl VstProcessor {
         sample_rate: f64,
         max_block: u32,
         edits: rtrb::Consumer<(u32, f64)>,
+        expression_cells: Arc<[std::sync::atomic::AtomicU32; 16]>,
     ) -> Result<Self, PluginError> {
         // SAFETY: inactive component on its main thread, bounded bus indices.
         unsafe {
@@ -324,26 +326,9 @@ impl VstProcessor {
         let event_ptr = events.to_com_ptr::<IEventList>().expect("events");
         let output_events = Events::new();
         let output_event_ptr = output_events.to_com_ptr::<IEventList>().expect("events");
-        let mut expression_masks = [0; 16];
-        if let Some(controller) = objects
-            .controller
-            .as_ref()
-            .and_then(|controller| controller.cast::<INoteExpressionController>())
-        {
-            for (channel, expression_mask) in expression_masks.iter_mut().enumerate() {
-                let count =
-                    unsafe { controller.getNoteExpressionCount(0, channel as i16) }.clamp(0, 256);
-                for index in 0..count {
-                    let mut info: NoteExpressionTypeInfo = unsafe { std::mem::zeroed() };
-                    if unsafe {
-                        controller.getNoteExpressionInfo(0, channel as i16, index, &mut info)
-                    } == kResultOk
-                        && info.typeId <= 5
-                    {
-                        *expression_mask |= 1 << info.typeId;
-                    }
-                }
-            }
+        let expression_masks = note_expression_masks(&objects);
+        for (cell, mask) in expression_cells.iter().zip(expression_masks) {
+            cell.store(mask, std::sync::atomic::Ordering::Release);
         }
         // Query the controller while preparing, never from process(). VST3
         // represents CC, pressure, bend and program input as parameter points.
@@ -407,7 +392,7 @@ impl VstProcessor {
             held: [[false; 128]; 16],
             event_input: layout.note_inputs > 0,
             instances: vec![NativeHeld::EMPTY; MAX_NOTE_INSTANCES].into_boxed_slice(),
-            expression_masks,
+            expression_masks: expression_cells,
             midi_expression,
             midi_fallback,
             native_drops: 0,
@@ -518,7 +503,11 @@ impl VstProcessor {
             }
             return;
         }
-        if !self.event_input || self.expression_masks[channel as usize] & kind.mask() == 0 {
+        if !self.event_input
+            || self.expression_masks[channel as usize].load(std::sync::atomic::Ordering::Relaxed)
+                & kind.mask()
+                == 0
+        {
             return;
         }
         let value = match kind {
@@ -588,7 +577,10 @@ impl ProcessorBackend for VstProcessor {
         self.event_input
     }
     fn note_expression_mask(&self, channel: u8) -> u32 {
-        self.expression_masks[channel.min(15) as usize]
+        self.expression_masks[channel.min(15) as usize].load(std::sync::atomic::Ordering::Relaxed)
+    }
+    fn note_expression_cells(&self) -> Option<Arc<[std::sync::atomic::AtomicU32; 16]>> {
+        Some(self.expression_masks.clone())
     }
     fn set_sidechain_input(&mut self, input: Option<u32>) {
         self.inputs.key = match input {
@@ -925,6 +917,32 @@ fn r4_unexpected_native_point_refusal_counts_drops_without_false_readback_and_re
     );
     assert_eq!(recovered.health().dropped_events, 0);
     instance.deactivate(recovered).unwrap();
+}
+
+/// What the plugin offers per note on each channel, asked of its controller
+/// on the main thread: at activation, and again when it says they changed.
+pub(super) fn note_expression_masks(objects: &Objects) -> [u32; 16] {
+    let mut expression_masks = [0; 16];
+    if let Some(controller) = objects
+        .controller
+        .as_ref()
+        .and_then(|controller| controller.cast::<INoteExpressionController>())
+    {
+        for (channel, expression_mask) in expression_masks.iter_mut().enumerate() {
+            let count =
+                unsafe { controller.getNoteExpressionCount(0, channel as i16) }.clamp(0, 256);
+            for index in 0..count {
+                let mut info: NoteExpressionTypeInfo = unsafe { std::mem::zeroed() };
+                if unsafe { controller.getNoteExpressionInfo(0, channel as i16, index, &mut info) }
+                    == kResultOk
+                    && info.typeId <= 5
+                {
+                    *expression_mask |= 1 << info.typeId;
+                }
+            }
+        }
+    }
+    expression_masks
 }
 
 #[cfg(test)]
