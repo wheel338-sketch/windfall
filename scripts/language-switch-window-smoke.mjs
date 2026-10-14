@@ -7,10 +7,8 @@
 // that the project is exactly what it was. The Spanish it expects is read
 // from the catalogs, so it never drifts from them.
 //
-// The two files are written next to the report. The operating system's file
-// picker is the one thing not used: the smoke answers the app's request to
-// open it (through the DevTools network domain) with the file's path, and
-// everything after that is the real app.
+// The two files are written next to the report and chosen in the operating
+// system's own file picker, by typing their path into it.
 import { spawn } from "node:child_process"
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
@@ -103,6 +101,8 @@ let launchError
 child.on("error", (error) => { launchError = error })
 const report = { schema:1, executable, config, audioBackend:"software-memory-sink", outputGain:0, started:new Date().toISOString(), checks:[], passed:false }
 let socket
+// The text of the window when a check fails, for the report.
+let windowText
 try {
   let tab
   const deadline = Date.now() + 30000
@@ -124,10 +124,8 @@ try {
   })
   let next = 0
   const pending = new Map()
-  const events = new Map()
   socket.addEventListener("message", ({ data }) => {
     const message = JSON.parse(data)
-    if (message.method) { events.get(message.method)?.(message.params); return }
     const request = pending.get(message.id)
     if (!request) return
     pending.delete(message.id)
@@ -141,6 +139,7 @@ try {
     pending.set(id, { resolve, reject, timer })
     socket.send(JSON.stringify({ id, method, params }))
   })
+  windowText = () => evaluate("document.body.innerText")
   const evaluate = async (expression) => {
     const result = await cdp("Runtime.evaluate", { expression, awaitPromise:true, returnByValue:true })
     if (result.exceptionDetails) throw new Error(JSON.stringify(result.exceptionDetails))
@@ -185,19 +184,42 @@ try {
     await cdp("Input.dispatchKeyEvent", { type:"keyDown", key:value, code, modifiers, windowsVirtualKeyCode })
     await cdp("Input.dispatchKeyEvent", { type:"keyUp", key:value, code, modifiers, windowsVirtualKeyCode })
   }
-  // The next file picker the app opens answers `path` at once.
-  const picker = async (path) => {
-    await cdp("Fetch.enable", { patterns:[{ urlPattern:"*plugin%3Adialog%7Copen*", requestStage:"Request" }] })
-    events.set("Fetch.requestPaused", async ({ requestId, request }) => {
-      if (request.method !== "POST") { await cdp("Fetch.continueRequest", { requestId }); return }
-      events.delete("Fetch.requestPaused")
-      await cdp("Fetch.fulfillRequest", { requestId, responseCode:200, body:Buffer.from(JSON.stringify(path)).toString("base64"), responseHeaders:[
-        { name:"Content-Type", value:"application/json" }, { name:"Tauri-Response", value:"ok" },
-        { name:"Access-Control-Allow-Origin", value:"*" }, { name:"Access-Control-Expose-Headers", value:"Tauri-Response" }] })
-      await cdp("Fetch.disable")
-    })
-  }
-  const lower = (text) => evaluate(`document.body.innerText.toLowerCase().includes(${JSON.stringify(text.toLowerCase())})`)
+  // Answers the operating system's file picker titled `title` with `path`,
+  // as a user does: the real dialog, found by its title in the interface
+  // language, its file name box given the path, and its Open button pressed
+  // (with the dialog's own window messages, which need no keyboard focus).
+  const picker = (title, path) => new Promise((resolve, reject) => {
+    const quote = (text) => `'${text.replace(/'/g, "''")}'`
+    const script = `
+      Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+      $A = [System.Windows.Automation.AutomationElement]
+      $scope = [System.Windows.Automation.TreeScope]::Descendants
+      $named = New-Object System.Windows.Automation.PropertyCondition($A::NameProperty, ${quote(title)})
+      $window = New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, [System.Windows.Automation.ControlType]::Window)
+      # The operating system's dialog class: the app's own dialog of the same title is not it.
+      $native = New-Object System.Windows.Automation.PropertyCondition($A::ClassNameProperty, '#32770')
+      $both = New-Object System.Windows.Automation.AndCondition($named, $window, $native)
+      $dialog = $null
+      for ($i = 0; $i -lt 75 -and -not $dialog; $i++) { $dialog = $A::RootElement.FindFirst($scope, $both); if (-not $dialog) { Start-Sleep -Milliseconds 200 } }
+      if (-not $dialog) { exit 3 }
+      Add-Type -Name Window -Namespace Smoke -MemberDefinition '[DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr SendMessage(IntPtr window, int message, IntPtr w, string l); [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr window, int message, IntPtr w, IntPtr l);'
+      $id = { param($value) New-Object System.Windows.Automation.PropertyCondition($A::AutomationIdProperty, $value) }
+      $name = $null
+      for ($i = 0; $i -lt 50 -and -not $name; $i++) {
+        $name = $dialog.FindAll($scope, (& $id '1148')) | Where-Object { $_.Current.ClassName -eq 'Edit' } | Select-Object -First 1
+        if (-not $name) { Start-Sleep -Milliseconds 100 }
+      }
+      if (-not $name) { exit 5 }
+      # WM_SETTEXT into the file name box, then WM_COMMAND IDOK: Open.
+      [void][Smoke.Window]::SendMessage([IntPtr]$name.Current.NativeWindowHandle, 0x000C, [IntPtr]::Zero, ${quote(path)})
+      [void][Smoke.Window]::PostMessage([IntPtr]$dialog.Current.NativeWindowHandle, 0x0111, [IntPtr]1, [IntPtr]::Zero)
+      Start-Sleep -Milliseconds 1500
+      if ($A::RootElement.FindFirst($scope, $both)) { exit 4 }
+    `
+    const choosing = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], { windowsHide:true, stdio:"ignore" })
+    choosing.on("error", reject)
+    choosing.on("exit", (code) => code === 0 ? resolve() : reject(new Error(`The file picker titled ${title} could not be answered (${code})`)))
+  })
   const shown = (text) => evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`)
   const texts = (selector) => evaluate(`[...document.querySelectorAll(${JSON.stringify(selector)})].filter((e) => e.getClientRects().length > 0).map((e) => e.textContent.trim())`)
   const closed = (selector) => until(() => evaluate(`[...document.querySelectorAll(${JSON.stringify(selector)})].every((e) => e.getClientRects().length === 0)`), `${selector} to close`)
@@ -284,18 +306,21 @@ try {
   invalid.settings.tempoBpm = 600
   await writeFile(invalidPath, `${JSON.stringify(invalid, null, 2)}
 `)
-  await picker(invalidPath)
+  const earlier = await texts("[data-sonner-toast]")
   await menu(es("File"), es("Open project…"))
   // The channel added above is not saved: say not to save it.
   await click('[role="dialog"] button, [role="alertdialog"] button', es("Don't save"))
+  await picker(es("Open project"), invalidPath)
   const rule = fill(esCode("project.check.tempo"), { tempo:"600", min:"10", max:"522" })
-  await until(() => lower(rule), "the validation refusal in Spanish")
-  check("a validation refusal is Spanish", await shown(es("Could not open the project")) && await lower(rule) && !(await shown("is outside 10 to 522 bpm")), rule)
+  const toast = await until(async () => (await texts("[data-sonner-toast]")).find((text) => !earlier.includes(text)), "a notice after opening the file")
+  // Said once, from the code: the file is damaged, and the rule it breaks.
+  const damaged = fill(esCode("project.load.damaged"), { problem:rule }).replace(/^./, (first) => first.toLocaleUpperCase("es"))
+  check("a validation refusal is Spanish", toast === `${es("Could not open the project")}${damaged}`, toast)
 
   // The review of an FL Studio import, before anything is opened.
   await menu(es("File"), es("Import FL Studio project…"))
-  await picker(flpPath)
   await click('[role="dialog"] button', es("Choose FL project…"))
+  await picker(es("Import FL Studio project"), flpPath)
   await click('[role="dialog"] button', es("Project settings"))
   const line = fill(esCode("flp.project.tempo"), { bpm:"600", min:"10", max:"522" })
   await until(() => shown(line), "the FL import review line in Spanish")
@@ -325,6 +350,7 @@ try {
   report.passed = report.checks.every((item) => item.pass)
 } catch (error) {
   report.error = String(error.stack ?? error)
+  report.windowText = await windowText?.().catch(() => null)
   process.exitCode = 1
 } finally {
   report.logs = logs

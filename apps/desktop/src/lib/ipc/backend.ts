@@ -529,7 +529,11 @@ function rejectionText(error: unknown): string {
  * exist", so the message is given its capital here.
  */
 export function errorSource(error: unknown): string {
-  const text = rejectionText(error)
+  // A call to the shell rejects with its words already put into the
+  // language shown, and keeps what the shell sent as the cause: a coded
+  // message is taken from there, so it is put into words once, when shown.
+  const sent = error instanceof Error && error.cause !== undefined ? rejectionText(error.cause) : ""
+  const text = sent.startsWith("windfall-message:") ? sent : rejectionText(error)
   // Reserved native envelopes are protocol data. Retain the exact code and
   // parameters so consumers can translate them when they render, including
   // after a language change. Capitalization applies only to legacy prose.

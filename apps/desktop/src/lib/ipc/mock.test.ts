@@ -7,7 +7,7 @@ import type {
   TransportState,
 } from "@/bindings"
 import { sourceSample } from "@/lib/channel-source"
-import { nativeMessage } from "@/lib/i18n"
+import { nativeMessage, setLanguage } from "@/lib/i18n"
 import { TEST_DIALOGS } from "@/test/harness"
 
 import { errorMessage, errorSource } from "./backend"
@@ -37,6 +37,14 @@ describe("mock backend: document", () => {
     expect(errorMessage(source)).toBe("2 markers not imported")
     expect(errorMessage(new Error(source))).toBe("2 markers not imported")
     expect(errorMessage(malformed)).toBe("The native message could not be decoded.")
+    // A call to the shell rejects with its words and keeps what was sent as
+    // the cause; the words are said once, from the cause, not twice.
+    const nested = 'windfall-message:{"code":"project.load.damaged","params":{"problem":"windfall-message:{\\"code\\":\\"project.check.noMaster\\",\\"params\\":{}}"}}'
+    setLanguage("es")
+    const shell = new Error(errorMessage(nested), { cause: nested })
+    expect(errorSource(shell)).toBe(nested)
+    expect(errorMessage(shell)).toBe("El archivo del proyecto está dañado: el mezclador no tiene pista maestra")
+    setLanguage("en")
   })
 
   it("starts with the demo project, clean and unsaved", async () => {
