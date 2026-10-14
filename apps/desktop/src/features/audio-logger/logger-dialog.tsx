@@ -83,7 +83,7 @@ function Choice({
         <SelectGroup>
           {items.map((item) => (
             <SelectItem key={item.value} value={item.value}>
-              {item.label}
+              {localizeBackendText(item.label)}
             </SelectItem>
           ))}
         </SelectGroup>
@@ -104,7 +104,7 @@ function SourceRow({
     <li className="flex flex-col gap-1 rounded-md border p-2">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium">{status.label}</p>
+          <p className="truncate text-sm font-medium">{localizeBackendText(status.label)}</p>
           <p className="text-xs text-muted-foreground">
             {status.active ? t("Logging") : t("Not receiving audio")} ·{" "}
             {formatSeconds(status.availableSeconds)}{" "}{t("of")}{" "}
@@ -118,7 +118,7 @@ function SourceRow({
           size="sm"
           variant="secondary"
           disabled={disabled || empty}
-          aria-label={message("Add logged {statusLabel} to playlist", { statusLabel: status.label })}
+          aria-label={message("Add logged {statusLabel} to playlist", { statusLabel: localizeBackendText(status.label) })}
           onClick={() => void dumpAudioLogger(status.source)}
         >
           {t("Add to playlist")}

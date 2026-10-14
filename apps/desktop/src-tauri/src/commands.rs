@@ -660,7 +660,12 @@ where
 {
     tauri::async_runtime::spawn_blocking(work)
         .await
-        .map_err(|error| format!("The task stopped unexpectedly: {error}"))?
+        .map_err(|error| {
+            windfall_ipc::ui_message(
+                "tasks.stopped",
+                serde_json::json!({"error": error.to_string()}),
+            )
+        })?
 }
 
 #[tauri::command]
@@ -1857,8 +1862,12 @@ async fn write_sheet_music(
 ) -> Result<String, String> {
     let _window_call = caller.enter(&window, "write_sheet_music")?;
     blocking(move || {
-        std::fs::write(&path, xml.as_bytes())
-            .map_err(|error| format!("Could not save sheet music: {error}"))?;
+        std::fs::write(&path, xml.as_bytes()).map_err(|error| {
+            windfall_ipc::ui_message(
+                "sheetMusic.saveFailed",
+                serde_json::json!({"error": error.to_string()}),
+            )
+        })?;
         Ok(path)
     })
     .await
@@ -1985,7 +1994,10 @@ fn panel_title(id: &str) -> Result<&'static str, String> {
         "channelRack" => Ok("Channel rack"),
         "playlist" => Ok("Playlist"),
         "pianoRoll" => Ok("Piano roll"),
-        _ => Err(format!("Unknown panel: {id}")),
+        _ => Err(windfall_ipc::ui_message(
+            "panels.unknown",
+            serde_json::json!({"id": id}),
+        )),
     }
 }
 

@@ -31,7 +31,11 @@ impl Builder<'_> {
             Outcome::Approximated
         };
         if !resolved.resolved {
-            self.report.say(ReportSection::Samples, outcome, format!("The sample path \"{path}\" needs a folder supplied by the user; it was kept as written."));
+            self.report.say(
+                ReportSection::Samples,
+                outcome,
+                windfall_core::notice!("flp.samples.pathNeedsFolder", path = path).to_string(),
+            );
         }
         let id = self.create(
             ReportSection::Samples,
@@ -68,7 +72,7 @@ impl Builder<'_> {
         }
         let id = self.create(
             ReportSection::Channels,
-            "A note placeholder for a clip channel",
+            &windfall_core::notice!("flp.subject.clipChannelPlaceholder").to_string(),
             Command::AddChannel {
                 name: Some(name.to_owned()),
                 sample: None,
@@ -80,7 +84,11 @@ impl Builder<'_> {
         if let Some(id) = id {
             self.channel_voice(ChannelId(id), channel);
             self.note_fallbacks.insert(iid, ChannelId(id));
-            self.report.say(ReportSection::Channels, Outcome::Placeholder, "Notes addressed to an audio or automation clip channel were retained on a silent sampler; playlist clips still use their original content.");
+            self.report.say(
+                ReportSection::Channels,
+                Outcome::Placeholder,
+                windfall_core::notice!("flp.channels.clipChannelNotes").to_string(),
+            );
             true
         } else {
             false
@@ -112,7 +120,11 @@ impl Builder<'_> {
                     );
                     self.report
                         .count(ReportSection::Channels, Outcome::Approximated, 1);
-                    self.report.say(ReportSection::Channels, Outcome::Approximated, "Layer notes are copied to their children; layer controls have no equivalent.");
+                    self.report.say(
+                        ReportSection::Channels,
+                        Outcome::Approximated,
+                        windfall_core::notice!("flp.channels.layerNotes").to_string(),
+                    );
                     continue;
                 }
                 ChannelKind::AutomationClip => {
@@ -165,10 +177,11 @@ impl Builder<'_> {
             let translated = synth::translate(channel);
             if let Some(plugin) = &channel.plugin {
                 let lines = super::native::reports(&plugin.internal_name, &plugin.state);
-                let omitted: Vec<_> = lines
+                let omitted: Vec<String> = lines
                     .iter()
-                    .filter_map(|text| super::native::omitted_field(&plugin.internal_name, text))
+                    .filter_map(|text| super::native::omitted_field(text))
                     .collect();
+                let omitted: Vec<&str> = omitted.iter().map(String::as_str).collect();
                 self.report.omit(&plugin.internal_name, &omitted);
                 for text in lines {
                     self.report
@@ -230,7 +243,18 @@ impl Builder<'_> {
             );
             let mut outcome = Outcome::Exact;
             if let Some(group) = channel.group {
-                self.report.say(ReportSection::Channels,Outcome::Approximated,format!("Channel {} source rack group {group} -> {:?}; target groups use trimmed display names, so duplicate source names share one target group and missing/negative references stay unassigned. Original group index retained.",channel.iid,self.project().channel(id).map(|c|c.group.as_str())));
+                self.report.say(
+                    ReportSection::Channels,
+                    Outcome::Approximated,
+                    windfall_core::notice!(
+                        "flp.channels.group",
+                        channel = channel.iid,
+                        group = group,
+                        target =
+                            format!("{:?}", self.project().channel(id).map(|c| c.group.as_str()))
+                    )
+                    .to_string(),
+                );
             }
             self.channel_filter(id, channel, mixer_track, &name);
             self.channel_sample_fx(id, channel, mixer_track, &name);
@@ -239,10 +263,24 @@ impl Builder<'_> {
                 .is_some_and(|shift| shift != 0 && shift != 1024)
             {
                 outcome = Outcome::Approximated;
-                self.report.say(ReportSection::Channels, Outcome::Dropped, format!("SCOPE: Nonlinear channel time shift unsupported for Channel {}: nonlinear time shift={:?}; PyFLP Time.shift provides endpoints 0/1024 but no curve; DawVert channel.py stores the word and mi_flp.py supplies no shift conversion; LMMS FlpImport.cpp only logs it. Interior tick values cannot be derived from endpoints; source word retained.",channel.iid,channel.time_shift));
+                self.report.say(
+                    ReportSection::Channels,
+                    Outcome::Dropped,
+                    windfall_core::notice!(
+                        "flp.channels.timeShiftScope",
+                        channel = channel.iid,
+                        value = format!("{:?}", channel.time_shift)
+                    )
+                    .to_string(),
+                );
             }
             if channel.time_shift == Some(1024) {
-                self.report.say(ReportSection::Channels,Outcome::Approximated,format!("Channel {} time shift public 1024 endpoint (1:00) mapped to one quarter note; intermediate nonlinear curve is not inferred.",channel.iid));
+                self.report.say(
+                    ReportSection::Channels,
+                    Outcome::Approximated,
+                    windfall_core::notice!("flp.channels.timeShiftEndpoint", channel = channel.iid)
+                        .to_string(),
+                );
             }
             if channel.swing.is_some_and(|swing| swing > 128) {
                 outcome = Outcome::Approximated;
@@ -260,10 +298,17 @@ impl Builder<'_> {
                 self.report.say(
                     ReportSection::Channels,
                     outcome,
-                    format!(
-                        "\"{name}\" became a Windfall instrument: {}.",
-                        translated.notes.join("; ")
-                    ),
+                    windfall_core::notice!(
+                        "flp.channels.becameInstrument",
+                        name = name,
+                        notes = translated
+                            .notes
+                            .iter()
+                            .map(|note| windfall_core::notice::term(note).to_string())
+                            .collect::<Vec<_>>()
+                            .join("; ")
+                    )
+                    .to_string(),
                 );
             } else if sampler {
                 if channel.sampler_flags.is_some_and(|flags| flags & 8 != 0)
@@ -275,14 +320,28 @@ impl Builder<'_> {
                     && let Some(sample) = sample
                 {
                     self.normalization.push((id, sample));
-                    self.report.say(ReportSection::Samples,Outcome::Approximated,format!("Channel {} sample normalization resolves to inverse decoded peak times preamp, bounded by the sampler gain limit; missing audio needs a later relink.",channel.iid));
+                    self.report.say(
+                        ReportSection::Samples,
+                        Outcome::Approximated,
+                        windfall_core::notice!("flp.channels.normalization", channel = channel.iid)
+                            .to_string(),
+                    );
                 }
                 if let Some(threshold) = channel.params.and_then(|p| p.trim).filter(|v| *v != 0)
                     && let Some(sample) = sample
                 {
                     self.sample_trim
                         .push((id, sample, threshold.min(256) as f32 / 256.0));
-                    self.report.say(ReportSection::Samples,Outcome::Approximated,format!("Channel {} silence trim threshold={threshold}/256 mapped against decoded absolute PCM peak per frame; nonempty trim is intersected with the source window.",channel.iid));
+                    self.report.say(
+                        ReportSection::Samples,
+                        Outcome::Approximated,
+                        windfall_core::notice!(
+                            "flp.channels.silenceTrim",
+                            channel = channel.iid,
+                            threshold = threshold
+                        )
+                        .to_string(),
+                    );
                 }
                 let start = channel
                     .params
@@ -312,7 +371,11 @@ impl Builder<'_> {
                     || pitch.abs() > 48.0
                 {
                     outcome = Outcome::Approximated;
-                    self.report.say(ReportSection::Channels, outcome, "Sampler stretching, looping, extra sample effects or out-of-range tuning cannot be reproduced exactly.");
+                    self.report.say(
+                        ReportSection::Channels,
+                        outcome,
+                        windfall_core::notice!("flp.channels.samplerApproximate").to_string(),
+                    );
                 }
                 let cut = channel.cut.unwrap_or_default();
                 self.apply(
@@ -352,7 +415,7 @@ impl Builder<'_> {
                     self.report.say(
                         ReportSection::Channels,
                         outcome,
-                        "Asymmetric or large cut groups cannot be represented exactly.",
+                        windfall_core::notice!("flp.channels.cutGroups").to_string(),
                     );
                 }
                 if let Some(env) = channel.volume_envelope().filter(|e| e.enabled) {
@@ -370,7 +433,11 @@ impl Builder<'_> {
                             }),
                         },
                     );
-                    self.report.say(ReportSection::Channels, outcome, "The sampler volume ADSR uses fitted times; predelay, hold and tempo sync are reported separately, as are any unexpressible LFO values.");
+                    self.report.say(
+                        ReportSection::Channels,
+                        outcome,
+                        windfall_core::notice!("flp.channels.volumeAdsr").to_string(),
+                    );
                 }
                 if channel
                     .volume
@@ -380,12 +447,16 @@ impl Builder<'_> {
                     self.report.say(
                         ReportSection::Channels,
                         outcome,
-                        "Channel volume uses DawVert's fitted gain curve.",
+                        windfall_core::notice!("flp.channels.volumeCurve").to_string(),
                     );
                 }
             } else {
                 outcome = Outcome::Placeholder;
-                self.report.say(ReportSection::Channels, outcome, format!("\"{name}\" is a silent sampler placeholder; its notes and arrangement remain."));
+                self.report.say(
+                    ReportSection::Channels,
+                    outcome,
+                    windfall_core::notice!("flp.channels.placeholder", name = name).to_string(),
+                );
                 if let Some(plugin) = &channel.plugin {
                     let hosted = plugin.hosted();
                     self.plugins.push(PluginPlaceholder {
@@ -419,7 +490,11 @@ impl Builder<'_> {
                     && plugin.state.len() > 101
                     && native.playback.inline_source.is_none()
                 {
-                    self.report.say(ReportSection::Samples,Outcome::Approximated,"Slicex embedded WAV absent, malformed, compressed/unsupported or over the 4,194,304-frame PCM budget; filename is still resolved and the original payload retained. Public PCM8/16/24/32 and float32 formats are decoded; no compressed codec layout is inferred.");
+                    self.report.say(
+                        ReportSection::Samples,
+                        Outcome::Approximated,
+                        windfall_core::notice!("flp.channels.slicexWavMissing").to_string(),
+                    );
                 }
                 let sample = self.sample(&name, native.path.as_deref());
                 native.playback.sample = sample;
@@ -427,7 +502,11 @@ impl Builder<'_> {
                     && let Some(sample) = sample
                 {
                     self.layer_samples.push((id, sample));
-                    self.report.say(ReportSection::Samples,Outcome::Approximated,"BassDrum filename reference mapped to the Layer Kick PCM asset after decode; source sampling_ratio maps to sampleMix; mono/int16/32,768-frame stand-in limits apply.");
+                    self.report.say(
+                        ReportSection::Samples,
+                        Outcome::Approximated,
+                        windfall_core::notice!("flp.channels.bassDrumSample").to_string(),
+                    );
                 }
                 if native.cue_source
                     && let Some(sample) = sample
@@ -435,7 +514,11 @@ impl Builder<'_> {
                     self.sample_cues.push((id, sample));
                 }
                 if native.playback.inline_source.is_some() {
-                    self.report.say(ReportSection::Samples,Outcome::Approximated,"Slicex embedded WAV PCM/cues decoded as mono fallback (stereo is averaged), bounded to 4,194,304 frames; original WAV bytes stay in the native blob. External sample takes precedence when resolved.");
+                    self.report.say(
+                        ReportSection::Samples,
+                        Outcome::Approximated,
+                        windfall_core::notice!("flp.channels.slicexWavMono").to_string(),
+                    );
                 }
                 let region = &native.playback.slices[0];
                 if let Some(sample) = sample
@@ -455,14 +538,22 @@ impl Builder<'_> {
                 if supported {
                     self.apply(
                         ReportSection::Channels,
-                        "Native sample playback reference",
+                        &windfall_core::notice!("flp.subject.nativeSamplePlayback").to_string(),
                         Command::SetSamplePlayback {
                             channel: id,
                             asset: Some(native.playback),
                         },
                     );
                 }
-                self.report.say(ReportSection::Channels,Outcome::Approximated,format!("{} native sample reference and pitch/slice metadata mapped; slice boundaries resolve against decoded sample frames using DawVert's channels/2 offset convention; attack/release use a disclosed 0..128 to 0..100ms fit.",plugin.internal_name));
+                self.report.say(
+                    ReportSection::Channels,
+                    Outcome::Approximated,
+                    windfall_core::notice!(
+                        "flp.channels.nativeSample",
+                        device = plugin.internal_name
+                    )
+                    .to_string(),
+                );
             }
             if channel
                 .plugin
@@ -473,7 +564,7 @@ impl Builder<'_> {
                 let sample = self.sample(&name, channel.sample_path.as_deref());
                 self.apply(
                     ReportSection::Samples,
-                    "Granular native sample reference",
+                    &windfall_core::notice!("flp.subject.granularSample").to_string(),
                     Command::SetSamplePlayback {
                         channel: id,
                         asset: Some(windfall_project::SamplePlayback {
@@ -482,7 +573,11 @@ impl Builder<'_> {
                         }),
                     },
                 );
-                self.report.say(ReportSection::Samples,Outcome::Exact,"Granular generator channel event 196 sample reference mapped to its prepared sample-playback asset.");
+                self.report.say(
+                    ReportSection::Samples,
+                    Outcome::Exact,
+                    windfall_core::notice!("flp.channels.granularSample").to_string(),
+                );
             }
             self.report
                 .count(ReportSection::Channels, outcome.max(voice_outcome), 1);

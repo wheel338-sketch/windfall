@@ -467,7 +467,12 @@ impl Session {
             }
             let Some(next) = next else {
                 return if attempt == 7 {
-                    result.map_err(|error| format!("{error} Audio readiness retry limit (8 attempts) reached; edit refused."))
+                    result.map_err(|error| {
+                        windfall_ipc::ui_message(
+                            "sampler.readinessRetries",
+                            serde_json::json!({"error": error}),
+                        )
+                    })
                 } else {
                     result
                 };

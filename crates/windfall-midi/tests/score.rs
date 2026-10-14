@@ -230,6 +230,10 @@ fn any_midi_file_loads_as_one_lane_with_a_report_of_the_rest() {
             .all(|n| n.expression == NoteExpression::default())
     );
     assert_eq!(left_out.len(), 3, "{left_out:?}");
+    let left_out: Vec<String> = left_out
+        .iter()
+        .map(|line| windfall_core::english::english(line))
+        .collect();
     assert!(left_out[0].contains("2 tracks"));
     assert!(left_out[1].contains("Controllers"));
     assert!(left_out[2].contains("tempo"));
@@ -287,6 +291,7 @@ fn files_a_score_cannot_hold_are_refused_or_cut_with_a_reason() {
     };
     assert!(
         score_from_song(&crowded, "crowded")
+            .map_err(|error| windfall_core::english::english(&error))
             .unwrap_err()
             .contains("Import it as MIDI")
     );
@@ -310,12 +315,12 @@ fn files_a_score_cannot_hold_are_refused_or_cut_with_a_reason() {
     assert!(
         left_out
             .iter()
-            .any(|line| line.contains("1 notes start past"))
+            .any(|line| windfall_core::english::english(line).contains("1 note starts past"))
     );
     assert!(
         left_out
             .iter()
-            .any(|line| line.contains("1 notes were cut"))
+            .any(|line| windfall_core::english::english(line).contains("1 note was cut"))
     );
     score.validate().unwrap();
 }

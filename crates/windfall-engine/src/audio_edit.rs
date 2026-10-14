@@ -833,9 +833,10 @@ mod tests {
         );
         assert!(refusal.unwrap_err().contains("No clicks"));
         assert!(
-            apply(&view, AudioEditOperation::Gain { db: 12.0 }, 0, 48_000)
-                .unwrap_err()
-                .contains("would clip")
+            windfall_core::english::english(
+                &apply(&view, AudioEditOperation::Gain { db: 12.0 }, 0, 48_000).unwrap_err()
+            )
+            .contains("would clip")
         );
     }
 }

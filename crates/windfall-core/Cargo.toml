@@ -10,3 +10,7 @@ authors.workspace = true
 
 [lints]
 workspace = true
+
+[features]
+# The English words of coded messages, read from the interface catalog, for tests.
+english = []

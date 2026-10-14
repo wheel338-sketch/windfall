@@ -340,7 +340,10 @@ fn rack_raw_bank_bytes_share_packet_bounds_and_damaged_recall_is_visible_silence
         let saved = program.encode().unwrap();
         assert!(program.validate_soundfont_sources().is_err());
         let mut guest = GuestEngine::activate(&program, 48_000.0).unwrap();
-        assert!(guest.preparation_errors()[0].contains("Rack SoundFont"));
+        assert!(
+            windfall_core::english::english(&guest.preparation_errors()[0])
+                .contains("Rack SoundFont")
+        );
         guest.midi(0, 60, 127);
         assert!(guest.render(64).unwrap().iter().all(|v| *v == 0.0));
         assert_eq!(

@@ -263,7 +263,8 @@ pub(crate) fn prepare(
         {
             return Err(NativePreparationError {
                 target: binding.target,
-                reason: format!("Native latency {latency} exceeds prepared dry-history capacity."),
+                reason: windfall_core::notice!("engine.plugins.latency", latency = latency)
+                    .to_string(),
             });
         }
         if plan.plugin_factory.is_some() {

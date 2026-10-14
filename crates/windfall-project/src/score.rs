@@ -173,10 +173,12 @@ impl Score {
             return Err("There are no notes to save as a score".to_owned());
         }
         if notes.len() > MAX_SCORE_NOTES {
-            return Err(format!(
-                "A score holds at most {MAX_SCORE_NOTES} notes; this selection has {}",
-                notes.len()
-            ));
+            return Err(windfall_core::notice!(
+                "scores.selectionTooLarge",
+                max = MAX_SCORE_NOTES,
+                count = notes.len()
+            )
+            .to_string());
         }
         let mut score = Self::new(
             format!("{} - {}", source.name, rack.name),
@@ -239,22 +241,25 @@ impl Score {
             return Err("The score has no version".to_owned());
         }
         if self.version > SCORE_VERSION {
-            return Err(format!(
-                "This score was saved by a newer Windfall (score version {}); this build reads up to version {SCORE_VERSION}",
-                self.version
-            ));
+            return Err(windfall_core::notice!(
+                "scores.tooNew",
+                version = self.version,
+                supported = SCORE_VERSION
+            )
+            .to_string());
         }
         if self.ppq != PPQ {
-            return Err(format!(
-                "The score counts {} ticks per quarter note, and a score always counts {PPQ}",
-                self.ppq
-            ));
+            return Err(
+                windfall_core::notice!("scores.ppq", ppq = self.ppq, required = PPQ).to_string(),
+            );
         }
         if self.name.len() > MAX_SCORE_NAME_BYTES || self.name.chars().any(char::is_control) {
             return Err("The score name is too long or has control characters".to_owned());
         }
         if self.notes.len() > MAX_SCORE_NOTES {
-            return Err(format!("A score holds at most {MAX_SCORE_NOTES} notes"));
+            return Err(
+                windfall_core::notice!("scores.tooManyNotes", max = MAX_SCORE_NOTES).to_string(),
+            );
         }
         if self.length_ticks > MAX_PATTERN_TICKS {
             return Err("The score is longer than the longest pattern".to_owned());
@@ -348,22 +353,27 @@ impl Score {
         if bytes.len() > MAX_SCORE_FILE_BYTES {
             return Err("The score file is larger than 32 MiB".to_owned());
         }
-        let header: Header = serde_json::from_slice(bytes)
-            .map_err(|error| format!("This file is not a Windfall score: {error}"))?;
+        let header: Header = serde_json::from_slice(bytes).map_err(|error| {
+            windfall_core::notice!("scores.notAScore", error = error.to_string()).to_string()
+        })?;
         if header.schema.as_deref() != Some(SCORE_SCHEMA) {
             return Err("This file is not a Windfall score".to_owned());
         }
         match header.version {
             Some(version) if version > SCORE_VERSION => {
-                return Err(format!(
-                    "This score was saved by a newer Windfall (score version {version}); this build reads up to version {SCORE_VERSION}"
-                ));
+                return Err(windfall_core::notice!(
+                    "scores.tooNew",
+                    version = version,
+                    supported = SCORE_VERSION
+                )
+                .to_string());
             }
             Some(0) | None => return Err("The score has no version".to_owned()),
             Some(_) => {}
         }
-        let score: Score = serde_json::from_slice(bytes)
-            .map_err(|error| format!("The score file is damaged: {error}"))?;
+        let score: Score = serde_json::from_slice(bytes).map_err(|error| {
+            windfall_core::notice!("scores.damaged", error = error.to_string()).to_string()
+        })?;
         score.validate()?;
         Ok(score)
     }

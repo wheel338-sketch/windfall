@@ -75,9 +75,13 @@ impl ControllerProfile {
             return Some("a controller profile needs a name of at most 128 bytes".into());
         }
         if self.controls.len() > MAX_PROFILE_CONTROLS {
-            return Some(format!(
-                "a controller profile has at most {MAX_PROFILE_CONTROLS} controls"
-            ));
+            return Some(
+                windfall_core::notice!(
+                    "controllers.profile.tooManyControls",
+                    max = MAX_PROFILE_CONTROLS
+                )
+                .to_string(),
+            );
         }
         if self.ports.len() > 16
             || self

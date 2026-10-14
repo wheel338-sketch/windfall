@@ -153,7 +153,7 @@ fn flp_sample_search_loads_unique_matches_but_keeps_ambiguities_recoverable() {
         preview
             .warnings
             .iter()
-            .any(|s| s.contains("More than one file matches"))
+            .any(|s| windfall_core::english::english(s).contains("More than one file matches"))
     );
 }
 
@@ -179,10 +179,12 @@ fn flp_superseded_previews_and_nonproject_containers_never_replace_the_document(
     let score_path = rig.file("score.flp");
     fs::write(&score_path, score).unwrap();
     assert!(
-        rig.session
-            .flp_preview(&score_path, &FlpImportOptions::default())
-            .unwrap_err()
-            .contains("preset or score")
+        windfall_core::english::english(
+            &rig.session
+                .flp_preview(&score_path, &FlpImportOptions::default())
+                .unwrap_err()
+        )
+        .contains("preset or score")
     );
     let too_many = FlpImportOptions {
         sample_search_folders: vec![rig.file("samples"); 33],
@@ -241,7 +243,7 @@ fn flp_wav_loop_metadata_is_reviewed_and_survives_save_reopen() {
         preview
             .warnings
             .iter()
-            .any(|warning| warning.contains("smpl chunk"))
+            .any(|warning| windfall_core::english::english(warning).contains("smpl chunk"))
     );
     let opened = rig.session.flp_open(preview.token).unwrap();
     let ChannelSource::Sampler(settings) = &opened.project.channels[0].source else {

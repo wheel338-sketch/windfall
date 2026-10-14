@@ -12,6 +12,7 @@ authors.workspace = true
 windfall-core.workspace = true
 
 [dev-dependencies]
+windfall-core = { workspace = true, features = ["english"] }
 # Apache-2.0. An independent WAV reader, used only to check the files this
 # crate writes.
 hound = "3.5"

@@ -257,7 +257,7 @@ fn candidate_banks_share_one_budget_with_retained_and_concurrent_snapshots() {
     let error = pool
         .prepare_sample_instruments(&edited, &mut || true)
         .unwrap_err();
-    assert!(error.contains("memory refused"));
+    assert!(windfall_core::english::english(&error).contains("memory refused"));
     assert_eq!(
         pool.sample_bank_retained_bytes(),
         128,

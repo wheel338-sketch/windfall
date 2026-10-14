@@ -67,9 +67,9 @@ pub(super) fn consolidate_plan(
             })
             .collect();
         if sources.is_empty() {
-            return Err(format!(
-                "\"{}\" has no unmuted pattern or audio clip to consolidate.",
-                track.name
+            return Err(windfall_ipc::ui_message(
+                "consolidate.nothing",
+                serde_json::json!({"track": track.name}),
             ));
         }
         let range = TickRange {

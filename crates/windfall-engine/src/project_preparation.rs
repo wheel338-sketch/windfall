@@ -79,28 +79,38 @@ pub enum PublicationRefusal {
 
 impl fmt::Display for ProjectPreparationError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Rack(reason) => write!(formatter, "Rack preparation failed: {reason}"),
-            Self::Sampler(error) => write!(formatter, "{error}"),
-            Self::Native { target, reason } => write!(
-                formatter,
-                "Native plugin preparation failed for {target:?}: {reason}"
+        let notice = match self {
+            Self::Rack(reason) => windfall_core::notice!(
+                "engine.preparation.rack",
+                reason = windfall_core::notice::term(reason)
             ),
-            Self::Unsupported(reason) => formatter.write_str(reason),
-            Self::MemoryLimit { required, limit } => write!(
-                formatter,
-                "This project needs {} MB of prepared audio memory and the limit is {} MB. Nothing was changed.",
-                required.div_ceil(1 << 20),
-                limit >> 20
+            Self::Sampler(error) => return write!(formatter, "{error}"),
+            Self::Native { target, reason } => windfall_core::notice!(
+                "engine.preparation.native",
+                target = target.notice(),
+                reason = windfall_core::notice::term(reason)
             ),
-            _ => write!(formatter, "Project preparation refused: {self:?}"),
-        }
+            Self::Unsupported(reason) => {
+                return write!(formatter, "{}", windfall_core::notice::term(reason));
+            }
+            Self::MemoryLimit { required, limit } => windfall_core::notice!(
+                "engine.preparation.memory",
+                required = required.div_ceil(1 << 20),
+                limit = limit >> 20
+            ),
+            _ => windfall_core::notice!("engine.preparation.refused", detail = format!("{self:?}")),
+        };
+        write!(formatter, "{notice}")
     }
 }
 impl std::error::Error for ProjectPreparationError {}
 impl fmt::Display for PublicationRefusal {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "{self:?}")
+        let notice = windfall_core::notice!(
+            "engine.preparation.publication",
+            detail = format!("{self:?}")
+        );
+        write!(formatter, "{notice}")
     }
 }
 impl std::error::Error for PublicationRefusal {}

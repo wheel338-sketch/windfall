@@ -121,21 +121,17 @@ pub enum StemError {
 
 impl std::fmt::Display for StemError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Timeline(error) => f.write_str(error),
-            Self::Plugin(error) => f.write_str(error),
-            Self::SamplerPreparation(error) => std::fmt::Display::fmt(error, f),
-            Self::Master => f.write_str(
-                "The master track cannot be a stem. Its sound is the mix, which can be exported with the stems.",
-            ),
+        let notice = match self {
+            Self::Timeline(error) | Self::Plugin(error) => windfall_core::notice::term(error),
+            Self::SamplerPreparation(error) => return std::fmt::Display::fmt(error, f),
+            Self::Master => windfall_core::notice!("engine.stems.master"),
             Self::UnknownTrack(id) => {
-                write!(f, "The project has no mixer track with the id {}.", id.0)
+                windfall_core::notice!("engine.stems.unknownTrack", id = id.0)
             }
-            Self::NothingChosen => f.write_str("Choose at least one mixer track to export."),
-            Self::NoTracks => f.write_str(
-                "Nothing plays into a mixer track other than the master, so there are no stems to export.",
-            ),
-        }
+            Self::NothingChosen => windfall_core::notice!("engine.stems.nothingChosen"),
+            Self::NoTracks => windfall_core::notice!("engine.stems.noTracks"),
+        };
+        write!(f, "{notice}")
     }
 }
 
@@ -1098,7 +1094,7 @@ mod tests {
             Err(StemError::NoTracks)
         );
         assert_eq!(
-            StemError::UnknownTrack(TrackId(77)).to_string(),
+            windfall_core::english::shown(&StemError::UnknownTrack(TrackId(77)).to_string()),
             "The project has no mixer track with the id 77."
         );
     }

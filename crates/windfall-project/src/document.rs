@@ -345,9 +345,9 @@ impl Document {
         path: SamplePath,
     ) -> Result<Touched, CommandError> {
         if let Some(problem) = path.problem() {
-            return Err(CommandError::invalid(format!(
-                "the sample path is not valid: {problem}"
-            )));
+            return Err(CommandError::invalid(
+                windfall_core::notice!("project.samplePathInvalid", problem = problem).to_string(),
+            ));
         }
         let matches = |known_id, known_path: &SamplePath| {
             known_id == id && source.is_none_or(|source| source == known_path)

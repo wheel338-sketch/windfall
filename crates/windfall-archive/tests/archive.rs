@@ -558,7 +558,9 @@ fn source_change_during_staging_refuses_publication() {
         &mut check,
     )
     .unwrap_err();
-    assert!(error.to_string().contains("changed while packaging"));
+    assert!(
+        windfall_core::english::english(&error.to_string()).contains("changed while packaging")
+    );
     assert!(!target.exists());
     assert_eq!(fs::read_dir(root.path()).unwrap().count(), 2);
 }

@@ -78,8 +78,9 @@ pub(super) fn pin(path: &Path) -> Result<OwnedHandle, String> {
     // Only a successful, non-null handle becomes an exactly-once owned handle.
     let status = unsafe { NtOpenSymbolicLinkObject(&mut raw, 1, &mut attributes) };
     if status < 0 || raw.is_null() {
-        return Err(error(format!(
-            "Cannot retain the effective drive object ({status:#x})."
+        return Err(error(windfall_ipc::ui_message(
+            "analysis.driveObject",
+            serde_json::json!({"status": format!("{:#x}", status)}),
         )));
     }
     let handle = unsafe { OwnedHandle::from_raw_handle(raw) };

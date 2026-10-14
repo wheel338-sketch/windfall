@@ -1,3 +1,5 @@
+import { backendStaticsEn, backendStaticsEs } from "./backend-statics"
+import { backendTermsEn, backendTermsEs } from "./backend-terms"
 import { analysisEn, analysisEs } from "./analysis"
 import { analyzersEn, analyzersEs } from "./analyzers"
 import { assistantEn, assistantEs } from "./assistant"
@@ -60,6 +62,8 @@ export const areaEn = {
   ...audioLoggerEn,
   ...automationEn,
   ...backendEn,
+  ...backendTermsEn,
+  ...backendStaticsEn,
   ...backupEn,
   ...benchEn,
   ...browserEn,
@@ -115,6 +119,8 @@ export const areaEs = {
   ...audioLoggerEs,
   ...automationEs,
   ...backendEs,
+  ...backendTermsEs,
+  ...backendStaticsEs,
   ...backupEs,
   ...benchEs,
   ...browserEs,

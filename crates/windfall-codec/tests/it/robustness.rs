@@ -112,27 +112,27 @@ fn files_that_are_not_audio_are_unsupported() {
 fn error_messages_read_as_sentences() {
     let not_audio = decode_bytes(b"plain text, not audio", None).unwrap_err();
     assert_eq!(
-        not_audio.to_string(),
+        windfall_core::english::english(&not_audio.to_string()),
         "this is not a supported audio file (the format was not recognized)"
     );
 
     let bytes = riff_wave(&[adpcm_fmt_chunk(), chunk(b"data", &[0; 512])]);
     assert_eq!(
-        decode_bytes(&bytes, None).unwrap_err().to_string(),
+        windfall_core::english::english(&decode_bytes(&bytes, None).unwrap_err().to_string()),
         OTHER_CODEC
     );
     assert_eq!(
-        probe_bytes(&bytes, None).unwrap_err().to_string(),
+        windfall_core::english::english(&probe_bytes(&bytes, None).unwrap_err().to_string()),
         OTHER_CODEC
     );
 
     let cut_short = decode_bytes(b"RIFF\x24\x00\x00\x00WAVEfmt ", None).unwrap_err();
     assert_eq!(
-        cut_short.to_string(),
+        windfall_core::english::english(&cut_short.to_string()),
         "the audio file is damaged (the file ends unexpectedly)"
     );
     assert_eq!(
-        CodecError::NoAudio.to_string(),
+        windfall_core::english::english(&CodecError::NoAudio.to_string()),
         "the file contains no audio"
     );
 }
@@ -403,14 +403,20 @@ fn assert_refused_cheaply(bytes: &[u8], message: &str) {
     let _ = decode_bytes_with(bytes, None, &tiny);
 
     let (decoded, decoding) = peak_heap(|| decode_bytes_with(bytes, None, &tiny));
-    assert_eq!(decoded.unwrap_err().to_string(), message);
+    assert_eq!(
+        windfall_core::english::english(&decoded.unwrap_err().to_string()),
+        message
+    );
     assert!(
         decoding <= REFUSAL_CEILING,
         "decoding held {decoding} bytes"
     );
 
     let (probed, probing) = peak_heap(|| probe_bytes(bytes, None));
-    assert_eq!(probed.unwrap_err().to_string(), message);
+    assert_eq!(
+        windfall_core::english::english(&probed.unwrap_err().to_string()),
+        message
+    );
     assert!(probing <= REFUSAL_CEILING, "probing held {probing} bytes");
 }
 
@@ -635,6 +641,9 @@ fn nothing_is_set_aside_for_a_file_without_a_decoder() {
 
     let _ = decode_bytes(&bytes, None);
     let (decoded, peak) = peak_heap(|| decode_bytes(&bytes, None));
-    assert_eq!(decoded.unwrap_err().to_string(), OTHER_CODEC);
+    assert_eq!(
+        windfall_core::english::english(&decoded.unwrap_err().to_string()),
+        OTHER_CODEC
+    );
     assert!(peak <= REFUSAL_CEILING, "held {peak} bytes");
 }

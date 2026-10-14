@@ -165,7 +165,9 @@ fn a_project_with_no_file_cannot_be_saved_without_a_path() {
 
     assert_eq!(rig.session.project_save(None).unwrap_err(), NO_FILE_YET);
     assert_eq!(
-        rig.session.project_save(Some("beat.windfall")).unwrap_err(),
+        windfall_core::english::english(
+            &rig.session.project_save(Some("beat.windfall")).unwrap_err()
+        ),
         "\"beat.windfall\" is not a full path"
     );
     assert!(rig.events.take().is_empty());
@@ -309,13 +311,13 @@ fn a_file_that_is_not_a_project_is_refused_and_the_open_project_stays() {
     rig.events.take();
 
     let missing = rig.file("missing.windfall");
-    let error = session.project_open(&missing).unwrap_err();
+    let error = windfall_core::english::shown(&session.project_open(&missing).unwrap_err());
     assert!(error.starts_with("Could not read"), "{error}");
     assert!(error.contains("missing.windfall"), "{error}");
 
     let garbage = rig.file("garbage.windfall");
     fs::write(&garbage, "RIFF....WAVE").unwrap();
-    let error = session.project_open(&garbage).unwrap_err();
+    let error = windfall_core::english::shown(&session.project_open(&garbage).unwrap_err());
     assert!(
         error.starts_with("This is not a Windfall project"),
         "{error}"
@@ -323,7 +325,7 @@ fn a_file_that_is_not_a_project_is_refused_and_the_open_project_stays() {
 
     let newer = rig.file("newer.windfall");
     fs::write(&newer, r#"{ "formatVersion": 999 }"#).unwrap();
-    let error = session.project_open(&newer).unwrap_err();
+    let error = windfall_core::english::english(&session.project_open(&newer).unwrap_err());
     assert!(error.contains("newer version of Windfall"), "{error}");
 
     assert_eq!(session.document_snapshot(), before);
@@ -377,6 +379,10 @@ fn opening_a_project_whose_samples_are_gone_warns_and_still_opens() {
         panic!("{events:#?}");
     };
     assert_eq!(warnings.len(), 3, "{warnings:#?}");
+    let warnings: Vec<String> = warnings
+        .iter()
+        .map(|warning| windfall_core::english::english(warning))
+        .collect();
     assert_eq!(warnings[0], format!("Missing sample: {lost}"));
     assert!(
         warnings[1].starts_with(&format!("Could not load \"{broken}\"")),
@@ -711,12 +717,10 @@ fn portable_history_only_missing_source_stays_missing_after_move() {
     rig.session.project_open(&saved).unwrap();
     assert!(!rig.has_audio(sample));
     assert!(
-        rig.events
-            .take()
-            .contains(&Event::ProjectWarnings(vec![format!(
-                "Missing sample: {}",
-                paths::display(&source)
-            )]))
+        super::english_events(rig.events.take()).contains(&Event::ProjectWarnings(vec![format!(
+            "Missing sample: {}",
+            paths::display(&source)
+        )]))
     );
     assert_eq!(fs::read(&collision).unwrap(), competitor);
 }
@@ -792,7 +796,7 @@ fn portable_source_conflict_refuses_root_change_without_discarding_history() {
             if concurrent_edit { 5 } else { 3 }
         );
         hold.release();
-        let error = work.join().unwrap().unwrap_err();
+        let error = windfall_core::english::english(&work.join().unwrap().unwrap_err());
         let saved_copy = rig.folder.path().join("away").join("song (001).windfall");
         assert!(error.contains(&paths::display(&saved_copy)), "{error}");
         assert!(error.contains("history"), "{error}");
@@ -1013,7 +1017,7 @@ fn an_open_that_a_new_project_overtook_is_cancelled() {
 
     hold.release();
     assert_eq!(
-        opening.join().unwrap().unwrap_err(),
+        windfall_core::english::english(&opening.join().unwrap().unwrap_err()),
         "\"on disk.windfall\" was not opened because another project was opened or started after it."
     );
     assert_eq!(session.document_snapshot(), newer);
@@ -1044,7 +1048,7 @@ fn an_open_is_cancelled_when_the_project_was_edited_while_it_loaded() {
 
     hold.release();
     assert_eq!(
-        opening.join().unwrap().unwrap_err(),
+        windfall_core::english::english(&opening.join().unwrap().unwrap_err()),
         "\"on disk.windfall\" was not opened because the project was edited in the meantime. Save or discard those changes, then try again."
     );
     assert_eq!(session.document_snapshot(), edited);
@@ -1058,7 +1062,7 @@ fn an_open_is_cancelled_when_the_project_was_edited_while_it_loaded() {
     rename(&rig, "Edited once more");
     hold.release();
     assert_eq!(
-        starting.join().unwrap().unwrap_err(),
+        windfall_core::english::english(&starting.join().unwrap().unwrap_err()),
         "The new project was not started because the project was edited in the meantime. Save or discard those changes, then try again."
     );
     assert_eq!(rig.project().settings.name, "Edited once more");
@@ -1113,7 +1117,7 @@ fn of_two_requests_to_replace_the_project_the_later_one_wins() {
 
     // The earlier request gets there first and still loses.
     open_hold.release();
-    let error = opening.join().unwrap().unwrap_err();
+    let error = windfall_core::english::english(&opening.join().unwrap().unwrap_err());
     assert!(
         error.contains("another project was opened or started"),
         "{error}"
@@ -1257,9 +1261,11 @@ fn a_sample_that_cannot_be_copied_fails_the_save_and_the_project_stays_unsaved()
     assert!(before.dirty);
     rig.events.take();
 
-    let error = session
-        .project_save(Some(&rig.file("away/song")))
-        .unwrap_err();
+    let error = windfall_core::english::english(
+        &session
+            .project_save(Some(&rig.file("away/song")))
+            .unwrap_err(),
+    );
     assert!(
         error.starts_with("Could not copy the sample \"own\" to "),
         "{error}"
@@ -1466,12 +1472,10 @@ fn save_as_tries_missing_samples_again_in_the_new_folder() {
         .unwrap();
     let expected = Path::new(&nowhere).with_file_name("sounds").join("own.wav");
     assert!(
-        rig.events
-            .take()
-            .contains(&Event::ProjectWarnings(vec![format!(
-                "Missing sample: {}",
-                paths::display(&expected)
-            )]))
+        super::english_events(rig.events.take()).contains(&Event::ProjectWarnings(vec![format!(
+            "Missing sample: {}",
+            paths::display(&expected)
+        )]))
     );
     assert!(!rig.has_audio(sample));
 
@@ -1534,7 +1538,10 @@ fn a_backup_opens_with_its_samples_and_has_to_be_saved_as() {
         panic!("{events:#?}");
     };
     assert_eq!(
-        warnings[..],
+        warnings
+            .iter()
+            .map(|warning| windfall_core::english::english(warning))
+            .collect::<Vec<_>>(),
         [
             "\"song 2026-10-06 18-13-05.windfall\" is a backup of \"song.windfall\". It was opened as a copy: use Save as to keep it."
         ]

@@ -321,7 +321,7 @@ fn what_a_flac_file_cannot_hold_is_refused_in_plain_words() {
         FlacBitDepth::Int16,
         level,
     ) {
-        Err(CodecError::InvalidInput(reason)) => reason,
+        Err(CodecError::InvalidInput(reason)) => windfall_core::english::english(&reason),
         other => panic!("{rate} Hz, {channels} channels, level {level}: {other:?}"),
     };
     assert_eq!(refusal(0, 2, 5), "the sample rate is zero");

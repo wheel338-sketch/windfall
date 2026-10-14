@@ -656,8 +656,10 @@ impl Audio {
                 *self
                     .render_error
                     .lock()
-                    .unwrap_or_else(|error| error.into_inner()) =
-                    Some(format!("Isolated plugin render failed: {error:?}"));
+                    .unwrap_or_else(|error| error.into_inner()) = Some(windfall_ipc::ui_message(
+                    "plugins.isolatedRenderFailed",
+                    serde_json::json!({"error": format!("{:?}", error)}),
+                ));
                 // The owner maintenance pass reaps this helper off realtime.
                 self.process.signals().failed.store(true, Ordering::Release);
             }

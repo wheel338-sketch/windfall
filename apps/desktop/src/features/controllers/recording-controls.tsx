@@ -6,7 +6,7 @@ import { backend, errorMessage } from "@/lib/ipc"
 import { useTransportStore } from "@/lib/store/transport"
 import { useControllerStatus } from "./status"
 import { dumpNoteLog } from "./actions"
-import { message, plainNumber, translatedText as t } from "@/lib/i18n"
+import { localizeBackendText, message, plainNumber, translatedText as t } from "@/lib/i18n"
 
 /** Real session arms, shared by transport and controller status polling. */
 export function MidiRecordingControls() {
@@ -26,6 +26,6 @@ export function MidiRecordingControls() {
     <Button title={message("Record MIDI notes; {bars} count-in bars", { bars: plainNumber(bars) })} aria-label={t("Record MIDI notes")} aria-pressed={state?.noteRecord.armed ?? false} disabled={!state || busy || backend.kind !== "tauri"} variant={state?.noteRecord.armed ? "destructive" : "secondary"} onClick={() => void arm()}>{t("MIDI record")}</Button>
     <Button size="sm" variant="ghost" onClick={() => void dumpNoteLog(null)}>{t("Dump note log")}</Button>
     <span role="status" aria-label={t("Controller pickup indicator")}>{state?.waiting.length ? message("Pickup held: {map}", { map: state.waiting.map((target) => describeTarget(project, target)).join(", ") }) : ""}</span>
-    <span role="status" aria-label={t("MIDI recording status")}>{error ?? logError ?? (state?.noteRecord.armed ? message("{pending} notes captured", { pending: plainNumber(state.noteRecord.pending) }) : "")}</span>
+    <span role="status" aria-label={t("MIDI recording status")}>{error ?? (logError === null ? null : localizeBackendText(logError)) ?? (state?.noteRecord.armed ? message("{pending} notes captured", { pending: plainNumber(state.noteRecord.pending) }) : "")}</span>
   </div>
 }

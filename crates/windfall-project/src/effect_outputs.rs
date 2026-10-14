@@ -56,35 +56,49 @@ pub(crate) fn targets(mixer: &Mixer, from: TrackId) -> impl Iterator<Item = Trac
 
 /// Why `route` cannot be part of `mixer` as it stands, leaving loops aside.
 fn problem(mixer: &Mixer, route: &EffectOutputRoute) -> Option<String> {
-    let name = format!(
-        "output {} of effect {}",
-        u32::from(route.output) + 1,
-        route.effect.0
-    );
+    let name = windfall_core::notice!(
+        "project.owner.effectOutput",
+        output = u32::from(route.output) + 1,
+        effect = route.effect.0
+    )
+    .to_string();
     let Some(track) = home(mixer, route.effect) else {
-        return Some(format!("{name} is routed, but the effect does not exist"));
+        return Some(
+            windfall_core::notice!("project.effectOutputs.effectMissing", output = name)
+                .to_string(),
+        );
     };
     let Some(slot) = track.effects.iter().find(|slot| slot.id == route.effect) else {
-        return Some(format!("{name} is routed, but the effect does not exist"));
+        return Some(
+            windfall_core::notice!("project.effectOutputs.effectMissing", output = name)
+                .to_string(),
+        );
     };
     if usize::from(route.output) >= output_count(slot.kind()) {
-        return Some(format!(
-            "{name} is routed, but the effect has no such output"
-        ));
+        return Some(
+            windfall_core::notice!("project.effectOutputs.outputMissing", output = name)
+                .to_string(),
+        );
     }
     if track.id == TrackId::MASTER || track.current {
-        return Some(format!(
-            "{name} is routed from a track that cannot feed other tracks"
-        ));
+        return Some(
+            windfall_core::notice!("project.effectOutputs.fromTerminal", output = name).to_string(),
+        );
     }
     let Some(target) = mixer.track(route.target) else {
-        return Some(format!(
-            "{name} is routed to mixer track {}, which does not exist",
-            route.target.0
-        ));
+        return Some(
+            windfall_core::notice!(
+                "project.effectOutputs.targetMissing",
+                output = name,
+                track = route.target.0
+            )
+            .to_string(),
+        );
     };
     if target.id == track.id {
-        return Some(format!("{name} is routed back into its own track"));
+        return Some(
+            windfall_core::notice!("project.effectOutputs.toOwnTrack", output = name).to_string(),
+        );
     }
     if target.current {
         return Some("Current cannot receive ordinary mixer routes".to_owned());
@@ -102,11 +116,12 @@ pub(crate) fn check(project: &Project) -> Result<(), String> {
             return Err(problem);
         }
         if !seen.insert((route.effect, route.output)) {
-            return Err(format!(
-                "output {} of effect {} is routed more than once",
-                u32::from(route.output) + 1,
-                route.effect.0
-            ));
+            return Err(windfall_core::notice!(
+                "project.effectOutputs.repeated",
+                output = u32::from(route.output) + 1,
+                effect = route.effect.0
+            )
+            .to_string());
         }
     }
     Ok(())

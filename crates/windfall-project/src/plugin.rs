@@ -27,6 +27,21 @@ pub enum PluginTarget {
     },
 }
 impl PluginTarget {
+    /// The object, said the way the interface says it: a coded message.
+    pub fn notice(self) -> windfall_core::notice::Notice {
+        match self {
+            Self::Instrument { channel } => {
+                windfall_core::notice!("project.plugin.instrument", channel = channel.0)
+            }
+            Self::Effect { effect } => {
+                windfall_core::notice!("project.plugin.effect", effect = effect.0)
+            }
+            Self::Rack { channel, .. } => {
+                windfall_core::notice!("project.plugin.rack", channel = channel.0)
+            }
+        }
+    }
+
     pub fn is_instrument(self) -> bool {
         matches!(
             self,
@@ -147,9 +162,12 @@ impl PluginBinding {
     /// Diagnostics are derived from retained data so reopening shows the same
     /// stale addresses/routes and returning capabilities automatically revive them.
     pub fn capability_diagnostics(&self) -> Vec<String> {
-        let mut diagnostics = self.capabilities.unavailable_parameters.iter().map(|id| {
-            format!("Parameter {id} is unavailable; its automation and controller links are retained.")
-        }).collect::<Vec<_>>();
+        let mut diagnostics = self
+            .capabilities
+            .unavailable_parameters
+            .iter()
+            .map(|id| windfall_core::notice!("plugins.parameterUnavailable", id = id).to_string())
+            .collect::<Vec<_>>();
         diagnostics.extend(
             self.capabilities
                 .routes
@@ -162,11 +180,12 @@ impl PluginBinding {
                         .any(|port| port.index == route.output)
                 })
                 .map(|route| {
-                    format!(
-                        "Saved output {} to mixer track {} is unavailable.",
-                        route.output + 1,
-                        route.track.0
+                    windfall_core::notice!(
+                        "plugins.outputUnavailable",
+                        output = route.output + 1,
+                        track = route.track.0
                     )
+                    .to_string()
                 }),
         );
         diagnostics

@@ -9,6 +9,7 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
+windfall-core.workspace = true
 windfall-project.workspace = true
 windfall-midi.workspace = true
 windfall-flp.workspace = true
@@ -21,4 +22,5 @@ ts-rs.workspace = true
 workspace = true
 
 [dev-dependencies]
+windfall-core = { workspace = true, features = ["english"] }
 serde_json.workspace = true

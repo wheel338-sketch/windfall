@@ -11,7 +11,7 @@ import { confirmDiscardChanges } from "@/lib/flows/project"
 import { currentPatternId } from "@/lib/flows/edit"
 import { currentSession } from "@/features/piano-roll/session"
 import { selectedEffect } from "@/features/mixer/effect-ops"
-import { translatedText as t, dynamicTitle } from "@/lib/i18n"
+import { localizeBackendText, translatedText as t, dynamicTitle } from "@/lib/i18n"
 
 function stamp() { return { generation: getProjectGeneration(), revision: useProjectStore.getState().revision } }
 function current(ticket: ReturnType<typeof stamp>) { if (ticket.generation !== getProjectGeneration() || ticket.revision !== useProjectStore.getState().revision) throw new Error(t("The project changed while the file was chosen; try again")) }
@@ -46,7 +46,7 @@ export async function applyPresetFile(chosen?: string) {
   current(ticket)
   const review = await backend.presetRead(path)
   current(ticket)
-  if (review.notes.length) toast(t("Preset review"), { description: review.notes.join(" ") })
+  if (review.notes.length) toast(t("Preset review"), { description: localizeBackendText(review.notes.join(" ")) })
   if (review.preset.channel) {
     if (!channel) throw new Error(t("Select a channel to apply this preset"))
     let withoutAudio = false
@@ -80,7 +80,7 @@ export async function saveScore() {
   const path = await backend.pickScorePath(score.name)
   if (path === null) return
   const written = await backend.scoreWrite(path, score)
-  if (written.notes.length) toast(t("Score export"), { description: written.notes.join(" ") })
+  if (written.notes.length) toast(t("Score export"), { description: localizeBackendText(written.notes.join(" ")) })
 }
 export async function loadScore(mode: "replace" | "merge" = "replace") {
   const context = currentSession()?.editor.context
@@ -93,7 +93,7 @@ export async function loadScore(mode: "replace" | "merge" = "replace") {
   if (path === null) return
   current(ticket)
   const review = await backend.scoreRead(path); current(ticket)
-  if (review.notes.length) toast(t("Score review"), { description: review.notes.join(" ") })
+  if (review.notes.length) toast(t("Score review"), { description: localizeBackendText(review.notes.join(" ")) })
   const result = await backend.scoreApply(review.score, pattern, channel, mode, state.generation, state.revision)
   if (ticket.generation === getProjectGeneration()) receivePatch(result.patch)
 }

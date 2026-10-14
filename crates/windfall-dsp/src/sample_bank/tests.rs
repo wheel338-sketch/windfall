@@ -720,7 +720,7 @@ fn bank_budget_counts_pending_and_shared_retained_owners_until_the_last_drop() {
     let held = Arc::new(bank);
     let old_plan = held.clone();
     let next_job = budget.reserve(32).unwrap();
-    let refusal = budget.reserve(1).unwrap_err();
+    let refusal = windfall_core::english::english(&budget.reserve(1).unwrap_err());
     assert!(refusal.contains("64 budget"));
     assert!(refusal.contains("64 retained or preparing"));
     drop(held);

@@ -233,7 +233,8 @@ pub enum ZoneTableError {
 }
 impl std::fmt::Display for ZoneTableError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "zone table capacity exceeded: {self:?}")
+        let notice = windfall_core::notice!("dsp.zoneTable", detail = format!("{self:?}"));
+        write!(f, "{notice}")
     }
 }
 impl std::error::Error for ZoneTableError {}

@@ -50,10 +50,14 @@ pub(crate) fn checked_points(
     points: Vec<AutomationPoint>,
 ) -> Result<Vec<AutomationPoint>, CommandError> {
     if points.len() > MAX_AUTOMATION_POINTS {
-        return Err(CommandError::invalid(format!(
-            "an event lane can have {MAX_AUTOMATION_POINTS} points at most, not {}",
-            points.len()
-        )));
+        return Err(CommandError::invalid(
+            windfall_core::notice!(
+                "project.events.tooManyPoints",
+                max = MAX_AUTOMATION_POINTS,
+                count = points.len()
+            )
+            .to_string(),
+        ));
     }
     if !points.is_sorted_by_key(|point| point.tick) {
         return Err(CommandError::invalid(
@@ -108,9 +112,13 @@ pub(crate) fn replaced(
         (None, true) => {}
         (None, false) => {
             if next.len() >= MAX_PATTERN_EVENT_LANES {
-                return Err(CommandError::invalid(format!(
-                    "a pattern can hold {MAX_PATTERN_EVENT_LANES} event lanes at most"
-                )));
+                return Err(CommandError::invalid(
+                    windfall_core::notice!(
+                        "project.events.tooManyLanes",
+                        max = MAX_PATTERN_EVENT_LANES
+                    )
+                    .to_string(),
+                ));
             }
             let id = fresh.ok_or_else(|| CommandError::invalid("the event lane has no id"))?;
             next.push(PatternEventLane { id, target, points });
@@ -143,60 +151,83 @@ pub(crate) fn without(
 pub(crate) fn check(project: &Project) -> Result<(), String> {
     let mut ids: HashSet<AutomationId> = project.automations.iter().map(|a| a.id).collect();
     for pattern in &project.patterns {
-        let owner = format!("pattern {}", pattern.id.0);
+        let owner = windfall_core::notice!("project.owner.pattern", id = pattern.id.0).to_string();
         if pattern.events.len() > MAX_PATTERN_EVENT_LANES {
-            return Err(format!(
-                "{owner} has {} event lanes, more than the limit of {MAX_PATTERN_EVENT_LANES}",
-                pattern.events.len()
-            ));
+            return Err(windfall_core::notice!(
+                "project.events.check.tooManyLanes",
+                owner = owner,
+                count = pattern.events.len(),
+                max = MAX_PATTERN_EVENT_LANES
+            )
+            .to_string());
         }
         let mut targets = HashSet::new();
         for lane in &pattern.events {
             let raw = lane.id.0;
             if raw == 0 || raw >= project.next_id {
-                return Err(format!(
-                    "{owner} has an event lane with id {raw}, outside 1 to the next id to hand out"
-                ));
+                return Err(windfall_core::notice!(
+                    "project.events.check.laneId",
+                    owner = owner,
+                    id = raw
+                )
+                .to_string());
             }
             if !ids.insert(lane.id) {
-                return Err(format!(
-                    "{owner} has an event lane whose id {raw} is already in use"
-                ));
+                return Err(windfall_core::notice!(
+                    "project.events.check.laneIdRepeated",
+                    owner = owner,
+                    id = raw
+                )
+                .to_string());
             }
             if lane.target == AutomationTarget::Tempo {
-                return Err(format!("{owner} has an event lane for the tempo"));
+                return Err(windfall_core::notice!(
+                    "project.events.check.tempoLane",
+                    owner = owner
+                )
+                .to_string());
             }
             if project.automation_range(&lane.target).is_none() {
-                return Err(format!(
-                    "{owner} has an event lane that moves something the project does not have: {:?}",
-                    lane.target
-                ));
+                return Err(windfall_core::notice!(
+                    "project.events.check.target",
+                    owner = owner,
+                    target = format!("{:?}", lane.target)
+                )
+                .to_string());
             }
             if !targets.insert(lane.target) {
-                return Err(format!(
-                    "{owner} has two event lanes for one control: {:?}",
-                    lane.target
-                ));
+                return Err(windfall_core::notice!(
+                    "project.events.check.repeatedTarget",
+                    owner = owner,
+                    target = format!("{:?}", lane.target)
+                )
+                .to_string());
             }
             let points = &lane.points;
             if points.is_empty() || points.len() > MAX_AUTOMATION_POINTS {
-                return Err(format!(
-                    "{owner} has an event lane with {} points, outside 1 to {MAX_AUTOMATION_POINTS}",
-                    points.len()
-                ));
+                return Err(windfall_core::notice!(
+                    "project.events.check.points",
+                    owner = owner,
+                    count = points.len(),
+                    max = MAX_AUTOMATION_POINTS
+                )
+                .to_string());
             }
             if !points.is_sorted_by_key(|point| point.tick) {
-                return Err(format!(
-                    "{owner} has an event lane that does not keep its points in order"
-                ));
+                return Err(
+                    windfall_core::notice!("project.events.check.unsorted", owner = owner)
+                        .to_string(),
+                );
             }
             for point in points {
                 let value = point.value >= 0.0 && point.value <= 1.0;
                 let curve = point.curve >= -1.0 && point.curve <= 1.0;
                 if point.tick > MAX_PATTERN_TICKS || !value || !curve {
-                    return Err(format!(
-                        "{owner} has an event point outside the pattern or its 0 to 1 range"
-                    ));
+                    return Err(windfall_core::notice!(
+                        "project.events.check.pointRange",
+                        owner = owner
+                    )
+                    .to_string());
                 }
             }
         }

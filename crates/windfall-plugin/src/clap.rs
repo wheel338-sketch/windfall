@@ -211,8 +211,10 @@ unsafe extern "C" fn init(plugin: *const clap_plugin) -> bool {
     unsafe { Instance::get(plugin) }.is_some()
 }
 fn report(host: *const clap_host, message: &str) {
-    crate::runtime::error(message);
-    let Ok(message) = std::ffi::CString::new(message) else {
+    // The host's log has no language of Windfall's; it gets the English.
+    let message = &windfall_core::english::english(message);
+    crate::runtime::error(message.as_str());
+    let Ok(message) = std::ffi::CString::new(message.as_str()) else {
         return;
     };
     if let Some(get) = unsafe { (*host).get_extension }

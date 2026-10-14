@@ -9,7 +9,7 @@ import { useProjectGeneration } from "@/lib/store/replaced"
 import { useRealtime } from "@/lib/store/realtime"
 import { VideoFollower, videoTarget } from "./follower"
 import { readRawAvi, type RawAvi } from "./avi"
-import { translatedText as t, message, plainNumber } from "@/lib/i18n"
+import { localizeBackendText, translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 /** A local file is read through a checked, bounded native operation then
  * decoded by the raw AVI reader or HTML video. Blob URLs are revoked on replacement/unmount. */
@@ -100,7 +100,7 @@ export function VideoPlayer({ placement }: { placement: VideoPlacement }) {
         <track kind="captions" />
       </video>}
       <p ref={readout} className="text-xs text-muted-foreground" aria-live="off">{t("Waiting for the audio presentation clock")}</p>
-      {(error || playingError) && <Alert variant="destructive"><AlertDescription>{error ?? playingError}</AlertDescription></Alert>}
+      {(error || playingError) && <Alert variant="destructive"><AlertDescription>{localizeBackendText(error ?? playingError ?? "")}</AlertDescription></Alert>}
     </div>
   )
 }

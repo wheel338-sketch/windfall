@@ -327,6 +327,9 @@ mod tests {
     }
 }
 
+#[cfg(any(test, feature = "english"))]
+pub mod english;
+pub mod notice;
 pub mod resample;
 pub mod yin;
 

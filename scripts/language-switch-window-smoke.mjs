@@ -1,10 +1,16 @@
 // Node 22+, Windows WebView2, prebuilt debug app. No packages or framework.
 //
 // Switches the interface language in the real desktop window and back, and
-// checks that a menu, a dialog, an instrument editor, the history and a
-// refusal from the backend are said in Spanish while it is Spanish, and that
-// the project is exactly what it was. The Spanish it expects is read from the
-// catalogs, so it never drifts from them.
+// checks that a menu, a dialog, an instrument editor, the history, a
+// refusal from the backend, a project file that fails validation and a line
+// of an FL Studio import review are said in Spanish while it is Spanish, and
+// that the project is exactly what it was. The Spanish it expects is read
+// from the catalogs, so it never drifts from them.
+//
+// The two files are written next to the report. The operating system's file
+// picker is the one thing not used: the smoke answers the app's request to
+// open it (through the DevTools network domain) with the file's path, and
+// everything after that is the real app.
 import { spawn } from "node:child_process"
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
@@ -29,13 +35,51 @@ const collect = async (folder) => {
   }
 }
 await collect(resolve("apps/desktop/src/lib/i18n"))
-const es = (key) => {
+// Every catalog entry under `key`, in the order of the sources.
+const entries = (key) => {
   const line = new RegExp(`^\\s+${JSON.stringify(key).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}: ("(?:[^"\\\\]|\\\\.)*")`, "gm")
-  const values = catalogs.flatMap((source) => [...source.matchAll(line)].map((match) => JSON.parse(match[1])))
-  const spanish = values.find((value) => value !== key)
+  return catalogs.flatMap((source) => [...source.matchAll(line)].map((match) => JSON.parse(match[1])))
+}
+const es = (key) => {
+  const spanish = entries(key).find((value) => value !== key)
   if (!spanish) throw new Error(`No Spanish catalog entry for ${JSON.stringify(key)}`)
   return spanish
 }
+
+// The Spanish of a coded backend message: a native catalog module holds the
+// English and then the Spanish under the same code.
+const esCode = (code) => {
+  const values = entries(code)
+  if (values.length !== 2) throw new Error(`Expected an English and a Spanish entry for ${code}, found ${values.length}`)
+  return values[1]
+}
+const fill = (pattern, values) => pattern.replace(/\{(\w+)\}/g, (_, name) => {
+  if (!(name in values)) throw new Error(`No value for {${name}} in ${pattern}`)
+  return values[name]
+})
+
+// An FL Studio project whose tempo, 600 bpm, is past Windfall's 522: the
+// import review says it was brought to the nearest end. Header, then the
+// version text (event 199) and the tempo in thousandths (event 156).
+const flp = (() => {
+  const version = Buffer.from("20.8.4.2576\0", "latin1")
+  const tempo = Buffer.alloc(5)
+  tempo.writeUInt8(156, 0)
+  tempo.writeUInt32LE(600000, 1)
+  const events = Buffer.concat([Buffer.from([199, version.length]), version, tempo])
+  const header = Buffer.alloc(22)
+  header.write("FLhd", 0, "latin1")
+  header.writeUInt32LE(6, 4)
+  header.writeInt16LE(0, 8)
+  header.writeUInt16LE(0, 10)
+  header.writeUInt16LE(96, 12)
+  header.write("FLdt", 14, "latin1")
+  header.writeUInt32LE(events.length, 18)
+  return Buffer.concat([header, events])
+})()
+const flpPath = resolve(dirname(output), "tempo-600.flp")
+const invalidPath = resolve(dirname(output), "tempo-600.windfall")
+await writeFile(flpPath, flp)
 
 // Fail on an occupied port; never attach to a different app/profile by mistake.
 try {
@@ -80,8 +124,10 @@ try {
   })
   let next = 0
   const pending = new Map()
+  const events = new Map()
   socket.addEventListener("message", ({ data }) => {
     const message = JSON.parse(data)
+    if (message.method) { events.get(message.method)?.(message.params); return }
     const request = pending.get(message.id)
     if (!request) return
     pending.delete(message.id)
@@ -139,6 +185,19 @@ try {
     await cdp("Input.dispatchKeyEvent", { type:"keyDown", key:value, code, modifiers, windowsVirtualKeyCode })
     await cdp("Input.dispatchKeyEvent", { type:"keyUp", key:value, code, modifiers, windowsVirtualKeyCode })
   }
+  // The next file picker the app opens answers `path` at once.
+  const picker = async (path) => {
+    await cdp("Fetch.enable", { patterns:[{ urlPattern:"*plugin%3Adialog%7Copen*", requestStage:"Request" }] })
+    events.set("Fetch.requestPaused", async ({ requestId, request }) => {
+      if (request.method !== "POST") { await cdp("Fetch.continueRequest", { requestId }); return }
+      events.delete("Fetch.requestPaused")
+      await cdp("Fetch.fulfillRequest", { requestId, responseCode:200, body:Buffer.from(JSON.stringify(path)).toString("base64"), responseHeaders:[
+        { name:"Content-Type", value:"application/json" }, { name:"Tauri-Response", value:"ok" },
+        { name:"Access-Control-Allow-Origin", value:"*" }, { name:"Access-Control-Expose-Headers", value:"Tauri-Response" }] })
+      await cdp("Fetch.disable")
+    })
+  }
+  const lower = (text) => evaluate(`document.body.innerText.toLowerCase().includes(${JSON.stringify(text.toLowerCase())})`)
   const shown = (text) => evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`)
   const texts = (selector) => evaluate(`[...document.querySelectorAll(${JSON.stringify(selector)})].filter((e) => e.getClientRects().length > 0).map((e) => e.textContent.trim())`)
   const closed = (selector) => until(() => evaluate(`[...document.querySelectorAll(${JSON.stringify(selector)})].every((e) => e.getClientRects().length === 0)`), `${selector} to close`)
@@ -217,6 +276,32 @@ try {
   await until(() => shown(es("Add channel")), "the history in Spanish")
   check("the history is Spanish", await shown(es("Add channel")) && await shown(es("Project opened")), es("Add channel"))
   await key("Escape")
+
+  // A project file that breaks a rule of the format: its tempo. Opening it
+  // is refused by the project's own check, which sends a code and values.
+  const invalid = structuredClone(before.snapshot.project)
+  if (typeof invalid.settings?.tempoBpm !== "number") throw new Error("The project has no settings.tempoBpm to break")
+  invalid.settings.tempoBpm = 600
+  await writeFile(invalidPath, `${JSON.stringify(invalid, null, 2)}
+`)
+  await picker(invalidPath)
+  await menu(es("File"), es("Open project…"))
+  // The channel added above is not saved: say not to save it.
+  await click('[role="dialog"] button, [role="alertdialog"] button', es("Don't save"))
+  const rule = fill(esCode("project.check.tempo"), { tempo:"600", min:"10", max:"522" })
+  await until(() => lower(rule), "the validation refusal in Spanish")
+  check("a validation refusal is Spanish", await shown(es("Could not open the project")) && await lower(rule) && !(await shown("is outside 10 to 522 bpm")), rule)
+
+  // The review of an FL Studio import, before anything is opened.
+  await menu(es("File"), es("Import FL Studio project…"))
+  await picker(flpPath)
+  await click('[role="dialog"] button', es("Choose FL project…"))
+  await click('[role="dialog"] button', es("Project settings"))
+  const line = fill(esCode("flp.project.tempo"), { bpm:"600", min:"10", max:"522" })
+  await until(() => shown(line), "the FL import review line in Spanish")
+  check("an FL import review line is Spanish", await shown(line) && !(await shown("The tempo of 600 bpm")), line)
+  await click('[role="dialog"] button', es("Cancel"))
+  await closed('[role="dialog"]')
 
   const during = await owned()
   check("the project is what it was while Spanish", JSON.stringify(during.snapshot.project) === project && during.generation === before.generation && during.snapshot.history.entries.length === before.snapshot.history.entries.length,

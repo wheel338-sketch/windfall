@@ -214,7 +214,10 @@ impl Session {
         if let Some(pattern) = patch.pattern
             && state.document.project().pattern(pattern).is_none()
         {
-            return Err(format!("pattern {} does not exist", pattern.0));
+            return Err(windfall_ipc::ui_message(
+                "patterns.notFound",
+                serde_json::json!({"id": pattern.0}),
+            ));
         }
         self.clear_timeline_play_owner(&state);
         self.controller().set_transport(patch);

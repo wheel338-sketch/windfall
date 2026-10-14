@@ -334,7 +334,8 @@ impl<'a> Builder<'a> {
                 self.report.say(
                     section,
                     Outcome::Dropped,
-                    format!("{what} could not be brought over: {error}."),
+                    windfall_core::notice!("flp.notBroughtOver", what = what, error = error)
+                        .to_string(),
                 );
                 None
             }
@@ -367,9 +368,13 @@ impl<'a> Builder<'a> {
                 self.report.say(
                     section,
                     Outcome::Approximated,
-                    format!(
-                        "The tempo of {bpm} bpm is outside Windfall's {MIN_TEMPO_BPM} to {MAX_TEMPO_BPM} and was brought to the nearest end."
-                    ),
+                    windfall_core::notice!(
+                        "flp.project.tempo",
+                        bpm = bpm,
+                        min = MIN_TEMPO_BPM,
+                        max = MAX_TEMPO_BPM
+                    )
+                    .to_string(),
                 );
             }
             None => {
@@ -377,7 +382,7 @@ impl<'a> Builder<'a> {
                 self.report.say(
                     section,
                     Outcome::Approximated,
-                    "The file gives no tempo, so the project has Windfall's 120 bpm.",
+                    windfall_core::notice!("flp.project.noTempo").to_string(),
                 );
             }
         }
@@ -404,19 +409,21 @@ impl<'a> Builder<'a> {
             self.report.say(
                 section,
                 Outcome::Approximated,
-                format!(
-                    "The time signature {numerator}/{beat} is not one Windfall has, so the project is in {}/{}.",
-                    signature.numerator, signature.denominator
-                ),
+                windfall_core::notice!(
+                    "flp.project.signature",
+                    numerator = numerator,
+                    beat = beat,
+                    usedNumerator = signature.numerator,
+                    usedDenominator = signature.denominator
+                )
+                .to_string(),
             );
         } else if !has_signatures && beat != 4 {
             exact = false;
             self.report.say(
                 section,
                 Outcome::Approximated,
-                format!(
-                    "The project counts {beat} steps to a beat. Windfall always counts 4, so the step grid reads differently."
-                ),
+                windfall_core::notice!("flp.project.stepsPerBeat", beat = beat).to_string(),
             );
         }
         patch.time_signature = Some(signature);
@@ -436,7 +443,7 @@ impl<'a> Builder<'a> {
             self.report.say(
                 section,
                 Outcome::Approximated,
-                "Swing was carried over as the same share of Windfall's swing, which may not feel the same.",
+                windfall_core::notice!("flp.project.swing").to_string(),
             );
         }
         // FL Studio's circular law keeps the power of the two sides
@@ -458,7 +465,7 @@ impl<'a> Builder<'a> {
                 self.report.say(
                     section,
                     Outcome::Dropped,
-                    "An unknown panning law was left at Windfall's default.",
+                    windfall_core::notice!("flp.project.panLaw").to_string(),
                 );
             }
             None => {}
@@ -468,7 +475,7 @@ impl<'a> Builder<'a> {
             self.report.say(
                 section,
                 Outcome::Approximated,
-                "The project's main pitch is folded into sampler tuning and instrument note expression when the channel's public keyboard.main_pitch flag permits it; stand-in pitch bounds apply.",
+                windfall_core::notice!("flp.project.mainPitch").to_string(),
             );
         }
         let filled = |text: &Option<String>| text.as_deref().is_some_and(|t| !t.trim().is_empty());
@@ -495,7 +502,7 @@ impl<'a> Builder<'a> {
                 self.report.say(
                     section,
                     Outcome::Approximated,
-                    "Project metadata was brought within Windfall's UTF-8 byte limits.",
+                    windfall_core::notice!("flp.project.metadataTrimmed").to_string(),
                 );
             }
         }
@@ -523,10 +530,15 @@ impl<'a> Builder<'a> {
             self.report.say(
                 section,
                 Outcome::Dropped,
-                format!(
-                    "A Windfall project has no place for these yet, so they were left out: {}.",
-                    texts.join(", ")
-                ),
+                windfall_core::notice!(
+                    "flp.project.leftOut",
+                    items = texts
+                        .iter()
+                        .map(|text| windfall_core::notice::term(text).to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+                .to_string(),
             );
         }
         // The name is already the project's.
@@ -540,13 +552,17 @@ impl<'a> Builder<'a> {
             1,
         );
         if !filled(&settings.title) {
-            self.report.say(section, Outcome::Approximated, "The project had no title; its name comes from the supplied fallback or Imported project.");
+            self.report.say(
+                section,
+                Outcome::Approximated,
+                windfall_core::notice!("flp.project.noTitle").to_string(),
+            );
         }
 
         if self
             .apply(
                 section,
-                "The project settings",
+                &windfall_core::notice!("flp.subject.projectSettings").to_string(),
                 Command::UpdateSettings { patch },
             )
             .is_some()
@@ -570,21 +586,50 @@ impl<'a> Builder<'a> {
                     crate::target::ControlTarget::ChannelPlugin { channel, param } => {
                         self.instrument_target_report(channel, param)
                     }
-                    target => format!(
-                        "Automation target {target:?} is unsupported or was not imported; kept in source events."
-                    ),
+                    target => windfall_core::notice!(
+                        "flp.automation.targetUnsupported",
+                        target = format!("{:?}", target)
+                    )
+                    .to_string(),
                 };
                 // Even unplaced automation clips need a per-target diagnostic.
                 // `say` consolidates an identical warning already produced by placement.
                 self.report
                     .say(ReportSection::Automation, Outcome::Dropped, text);
             }
-            self.report.say(ReportSection::Automation,if source.is_some_and(|c|c.automation.is_some()){Outcome::Approximated}else{Outcome::Dropped},format!(
-                "Controller link source {:#010x} -> {:?}: {}. SCOPE: DawVert auto.py establishes source@2/location@8/flags@12/smoothing@16; PyFLP controller.py leaves source and trailing bytes unnamed. No serialized formula field or smoothing-unit conversion is established; raw flags={} and smoothing={} retained, no formula bytes or milliseconds invented.",
-                link.source,link.target(),if source.is_some_and(|c|c.automation.is_some()){"automation clip source decoded; see target conversion diagnostics"}else{"source is not an imported automation clip; controller/MIDI source encoding lacks a public semantic layout"},link.flags,link.smoothing));
+            self.report.say(
+                ReportSection::Automation,
+                if source.is_some_and(|c| c.automation.is_some()) {
+                    Outcome::Approximated
+                } else {
+                    Outcome::Dropped
+                },
+                if source.is_some_and(|c| c.automation.is_some()) {
+                    windfall_core::notice!(
+                        "flp.automation.controllerLinkDecoded",
+                        source = format!("{:#010x}", link.source),
+                        target = format!("{:?}", link.target()),
+                        flags = link.flags,
+                        smoothing = link.smoothing
+                    )
+                } else {
+                    windfall_core::notice!(
+                        "flp.automation.controllerLinkUnmapped",
+                        source = format!("{:#010x}", link.source),
+                        target = format!("{:?}", link.target()),
+                        flags = link.flags,
+                        smoothing = link.smoothing
+                    )
+                }
+                .to_string(),
+            );
         }
         if flp.uninterpreted_counts.contains_key(&226) {
-            self.report.say(section,Outcome::Dropped,"SCOPE: MIDI controller event 226 remains opaque: PyFLP MIDIControllerEvent is only GreedyBytes; DawVert auto.py and LMMS importer establish no MIDI source-field layout or units.");
+            self.report.say(
+                section,
+                Outcome::Dropped,
+                windfall_core::notice!("flp.automation.midiControllerScope").to_string(),
+            );
         }
         for (&id, &count) in &flp.uninterpreted_counts {
             self.report.count(section, Outcome::Dropped, count);
@@ -593,7 +638,12 @@ impl<'a> Builder<'a> {
                 section,
                 Outcome::Dropped,
                 count,
-                format!("Event {id} ({what}) was not interpreted or converted."),
+                windfall_core::notice!(
+                    "flp.eventNotConverted",
+                    id = id,
+                    what = windfall_core::notice::term(what)
+                )
+                .to_string(),
             );
         }
     }
@@ -632,8 +682,11 @@ impl<'a> Builder<'a> {
                     format: "flp-events-v1".into(),
                     data,
                 });
-            report.say(ReportSection::Other, Outcome::Placeholder,
-                "Original processor, controller, timing and navigation events are retained opaquely in the saved project. Unsupported controls are not executed; see the conversion warnings. Personal licensee metadata is excluded.");
+            report.say(
+                ReportSection::Other,
+                Outcome::Placeholder,
+                windfall_core::notice!("flp.project.eventsRetained").to_string(),
+            );
         }
         project.retained_plugins = plugins
             .iter()
@@ -672,9 +725,9 @@ impl<'a> Builder<'a> {
             // If it ever does, an empty project is still better than one
             // the app cannot open.
             Err(problem) => {
-                report.read_problems.push(format!(
-                    "The converted project did not pass Windfall's own checks ({problem}), so an empty project is given instead. Please report this file."
-                ));
+                report
+                    .read_problems
+                    .push(windfall_core::notice!("flp.checkFailed", problem = problem).to_string());
                 for category in &mut report.categories {
                     category.dropped = category.total();
                     category.exact = 0;

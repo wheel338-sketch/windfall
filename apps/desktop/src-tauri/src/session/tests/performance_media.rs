@@ -348,14 +348,18 @@ fn missing_video_decoder_refuses_unmute_atomically() {
             None,
         )
         .unwrap_err();
-    assert!(error.to_string().contains("Cannot decode video audio"));
+    assert!(
+        windfall_core::english::english(&error.to_string()).contains("Cannot decode video audio")
+    );
     assert_eq!(rig.project(), before);
     media.videos[0].path = rig.file("absent-video.avi");
     let error = rig
         .session
         .dispatch(Command::SetStageMedia { media }, None)
         .unwrap_err();
-    assert!(error.to_string().contains("Cannot decode video audio"));
+    assert!(
+        windfall_core::english::english(&error.to_string()).contains("Cannot decode video audio")
+    );
     assert_eq!(rig.project(), before);
 }
 

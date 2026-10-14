@@ -12,7 +12,7 @@ import { CurveEditor } from "./curve-editor"
 import { commitAsset } from "./editors"
 import { EffectAssetOwner, useEffectAssetCommit } from "../asset-owner"
 import { RackAudioInput } from "@/features/modular/audio-input"
-import { translatedText as t } from "@/lib/i18n"
+import { localizeBackendText, translatedText as t } from "@/lib/i18n"
 
 export function VolumeGateEditor({ effect, track, params, bind }: EditorProps<VolumeGateParams>) {
   const commit = useEffectAssetCommit(effect, track, "volumeGate", commitAsset)
@@ -84,7 +84,7 @@ export function ScratchEditor({ effect, track, params, bind }: EditorProps<Scrat
       </Select>
       <FieldDescription>{t("Choose loaded project audio. Add an audio file to the channel rack or playlist to make it available here. Position moves the platter; Follow scratch curve performs the saved movement every Record cycle.")}</FieldDescription>
     </Field>}
-    {info?.status === "error" && <Alert variant="destructive"><AlertDescription>{info.message}</AlertDescription></Alert>}
+    {info?.status === "error" && <Alert variant="destructive"><AlertDescription>{localizeBackendText(info.message)}</AlertDescription></Alert>}
     <CurveEditor key={effect} label={t("Scratch position")} points={params.positionCurve} onCommit={(curve) => commit("positionCurve",curve)} />
     <ParamRow columns={5}>{["position", "freeze", "loopBeats", "mix", "curveEnabled"].map((id) => <ParamControl key={id} {...bind(id)} />)}</ParamRow>
   </div>

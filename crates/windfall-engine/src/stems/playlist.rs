@@ -93,26 +93,17 @@ pub enum PlaylistStemError {
 
 impl std::fmt::Display for PlaylistStemError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Render(error) => std::fmt::Display::fmt(error, f),
-            Self::PatternMode => f.write_str(
-                "Playlist tracks belong to the song. Export the song to get a file for each of them.",
-            ),
-            Self::UnknownTrack(id) => write!(
-                f,
-                "The playlist has no track with the id {} in this arrangement.",
-                id.0
-            ),
-            Self::Silent(id) => write!(
-                f,
-                "Playlist track {} plays nothing: it is muted, silenced by solo, or holds no pattern or audio clip.",
-                id.0
-            ),
-            Self::NothingChosen => f.write_str("Choose at least one playlist track to export."),
-            Self::NoTracks => f.write_str(
-                "No playlist track plays a pattern or audio clip, so there are no tracks to export.",
-            ),
-        }
+        let notice = match self {
+            Self::Render(error) => return std::fmt::Display::fmt(error, f),
+            Self::PatternMode => windfall_core::notice!("engine.playlistStems.patternMode"),
+            Self::UnknownTrack(id) => {
+                windfall_core::notice!("engine.playlistStems.unknownTrack", id = id.0)
+            }
+            Self::Silent(id) => windfall_core::notice!("engine.playlistStems.silent", track = id.0),
+            Self::NothingChosen => windfall_core::notice!("engine.playlistStems.nothingChosen"),
+            Self::NoTracks => windfall_core::notice!("engine.playlistStems.noTracks"),
+        };
+        write!(f, "{notice}")
     }
 }
 

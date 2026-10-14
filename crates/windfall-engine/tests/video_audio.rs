@@ -78,9 +78,7 @@ fn video_audio_mute_and_missing_decoder_cannot_silently_export_success() {
     );
     assert!(missing.audio.samples().is_empty());
     assert!(
-        missing
-            .timeline_error
-            .unwrap()
+        windfall_core::english::english(&missing.timeline_error.unwrap())
             .contains("Video audio is unavailable")
     );
     project.settings.stage_media.videos[0].muted = true;

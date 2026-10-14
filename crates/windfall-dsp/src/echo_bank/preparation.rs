@@ -51,36 +51,41 @@ pub enum PreparationError {
 }
 impl std::fmt::Display for PreparationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
+        let notice = match self {
             Self::CapacityOverflow {
                 maximum_delay_samples,
                 history_count,
-            } => write!(
-                f,
-                "history capacity overflow: {history_count} histories, {maximum_delay_samples} maximum delay samples"
+            } => windfall_core::notice!(
+                "dsp.echo.capacityOverflow",
+                histories = history_count,
+                samples = maximum_delay_samples
             ),
             Self::RetainedBudgetExceeded {
                 required_bytes,
                 budget_bytes,
-            } => write!(
-                f,
-                "retained payload requires {required_bytes} bytes; budget is {budget_bytes}"
+            } => windfall_core::notice!(
+                "dsp.echo.retainedBudget",
+                required = required_bytes,
+                budget = budget_bytes
             ),
             Self::PeakBudgetExceeded {
                 required_bytes,
                 budget_bytes,
-            } => write!(
-                f,
-                "preparation peak requires {required_bytes} bytes; budget is {budget_bytes}"
+            } => windfall_core::notice!(
+                "dsp.echo.peakBudget",
+                required = required_bytes,
+                budget = budget_bytes
             ),
             Self::ReservationFailed {
                 history_index,
                 requested_bytes,
-            } => write!(
-                f,
-                "history {history_index} reservation refused {requested_bytes} bytes"
+            } => windfall_core::notice!(
+                "dsp.echo.reservationFailed",
+                history = history_index,
+                requested = requested_bytes
             ),
-        }
+        };
+        write!(f, "{notice}")
     }
 }
 impl std::error::Error for PreparationError {}

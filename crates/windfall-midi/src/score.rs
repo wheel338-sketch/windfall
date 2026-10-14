@@ -48,20 +48,16 @@ pub fn score_to_song(score: &Score, tempo_bpm: f64) -> (MidiSong, Vec<String>) {
     }
     let mut left_out = Vec::new();
     if panned > 0 {
-        left_out.push(format!(
-            "{panned} of the notes are panned. A MIDI file has no pan for a single note, so they are centered in it."
-        ));
+        left_out.push(windfall_core::notice!("scores.panLost", count = panned).to_string());
     }
     if expressive > 0 {
-        left_out.push(format!(
-            "{expressive} of the notes have expression beyond their release (fine pitch, modulation, articulation or color), which this MIDI file does not hold."
-        ));
+        left_out
+            .push(windfall_core::notice!("scores.expressionLost", count = expressive).to_string());
     }
     if !score.curves.is_empty() {
-        left_out.push(format!(
-            "{} expression curves were left out: a MIDI file does not hold them.",
-            score.curves.len()
-        ));
+        left_out.push(
+            windfall_core::notice!("scores.curvesLost", count = score.curves.len()).to_string(),
+        );
     }
     // A standard marker retains Windfall's complete expressive score. Other
     // sequencers still read the ordinary notes, and can ignore this marker.
@@ -139,9 +135,12 @@ pub fn score_from_song(
         return Err("The MIDI file has no notes".to_owned());
     }
     if total > MAX_SCORE_NOTES {
-        return Err(format!(
-            "The MIDI file has {total} notes, and a score holds at most {MAX_SCORE_NOTES}. Import it as MIDI instead."
-        ));
+        return Err(windfall_core::notice!(
+            "scores.midiTooManyNotes",
+            count = total,
+            max = MAX_SCORE_NOTES
+        )
+        .to_string());
     }
     let mut left_out = Vec::new();
     let voiced = song
@@ -150,9 +149,7 @@ pub fn score_from_song(
         .filter(|track| !track.notes.is_empty())
         .count();
     if voiced > 1 {
-        left_out.push(format!(
-            "The notes of {voiced} tracks were put into one lane."
-        ));
+        left_out.push(windfall_core::notice!("scores.tracksMerged", count = voiced).to_string());
     }
     let mut cut = 0_usize;
     let mut dropped = 0_usize;
@@ -179,14 +176,10 @@ pub fn score_from_song(
         });
     }
     if dropped > 0 {
-        left_out.push(format!(
-            "{dropped} notes start past the end of the longest pattern and were left out."
-        ));
+        left_out.push(windfall_core::notice!("scores.notesDropped", count = dropped).to_string());
     }
     if cut > 0 {
-        left_out.push(format!(
-            "{cut} notes were cut at the end of the longest pattern."
-        ));
+        left_out.push(windfall_core::notice!("scores.notesCut", count = cut).to_string());
     }
     if notes.is_empty() {
         return Err(

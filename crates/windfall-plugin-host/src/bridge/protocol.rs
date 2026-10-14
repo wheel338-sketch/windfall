@@ -234,7 +234,8 @@ pub enum ProtocolError {
 
 impl std::fmt::Display for ProtocolError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "invalid bridge {:?}", self)
+        let notice = windfall_core::notice!("pluginHost.protocol", detail = format!("{self:?}"));
+        write!(formatter, "{notice}")
     }
 }
 impl std::error::Error for ProtocolError {}

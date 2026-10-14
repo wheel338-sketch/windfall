@@ -730,7 +730,10 @@ fn a_logged_mixer_track_is_dumped_as_it_left_its_effects() {
             track: TrackId(9_999),
         },
     );
-    assert!(!missing.active && missing.label.contains("not in this project"));
+    assert!(
+        !missing.active
+            && windfall_core::english::english(&missing.label).contains("not in this project")
+    );
     let named = status(&state, AudioLoggerSource::Track { track: kick });
     assert!(
         named.active && named.label.contains("Kick Punch"),
@@ -861,7 +864,7 @@ fn a_project_opened_during_a_dump_is_left_alone_and_the_file_is_removed() {
     let fresh = rig.session.document_snapshot();
     hold.release();
 
-    let error = dumping.join().unwrap().unwrap_err();
+    let error = windfall_core::english::english(&dumping.join().unwrap().unwrap_err());
     assert!(error.contains("another project was opened"), "{error}");
     let now = rig.session.document_snapshot();
     assert_eq!(now.project, fresh.project);

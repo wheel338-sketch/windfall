@@ -25,6 +25,7 @@ mod import_formats;
 mod import_recording;
 mod library;
 mod mastering_qa;
+mod message_families;
 mod midi;
 mod midi_hardware;
 #[cfg(windows)]
@@ -266,6 +267,22 @@ const GRACE: Duration = Duration::from_millis(150);
 
 /// Whether a thread that must be waiting for another is in fact still
 /// running once [`GRACE`] is up.
+/// Events with the warnings they carry in English, as a test reads them.
+fn english_events(events: Vec<Event>) -> Vec<Event> {
+    events
+        .into_iter()
+        .map(|event| match event {
+            Event::ProjectWarnings(warnings) => Event::ProjectWarnings(
+                warnings
+                    .iter()
+                    .map(|warning| windfall_core::english::english(warning))
+                    .collect(),
+            ),
+            other => other,
+        })
+        .collect()
+}
+
 fn still_running<T>(thread: &JoinHandle<T>) -> bool {
     let deadline = Instant::now() + GRACE;
     while Instant::now() < deadline && !thread.is_finished() {

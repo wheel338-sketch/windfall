@@ -77,23 +77,38 @@ fn read_ports(
     let side = if is_input { "inputs" } else { "outputs" };
     let count = extension.count(plugin, is_input);
     if count > MAX_PORTS {
-        return Err(PluginError::Layout(format!(
-            "it reports {count} audio {side}"
-        )));
+        return Err(PluginError::Layout(
+            windfall_core::notice!(
+                "pluginHost.clapPortCount",
+                count = count,
+                side = windfall_core::notice::term(side)
+            )
+            .to_string(),
+        ));
     }
     let mut buffer = AudioPortInfoBuffer::new();
     let mut ports = Vec::new();
     for index in 0..count {
         let Some(info) = extension.get(plugin, index, is_input, &mut buffer) else {
-            return Err(PluginError::Layout(format!(
-                "it does not describe port {index} of its audio {side}"
-            )));
+            return Err(PluginError::Layout(
+                windfall_core::notice!(
+                    "pluginHost.clapPortMissing",
+                    index = index,
+                    side = windfall_core::notice::term(side)
+                )
+                .to_string(),
+            ));
         };
         if info.channel_count > MAX_PORT_CHANNELS {
-            return Err(PluginError::Layout(format!(
-                "port {index} of its audio {side} has {} channels",
-                info.channel_count
-            )));
+            return Err(PluginError::Layout(
+                windfall_core::notice!(
+                    "pluginHost.clapPortChannels",
+                    index = index,
+                    side = windfall_core::notice::term(side),
+                    channels = info.channel_count
+                )
+                .to_string(),
+            ));
         }
         ports.push(PortDesc {
             id: info.id.get(),
@@ -219,9 +234,14 @@ impl ClapInstance {
             note_inputs = note_ports.count(&plugin, true);
             note_outputs = note_ports.count(&plugin, false);
             if note_inputs > MAX_PORTS || note_outputs > MAX_PORTS {
-                return Err(PluginError::Layout(format!(
-                    "it reports {note_inputs} note inputs and {note_outputs} note outputs"
-                )));
+                return Err(PluginError::Layout(
+                    windfall_core::notice!(
+                        "pluginHost.clapNotePorts",
+                        inputs = note_inputs,
+                        outputs = note_outputs
+                    )
+                    .to_string(),
+                ));
             }
             let mut buffer = NotePortInfoBuffer::new();
             if let Some(port) = note_ports.get(&plugin, 0, true, &mut buffer) {

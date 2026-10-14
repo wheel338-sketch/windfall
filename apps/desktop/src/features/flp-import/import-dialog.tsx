@@ -27,7 +27,7 @@ import { confirmDiscardChanges } from "@/lib/flows/project"
 import { loadSnapshot } from "@/lib/store/project"
 import { useUiStore } from "@/lib/store/ui"
 import { fileName } from "@/lib/time"
-import { translatedText as t, message } from "@/lib/i18n"
+import { localizeBackendText, translatedText as t, message } from "@/lib/i18n"
 
 function Review({ preview }: { preview: FlpImportPreview }) {
   return (
@@ -61,7 +61,7 @@ function Review({ preview }: { preview: FlpImportPreview }) {
                 />
               }
             >
-              <span>{c.title}</span>
+              <span>{t(c.title)}</span>
               <span>
                 {c.exact}{" "}{t("exact ·")}{" "}{c.approximated}{" "}{t("approximate ·")}{" "}
                 {c.placeholders}{" "}{t("placeholders ·")}{" "}{c.dropped}{" "}{t("omitted")}
@@ -72,7 +72,7 @@ function Review({ preview }: { preview: FlpImportPreview }) {
                 {c.lines.map((line, i) => (
                   <li key={i}>
                     {line.count > 1 ? `${line.count} × ` : ""}
-                    {line.text}
+                    {localizeBackendText(line.text)}
                   </li>
                 ))}
                 {c.moreLines > 0 && (
@@ -118,7 +118,7 @@ function Review({ preview }: { preview: FlpImportPreview }) {
             {[...preview.report.readProblems, ...preview.warnings].map(
               (line, i) => (
                 <li key={i} className="wrap-anywhere">
-                  {line}
+                  {localizeBackendText(line)}
                 </li>
               )
             )}

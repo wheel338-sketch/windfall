@@ -237,11 +237,17 @@ fn an_audio_clip_uses_the_sample_and_the_tracks_that_are_there() {
     let error = session
         .add_audio_clip_from_sample(kick.id, nowhere)
         .unwrap_err();
-    assert_eq!(error, "playlist track 999 does not exist");
+    assert_eq!(
+        windfall_core::english::english(&error),
+        "playlist track 999 does not exist"
+    );
     let error = session
         .add_audio_clip_from_sample(SampleId(999), new_tracks(0))
         .unwrap_err();
-    assert_eq!(error, "sample 999 does not exist");
+    assert_eq!(
+        windfall_core::english::english(&error),
+        "sample 999 does not exist"
+    );
     assert_eq!(session.document_snapshot(), before);
 }
 
@@ -368,9 +374,11 @@ fn a_file_that_is_not_audio_makes_no_clip() {
             .is_err()
     );
     assert_eq!(
-        session
-            .add_audio_clip_from_file("loop.wav", new_tracks(0))
-            .unwrap_err(),
+        windfall_core::english::english(
+            &session
+                .add_audio_clip_from_file("loop.wav", new_tracks(0))
+                .unwrap_err()
+        ),
         "\"loop.wav\" is not a full path"
     );
     assert_eq!(session.document_snapshot(), before);
@@ -392,7 +400,7 @@ fn a_clip_whose_file_was_still_loading_when_another_project_opened_is_not_added(
 
     let error = adding.join().unwrap().unwrap_err();
     assert_eq!(
-        error,
+        windfall_core::english::english(&error),
         "\"Bass Sub.wav\" was not added, because another project was opened while it was loading."
     );
     assert_eq!(session.document_snapshot(), opened);
@@ -421,7 +429,7 @@ fn a_sample_without_audio_cannot_be_made_into_a_clip() {
         .add_audio_clip_from_sample(sample, new_tracks(0))
         .unwrap_err();
     assert_eq!(
-        error,
+        windfall_core::english::english(&error),
         "The audio of \"Gone\" is not loaded, so a clip of it cannot be made. Check that its file is there, then reload the samples."
     );
     assert_eq!(rig.project(), before);
@@ -456,7 +464,10 @@ fn the_sample_of_an_audio_clip_is_saved_carried_and_missed_like_any_other() {
     let error = session
         .dispatch(Command::RemoveSample { id: sample }, None)
         .unwrap_err();
-    assert!(error.contains("still used by an audio clip"), "{error}");
+    assert!(
+        windfall_core::english::english(&error).contains("still used by an audio clip"),
+        "{error}"
+    );
 
     // Saved into another folder, the file goes along.
     let moved = session.project_save(Some(&rig.file("away/song"))).unwrap();
@@ -476,6 +487,7 @@ fn the_sample_of_an_audio_clip_is_saved_carried_and_missed_like_any_other() {
                 _ => None,
             })
             .flatten()
+            .map(|warning| windfall_core::english::english(&warning))
             .collect()
     };
     assert!(warned(&rig).is_empty());
@@ -595,7 +607,7 @@ fn a_control_gets_an_automation_and_its_clip_in_one_step() {
         channel: ChannelId(999),
     };
     assert_eq!(
-        session.automate(missing).unwrap_err(),
+        windfall_core::english::english(&session.automate(missing).unwrap_err()),
         "channel 999 does not exist"
     );
     assert_eq!(session.document_snapshot(), unchanged);

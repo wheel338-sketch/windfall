@@ -13,7 +13,7 @@ publish = false
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-windfall-core.workspace = true
+windfall-core = { workspace = true, features = ["english"] }
 windfall-dsp.workspace = true
 windfall-project.workspace = true
 # Existing workspace GPL-3.0-or-later host: export-owned process bridge and runtime probe.
@@ -32,3 +32,6 @@ windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+windfall-core = { workspace = true, features = ["english"] }

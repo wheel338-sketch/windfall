@@ -139,7 +139,8 @@ fn recorded_pattern_controls_import_from_real_bytes_as_held_lanes() {
             .category(ReportSection::Other)
             .lines
             .iter()
-            .any(|line| line.text.contains("Recorded pattern events could not"))
+            .any(|line| windfall_core::english::english(&line.text)
+                .contains("Recorded pattern events could not"))
     );
     let saved = windfall_project::file::to_json(&output.project);
     assert!(saved.is_ok());
@@ -196,7 +197,7 @@ fn unsupported_control_controller_timing_and_navigation_bytes_are_durable_with_o
         read.arrangements[0].markers
     );
     assert_eq!(retained.uninterpreted, read.uninterpreted);
-    let report = format!("{:?}", imported.report);
+    let report = common::words(&imported.report);
     assert!(report.contains("unsupported"));
     assert!(report.contains("retained opaquely"));
     let json = windfall_project::file::to_json(&imported.project).unwrap();
@@ -239,7 +240,7 @@ fn source_event_archive_excludes_licensee_and_stops_at_complete_events_with_a_bu
         parsed
             .diagnostics
             .iter()
-            .any(|d| d.message.contains("archive exceeds 16 MiB"))
+            .any(|d| windfall_core::english::english(&d.message).contains("archive exceeds 16 MiB"))
     );
     let imported = convert(&parsed, &ConvertOptions::default());
     let retained = parse(&imported.project.retained_source_data[0].data).unwrap();
@@ -298,7 +299,7 @@ fn timeline_selected_arrangement_meters_and_named_markers_survive_actual_flp_byt
     );
     assert_eq!(timeline.markers[0].name, "Chorus");
     assert_eq!(timeline.markers[0].tick, 7400);
-    let report = format!("{:?}", converted.report);
+    let report = common::words(&converted.report);
     assert_eq!(
         converted.project.patterns[0]
             .timeline
@@ -405,13 +406,9 @@ fn cyclic_routes_are_refused_without_invalidating_the_project() {
         level: Some(12800),
     }];
     let c = converted(&p);
-    assert!(
-        c.report
-            .categories
-            .iter()
-            .flat_map(|c| &c.lines)
-            .any(|l| l.text.contains("feed a mixer track back into itself"))
-    );
+    assert!(c.report.categories.iter().flat_map(|c| &c.lines).any(|l| {
+        windfall_core::english::english(&l.text).contains("feed a mixer track back into itself")
+    }));
 }
 #[test]
 fn layers_copy_notes_to_children_and_cycles_terminate() {
@@ -780,7 +777,7 @@ fn channel_swing_docks_sidechains_send_destinations_and_opaque_state_survive() {
     assert_eq!(bus.sidechains[0].target, detector.id);
     assert_eq!(c.project.mixer.effect_outputs[0].target, detector.id);
     assert!(c.project.retained_plugins.iter().any(|p| p.state == state));
-    assert!(format!("{:?}", c.report).contains("Nonlinear channel time shift"));
+    assert!(common::words(&c.report).contains("Nonlinear channel time shift"));
     let json = windfall_project::file::to_json(&c.project).unwrap();
     assert_eq!(windfall_project::file::from_json(&json).unwrap(), c.project);
 }
@@ -822,7 +819,7 @@ fn unknown_version_bad_event_length_and_unknown_marker_counts_remain_honest() {
     assert_eq!(damaged.version_text.as_deref(), Some(MODERN));
     assert_eq!(damaged.diagnostics.len(), 1);
     assert_eq!(
-        damaged.diagnostics[0].message,
+        windfall_core::english::english(&damaged.diagnostics[0].message),
         format!(
             "the file ends in the middle of the event that starts at byte {damaged_offset}. Everything before that was read, and the rest is lost."
         )
@@ -1017,7 +1014,7 @@ fn recorded_events_sort_hold_last_duplicates_and_report_hostile_or_unsupported_t
             .collect::<Vec<_>>(),
         vec![(3, 0.5, true), (8, 1.0, true)]
     );
-    assert!(format!("{:?}", imported.report).contains("unsupported"));
+    assert!(common::words(&imported.report).contains("unsupported"));
     imported.project.check().unwrap();
 }
 
@@ -1110,16 +1107,15 @@ fn repeated_and_partial_event_223_records_observe_the_global_reader_budget() {
     assert_eq!(parsed.patterns[0].control_events.len(), budget);
     assert!(parsed.patterns[1].control_events.is_empty());
     assert!(
-        parsed
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("recorded control events"))
+        parsed.diagnostics.iter().any(
+            |d| windfall_core::english::english(&d.message).contains("recorded control events")
+        )
     );
     assert!(
         parsed
             .diagnostics
             .iter()
-            .any(|d| d.message.contains("incomplete 12-byte"))
+            .any(|d| windfall_core::english::english(&d.message).contains("incomplete 12-byte"))
     );
     convert(&parsed, &ConvertOptions::default())
         .project

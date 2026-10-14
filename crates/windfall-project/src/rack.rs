@@ -261,10 +261,14 @@ impl RackGraph {
                 } = &node.processor
                 && params.source_id != 0
             {
-                missing.push(format!(
-                    "{}: unowned legacy sample {}; relink its WAV",
-                    node.name, params.source_id
-                ));
+                missing.push(
+                    windfall_core::notice!(
+                        "rack.legacySample",
+                        node = node.name,
+                        sample = params.source_id
+                    )
+                    .to_string(),
+                );
             }
             if let RackProcessor::Rack { graph } = &node.processor {
                 missing.extend(graph.missing_assets());

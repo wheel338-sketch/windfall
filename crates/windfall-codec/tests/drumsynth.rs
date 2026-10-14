@@ -20,7 +20,7 @@ fn bounded_public_text_reader_retains_unknown_fields_and_renders_reference_tone(
         render
             .warnings
             .iter()
-            .any(|w| w.contains("own extension.text"))
+            .any(|w| windfall_core::english::english(w).contains("own extension.text"))
     );
 }
 #[test]

@@ -11,7 +11,7 @@ import { dispatch, useProjectStore } from "@/lib/store/project"
 import { getProjectGeneration } from "@/lib/store/replaced"
 import { sameShape } from "./menu"
 import { useControllerStatus } from "./status"
-import { message, plainNumber, translatedText as t } from "@/lib/i18n"
+import { localizeBackendText, message, plainNumber, translatedText as t } from "@/lib/i18n"
 
 export function ControllerChoice<T extends string>({ label, value, choices, change, disabled = false }: {
   label: string; value: T; choices: { value: T; label: string }[]; change(value: T): void; disabled?: boolean
@@ -143,6 +143,6 @@ export function ControllerLinksPanel() {
     </FieldGroup>}
     <div role="status" aria-label={t("Controller pickup state")}>{state?.waiting.length ?
       message("Pickup held: {map}", { map: state.waiting.map((target) => describeTarget(project, target)).join(", ") }) : t("No controls held for pickup.")}</div>
-    {(error || (backend.kind === "tauri" && state?.error)) && <Alert variant="destructive"><AlertDescription>{error || state?.error}</AlertDescription></Alert>}
+    {(error || (backend.kind === "tauri" && state?.error)) && <Alert variant="destructive"><AlertDescription>{localizeBackendText(error || state?.error || "")}</AlertDescription></Alert>}
   </FieldSet>
 }

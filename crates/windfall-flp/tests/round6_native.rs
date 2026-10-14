@@ -100,7 +100,7 @@ fn native_instrument_words_translate_with_independent_numbers_and_reopen_exact_b
             (instrument_value(&c, target) - expected).abs() < 0.0001,
             "{name}"
         );
-        assert!(format!("{:?}", c.report).contains(name));
+        assert!(common::words(&c.report).contains(name));
         assert_eq!(c.project.retained_plugins[0].state, b);
         let json = windfall_project::file::to_json(&c.project).unwrap();
         assert_eq!(windfall_project::file::from_json(&json).unwrap(), c.project);
@@ -132,7 +132,7 @@ fn dx10_public_power_envelopes_ratios_levels_and_algorithm_are_not_default_patch
     ] {
         assert_eq!(instrument_value(&c, id), want, "{id}");
     }
-    assert!(format!("{:?}", c.report).contains("mod_fine"));
+    assert!(common::words(&c.report).contains("mod_fine"));
 }
 
 #[test]
@@ -181,7 +181,7 @@ fn all_remaining_fixed_effect_layouts_have_numeric_translation_and_named_reports
             "{name}: {} != {want}",
             effect_value(&c, target)
         );
-        let report = format!("{:?}", c.report);
+        let report = common::words(&c.report);
         assert!(report.contains(name), "{name}");
         assert!(report.contains("public native state"), "{name}: {report}");
         assert_eq!(c.project.retained_plugins[0].state, b);
@@ -236,7 +236,7 @@ fn sslf_states_nested_delay_banks_and_float_arrays_use_the_public_offsets() {
     // The first of sixteen source bands is band 1 of bank 1, not the legacy
     // three-band "low" control this expectation named before round seven.
     assert_eq!(effect_value(&c, "banks.0.timeMs.0"), 120.0);
-    assert!(format!("{:?}", c.report).contains("bank_8/pan.15"));
+    assert!(common::words(&c.report).contains("bank_8/pan.15"));
 }
 
 #[test]
@@ -328,7 +328,7 @@ fn instrument_numbering_and_controller_formula_smoothing_have_specific_source_ev
     e.data(227, &link);
     e.data(226, &[1, 2, 3, 4]);
     let c = imported(&e);
-    let report = format!("{:?}", c.report);
+    let report = common::words(&c.report);
     for text in [
         "Instrument BooBass parameter 1",
         "SCOPE:",
@@ -377,7 +377,7 @@ fn channel_pitch_range_timing_anchors_and_full_portamento_bypass_are_translated(
         assert_eq!(ch.timing.gate_ticks, want_gate);
         assert_eq!(ch.timing.shift_ticks, want_shift);
         if gate == 900 {
-            let report = format!("{:?}", c.report);
+            let report = common::words(&c.report);
             assert!(
                 report.contains("SCOPE:")
                     && report.contains("gate=900")
@@ -483,7 +483,7 @@ fn start_punch_regions_song_loop_extents_suppressed_pauses_and_unpaired_edges_ha
             .kind,
         MarkerKind::Named
     );
-    assert!(format!("{:?}", c.report).contains("suppressed"));
+    assert!(common::words(&c.report).contains("suppressed"));
     let mut e = stream();
     e.word(99, 0);
     marker(&mut e, 9, 48, "Unpaired in");
@@ -491,8 +491,8 @@ fn start_punch_regions_song_loop_extents_suppressed_pauses_and_unpaired_edges_ha
     marker(&mut e, 4, 1000, "Empty loop");
     let c = imported(&e);
     assert!(c.project.playlist.timeline.punch_at(0).is_none());
-    assert!(format!("{:?}", c.report).contains("no later positive punch-out"));
-    assert!(format!("{:?}", c.report).contains("no positive source endpoint"));
+    assert!(common::words(&c.report).contains("no later positive punch-out"));
+    assert!(common::words(&c.report).contains("no positive source endpoint"));
 }
 
 #[test]
@@ -729,7 +729,7 @@ fn synthetic_slide_stream_keeps_onset_duration_color_and_original_chord_notes() 
         (240, 240, 76, Some(3))
     );
     assert_eq!(notes.iter().find(|n| n.key == 72).unwrap().length, 960);
-    assert!(format!("{:?}", c.report).contains("highest sounding note"));
+    assert!(common::words(&c.report).contains("highest sounding note"));
 }
 
 #[test]
@@ -852,14 +852,14 @@ fn keyboard_sample_processing_and_named_source_limits_use_synthetic_pcm_evidence
     c.project.check().unwrap();
     let json = windfall_project::file::to_json(&c.project).unwrap();
     assert_eq!(windfall_project::file::from_json(&json).unwrap(), c.project);
-    assert!(format!("{:?}", c.report).contains("inclusive playable key region"));
+    assert!(common::words(&c.report).contains("inclusive playable key region"));
 }
 
 #[test]
 fn named_layout_absence_and_malformed_native_lengths_report_each_device() {
     for name in ["Sytrus", "Harmless", "Toxic Biohazard", "Sakura"] {
         let c = instrument(name, &[0; 16]);
-        let report = format!("{:?}", c.report);
+        let report = common::words(&c.report);
         assert!(report.contains("SCOPE:") && report.contains(name));
         assert_eq!(c.project.retained_plugins[0].state, [0; 16]);
     }
@@ -870,11 +870,11 @@ fn named_layout_absence_and_malformed_native_lengths_report_each_device() {
         "Fruity Peak Controller",
     ] {
         let c = effect(name, &[0; 16]);
-        let report = format!("{:?}", c.report);
+        let report = common::words(&c.report);
         assert!(report.contains("SCOPE:") && report.contains(name));
     }
     let c = instrument("Fruity DX10", &[0; 4]);
-    assert!(format!("{:?}", c.report).contains("requires 92 bytes"));
+    assert!(common::words(&c.report).contains("requires 92 bytes"));
 }
 
 #[test]
@@ -894,7 +894,7 @@ fn native_waveshaper_tension_and_instant_mode_have_independent_sampled_values() 
         // At midpoint: -1 + 2*(exp(1.5)-1)/(exp(3)-1); instant holds -1.
         assert!((effect_value(&c, "curve.16") - want).abs() < 0.000001);
         assert_eq!(effect_value(&c, "curve.32"), 1.0);
-        assert!(format!("{:?}", c.report).contains("shape.point1"));
+        assert!(common::words(&c.report).contains("shape.point1"));
     }
 }
 
@@ -955,7 +955,7 @@ fn slicex_public_filename_embedded_wave_and_cue_frames_translate_and_reopen() {
     );
     assert_eq!(asset.slices[0].pitch, 3.0);
     assert_eq!(c.project.retained_plugins[0].state, state);
-    assert!(format!("{:?}", c.report).contains("embedded WAV PCM/cues"));
+    assert!(common::words(&c.report).contains("embedded WAV PCM/cues"));
     assert_eq!(
         windfall_project::file::from_json(&windfall_project::file::to_json(&c.project).unwrap())
             .unwrap(),
@@ -999,7 +999,7 @@ fn keyboard_add_root_and_source_fields_with_no_units_have_named_reports() {
     e.data(224, &n);
     let c = imported(&e);
     assert_eq!(c.project.patterns[0].lanes[0].notes[0].key, 72);
-    let report = format!("{:?}", c.report);
+    let report = common::words(&c.report);
     for text in [
         "keyboard add-root",
         "MIDI channel through=1",
@@ -1027,7 +1027,7 @@ fn dx10_fine_ratio_and_pitch_lfo_use_public_power_and_rate_rules() {
     assert!(lfo.enabled);
     assert_eq!(lfo.rate_hz, 20.0);
     assert!((lfo.depth - 0.09090909).abs() < 0.000001);
-    assert!(format!("{:?}", c.report).contains("fine=(raw/65536)^4*180"));
+    assert!(common::words(&c.report).contains("fine=(raw/65536)^4*180"));
 }
 
 #[test]
@@ -1083,7 +1083,7 @@ fn effector_commented_public_float_prefix_maps_xy_mix_and_bypass_without_guessin
     b[8..12].copy_from_slice(&1.0_f32.to_le_bytes());
     let c = effect("Effector", &b);
     assert!(!c.project.mixer.tracks[0].effects[0].enabled);
-    assert!(format!("{:?}", c.report).contains("effect=0"));
+    assert!(common::words(&c.report).contains("effect=0"));
 }
 
 #[test]
@@ -1108,7 +1108,7 @@ fn instrument_automation_clip_targets_name_the_device_and_parameter_without_infe
     e.data(227, &link);
     let c = imported(&e);
     assert!(c.project.automations.is_empty());
-    let report = format!("{:?}", c.report);
+    let report = common::words(&c.report);
     assert!(
         report.contains("Instrument BooBass parameter 1")
             && report.contains("SCOPE:")
@@ -1125,7 +1125,7 @@ fn rack_group_names_and_invalid_source_indices_have_specific_reports() {
         e.dword(145, index);
         let c = imported(&e);
         assert_eq!(c.project.channels[0].group.as_str(), want);
-        assert!(format!("{:?}", c.report).contains("source rack group"));
+        assert!(common::words(&c.report).contains("source rack group"));
     }
 }
 
@@ -1146,7 +1146,7 @@ fn free_filter_public_response_names_use_append_only_target_choices_and_report_r
         let c = effect("Fruity Free Filter", &b);
         assert_eq!(effect_value(&c, "mode"), want);
         assert!((effect_value(&c, "frequencyHz") - 16000.0).abs() < 0.001);
-        assert!(format!("{:?}", c.report).contains("disagree"));
+        assert!(common::words(&c.report).contains("disagree"));
     }
 }
 
@@ -1159,7 +1159,7 @@ fn pitch_shifter_named_display_tail_is_decoded_without_inventing_the_raw_256_byt
     b[74] = 1;
     let c = effect("Pitch Shifter", &b);
     assert_eq!(effect_value(&c, "semitones"), 5.0);
-    let report = format!("{:?}", c.report);
+    let report = common::words(&c.report);
     for field in ["display_speed=12", "display_on=1", "display_mono=1"] {
         assert!(report.contains(field));
     }

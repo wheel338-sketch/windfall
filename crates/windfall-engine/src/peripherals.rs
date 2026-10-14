@@ -317,7 +317,10 @@ pub mod windows {
                 if code == 0 {
                     Ok(())
                 } else {
-                    Err(format!("XInputSetState failed with code {code}"))
+                    Err(
+                        windfall_core::notice!("engine.peripherals.xinput", code = code)
+                            .to_string(),
+                    )
                 }
             };
             match command {

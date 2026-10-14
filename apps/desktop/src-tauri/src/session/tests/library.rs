@@ -928,7 +928,7 @@ fn pending_source_load(destination: &str, redo: bool) {
         if redo { "redo" } else { "reload" },
         held.frames()
     );
-    assert!(result.unwrap_err().contains("still loading"));
+    assert!(windfall_core::english::english(&result.unwrap_err()).contains("still loading"));
     assert_eq!(after, before, "refusal must not mutate history or geometry");
     // Reopen explicitly reloads the current disk source. Normal same-version
     // deduplication and undo then remain available at every destination.
@@ -1042,7 +1042,10 @@ fn checked_import_refuses_reusing_a_loaded_older_file_version_at_every_destinati
             rig.session.state().pool.get(sample).unwrap().samples(),
             old.samples()
         );
-        assert!(result.unwrap_err().contains("older or unverified version"));
+        assert!(
+            windfall_core::english::english(&result.unwrap_err())
+                .contains("older or unverified version")
+        );
 
         // Saving does not persist an unundoable source replacement. Reopening
         // deliberately reloads linked external audio from its current version.
@@ -1521,11 +1524,14 @@ fn user_folders_can_be_added_and_removed_and_are_remembered() {
     let roots = session.browser_add_root(&loops).unwrap();
     assert_eq!(roots[2].name, "Loops");
 
-    let error = session.browser_add_root(&kits).unwrap_err();
+    let error = windfall_core::english::english(&session.browser_add_root(&kits).unwrap_err());
     assert!(error.contains("already in the browser"), "{error}");
-    let error = session.browser_add_root(&roots[0].path).unwrap_err();
+    let error =
+        windfall_core::english::english(&session.browser_add_root(&roots[0].path).unwrap_err());
     assert!(error.contains("already in the browser"), "{error}");
-    let error = session.browser_add_root(&rig.file("nowhere")).unwrap_err();
+    let error = windfall_core::english::english(
+        &session.browser_add_root(&rig.file("nowhere")).unwrap_err(),
+    );
     assert!(error.contains("is not a folder"), "{error}");
     assert_eq!(
         session.browser_add_root(" ").unwrap_err(),
@@ -1534,9 +1540,11 @@ fn user_folders_can_be_added_and_removed_and_are_remembered() {
 
     let error = session.browser_remove_root(&roots[0].path).unwrap_err();
     assert_eq!(error, "The factory library cannot be removed.");
-    let error = session
-        .browser_remove_root(&rig.file("nowhere"))
-        .unwrap_err();
+    let error = windfall_core::english::english(
+        &session
+            .browser_remove_root(&rig.file("nowhere"))
+            .unwrap_err(),
+    );
     assert!(error.contains("is not in the browser"), "{error}");
     assert_eq!(session.browser_roots(), roots);
 
@@ -1575,7 +1583,9 @@ fn sample_info_describes_a_file_with_a_waveform_overview() {
 
     assert_eq!(rig.session.sample_info(&file).unwrap(), info);
 
-    let error = rig.session.sample_info(&factory_file("Drums")).unwrap_err();
+    let error = windfall_core::english::english(
+        &rig.session.sample_info(&factory_file("Drums")).unwrap_err(),
+    );
     assert!(error.contains("is a folder"), "{error}");
     let error = rig
         .session
@@ -1604,7 +1614,7 @@ fn sample_info_by_id_resolves_the_samples_of_the_project() {
     assert_eq!(info, session.sample_info(&file).unwrap());
 
     assert_eq!(
-        session.sample_info_by_id(SampleId(999)).unwrap_err(),
+        windfall_core::english::english(&session.sample_info_by_id(SampleId(999)).unwrap_err()),
         "sample 999 does not exist"
     );
 
@@ -1619,9 +1629,11 @@ fn sample_info_by_id_resolves_the_samples_of_the_project() {
             None,
         )
         .unwrap();
-    let error = session
-        .sample_info_by_id(SampleId(added.created[0]))
-        .unwrap_err();
+    let error = windfall_core::english::english(
+        &session
+            .sample_info_by_id(SampleId(added.created[0]))
+            .unwrap_err(),
+    );
     assert!(error.starts_with("Could not load"), "{error}");
     assert!(error.contains("missing.wav"), "{error}");
 
@@ -1636,9 +1648,11 @@ fn sample_info_by_id_resolves_the_samples_of_the_project() {
         )
         .unwrap();
     assert_eq!(
-        session
-            .sample_info_by_id(SampleId(added.created[0]))
-            .unwrap_err(),
+        windfall_core::english::english(
+            &session
+                .sample_info_by_id(SampleId(added.created[0]))
+                .unwrap_err()
+        ),
         "Missing sample: sounds/own.wav"
     );
 }

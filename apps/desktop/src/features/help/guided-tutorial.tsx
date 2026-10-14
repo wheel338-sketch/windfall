@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { FieldDescription, FieldError } from "@/components/ui/field"
 import { errorMessage, backend } from "@/lib/ipc"
-import { useTranslation } from "@/lib/i18n"
+import { localizeBackendText, useTranslation } from "@/lib/i18n"
 import { useProjectStore } from "@/lib/store/project"
 import { useTransportStore } from "@/lib/store/transport"
 import { useUiStore } from "@/lib/store/ui"
@@ -83,7 +83,7 @@ export function GuidedTutorial({ kind }: { kind: TutorialKind }) {
     </>}
     {kind === "export" && request?.owner === owner && (request.status === "cancelled" || request.status === "failed") &&
       <FieldDescription>{t("The export did not finish. Reopen Export, choose a destination and retry. Only this guide's successful request counts.")}</FieldDescription>}
-    {(recordingError || exportError) && <FieldError role="alert">{t(recordingError || exportError || "")}</FieldError>}
-    {error && <FieldError role="alert">{t(error)}</FieldError>}
+    {(recordingError || exportError) && <FieldError role="alert">{localizeBackendText(recordingError || exportError || "")}</FieldError>}
+    {error && <FieldError role="alert">{localizeBackendText(error)}</FieldError>}
   </section>
 }

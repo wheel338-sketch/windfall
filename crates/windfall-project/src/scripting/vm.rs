@@ -33,7 +33,12 @@ pub struct ScriptDiagnostic {
 
 impl std::fmt::Display for ScriptDiagnostic {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "line {}: {}", self.line, self.message)
+        let notice = windfall_core::notice!(
+            "scripts.diagnostic",
+            line = self.line,
+            message = self.message
+        );
+        write!(f, "{notice}")
     }
 }
 impl std::error::Error for ScriptDiagnostic {}
@@ -362,7 +367,8 @@ impl Program {
             if !value.is_finite() || value < param.min || value > param.max {
                 return Err(error(
                     0,
-                    format!("parameter {} is outside its bounds", param.name),
+                    windfall_core::notice!("scripts.parameterBounds", name = param.name)
+                        .to_string(),
                 ));
             }
             registers[FIELDS.len() + i] = value;
@@ -589,7 +595,12 @@ fn finite(word: &str, line: usize) -> Result<f64, ScriptDiagnostic> {
     word.parse::<f64>()
         .ok()
         .filter(|n| n.is_finite())
-        .ok_or_else(|| error(line, format!("unknown name or non-finite number: {word}")))
+        .ok_or_else(|| {
+            error(
+                line,
+                windfall_core::notice!("scripts.unknownWord", word = word).to_string(),
+            )
+        })
 }
 
 fn set_note(registers: &mut [f64; REGISTERS], note: ScriptNote) {

@@ -306,9 +306,7 @@ impl PresetTables {
             return Ok(id);
         }
         let saved = self.objects.iter().find(|o| o.id == id).ok_or_else(|| {
-            format!(
-                "Cannot remap preset object {id}: no saved identity. The preset was not applied."
-            )
+            windfall_core::notice!("presets.remapNoIdentity", id = id).to_string()
         })?;
         let candidates: Vec<_> = objects(project)
             .into_iter()
@@ -321,12 +319,13 @@ impl PresetTables {
             })
             .collect();
         if candidates.len() != 1 {
-            return Err(format!(
-                "Cannot remap preset {} ‘{}’: {} matching destinations. The preset was not applied; its saved configuration is retained in the file.",
-                saved.role,
-                saved.name,
-                candidates.len()
-            ));
+            return Err(windfall_core::notice!(
+                "presets.remapAmbiguous",
+                role = windfall_core::notice::term(&saved.role),
+                name = saved.name,
+                count = candidates.len()
+            )
+            .to_string());
         }
         Ok(candidates[0].id)
     }
@@ -366,7 +365,11 @@ impl PresetTables {
                 .find(|o| o.id == self.owners[0])
                 .is_none_or(|o| o.role != role)
         {
-            return Err(format!("Preset does not have exactly one {role} owner"));
+            return Err(windfall_core::notice!(
+                "presets.ownerCount",
+                role = windfall_core::notice::term(&role)
+            )
+            .to_string());
         }
         Ok(())
     }
@@ -476,10 +479,12 @@ impl PresetTables {
         for asset in &self.scripts.assets {
             if let Some(old) = settings.scripts.asset(&asset.reference) {
                 if old != asset {
-                    return Err(format!(
-                        "Cannot import script {} revision {}: a different immutable revision exists; the preset was not applied",
-                        asset.reference.id, asset.reference.revision
-                    ));
+                    return Err(windfall_core::notice!(
+                        "presets.scriptConflict",
+                        script = asset.reference.id,
+                        revision = asset.reference.revision
+                    )
+                    .to_string());
                 }
             } else {
                 settings.scripts.assets.push(asset.clone());
@@ -513,9 +518,9 @@ impl PresetTables {
                     controller_links::links_problem(&settings.controller_links, Some(&proposed))
                 })
         {
-            return Err(format!(
-                "Cannot apply preset controller configuration: {problem}; the preset was not applied"
-            ));
+            return Err(
+                windfall_core::notice!("presets.controllersRefused", problem = problem).to_string(),
+            );
         }
         settings.scripts.check()?;
         settings.scripts.check_notes(&proposed)?;

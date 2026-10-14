@@ -45,7 +45,7 @@ import {
   type AnalysisReview,
   type AnalysisTask,
 } from "./types"
-import { translatedText as t } from "@/lib/i18n"
+import { localizeBackendText, translatedText as t } from "@/lib/i18n"
 
 export function AnalysisButton() {
   const target = useAnalysisDialog((state) => state.target)
@@ -607,7 +607,7 @@ function RecoveryControls() {
           {t("Retained job")}{" "}{current.job.job}: {current.job.status}
         </p>
       )}
-      {current?.error && <p role="alert">{current.error}</p>}
+      {current?.error && <p role="alert">{localizeBackendText(current.error)}</p>}
       <ActionButton action="analysis.recoveryCancel" />
       <ActionButton action="analysis.recoveryRetry" />
       <ActionButton action="analysis.recoveryForget" />

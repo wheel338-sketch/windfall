@@ -106,8 +106,12 @@ impl Session {
         if bytes.len() as u64 > MAX_MANIFEST_BYTES {
             return Err("sample-bank manifest exceeds 4 MiB".into());
         }
-        let mut bank: BankFile = serde_json::from_slice(&bytes)
-            .map_err(|e| format!("invalid sample-bank manifest: {e}"))?;
+        let mut bank: BankFile = serde_json::from_slice(&bytes).map_err(|e| {
+            windfall_ipc::ui_message(
+                "sampleBanks.manifestInvalid",
+                serde_json::json!({"error": e.to_string()}),
+            )
+        })?;
         bank.validate()?;
         let folder = file.parent().ok_or("bank source folder is missing")?;
         let mut draft = Document::new(project);

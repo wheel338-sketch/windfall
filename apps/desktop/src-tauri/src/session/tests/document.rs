@@ -111,7 +111,10 @@ fn a_command_that_fails_changes_nothing_and_sends_nothing() {
             None,
         )
         .unwrap_err();
-    assert_eq!(error, "channel 12345 does not exist");
+    assert_eq!(
+        windfall_core::english::english(&error),
+        "channel 12345 does not exist"
+    );
     assert_eq!(rig.session.undo(), None);
     assert_eq!(rig.session.redo(), None);
 
@@ -305,12 +308,15 @@ fn a_file_that_cannot_be_read_is_refused_and_the_project_is_untouched() {
 
     let text = rig.file("notes.wav");
     fs::write(&text, "these are not samples").unwrap();
-    let error = session.add_channel_from_file(&text, None).unwrap_err();
+    let error =
+        windfall_core::english::english(&session.add_channel_from_file(&text, None).unwrap_err());
     assert!(error.contains("notes.wav"), "{error}");
     assert!(error.contains("not a supported audio file"), "{error}");
 
     let missing = rig.file("missing.wav");
-    let error = session.add_channel_from_file(&missing, None).unwrap_err();
+    let error = windfall_core::english::english(
+        &session.add_channel_from_file(&missing, None).unwrap_err(),
+    );
     assert!(error.starts_with("Could not load"), "{error}");
     let error = session
         .set_channel_sample_from_file(rig.channel(0), &missing)
@@ -318,7 +324,10 @@ fn a_file_that_cannot_be_read_is_refused_and_the_project_is_untouched() {
     assert!(error.contains("missing.wav"), "{error}");
 
     let error = session.add_channel_from_file("kick.wav", None).unwrap_err();
-    assert_eq!(error, "\"kick.wav\" is not a full path");
+    assert_eq!(
+        windfall_core::english::english(&error),
+        "\"kick.wav\" is not a full path"
+    );
 
     // A good file for a channel that does not exist: the sample must not
     // stay behind when the step as a whole fails.
@@ -326,7 +335,10 @@ fn a_file_that_cannot_be_read_is_refused_and_the_project_is_untouched() {
     let error = session
         .set_channel_sample_from_file(ChannelId(999), &good)
         .unwrap_err();
-    assert_eq!(error, "channel 999 does not exist");
+    assert_eq!(
+        windfall_core::english::english(&error),
+        "channel 999 does not exist"
+    );
 
     assert_eq!(session.document_snapshot(), before);
     assert!(rig.events.take().is_empty());
@@ -371,7 +383,13 @@ fn a_sample_added_by_a_plain_command_is_decoded_off_the_callers_thread() {
             _ => None,
         })
     });
-    assert_eq!(warnings, [format!("Missing sample: {missing}")]);
+    assert_eq!(
+        warnings
+            .iter()
+            .map(|warning| windfall_core::english::english(warning))
+            .collect::<Vec<_>>(),
+        [format!("Missing sample: {missing}")]
+    );
     assert!(!rig.has_audio(sample));
     assert!(rig.project().sample(sample).is_some());
 
@@ -452,7 +470,7 @@ fn a_file_that_finishes_decoding_after_its_project_is_gone_is_not_added() {
 
         hold.release();
         assert_eq!(
-            importing.join().unwrap().unwrap_err(),
+            windfall_core::english::english(&importing.join().unwrap().unwrap_err()),
             "\"Cowbell.wav\" was not added, because another project was opened while it was loading."
         );
         assert_eq!(session.document_snapshot(), fresh);
@@ -497,7 +515,7 @@ fn reloading_samples_picks_up_files_that_have_turned_up() {
     // Still not there: it is reported again, and nothing else happens.
     assert_eq!(session.samples_reload(), 1);
     assert_eq!(
-        rig.events.take(),
+        super::english_events(rig.events.take()),
         [Event::ProjectWarnings(vec![format!(
             "Missing sample: {late}"
         )])]

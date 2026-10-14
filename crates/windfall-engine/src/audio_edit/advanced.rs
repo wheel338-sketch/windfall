@@ -9,7 +9,13 @@ fn finite_range(value: f32, first: f32, last: f32, name: &str) -> Result<(), Str
     if value.is_finite() && (first..=last).contains(&value) {
         Ok(())
     } else {
-        Err(format!("{name} must be between {first} and {last}."))
+        Err(windfall_core::notice!(
+            "engine.edit.between",
+            what = windfall_core::notice::term(name),
+            first = first,
+            last = last
+        )
+        .to_string())
     }
 }
 

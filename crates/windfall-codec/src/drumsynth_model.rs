@@ -480,7 +480,14 @@ pub(super) fn render(
             _ => false,
         };
         if !known {
-            warnings.push(format!("Retained but not interpreted: {section}.{key}"));
+            warnings.push(
+                windfall_core::notice!(
+                    "codec.drumSynthUninterpreted",
+                    section = section,
+                    key = key
+                )
+                .to_string(),
+            );
         }
     }
     Ok(DrumSynthRendered {

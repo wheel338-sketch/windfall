@@ -467,9 +467,14 @@ fn placeholder(instrument: bool) -> PluginTarget {
 
 fn name_problem(name: &str, what: &str) -> Option<String> {
     if name.len() > MAX_PRESET_NAME_BYTES || name.chars().any(char::is_control) {
-        Some(format!(
-            "The {what} name is longer than {MAX_PRESET_NAME_BYTES} bytes or has control characters"
-        ))
+        Some(
+            windfall_core::notice!(
+                "presets.nameInvalid",
+                what = windfall_core::notice::term(what),
+                max = MAX_PRESET_NAME_BYTES
+            )
+            .to_string(),
+        )
     } else {
         None
     }
@@ -619,10 +624,11 @@ impl PluginPreset {
                     .channel(channel)
                     .ok_or("The preset's channel no longer exists")?;
                 let ChannelSource::Instrument { params, asset } = &channel.source else {
-                    return Err(format!(
-                        "\"{}\" is a sampler: save it as a channel preset",
-                        channel.name
-                    ));
+                    return Err(windfall_core::notice!(
+                        "presets.samplerNotPlugin",
+                        channel = channel.name
+                    )
+                    .to_string());
                 };
                 match binding {
                     Some(binding) => PluginPresetState::Hosted {
@@ -936,9 +942,9 @@ impl ChannelPreset {
             project.plugins.push(binding);
         }
         project.next_id = next;
-        project
-            .check()
-            .map_err(|problem| format!("The preset is not valid: {problem}"))
+        project.check().map_err(|problem| {
+            windfall_core::notice!("presets.invalid", problem = problem).to_string()
+        })
     }
 }
 
@@ -1026,9 +1032,10 @@ impl Preset {
             return Err(problem);
         }
         if self.assets.len() > MAX_PRESET_ASSETS {
-            return Err(format!(
-                "A preset lists at most {MAX_PRESET_ASSETS} audio files"
-            ));
+            return Err(
+                windfall_core::notice!("presets.tooManyAssets", max = MAX_PRESET_ASSETS)
+                    .to_string(),
+            );
         }
         let mut ids = HashSet::new();
         let mut paths = HashSet::new();
@@ -1040,22 +1047,23 @@ impl Preset {
                 return Err(problem);
             }
             if let Some(problem) = relative_path_problem(&asset.path) {
-                return Err(format!(
-                    "The preset's audio path \"{}\" is not valid: {problem}",
-                    asset.path
-                ));
+                return Err(windfall_core::notice!(
+                    "presets.assetPathInvalid",
+                    path = asset.path,
+                    problem = problem
+                )
+                .to_string());
             }
             if asset.path.contains(':') || asset.path.starts_with('/') {
-                return Err(format!(
-                    "The preset's audio path \"{}\" is not valid: it must be relative",
-                    asset.path
-                ));
+                return Err(
+                    windfall_core::notice!("presets.assetPathAbsolute", path = asset.path)
+                        .to_string(),
+                );
             }
             if asset.bytes > MAX_PRESET_ASSET_BYTES {
-                return Err(format!(
-                    "The preset's audio \"{}\" is larger than a preset can list",
-                    asset.name
-                ));
+                return Err(
+                    windfall_core::notice!("presets.assetTooLarge", name = asset.name).to_string(),
+                );
             }
         }
         let bodies = (
@@ -1083,10 +1091,11 @@ impl Preset {
             (PresetKind::MixerTrack, (None, None, Some(track))) if self.assets.is_empty() => {
                 track.validate()
             }
-            _ => Err(format!(
-                "The file says it is a {} preset but does not hold exactly that",
-                self.kind.label()
-            )),
+            _ => Err(windfall_core::notice!(
+                "presets.kindMismatch",
+                kind = windfall_core::notice::term(self.kind.label())
+            )
+            .to_string()),
         }
     }
 
@@ -1111,8 +1120,9 @@ impl Preset {
         if bytes.len() > MAX_PRESET_FILE_BYTES {
             return Err("The preset file is larger than 256 MiB".to_owned());
         }
-        let header: Header = serde_json::from_slice(bytes)
-            .map_err(|error| format!("This file is not a Windfall preset: {error}"))?;
+        let header: Header = serde_json::from_slice(bytes).map_err(|error| {
+            windfall_core::notice!("presets.notAPreset", error = error.to_string()).to_string()
+        })?;
         if header.schema.as_deref() != Some(PRESET_SCHEMA) {
             return Err("This file is not a Windfall preset".to_owned());
         }
@@ -1121,21 +1131,26 @@ impl Preset {
             Some(0) | None => return Err("The preset has no version".to_owned()),
             Some(_) => {}
         }
-        let mut value: Value = serde_json::from_slice(bytes)
-            .map_err(|error| format!("The preset file is damaged: {error}"))?;
+        let mut value: Value = serde_json::from_slice(bytes).map_err(|error| {
+            windfall_core::notice!("presets.damaged", error = error.to_string()).to_string()
+        })?;
         let mut notes = Vec::new();
         migrate(&mut value, renames, &mut notes)?;
-        let preset: Preset = serde_json::from_value(value)
-            .map_err(|error| format!("The preset file is damaged: {error}"))?;
+        let preset: Preset = serde_json::from_value(value).map_err(|error| {
+            windfall_core::notice!("presets.damaged", error = error.to_string()).to_string()
+        })?;
         preset.validate()?;
         Ok((preset, notes))
     }
 }
 
 fn newer(version: u32) -> String {
-    format!(
-        "This preset was saved by a newer Windfall (preset version {version}); this build reads up to version {PRESET_VERSION}"
+    windfall_core::notice!(
+        "presets.tooNew",
+        version = version,
+        supported = PRESET_VERSION
     )
+    .to_string()
 }
 
 /// The default settings of every built-in effect, by the `type` a file
@@ -1217,27 +1232,41 @@ fn migrate_params(
     notes: &mut Vec<String>,
 ) -> Result<(), String> {
     let Some(given) = params.as_object_mut() else {
-        return Err(format!("The preset's {what} settings are not an object"));
+        return Err(windfall_core::notice!(
+            "presets.settingsNotObject",
+            what = windfall_core::notice::term(what)
+        )
+        .to_string());
     };
     let Some(tag) = given.get("type").and_then(Value::as_str).map(str::to_owned) else {
-        return Err(format!(
-            "The preset's {what} does not say which {what} it is"
-        ));
+        return Err(windfall_core::notice!(
+            "presets.deviceUnnamed",
+            what = windfall_core::notice::term(what)
+        )
+        .to_string());
     };
     let Some(default) = defaults.get(&tag).and_then(Value::as_object) else {
-        return Err(format!(
-            "The preset uses the {what} \"{tag}\", which this build of Windfall does not have"
-        ));
+        return Err(windfall_core::notice!(
+            "presets.unknownDevice",
+            what = windfall_core::notice::term(what),
+            device = tag
+        )
+        .to_string());
     };
     for rename in renames.iter().filter(|rename| rename.processor == tag) {
         if let Some(old) = given.remove(rename.from) {
             if !given.contains_key(rename.to) {
                 given.insert(rename.to.to_owned(), old);
             }
-            notes.push(format!(
-                "The {tag} setting \"{}\" is now called \"{}\"; its value was kept.",
-                rename.from, rename.to
-            ));
+            notes.push(
+                windfall_core::notice!(
+                    "presets.settingRenamed",
+                    device = windfall_core::notice::term(&tag),
+                    from = rename.from,
+                    to = rename.to
+                )
+                .to_string(),
+            );
         }
     }
     let unknown: Vec<String> = given
@@ -1255,9 +1284,14 @@ fn migrate_params(
         .collect();
     for key in unknown {
         given.remove(&key);
-        notes.push(format!(
-            "The {tag} setting \"{key}\" is not one this build has and was left out."
-        ));
+        notes.push(
+            windfall_core::notice!(
+                "presets.settingUnknown",
+                device = windfall_core::notice::term(&tag),
+                key = key
+            )
+            .to_string(),
+        );
     }
     let missing: Vec<&String> = default
         .keys()
@@ -1265,13 +1299,24 @@ fn migrate_params(
         .collect();
     for key in missing {
         given.insert(key.clone(), default[key].clone());
-        notes.push(format!(
-            "The preset has no {tag} setting \"{key}\"; it starts at its default."
-        ));
+        notes.push(
+            windfall_core::notice!(
+                "presets.settingMissing",
+                device = windfall_core::notice::term(&tag),
+                key = key
+            )
+            .to_string(),
+        );
     }
     // Typed, so that ranges are applied the way the processor applies them.
-    let damaged =
-        |error: serde_json::Error| format!("The preset's {tag} settings are damaged: {error}");
+    let damaged = |error: serde_json::Error| {
+        windfall_core::notice!(
+            "presets.settingsDamaged",
+            device = windfall_core::notice::term(&tag),
+            error = error.to_string()
+        )
+        .to_string()
+    };
     let (in_range, moved) = if what == "effect" {
         let typed: EffectParams = serde_json::from_value(params.clone()).map_err(damaged)?;
         let sanitized = typed.sanitized();
@@ -1282,9 +1327,13 @@ fn migrate_params(
         (serde_json::to_value(sanitized), sanitized != typed)
     };
     if moved {
-        notes.push(format!(
-            "Some {tag} settings were outside their ranges and were brought into them."
-        ));
+        notes.push(
+            windfall_core::notice!(
+                "presets.settingsClamped",
+                device = windfall_core::notice::term(&tag)
+            )
+            .to_string(),
+        );
     }
     *params = in_range.map_err(|error| error.to_string())?;
     Ok(())

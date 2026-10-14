@@ -34,7 +34,10 @@ fn playlist_track_color_loads_as_zero_and_patch_is_saved() {
                 None,
             )
             .unwrap();
-        assert_eq!(applied.label, "Color playlist track");
+        assert_eq!(
+            windfall_core::english::english(&applied.label),
+            "Color playlist track"
+        );
         assert!(applied.touched.playlist);
         assert_eq!(doc.project().playlist.tracks[0].color, color);
         doc.project().check().unwrap();

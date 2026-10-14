@@ -86,10 +86,11 @@ impl HistoryRing {
         }
         let mut frames = Vec::new();
         frames.try_reserve_exact(capacity).map_err(|_| {
-            format!(
-                "Not enough memory for {} MB of audio history. Choose a shorter history.",
-                capacity as u64 * BYTES_PER_FRAME / (1024 * 1024)
+            windfall_core::notice!(
+                "audioLogger.noMemory",
+                megabytes = capacity as u64 * BYTES_PER_FRAME / (1024 * 1024)
             )
+            .to_string()
         })?;
         Ok(Self {
             frames,
@@ -457,14 +458,19 @@ fn check(spec: &LoggerSpec) -> Result<(), String> {
         return Err("Choose at most four different effect slots to record.".into());
     }
     if !(AUDIO_LOGGER_MIN_SECONDS..=AUDIO_LOGGER_MAX_SECONDS).contains(&spec.seconds) {
-        return Err(format!(
-            "The audio logger keeps {AUDIO_LOGGER_MIN_SECONDS} to {AUDIO_LOGGER_MAX_SECONDS} seconds."
-        ));
+        return Err(windfall_core::notice!(
+            "audioLogger.secondsRange",
+            min = AUDIO_LOGGER_MIN_SECONDS,
+            max = AUDIO_LOGGER_MAX_SECONDS
+        )
+        .to_string());
     }
     if spec.tracks.len() > AUDIO_LOGGER_MAX_TRACKS {
-        return Err(format!(
-            "The audio logger follows at most {AUDIO_LOGGER_MAX_TRACKS} mixer tracks."
-        ));
+        return Err(windfall_core::notice!(
+            "audioLogger.tooManyTracksPlain",
+            max = AUDIO_LOGGER_MAX_TRACKS
+        )
+        .to_string());
     }
     let repeated = spec
         .tracks
@@ -567,7 +573,8 @@ impl Controller {
                 .map_err(|error| {
                     // The tap must not outlive histories nobody drains.
                     self.stop_audio_logger();
-                    format!("Could not start the audio logger worker: {error}")
+                    windfall_core::notice!("audioLogger.workerFailed", error = error.to_string())
+                        .to_string()
                 })?;
             Some(worker)
         } else {

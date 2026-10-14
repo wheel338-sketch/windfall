@@ -29,7 +29,10 @@ pub fn clean(path: &Path) -> PathBuf {
 pub fn absolute(path: &str) -> Result<PathBuf, String> {
     let given = Path::new(path);
     if path.trim().is_empty() || !given.is_absolute() {
-        return Err(format!("\"{path}\" is not a full path"));
+        return Err(windfall_ipc::ui_message(
+            "paths.notFull",
+            serde_json::json!({"path": path}),
+        ));
     }
     Ok(clean(given))
 }
@@ -93,7 +96,7 @@ mod tests {
     #[test]
     fn a_relative_path_is_refused() {
         assert_eq!(
-            absolute("kick.wav").unwrap_err(),
+            windfall_core::english::english(&absolute("kick.wav").unwrap_err()),
             "\"kick.wav\" is not a full path"
         );
         assert!(absolute("  ").is_err());

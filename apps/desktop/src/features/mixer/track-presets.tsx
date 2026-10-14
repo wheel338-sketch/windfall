@@ -17,7 +17,7 @@ import type {
 } from "@/lib/ipc/mixer-presets"
 import { dispatch, useProjectStore } from "@/lib/store"
 import { getProjectGeneration } from "@/lib/store/replaced"
-import { translatedText as t, message as i18nMessage } from "@/lib/i18n"
+import { localizeBackendText, translatedText as t, message as i18nMessage } from "@/lib/i18n"
 
 type SavedPreset = { key: string; preset: MixerTrackPreset }
 const STORAGE_KEY = "windfall.mixer-presets.v1"
@@ -197,7 +197,7 @@ export function TrackPresetsPanel({ track }: { track: TrackId }) {
                     })}>{t("Delete file")}</Button>
                   : <Button size="sm" variant="ghost" aria-label={i18nMessage("Delete library preset {entryName}", { entryName: entry.name })} disabled={busy} onClick={() => setConfirming(entry.file)}>×</Button>}
               </div>
-              {entry.error !== null && <p className="break-words pl-2 text-[10px] text-destructive">{entry.file}: {entry.error}</p>}
+              {entry.error !== null && <p className="break-words pl-2 text-[10px] text-destructive">{entry.file}: {localizeBackendText(entry.error)}</p>}
               {missing.length > 0 && <p className="break-words pl-2 text-[10px] text-muted-foreground">{missingNote(missing)}</p>}
             </li>
           })}

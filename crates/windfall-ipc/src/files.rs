@@ -269,19 +269,21 @@ impl PluginDatabase {
         struct Header {
             version: Option<u32>,
         }
-        let header: Header = serde_json::from_slice(bytes)
-            .map_err(|error| format!("The plugin database is damaged: {error}"))?;
+        let header: Header = serde_json::from_slice(bytes).map_err(|error| {
+            windfall_core::notice!("plugins.databaseDamaged", error = error.to_string()).to_string()
+        })?;
         match header.version {
             Some(version) if version > PLUGIN_DATABASE_VERSION => {
-                return Err(format!(
-                    "The plugin database was saved by a newer Windfall (version {version})"
-                ));
+                return Err(
+                    windfall_core::notice!("plugins.databaseTooNew", version = version).to_string(),
+                );
             }
             Some(0) | None => return Err("The plugin database has no version".to_owned()),
             Some(_) => {}
         }
-        let mut database: Self = serde_json::from_slice(bytes)
-            .map_err(|error| format!("The plugin database is damaged: {error}"))?;
+        let mut database: Self = serde_json::from_slice(bytes).map_err(|error| {
+            windfall_core::notice!("plugins.databaseDamaged", error = error.to_string()).to_string()
+        })?;
         database.tidy();
         Ok(database)
     }
@@ -345,9 +347,10 @@ impl PluginDatabase {
         {
             self.annotations.insert(key, annotation);
         } else {
-            return Err(format!(
-                "The plugin database holds at most {MAX_PLUGIN_RECORDS} annotated plugins"
-            ));
+            return Err(
+                windfall_core::notice!("plugins.databaseFull", max = MAX_PLUGIN_RECORDS)
+                    .to_string(),
+            );
         }
         Ok(())
     }
@@ -724,6 +727,7 @@ mod tests {
         let newer = format!("{{\"version\":{}}}", PLUGIN_DATABASE_VERSION + 1);
         assert!(
             PluginDatabase::from_json(newer.as_bytes())
+                .map_err(|error| windfall_core::english::english(&error))
                 .unwrap_err()
                 .contains("newer Windfall")
         );

@@ -8,7 +8,7 @@ import { fileName, formatSampleRate } from "@/lib/time"
 import { cn } from "@/lib/utils"
 
 import { STATUS_MENU } from "./chrome-menus"
-import { translatedText as t, message, plainNumber } from "@/lib/i18n"
+import { localizeBackendText, translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 function Dot({ className }: { className: string }) {
   return (
@@ -64,7 +64,7 @@ function EngineStatus() {
       <>
         <Dot className="bg-destructive" />
         <span className="truncate text-destructive">
-          {t("No audio.")}{" "}{status.error ?? t("The output is not running.")}
+          {t("No audio.")}{" "}{status.error !== null && status.error !== undefined ? localizeBackendText(status.error) : t("The output is not running.")}
         </span>
       </>
     )

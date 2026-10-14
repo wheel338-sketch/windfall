@@ -114,7 +114,10 @@ fn portamento_ties_each_onset_into_the_next_and_glides_every_note_after_the_firs
         },
     )
     .unwrap();
-    assert_eq!(applied.label, "Portamento notes");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Portamento notes"
+    );
     assert_eq!(entries(&doc), before + 1, "one undo step");
     let after = notes(&doc, channel);
     let by_key = |key: u8| *after.iter().find(|note| note.key == key).unwrap();
@@ -421,7 +424,10 @@ fn the_curve_lfo_gives_each_note_a_curve_along_its_length_in_one_edit() {
             None,
         )
         .unwrap();
-    assert_eq!(applied.label, "Write note curve LFO");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Write note curve LFO"
+    );
     assert_eq!(entries(&doc), before + 1);
     let curves = doc.project().pattern(PATTERN).unwrap().note_curves.clone();
     assert_eq!(curves.len(), 2, "one curve for each captured note");

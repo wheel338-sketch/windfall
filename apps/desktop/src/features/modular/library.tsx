@@ -8,7 +8,7 @@ import { backend } from "@/lib/ipc"
 import { dispatch, useProjectStore } from "@/lib/store/project"
 import { getProjectGeneration } from "@/lib/store/replaced"
 import { exampleRack, importRackGraph, RACK_EXAMPLES } from "./examples"
-import { message, translatedText as t } from "@/lib/i18n"
+import { localizeBackendText, message, translatedText as t } from "@/lib/i18n"
 
 /** Rack files use the existing native .wfpreset container. Capture includes
  * the whole graph; loading here applies only its rack in one checked edit. */
@@ -75,7 +75,7 @@ export function RackLibrary({ channel, root }: { channel: Channel; root: RackGra
       <Button variant="outline" disabled={busy} onClick={() => void save(true)}>{t("Save rack to library")}</Button>
       <Button variant="outline" disabled={busy} onClick={() => void action(async (guard) => { const list = await backend.presetLibrary(); guard(); setEntries(list) })}>{t("Browse rack library")}</Button>
     </div>
-    {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+    {error && <Alert variant="destructive"><AlertDescription>{localizeBackendText(error)}</AlertDescription></Alert>}
     {status && <p role="status">{status}</p>}
     {entries && <ul aria-label={t("User rack presets")}>{entries.filter((entry) => entry.kind === "channel").map((entry) => <li key={entry.path}>
       <Button variant="ghost" disabled={busy} onClick={() => void load(entry.path)}>{entry.name}</Button>

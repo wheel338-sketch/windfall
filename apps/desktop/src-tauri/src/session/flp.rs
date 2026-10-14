@@ -34,10 +34,20 @@ impl Session {
         let ticket = self.begin_replacement();
         let mut bytes = Vec::new();
         File::open(&path)
-            .map_err(|e| format!("Could not read the FL project: {e}"))?
+            .map_err(|e| {
+                windfall_ipc::ui_message(
+                    "flp.readFailed",
+                    serde_json::json!({"error": e.to_string()}),
+                )
+            })?
             .take(MAX_FILE_BYTES as u64 + 1)
             .read_to_end(&mut bytes)
-            .map_err(|e| format!("Could not read the FL project: {e}"))?;
+            .map_err(|e| {
+                windfall_ipc::ui_message(
+                    "flp.readFailed",
+                    serde_json::json!({"error": e.to_string()}),
+                )
+            })?;
         let conversion = import(
             &bytes,
             &ConvertOptions {
@@ -52,9 +62,12 @@ impl Session {
         let mut project = conversion.project;
         let mut warnings = Vec::new();
         resolve_samples(&mut project, options, &mut warnings)?;
-        project
-            .check()
-            .map_err(|e| format!("The converted project is invalid: {e}"))?;
+        project.check().map_err(|e| {
+            windfall_ipc::ui_message(
+                "flp.convertedInvalid",
+                serde_json::json!({"error": e.to_string()}),
+            )
+        })?;
         let decoded = decode_all(&self.inner.cache, &project, None, &self.inner.factory_dir);
         warnings.extend(decoded.warnings.clone());
         resolve_sampler_loops(
@@ -100,7 +113,10 @@ impl Session {
                     let mut cues = metadata.cues;
                     cues.sort_by_key(|c| c.frame);
                     if cues.len() > 68 {
-                        warnings.push(format!("Sample {} has {} cues; only the MIDI-key range 60..127 fits the stand-in.",asset.name,cues.len()));
+                        warnings.push(windfall_ipc::ui_message(
+                            "flp.tooManyCues",
+                            serde_json::json!({"sample": asset.name, "count": cues.len()}),
+                        ));
                     }
                     if !cues.is_empty() {
                         cue_requests.push(windfall_flp::convert::SliceRequest {
@@ -125,9 +141,9 @@ impl Session {
                         cue_metadata.push((sample, buffer.frames(), 2));
                     }
                 }
-                Err(error) => warnings.push(format!(
-                    "Slicex sample {} cue metadata: {error}; embedded cue fallback retained.",
-                    asset.name
+                Err(error) => warnings.push(windfall_ipc::ui_message(
+                    "flp.slicexCues",
+                    serde_json::json!({"sample": asset.name, "error": error.to_string()}),
                 )),
             }
         }
@@ -278,7 +294,10 @@ fn resolve_samples(
         let entries = match std::fs::read_dir(&folder) {
             Ok(entries) => entries,
             Err(e) => {
-                warnings.push(format!("Could not search {}: {e}", paths::display(&folder)));
+                warnings.push(windfall_ipc::ui_message(
+                    "flp.searchFailed",
+                    serde_json::json!({"folder": paths::display(&folder), "error": e.to_string()}),
+                ));
                 continue;
             }
         };
@@ -326,8 +345,9 @@ fn resolve_samples(
             if matches.next().is_none() {
                 sample.path = SamplePath::External(paths::display(found));
             } else {
-                warnings.push(format!(
-                    "More than one file matches {basename}; choose a more specific search folder."
+                warnings.push(windfall_ipc::ui_message(
+                    "flp.ambiguousSample",
+                    serde_json::json!({"file": basename}),
                 ));
             }
         }
@@ -360,26 +380,26 @@ fn resolve_sampler_loops(
             .and_then(|ext| ext.to_str())
             .is_some_and(|ext| ext.eq_ignore_ascii_case("wav") || ext.eq_ignore_ascii_case("wave"))
         {
-            warnings.push(format!(
-                "Sample {} requests loop points, but only RIFF/WAVE loop metadata is supported.",
-                asset.name
+            warnings.push(windfall_ipc::ui_message(
+                "flp.loopNeedsWav",
+                serde_json::json!({"sample": asset.name}),
             ));
             continue;
         }
         let metadata = match read_wav_metadata_file(path) {
             Ok(metadata) => metadata,
             Err(error) => {
-                warnings.push(format!(
-                    "Sample {} loop metadata was not applied: {error}",
-                    asset.name
+                warnings.push(windfall_ipc::ui_message(
+                    "flp.loopNotApplied",
+                    serde_json::json!({"sample": asset.name, "error": error.to_string()}),
                 ));
                 continue;
             }
         };
         let Some(points) = metadata.loops.first() else {
-            warnings.push(format!(
-                "Sample {} requests loop points but its WAV has none.",
-                asset.name
+            warnings.push(windfall_ipc::ui_message(
+                "flp.loopMissingInWav",
+                serde_json::json!({"sample": asset.name}),
             ));
             continue;
         };
@@ -387,9 +407,9 @@ fn resolve_sampler_loops(
             || points.end as usize > buffer.frames()
             || points.kind == WavLoopKind::Backward
         {
-            warnings.push(format!(
-                "Sample {} loop bounds or backward mode cannot be applied.",
-                asset.name
+            warnings.push(windfall_ipc::ui_message(
+                "flp.loopNotApplicable",
+                serde_json::json!({"sample": asset.name}),
             ));
             continue;
         }
@@ -411,9 +431,9 @@ fn resolve_sampler_loops(
             || f64::from(points.end) > trim_end
             || trim_end <= trim_start
         {
-            warnings.push(format!(
-                "Sample {} loop lies outside its trimmed playback region.",
-                asset.name
+            warnings.push(windfall_ipc::ui_message(
+                "flp.loopOutsideTrim",
+                serde_json::json!({"sample": asset.name}),
             ));
             continue;
         }
@@ -425,13 +445,19 @@ fn resolve_sampler_loops(
             ..Default::default()
         };
         match document.dispatch(Command::UpdateSampler { id: channel, patch }, None) {
-            Ok(_) => warnings.push(format!("Sample {} loop points came from its WAV smpl chunk; loop release/seam behavior can differ.", asset.name)),
-            Err(error) => warnings.push(format!("Sample {} loop metadata was not applied: {error}", asset.name)),
+            Ok(_) => warnings.push(windfall_ipc::ui_message(
+                "flp.loopFromWav",
+                serde_json::json!({"sample": asset.name}),
+            )),
+            Err(error) => warnings.push(windfall_ipc::ui_message(
+                "flp.loopNotApplied",
+                serde_json::json!({"sample": asset.name, "error": error.to_string()}),
+            )),
         }
         if metadata.loops.len() > 1 || points.play_count != 0 {
-            warnings.push(format!(
-                "Sample {}: only the first loop and indefinite repetition are represented.",
-                asset.name
+            warnings.push(windfall_ipc::ui_message(
+                "flp.firstLoopOnly",
+                serde_json::json!({"sample": asset.name}),
             ));
         }
     }

@@ -236,7 +236,7 @@ fn invalid_lossy_export_settings_return_readable_errors() {
         },
     ];
     for options in invalid {
-        let error = rig.session.export_audio(options).unwrap_err();
+        let error = windfall_core::english::shown(&rig.session.export_audio(options).unwrap_err());
         assert!(!error.is_empty() && error.ends_with('.'), "{error}");
         assert!(written(&rig).is_empty());
     }
@@ -605,7 +605,7 @@ fn stems_that_cannot_all_be_written_are_not_written_at_all() {
         ..options(&rig, "Out.wav", ExportFormat::Wav)
     };
     let done = export(&rig, &options);
-    let error = done.error.unwrap();
+    let error = windfall_core::english::english(&done.error.unwrap());
     assert!(error.starts_with("Could not export to \""), "{error}");
     assert!(error.contains("\"Out - 02 Clap Wide.wav\": "), "{error}");
     assert_eq!((done.files, done.cancelled), (None, None));
@@ -627,7 +627,7 @@ fn stems_that_cannot_all_be_written_are_not_written_at_all() {
         path: rig.file("Taken.wav"),
         ..options
     };
-    let error = export(&rig, &options).error.unwrap();
+    let error = windfall_core::english::english(&export(&rig, &options).error.unwrap());
     assert!(error.contains("the folder \""), "{error}");
     assert!(error.contains("could not be made"), "{error}");
     assert_eq!(fs::read(rig.file("Taken")).unwrap(), b"not a folder");
@@ -641,7 +641,7 @@ fn what_a_format_or_a_stem_cannot_be_is_refused_before_anything_is_written() {
         rig.events.take();
         let error = rig.session.export_audio(options).unwrap_err();
         assert!(rig.events.take().is_empty());
-        error
+        windfall_core::english::english(&error)
     };
     let flac = || options(&rig, "no.flac", ExportFormat::Flac);
 

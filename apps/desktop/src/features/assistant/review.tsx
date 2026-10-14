@@ -6,7 +6,7 @@ import { backend } from "@/lib/ipc"
 import { errorMessage } from "@/lib/ipc/backend"
 import { receivePatch, useProjectStore } from "@/lib/store/project"
 import { getProjectGeneration } from "@/lib/store/replaced"
-import { translatedText as t } from "@/lib/i18n"
+import { localizeBackendText, translatedText as t } from "@/lib/i18n"
 
 /** Review shows the exact checked command payload, including plugin targets and
  * values. Apply is one Rust batch. Undo is offered only while this is the latest
@@ -52,7 +52,7 @@ export function ProposalReview({ proposal, generation, cancel }: {
   }
 
   return <section aria-label={t("Command proposal")} className="flex flex-col gap-3">
-    <p>{proposal.explanation}</p>
+    <p>{localizeBackendText(proposal.explanation)}</p>
     <ol className="flex list-decimal flex-col gap-2 pl-5">
       {proposal.commands.map((command, index) => <li key={index}>
         <details><summary>{command.type}</summary><pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all">{JSON.stringify(command, null, 2)}</pre></details>

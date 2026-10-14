@@ -1010,6 +1010,7 @@ fn unsupported_actual_native_latency_is_rejected_before_audio_installation() {
         let error = result
             .err()
             .expect("bad native latency produced an installed facade");
+        let error = windfall_core::english::english(&error);
         assert!(
             error.contains("unsupported native latency"),
             "unsupported latency was hidden by {error}"

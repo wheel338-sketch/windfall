@@ -1569,9 +1569,10 @@ fn encoded_soundfont_read_is_admitted_before_allocation_and_releases_its_lease()
     let budget = std::sync::Arc::new(windfall_dsp::sample_bank::BankBudget::new(32));
     let occupied = budget.reserve(1).unwrap();
     assert!(
-        super::super::sample_instruments::read_soundfont(&path, &budget)
-            .unwrap_err()
-            .contains("memory refused")
+        windfall_core::english::english(
+            &super::super::sample_instruments::read_soundfont(&path, &budget).unwrap_err()
+        )
+        .contains("memory refused")
     );
     assert_eq!(budget.used(), 1);
     drop(occupied);

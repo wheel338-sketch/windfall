@@ -79,7 +79,12 @@ pub(super) fn write_checked<T>(
                 // The failed candidate's staging and preparation are dropped.
                 // Carrying is idempotent when the next candidate shares its root.
             }
-            Err(error) => return Err(format!("Could not save the new version: {}", error.error)),
+            Err(error) => {
+                return Err(windfall_ipc::ui_message(
+                    "versions.saveFailed",
+                    serde_json::json!({"error": error.error.to_string()}),
+                ));
+            }
         }
     }
     Err("No unused project version was found within 10,000 filenames.".into())

@@ -13,6 +13,7 @@ windfall-core.workspace = true
 windfall-project.workspace = true
 
 [dev-dependencies]
+windfall-core = { workspace = true, features = ["english"] }
 proptest = { version = "1", default-features = false, features = ["std"] }
 tempfile = "3"
 

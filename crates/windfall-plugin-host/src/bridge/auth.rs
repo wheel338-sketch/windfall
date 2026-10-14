@@ -26,7 +26,7 @@ const CANDIDATE_TIMEOUT: Duration = Duration::from_millis(50);
 pub(crate) fn check_startup_timeout(timeout: Duration) -> io::Result<()> {
     if timeout.is_zero() || timeout > Duration::from_millis(MAX_STARTUP_MS) {
         return Err(io::Error::other(
-            "unsupported helper startup budget (positive, at most60s)",
+            "unsupported helper startup budget (positive, at most 60 s)",
         ));
     }
     Ok(())

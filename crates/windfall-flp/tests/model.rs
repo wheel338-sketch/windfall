@@ -455,7 +455,10 @@ fn notes_that_end_mid_note_keep_the_whole_ones_and_say_so() {
     });
     assert_eq!(project.patterns[0].notes.len(), 2);
     assert_eq!(project.diagnostics.len(), 1);
-    assert!(project.diagnostics[0].message.contains("middle of a note"));
+    assert!(
+        windfall_core::english::english(&project.diagnostics[0].message)
+            .contains("middle of a note")
+    );
     assert!(project.diagnostics[0].offset.is_some());
 }
 
@@ -464,8 +467,7 @@ fn notes_without_a_pattern_are_left_out_with_a_diagnostic() {
     let project = read(|events| events.data(224, &[0_u8; 24]));
     assert!(project.patterns.is_empty());
     assert!(
-        project.diagnostics[0]
-            .message
+        windfall_core::english::english(&project.diagnostics[0].message)
             .contains("before it names a pattern")
     );
 }
@@ -747,7 +749,10 @@ fn an_item_on_a_track_that_does_not_exist_is_left_out_with_a_diagnostic() {
         events.data(233, &item);
     });
     assert!(project.arrangements[0].items.is_empty());
-    assert!(project.diagnostics[0].message.contains("1 clips"));
+    assert!(
+        windfall_core::english::english(&project.diagnostics[0].message)
+            .contains("1 clip of the playlist sits")
+    );
 }
 
 #[test]
@@ -1098,10 +1103,10 @@ fn a_file_that_is_cut_off_gives_what_came_before_and_says_so() {
     assert_eq!(read.settings.title.as_deref(), Some("Cut"));
     assert_eq!(read.channels.len(), 1);
     assert_eq!(read.channels[0].name, None);
-    let messages: Vec<&str> = read
+    let messages: Vec<String> = read
         .diagnostics
         .iter()
-        .map(|d| d.message.as_str())
+        .map(|d| windfall_core::english::english(&d.message))
         .collect();
     assert!(
         messages
@@ -1146,7 +1151,7 @@ fn more_inserts_than_a_mixer_can_have_are_capped() {
         windfall_flp::parse::MAX_INSERTS
     );
     assert!(project.diagnostics.iter().any(|d| {
-        d.message
+        windfall_core::english::english(&d.message)
             .contains("more mixer inserts than are read. 50 were left out")
     }));
 }

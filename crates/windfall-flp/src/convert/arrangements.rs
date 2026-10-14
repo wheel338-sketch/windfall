@@ -54,7 +54,7 @@ impl Builder<'_> {
             };
             self.apply(
                 section,
-                "The arrangement being imported",
+                &windfall_core::notice!("flp.subject.importedArrangement").to_string(),
                 Command::SwitchArrangement { id },
             );
             let references = self.playlist_arrangement(source);
@@ -62,7 +62,7 @@ impl Builder<'_> {
             // references with this arrangement's own lanes after conversion.
             self.apply(
                 section,
-                "The independent arrangement layout",
+                &windfall_core::notice!("flp.subject.arrangementLayout").to_string(),
                 Command::SetArrangementReferences {
                     id,
                     clips: references
@@ -86,7 +86,7 @@ impl Builder<'_> {
             self.arrangement_timeline(&source.markers);
             self.apply(
                 section,
-                "An independent musical timeline",
+                &windfall_core::notice!("flp.subject.musicalTimeline").to_string(),
                 Command::CaptureArrangementTimeline { id },
             );
             if std::ptr::eq(source, selected) {
@@ -96,7 +96,7 @@ impl Builder<'_> {
         if let Some(id) = selected_id {
             self.apply(
                 section,
-                "The selected arrangement",
+                &windfall_core::notice!("flp.subject.selectedArrangement").to_string(),
                 Command::SwitchArrangement { id },
             );
         }

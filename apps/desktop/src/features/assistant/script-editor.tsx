@@ -19,7 +19,7 @@ import { closeScripts, useAssistantWindows } from "./store"
 import { ControllerBindingFields } from "./controller-binding"
 import { InstalledScriptParameters, ScriptNoteRefusals } from "./script-parameters"
 import { useControllerStatus } from "@/features/controllers/status"
-import { message, plainNumber, translatedText as t } from "@/lib/i18n"
+import { localizeBackendText, message, plainNumber, translatedText as t } from "@/lib/i18n"
 
 const EXAMPLES: Record<ScriptKind, string> = {
   piano: "param transpose -24 24 12\nselected\nset key key transpose + 0 127 clamp\nemit\nend",
@@ -199,7 +199,7 @@ function ControllerScriptStatus() {
   const { state } = useControllerStatus()
   return <>
     <p role="status">{state?.waiting.length ? message("{count} control targets held for pickup.", { count: plainNumber(state.waiting.length) }) : t("No controls held for pickup.")}</p>
-    {state?.error && <Alert variant="destructive"><AlertDescription>{state.error}</AlertDescription></Alert>}
+    {state?.error && <Alert variant="destructive"><AlertDescription>{localizeBackendText(state.error)}</AlertDescription></Alert>}
     {!!state?.dropped && <p role="status">{state.dropped}{" "}{t("controller messages dropped.")}</p>}
   </>
 }

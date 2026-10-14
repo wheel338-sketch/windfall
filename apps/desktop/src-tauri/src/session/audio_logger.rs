@@ -178,13 +178,15 @@ fn usable(mut settings: AudioLoggerSettings) -> AudioLoggerSettings {
 
 fn check(settings: &AudioLoggerSettings) -> Result<(), String> {
     if !(AUDIO_LOGGER_MIN_SECONDS..=AUDIO_LOGGER_MAX_SECONDS).contains(&settings.seconds) {
-        return Err(format!(
-            "The audio logger keeps {AUDIO_LOGGER_MIN_SECONDS} to {AUDIO_LOGGER_MAX_SECONDS} seconds."
+        return Err(windfall_ipc::ui_message(
+            "audioLogger.secondsRange",
+            serde_json::json!({"min": AUDIO_LOGGER_MIN_SECONDS, "max": AUDIO_LOGGER_MAX_SECONDS}),
         ));
     }
     if &usable(settings.clone()) != settings {
-        return Err(format!(
-            "The audio logger follows at most {AUDIO_LOGGER_MAX_TRACKS} mixer tracks, each once."
+        return Err(windfall_ipc::ui_message(
+            "audioLogger.tooManyTracks",
+            serde_json::json!({"max": AUDIO_LOGGER_MAX_TRACKS}),
         ));
     }
     Ok(())
@@ -241,12 +243,10 @@ impl Session {
             .tracks
             .iter()
             .flat_map(|track| {
-                track.effects.iter().map(move |slot| {
-                    (
-                        slot.id,
-                        format!("{} · {}", track.name, slot.params.kind().name()),
-                    )
-                })
+                track
+                    .effects
+                    .iter()
+                    .map(move |slot| (slot.id, track.name.clone(), slot.params.kind().name()))
             })
             .collect();
         let generation = self.state().generation;
@@ -256,23 +256,53 @@ impl Session {
             .as_ref()
             .is_some_and(|output| !output.detached());
         let label = |source: AudioLoggerSource| match source {
-            AudioLoggerSource::Master => "Master output".to_owned(),
+            AudioLoggerSource::Master => {
+                windfall_ipc::ui_message("audioLogger.master", serde_json::json!({}))
+            }
             AudioLoggerSource::Effect { effect } => effect_names
                 .iter()
-                .find(|(id, _)| *id == effect)
+                .find(|(id, _, _)| *id == effect)
                 .map_or_else(
-                    || format!("Effect {} (not in this project)", effect.0),
-                    |(_, name)| format!("Slot: {name}"),
+                    || {
+                        windfall_ipc::ui_message(
+                            "audioLogger.effectGone",
+                            serde_json::json!({"id": effect.0}),
+                        )
+                    },
+                    |(_, track, kind)| {
+                        windfall_ipc::ui_message(
+                            "audioLogger.slot",
+                            serde_json::json!({
+                                "track": track,
+                                "effect": windfall_core::notice::term(*kind).to_string(),
+                            }),
+                        )
+                    },
                 ),
             AudioLoggerSource::Track { track } => {
                 names.iter().find(|(id, _)| *id == track).map_or_else(
-                    || format!("Mixer track {} (not in this project)", track.0),
-                    |(_, name)| format!("Mixer track: {name}"),
+                    || {
+                        windfall_ipc::ui_message(
+                            "audioLogger.trackGone",
+                            serde_json::json!({"id": track.0}),
+                        )
+                    },
+                    |(_, name)| {
+                        windfall_ipc::ui_message(
+                            "audioLogger.track",
+                            serde_json::json!({"name": name}),
+                        )
+                    },
                 )
             }
             AudioLoggerSource::Input => settings.input.as_ref().map_or_else(
-                || "Hardware input".to_owned(),
-                |input| format!("Input: {}", input.device),
+                || windfall_ipc::ui_message("audioLogger.hardwareInput", serde_json::json!({})),
+                |input| {
+                    windfall_ipc::ui_message(
+                        "audioLogger.input",
+                        serde_json::json!({"device": input.device}),
+                    )
+                },
             ),
         };
         let empty = |source: AudioLoggerSource, error: Option<String>| AudioLoggerSourceStatus {
@@ -295,7 +325,7 @@ impl Session {
                     let present = match stats.source {
                         AudioLoggerSource::Effect { effect } => {
                             logger.effect_generation == Some(generation)
-                                && effect_names.iter().any(|(id, _)| *id == effect)
+                                && effect_names.iter().any(|(id, _, _)| *id == effect)
                         }
                         AudioLoggerSource::Track { track } => {
                             names.iter().any(|(id, _)| *id == track)
@@ -697,8 +727,12 @@ impl Session {
         }
 
         let folder = self.store().recordings_dir();
-        fs::create_dir_all(&folder)
-            .map_err(|error| format!("Could not create the recordings folder: {error}"))?;
+        fs::create_dir_all(&folder).map_err(|error| {
+            windfall_ipc::ui_message(
+                "audioLogger.folderNotCreated",
+                serde_json::json!({"error": error.to_string()}),
+            )
+        })?;
         let mut reserved = None;
         for _ in 0..1000 {
             let candidate = folder.join(format!(
@@ -718,7 +752,10 @@ impl Session {
                 }
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
                 Err(error) => {
-                    return Err(format!("Could not create the logged audio file: {error}"));
+                    return Err(windfall_ipc::ui_message(
+                        "audioLogger.fileNotCreated",
+                        serde_json::json!({"error": error.to_string()}),
+                    ));
                 }
             }
         }

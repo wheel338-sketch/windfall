@@ -81,7 +81,10 @@ fn the_transport_cannot_be_pointed_at_a_pattern_that_does_not_exist() {
             ..TransportPatch::default()
         })
         .unwrap_err();
-    assert_eq!(error, "pattern 999 does not exist");
+    assert_eq!(
+        windfall_core::english::english(&error),
+        "pattern 999 does not exist"
+    );
     assert_eq!(rig.session.transport_state(), before);
     assert!(rig.events.take().is_empty());
 }

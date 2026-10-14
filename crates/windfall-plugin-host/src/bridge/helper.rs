@@ -905,10 +905,13 @@ fn run(address: SocketAddr) -> io::Result<()> {
     let latency = processor.latency_samples() as usize;
     if let Err(error_value) = region.negotiate_latency(latency) {
         region.latch_helper_failure();
-        let message = format!(
-            "unsupported native latency {latency} at {} Hz: {error_value}",
-            config.sample_rate
-        );
+        let message = windfall_core::notice!(
+            "pluginHost.bridgeLatency",
+            latency = latency,
+            rate = config.sample_rate,
+            error = windfall_core::notice::term(error_value.to_string())
+        )
+        .to_string();
         reply(
             &mut socket,
             &Packet::new(

@@ -47,7 +47,12 @@ fn write_record(root: &Path, record: &ExtractionRecord) -> Result<(), String> {
         &root.join(OWNERSHIP),
         &serde_json::to_vec(record).map_err(|e| e.to_string())?,
     )
-    .map_err(|e| format!("Could not record extracted audio ownership: {e}"))
+    .map_err(|e| {
+        windfall_ipc::ui_message(
+            "extractions.ownershipNotRecorded",
+            serde_json::json!({"error": e.to_string()}),
+        )
+    })
 }
 // Windows will not remove or move a byte-range-locked file. Serialize collectors
 // using a lock outside the child being reclaimed, then release its owner lease.
@@ -154,7 +159,7 @@ impl Extractions {
                 .collect();
             match refs {
                 Err(error) => {
-                    warnings.push(format!("Kept extracted audio {} because a saved reference could not be checked: {error}", paths::display(&root)));
+                    warnings.push(windfall_ipc::ui_message("extractions.keptUnchecked", serde_json::json!({"folder": paths::display(&root), "error": error.to_string()})));
                     continue;
                 }
                 Ok(refs) => {
@@ -192,20 +197,14 @@ impl Extractions {
                 match fs::rename(&root, &target) {
                     Ok(()) => {
                         registry.recovered.push(target.join("project.windfall"));
-                        warnings.push(format!("Recovered an unsaved template/archive project at {}. Open it from Recent projects to recover its audio.", paths::display(&target.join("project.windfall"))));
+                        warnings.push(windfall_ipc::ui_message("extractions.recovered", serde_json::json!({"file": paths::display(&target.join("project.windfall"))})));
                     }
-                    Err(error) => warnings.push(format!(
-                        "Could not recover extracted project {}: {error}",
-                        paths::display(&root)
-                    )),
+                    Err(error) => warnings.push(windfall_ipc::ui_message("extractions.recoverFailed", serde_json::json!({"folder": paths::display(&root), "error": error.to_string()}))),
                 }
             } else {
                 drop(owner);
                 if let Err(error) = fs::remove_dir_all(&root) {
-                    warnings.push(format!(
-                        "Could not reclaim abandoned extraction {}: {error}",
-                        paths::display(&root)
-                    ));
+                    warnings.push(windfall_ipc::ui_message("extractions.reclaimFailed", serde_json::json!({"folder": paths::display(&root), "error": error.to_string()})));
                 }
             }
         }
@@ -226,7 +225,12 @@ impl Drop for super::Inner {
         if let Err(error) =
             extractions.checkpoint(state.document.project(), state.sample_dir.as_deref())
         {
-            self.events.emit(crate::events::Event::ProjectWarnings(vec![format!("Could not checkpoint the unsaved extracted project: {error}. Its initial project and audio are retained.")]));
+            self.events.emit(crate::events::Event::ProjectWarnings(vec![
+                windfall_ipc::ui_message(
+                    "extractions.checkpointFailed",
+                    serde_json::json!({"error": error.to_string()}),
+                ),
+            ]));
         }
     }
 }
@@ -310,8 +314,12 @@ impl Session {
         )?;
         let name = source.file_name().ok_or("Capture audio has no filename")?;
         let target = root.path().join(name);
-        fs::copy(source, &target)
-            .map_err(|e| format!("Could not preserve preset capture audio: {e}"))?;
+        fs::copy(source, &target).map_err(|e| {
+            windfall_ipc::ui_message(
+                "extractions.captureAudioNotKept",
+                serde_json::json!({"error": e.to_string()}),
+            )
+        })?;
         File::options()
             .write(true)
             .open(&target)
@@ -445,10 +453,7 @@ impl Session {
                 .is_ok_and(|meta| meta.file_type().is_dir() && !meta.file_type().is_symlink())
                 && let Err(error) = std::fs::remove_dir_all(&root)
             {
-                self.emit(crate::events::Event::ProjectWarnings(vec![format!(
-                    "Could not remove unused extracted audio {}: {error}",
-                    paths::display(&root)
-                )]));
+                self.emit(crate::events::Event::ProjectWarnings(vec![windfall_ipc::ui_message("extractions.removeFailed", serde_json::json!({"folder": paths::display(&root), "error": error.to_string()}))]));
                 let mut registry = lock(&self.inner.extractions);
                 registry.roots.push(root.clone());
                 if let Ok(owner) = File::options()
@@ -585,7 +590,11 @@ mod tests {
                         fs::read(path.parent().unwrap().join("samples/exact.bin")).unwrap(),
                         [19, 27, 0, 255, 45]
                     );
-                    assert!(warnings.iter().any(|w| w.contains("Recent projects")));
+                    assert!(
+                        warnings
+                            .iter()
+                            .any(|w| windfall_core::english::english(w).contains("Recent projects"))
+                    );
                 }
                 "saved" => {
                     assert!(root.exists());

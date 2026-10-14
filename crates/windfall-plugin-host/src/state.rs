@@ -43,7 +43,7 @@ pub(crate) enum StateContent<'a> {
 
 /// The bytes are not a state this version of the host wrote.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-#[error("the saved plugin state is damaged or was written by a newer version")]
+#[error("{}", windfall_core::notice!("pluginHost.invalidState"))]
 pub struct InvalidState;
 
 impl PluginState {

@@ -76,7 +76,12 @@ impl Adapter {
                 .connect_timeout(Duration::from_millis(250))
                 .timeout(Duration::from_millis(500))
                 .build()
-                .map_err(|e| format!("Could not initialise Chroma HTTP client: {e}"))?,
+                .map_err(|e| {
+                    windfall_ipc::ui_message(
+                        "lighting.clientFailed",
+                        serde_json::json!({"error": e.to_string()}),
+                    )
+                })?,
         })
     }
     fn request(
@@ -98,22 +103,24 @@ impl Adapter {
                     .body(body);
             }
             let mut response = request.send().await.map_err(|e| {
-                format!(
-                    "Chroma REST service unavailable: {e}. Enable the local Chroma SDK service."
+                windfall_ipc::ui_message(
+                    "lighting.unavailable",
+                    serde_json::json!({"error": e.to_string()}),
                 )
             })?;
             if !response.status().is_success() {
-                return Err(format!(
-                    "Chroma REST service returned HTTP {}",
-                    response.status()
+                return Err(windfall_ipc::ui_message(
+                    "lighting.httpStatus",
+                    serde_json::json!({"status": response.status().to_string()}),
                 ));
             }
             let mut bytes = Vec::new();
-            while let Some(chunk) = response
-                .chunk()
-                .await
-                .map_err(|e| format!("Chroma response failed: {e}"))?
-            {
+            while let Some(chunk) = response.chunk().await.map_err(|e| {
+                windfall_ipc::ui_message(
+                    "lighting.responseFailed",
+                    serde_json::json!({"error": e.to_string()}),
+                )
+            })? {
                 if bytes.len().saturating_add(chunk.len()) > 4096 {
                     return Err("Chroma response exceeds 4096 bytes".into());
                 }
@@ -125,7 +132,10 @@ impl Adapter {
                 .get("result")
                 .is_some_and(|result| result.as_i64() != Some(0))
             {
-                return Err(format!("Chroma rejected the request: {}", value["result"]));
+                return Err(windfall_ipc::ui_message(
+                    "lighting.rejected",
+                    serde_json::json!({"result": value["result"].to_string()}),
+                ));
             }
             Ok(value)
         })
@@ -376,7 +386,10 @@ impl Service {
                 Err(error) => {
                     *lock(&self.status) = LightingStatus {
                         connected: false,
-                        message: format!("Could not start Chroma worker: {error}"),
+                        message: windfall_ipc::ui_message(
+                            "lighting.workerFailed",
+                            serde_json::json!({"error": error.to_string()}),
+                        ),
                     };
                     return;
                 }

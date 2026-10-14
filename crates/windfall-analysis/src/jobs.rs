@@ -1085,9 +1085,10 @@ impl Drop for Cleanup {
         record.retiring = false;
         record.snapshot.failure = self.failure.take();
         if let Err(error) = &removal {
-            record.snapshot.failure = Some(format!(
-                "Owned staging/publication cleanup failed and remains reserved: {error}"
-            ));
+            record.snapshot.failure = Some(
+                windfall_core::notice!("analysis.cleanupFailed", error = error.to_string())
+                    .to_string(),
+            );
         } else {
             record.disk = 0;
             record.files = 0;

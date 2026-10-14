@@ -39,9 +39,40 @@ describe("history labels follow the language", () => {
     const missing = [...labels].filter((label) => !NOT_LABELS.has(label))
       .flatMap((label) => Object.entries(catalogs).filter(([, catalog]) => !Object.hasOwn(catalog, label)).map(([language]) => `${language}: ${label}`))
     expect(missing.sort()).toEqual([])
-    // The two labels it makes from a setting's name.
-    expect(lowering).toContain('format!("Change {}", ')
-    expect(lowering).toContain('format!("Change script {}", ')
+    // The two labels it makes from a setting's name are codes with the name
+    // as a value, no longer English built in Rust.
+    expect(lowering).toContain('"history.changeSetting"')
+    expect(lowering).toContain('"history.changeScript"')
+    expect(lowering).not.toMatch(/format!\(\s*"Change (script )?\{\}"/)
+  })
+
+  it("says a label the backend kept as a code with a setting's name in the language shown", () => {
+    const term = (text: string) => `windfall-message:${JSON.stringify({ code: "text.term", params: { text } })}`
+    const change = (name: string, code = "history.changeSetting") => `windfall-message:${JSON.stringify({ code, params: { name: term(name) } })}`
+    expect(historyLabelText(change("Cutoff"), "en")).toBe("Change Cutoff")
+    expect(historyLabelText(change("Cutoff"), "es")).toBe(`Cambiar ${message("Cutoff", {}, "es")}`)
+    expect(historyLabelText(change("Depth", "history.changeScript"), "es")).toBe(`Cambiar el script ${message("Depth", {}, "es")}`)
+    // A setting of somebody else's plugin keeps its own name.
+    expect(historyLabelText(change("Vendor Knob 3"), "es")).toBe("Cambiar Vendor Knob 3")
+    // An audio edit names its operation, which follows the language too.
+    const edit = `windfall-message:${JSON.stringify({ code: "history.audioEdit", params: { operation: term("Normalize") } })}`
+    expect(historyLabelText(edit, "en")).toBe("Audio edit: Normalize")
+    expect(historyLabelText(edit, "es")).toBe(`Edición de audio: ${message("Normalize", {}, "es")}`)
+  })
+
+  it("keeps the playlist's labels for one clip and for several as plural entries", () => {
+    for (const verb of ["Clone", "Cut", "Delete", "Duplicate", "Move", "Paint", "Paste", "Resize", "Slice", "Trim", "Mute", "Unmute"]) {
+      const key = `${verb} clips` as const
+      for (const [language, catalog] of Object.entries(catalogs)) {
+        expect(typeof catalog[key as keyof typeof catalog], `${language}: ${key}`).toBe("object")
+      }
+      expect(historyLabelText(historyLabel(key as never, { count: 1 }), "en")).toBe(`${verb} clip`)
+      expect(historyLabelText(historyLabel(key as never, { count: 3 }), "en")).toBe(`${verb} clips`)
+      // A label kept before this, and the menu entries that share the key, read as before.
+      expect(message(key as never, {}, "en")).toBe(`${verb} clips`)
+    }
+    expect(historyLabelText(historyLabel("Delete clips", { count: 1 }), "es")).toBe("Eliminar clip")
+    expect(historyLabelText(historyLabel("Delete clips", { count: 2 }), "es")).toBe("Eliminar clips")
   })
 
   it("keeps a key, and values only when there are any", () => {

@@ -42,7 +42,13 @@ pub(super) fn maintain(
         {
             let mut errors = errors.lock().unwrap_or_else(|error| error.into_inner());
             errors.retain(|(target, _)| *target != record.binding.target);
-            errors.push((record.binding.target, format!("The helper's plugin editor refused application scale {application} at monitor scale {monitor}.")));
+            errors.push((
+                record.binding.target,
+                windfall_ipc::ui_message(
+                    "plugins.helperEditorScaleRefused",
+                    serde_json::json!({"application": application, "monitor": monitor}),
+                ),
+            ));
         }
     }
 }

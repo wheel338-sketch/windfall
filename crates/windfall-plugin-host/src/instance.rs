@@ -354,9 +354,14 @@ impl PluginInstance {
             return Err(PluginError::AlreadyActive);
         }
         if !sample_rate.is_finite() || sample_rate <= 0.0 || max_block == 0 {
-            return Err(PluginError::Activate(format!(
-                "cannot run at {sample_rate} Hz in blocks of {max_block}"
-            )));
+            return Err(PluginError::Activate(
+                windfall_core::notice!(
+                    "pluginHost.cannotRun",
+                    rate = sample_rate,
+                    block = max_block
+                )
+                .to_string(),
+            ));
         }
         let block = u32::try_from(max_block).unwrap_or(u32::MAX);
         let shared = Arc::new(ProcessorShared::default());

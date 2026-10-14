@@ -115,7 +115,7 @@ fn an_export_that_cannot_work_is_refused_before_it_starts() {
     let refused = |change: &dyn Fn(&mut ExportOptions)| {
         let mut options = options(&rig, "refused.wav");
         change(&mut options);
-        session.export_audio(options).unwrap_err()
+        windfall_core::english::english(&session.export_audio(options).unwrap_err())
     };
 
     assert_eq!(
@@ -218,7 +218,7 @@ fn an_export_that_fails_says_why_in_its_last_event() {
     session.export_audio(nowhere.clone()).unwrap();
     let done = rig.events.wait_for_export();
     assert_eq!(done.path, nowhere.path);
-    let error = done.error.unwrap();
+    let error = windfall_core::english::english(&done.error.unwrap());
     assert!(error.starts_with("Could not export to \""), "{error}");
     assert!(error.contains("beat.wav"), "{error}");
 
@@ -351,7 +351,9 @@ fn an_export_named_without_an_extension_is_written_as_a_wav_file() {
 
     rig.events.take();
     assert_eq!(
-        session.export_audio(options(&rig, "beat.mp3")).unwrap_err(),
+        windfall_core::english::english(
+            &session.export_audio(options(&rig, "beat.mp3")).unwrap_err()
+        ),
         "The export is a WAV file, so its name cannot end in .mp3. End it in .wav, leave the ending off, or choose another format."
     );
     assert!(rig.events.take().is_empty());

@@ -82,7 +82,10 @@ pub fn export_bundle(
         let mut magic = [0u8; 4];
         fs::File::open(binary)
             .and_then(|mut f| f.read_exact(&mut magic))
-            .map_err(|e| format!("Windfall runtime is missing/unreadable: {e}"))?;
+            .map_err(|e| {
+                windfall_core::notice!("pluginExport.runtimeUnreadable", error = e.to_string())
+                    .to_string()
+            })?;
         if matches!(
             magic,
             [0xca, 0xfe, 0xba, 0xbe]
@@ -216,10 +219,10 @@ fn export_validated(
         return Err("Plugin export destination already exists; choose a new folder".into());
     }
     if !binary.is_file() {
-        return Err(format!(
-            "Plugin export runtime is missing: {}",
-            binary.display()
-        ));
+        return Err(
+            windfall_core::notice!("pluginExport.runtimeMissing", path = binary.display())
+                .to_string(),
+        );
     }
     let parent = destination
         .parent()
@@ -251,10 +254,11 @@ fn export_validated(
             .ok_or("Runtime has no directory")?
             .join(platform.helper_name());
         if !program.project.plugins.is_empty() && !helper.is_file() {
-            return Err(format!(
-                "Nested CLAP/VST3 needs the distributed audio helper: {}",
-                helper.display()
-            ));
+            return Err(windfall_core::notice!(
+                "pluginExport.helperNeeded",
+                path = helper.display()
+            )
+            .to_string());
         }
         if helper.is_file() {
             // Helper remains next to each format's runtime, never next to a DAW executable.
@@ -460,10 +464,11 @@ fn initial_program_at(binary: &Path, expected: &Stamp) -> Result<Program, String
             }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound && !manifest.exists() => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                return Err(format!(
-                    "Windfall bundle program is missing: {}",
-                    path.display()
-                ));
+                return Err(windfall_core::notice!(
+                    "pluginExport.bundleProgramMissing",
+                    path = path.display()
+                )
+                .to_string());
             }
             Err(error) => return Err(error.to_string()),
         }
@@ -472,10 +477,12 @@ fn initial_program_at(binary: &Path, expected: &Stamp) -> Result<Program, String
 }
 fn validate_manifest(path: &Path, expected: &Stamp) -> Result<(), String> {
     let file = fs::File::open(path).map_err(|e| {
-        format!(
-            "Windfall bundle runtime stamp is missing/unreadable at {}: {e}",
-            path.display()
+        windfall_core::notice!(
+            "pluginExport.bundleStampUnreadable",
+            path = path.display(),
+            error = e.to_string()
         )
+        .to_string()
     })?;
     let mut bytes = Vec::new();
     file.take(4097)
@@ -484,8 +491,9 @@ fn validate_manifest(path: &Path, expected: &Stamp) -> Result<(), String> {
     if bytes.len() > 4096 {
         return Err("Windfall bundle runtime stamp exceeds 4096 bytes".into());
     }
-    let stamp: Stamp = serde_json::from_slice(&bytes)
-        .map_err(|e| format!("Windfall bundle runtime stamp is invalid: {e}"))?;
+    let stamp: Stamp = serde_json::from_slice(&bytes).map_err(|e| {
+        windfall_core::notice!("pluginExport.bundleStampInvalid", error = e.to_string()).to_string()
+    })?;
     stamp.validate(expected)
 }
 /// Bundle/application resources first, executable-adjacent distribution second.
@@ -624,6 +632,7 @@ mod tests {
         fs::write(&state, Program::default().encode().unwrap()).unwrap();
         assert!(
             initial_program_at(&binary, &expected)
+                .map_err(|error| windfall_core::english::english(&error))
                 .err()
                 .unwrap()
                 .contains("stamp is missing")
@@ -631,6 +640,7 @@ mod tests {
         fs::write(&manifest, b"invalid").unwrap();
         assert!(
             initial_program_at(&binary, &expected)
+                .map_err(|error| windfall_core::english::english(&error))
                 .err()
                 .unwrap()
                 .contains("stamp is invalid")
@@ -645,6 +655,7 @@ mod tests {
             fs::write(&manifest, serde_json::to_vec(&bad).unwrap()).unwrap();
             assert!(
                 initial_program_at(&binary, &expected)
+                    .map_err(|error| windfall_core::english::english(&error))
                     .err()
                     .unwrap()
                     .contains("runtime mismatch")
@@ -656,6 +667,7 @@ mod tests {
         fs::remove_file(&state).unwrap();
         assert!(
             initial_program_at(&binary, &expected)
+                .map_err(|error| windfall_core::english::english(&error))
                 .err()
                 .unwrap()
                 .contains("program is missing")
@@ -677,6 +689,7 @@ mod tests {
         fs::write(&override_path, b"not native code").unwrap();
         assert!(
             resolve_runtime(&root, &root.join("Windfall.exe"), Some(&override_path))
+                .map_err(|error| windfall_core::english::english(&error))
                 .unwrap_err()
                 .contains("Cannot load Windfall runtime")
         );

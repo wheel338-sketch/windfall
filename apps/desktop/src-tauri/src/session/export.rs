@@ -93,9 +93,9 @@ impl FileTransaction {
         for file in &mut self.files {
             if file.destination.exists() {
                 if !file.destination.is_file() {
-                    return Err(format!(
-                        "\"{}\": the destination is not a file",
-                        paths::name(&file.destination)
+                    return Err(windfall_ipc::ui_message(
+                        "export.destinationNotFile",
+                        serde_json::json!({"name": paths::name(&file.destination)}),
                     ));
                 }
                 fs::rename(&file.destination, &file.backup).map_err(|error| error.to_string())?;
@@ -311,9 +311,9 @@ impl Session {
         let format = audio_format(options.format);
         let path = export_path(paths::absolute(&options.path)?, format)?;
         if !SAMPLE_RATES.contains(&options.sample_rate) {
-            return Err(format!(
-                "{} Hz is not a sample rate Windfall can export.",
-                options.sample_rate
+            return Err(windfall_ipc::ui_message(
+                "export.sampleRate",
+                serde_json::json!({"rate": options.sample_rate}),
             ));
         }
         let settings = encoder_settings(&options)?;
@@ -368,12 +368,9 @@ impl Session {
         let longest = longest_frames(&settings, options.sample_rate);
         if frames > longest {
             let minutes = |frames: f64| frames / f64::from(options.sample_rate) / 60.0;
-            return Err(format!(
-                "The export would be {:.0} minutes long. The longest {} file Windfall can write at {} Hz is {:.0} minutes.",
-                minutes(frames),
-                format.name(),
-                options.sample_rate,
-                minutes(longest).floor(),
+            return Err(windfall_ipc::ui_message(
+                "export.tooLong",
+                serde_json::json!({"minutes": minutes(frames).round(), "format": format.name(), "rate": options.sample_rate, "longest": minutes(longest).floor()}),
             ));
         }
 
@@ -449,7 +446,10 @@ impl Session {
             });
         spawned.map(drop).map_err(|error| {
             self.inner.exporting.store(false, Ordering::SeqCst);
-            format!("Could not start the export: {error}")
+            windfall_ipc::ui_message(
+                "export.startFailed",
+                serde_json::json!({"error": error.to_string()}),
+            )
         })
     }
 
@@ -487,9 +487,9 @@ impl Session {
                 (None, Some(outcome))
             }
             Ok(Err(reason)) => (
-                Some(format!(
-                    "Could not export to \"{}\": {reason}",
-                    paths::display(&job.path)
+                Some(windfall_ipc::ui_message(
+                    "export.failed",
+                    serde_json::json!({"path": paths::display(&job.path), "reason": reason}),
                 )),
                 None,
             ),
@@ -565,9 +565,7 @@ fn encoder_settings(options: &ExportOptions) -> Result<EncoderSettings, String> 
             };
             let level = options.flac_level.unwrap_or(DEFAULT_FLAC_LEVEL);
             if level > MAX_FLAC_LEVEL {
-                return Err(format!(
-                    "FLAC compression levels go from 0 to {MAX_FLAC_LEVEL}, and {level} was asked for."
-                ));
+                return Err(windfall_ipc::ui_message("export.flacLevel", serde_json::json!({"max": MAX_FLAC_LEVEL, "level": level})));
             }
             EncoderSettings::Flac { depth, level }
         }
@@ -595,8 +593,13 @@ fn encoder_channels(settings: &EncoderSettings) -> u16 {
     }
 }
 
-/// A message as a sentence: with a capital and a full stop.
+/// A message as a sentence: with a capital and a full stop. A coded message
+/// is sent inside `text.sentence`, and the interface makes the sentence
+/// where it shows it.
 fn sentence(message: &str) -> String {
+    if message.starts_with(windfall_core::notice::NOTICE_PREFIX) {
+        return windfall_core::notice!("text.sentence", text = message).to_string();
+    }
     let mut letters = message.chars();
     let first = letters
         .next()
@@ -657,9 +660,9 @@ fn export_path(path: PathBuf, format: AudioFormat) -> Result<PathBuf, String> {
         });
     match given {
         Some(extension) if extension.eq_ignore_ascii_case(wanted) => Ok(path),
-        Some(extension) => Err(format!(
-            "The export is a {} file, so its name cannot end in .{extension}. End it in .{wanted}, leave the ending off, or choose another format.",
-            format.name()
+        Some(extension) => Err(windfall_ipc::ui_message(
+            "export.wrongExtension",
+            serde_json::json!({"format": format.name(), "extension": extension, "wanted": wanted}),
         )),
         None => {
             let mut name = path.into_os_string();
@@ -697,10 +700,7 @@ fn write_export(
     let made_folder = match &job.folder {
         Some(folder) if !folder.is_dir() => {
             fs::create_dir_all(folder).map_err(|error| {
-                format!(
-                    "the folder \"{}\" could not be made ({error})",
-                    paths::display(folder)
-                )
+                windfall_ipc::ui_message("export.folderNotMade", serde_json::json!({"folder": paths::display(folder), "error": error.to_string()}))
             })?;
             true
         }
@@ -1098,14 +1098,16 @@ mod tests {
         ] {
             let error = export_path(PathBuf::from(name), AudioFormat::Wav).unwrap_err();
             assert_eq!(
-                error,
+                windfall_core::english::english(&error),
                 format!(
                     "The export is a WAV file, so its name cannot end in .{extension}. End it in .wav, leave the ending off, or choose another format."
                 )
             );
         }
         assert_eq!(
-            export_path(PathBuf::from("beat.wav"), AudioFormat::Flac).unwrap_err(),
+            windfall_core::english::english(
+                &export_path(PathBuf::from("beat.wav"), AudioFormat::Flac).unwrap_err()
+            ),
             "The export is a FLAC file, so its name cannot end in .wav. End it in .flac, leave the ending off, or choose another format."
         );
     }

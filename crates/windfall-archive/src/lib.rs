@@ -56,17 +56,17 @@ pub type Check<'a> = dyn FnMut(Stage) -> Result<(), Error> + 'a;
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Project archive cancelled.")]
+    #[error("{}", windfall_core::notice!("archive.error.cancelled"))]
     Cancelled,
     #[error("{0}")]
     Invalid(String),
-    #[error("These audio sources are missing; no portable archive was created:\n{0}")]
+    #[error("{}", windfall_core::notice!("archive.error.missing", detail = windfall_core::notice::term(_0.to_string())))]
     Missing(String),
-    #[error("Archive IO failed: {0}")]
+    #[error("{}", windfall_core::notice!("archive.error.io", detail = windfall_core::notice::term(_0.to_string())))]
     Io(#[from] io::Error),
-    #[error("Invalid ZIP archive: {0}")]
+    #[error("{}", windfall_core::notice!("archive.error.zip", detail = windfall_core::notice::term(_0.to_string())))]
     Zip(#[from] zip::result::ZipError),
-    #[error("Invalid archive JSON: {0}")]
+    #[error("{}", windfall_core::notice!("archive.error.json", detail = windfall_core::notice::term(_0.to_string())))]
     Json(#[from] serde_json::Error),
 }
 fn invalid(message: impl Into<String>) -> Error {
@@ -214,10 +214,10 @@ pub fn create(
             || before.len() != after.len()
             || before.modified().ok() != after.modified().ok()
         {
-            return Err(invalid(format!(
-                "Audio source changed while packaging: {}",
-                source.display()
-            )));
+            return Err(invalid(
+                windfall_core::notice!("archive.sourceChanged", file = source.display())
+                    .to_string(),
+            ));
         }
         staged_bytes += bytes;
         let mut found = None;
@@ -399,7 +399,10 @@ fn member_name(name: &str) -> Result<(), Error> {
                 )
         })
     {
-        return Err(invalid(format!("Unsafe archive member: {name:?}")));
+        return Err(invalid(
+            windfall_core::notice!("archive.unsafeMember", name = format!("{:?}", name))
+                .to_string(),
+        ));
     }
     Ok(())
 }
@@ -838,7 +841,12 @@ pub fn extract(
             ..Default::default()
         })?,
     )
-    .map_err(|error| invalid(format!("Could not record extraction ownership: {error}")))?;
+    .map_err(|error| {
+        invalid(
+            windfall_core::notice!("archive.ownershipNotRecorded", error = error.to_string())
+                .to_string(),
+        )
+    })?;
     fs::create_dir(root.path().join("audio"))?;
     fs::create_dir(root.path().join("samples"))?;
     for name in expected {

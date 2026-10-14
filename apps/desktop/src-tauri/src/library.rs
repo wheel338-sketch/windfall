@@ -101,9 +101,9 @@ impl MetadataStore {
                 error: None,
             },
             Err(e) => Self {
-                error: Some(format!(
-                    "Could not read library metadata ({e}). Close Windfall and repair or rename {} before saving favorites or tags. The original file has been preserved.",
-                    paths::display(&file)
+                error: Some(windfall_ipc::ui_message(
+                    "library.metadataUnreadable",
+                    serde_json::json!({"error": e.to_string(), "file": paths::display(&file)}),
                 )),
                 file,
                 data: Metadata::default(),
@@ -134,7 +134,12 @@ impl MetadataStore {
         if json.len() as u64 > MAX_METADATA_BYTES {
             return Err("The library metadata has reached its 8 MiB limit.".into());
         }
-        write_atomic(&self.file, &json).map_err(|e| format!("Could not save favorites and tags to {}: {e}. Check free space and write access, then try again.", paths::display(&self.file)))?;
+        write_atomic(&self.file, &json).map_err(|e| {
+            windfall_ipc::ui_message(
+                "library.saveFailed",
+                serde_json::json!({"file": paths::display(&self.file), "error": e.to_string()}),
+            )
+        })?;
         self.data.files = next;
         self.data.version = 1;
         Ok(meta)
@@ -212,7 +217,10 @@ impl Library {
             .name("windfall-library".into())
             .spawn(move || worker(worker_index, worker_control));
         let worker_error = worker.err().map(|e| {
-            format!("Could not start the library worker: {e}. Restart Windfall to try again.")
+            windfall_ipc::ui_message(
+                "library.workerFailed",
+                serde_json::json!({"error": e.to_string()}),
+            )
         });
         let library = Self {
             index,
@@ -517,7 +525,12 @@ fn file_fingerprint(file: &Path, root: &Path) -> Result<String, String> {
         if depth > MAX_DEPTH + 2 {
             return Err(STALE_FILE.into());
         }
-        let metadata = fs::symlink_metadata(part).map_err(|e| format!("Could not read {}: {e}. Check that the file and folder are still available, then refresh the library.", paths::display(part)))?;
+        let metadata = fs::symlink_metadata(part).map_err(|e| {
+            windfall_ipc::ui_message(
+                "library.pathUnreadable",
+                serde_json::json!({"path": paths::display(part), "error": e.to_string()}),
+            )
+        })?;
         if reparse(&metadata) {
             return Err("Library search skips symbolic links and junctions. Add the original folder instead.".into());
         }
@@ -530,9 +543,9 @@ fn file_fingerprint(file: &Path, root: &Path) -> Result<String, String> {
         return Err(STALE_FILE.into());
     }
     stamp(file, &metadata).map_err(|e| {
-        format!(
-            "Could not read {}: {e}. Check file access, then refresh the library.",
-            paths::display(file)
+        windfall_ipc::ui_message(
+            "library.fileUnreadable",
+            serde_json::json!({"path": paths::display(file), "error": e.to_string()}),
         )
     })
 }
@@ -580,7 +593,10 @@ fn scan(
     let mut truncated = roots.len() > MAX_ROOTS;
     let mut issue = |path: &Path, error: &dyn std::fmt::Display| {
         if issues.len() < MAX_ISSUES {
-            issues.push(format!("Could not index {}: {error}. Check folder access or reconnect the drive, then refresh; you can remove an unavailable folder from the browser.", paths::display(path)));
+            issues.push(windfall_ipc::ui_message(
+                "library.indexFailed",
+                serde_json::json!({"path": paths::display(path), "error": error.to_string()}),
+            ));
         }
     };
     'roots: for root in roots.iter().take(MAX_ROOTS) {
@@ -828,18 +844,16 @@ mod tests {
         let file = temp.path().join(METADATA_FILE);
         fs::write(&file, b"broken").unwrap();
         let mut store = MetadataStore::load(file.clone());
-        assert!(
-            store
-                .set(
-                    "/samples/kick.wav",
-                    LibraryMetadata {
-                        favorite: true,
-                        tags: vec![]
-                    }
-                )
-                .unwrap_err()
-                .contains("preserved")
-        );
+        let error = store
+            .set(
+                "/samples/kick.wav",
+                LibraryMetadata {
+                    favorite: true,
+                    tags: vec![],
+                },
+            )
+            .unwrap_err();
+        assert!(windfall_core::english::english(&error).contains("preserved"));
         assert_eq!(fs::read(&file).unwrap(), b"broken");
         let blocked = temp.path().join("blocked");
         fs::write(&blocked, b"file").unwrap();
@@ -948,7 +962,7 @@ mod tests {
         assert_eq!(result.entries.len(), MAX_RESULTS);
         assert!(result.results_truncated);
         assert_eq!(result.issues.len(), 2);
-        assert!(result.issues[0].contains("Check folder access"));
+        assert!(windfall_core::english::english(&result.issues[0]).contains("Check folder access"));
     }
 
     #[test]

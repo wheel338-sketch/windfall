@@ -37,9 +37,11 @@ impl ControlMap {
         }
         if !self.smoothing_ms.is_finite() || !(0.0..=MAX_SMOOTHING_MS).contains(&self.smoothing_ms)
         {
-            return Err(format!(
-                "A controller link's smoothing is 0 to {MAX_SMOOTHING_MS} ms."
-            ));
+            return Err(windfall_core::notice!(
+                "controllers.links.smoothing",
+                max = MAX_SMOOTHING_MS
+            )
+            .to_string());
         }
         let formula = match self.formula.as_deref().map(str::trim) {
             None | Some("") => None,

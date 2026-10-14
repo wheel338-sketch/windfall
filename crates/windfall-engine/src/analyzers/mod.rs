@@ -115,7 +115,9 @@ pub enum PrepareError {
 
 impl fmt::Display for PrepareError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Analyzer preparation refused: {self:?}")
+        let notice =
+            windfall_core::notice!("engine.analyzers.refused", detail = format!("{self:?}"));
+        write!(f, "{notice}")
     }
 }
 impl std::error::Error for PrepareError {}

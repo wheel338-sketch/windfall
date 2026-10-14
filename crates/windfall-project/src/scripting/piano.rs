@@ -103,16 +103,20 @@ pub fn piano_preview(
     let proposal = CommandProposal {
         stamp: current,
         label: "Piano script".into(),
-        explanation: format!(
-            "{} selected notes; {} emitted notes. {}. Emitted notes receive new IDs and default expression; Undo restores the originals.",
-            selected.len(),
-            output.notes.len(),
-            if request.replace {
-                "Replace selection"
-            } else {
-                "Append notes"
-            }
-        ),
+        explanation: if request.replace {
+            windfall_core::notice!(
+                "scripts.pianoReplaces",
+                selected = selected.len(),
+                emitted = output.notes.len()
+            )
+        } else {
+            windfall_core::notice!(
+                "scripts.pianoAppends",
+                selected = selected.len(),
+                emitted = output.notes.len()
+            )
+        }
+        .to_string(),
         commands,
     };
     proposal.validate(document, current, false)?;

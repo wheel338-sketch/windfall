@@ -341,10 +341,15 @@ fn open_group(
         let id = cpal::available_hosts()
             .into_iter()
             .find(|id| id.name() == host_name)
-            .ok_or_else(|| format!("Input host {host_name} is unavailable."))?;
+            .ok_or_else(|| {
+                windfall_core::notice!("engine.recording.hostMissing", host = host_name).to_string()
+            })?;
         let host = cpal::host_from_id(id).map_err(|error| error.to_string())?;
-        let endpoint = crate::recording_endpoint::find_input(&host, &device_name)?
-            .ok_or_else(|| format!("Input device {device_name} is unavailable."))?;
+        let endpoint =
+            crate::recording_endpoint::find_input(&host, &device_name)?.ok_or_else(|| {
+                windfall_core::notice!("engine.recording.deviceMissing", device = device_name)
+                    .to_string()
+            })?;
         let configs = crate::recording_endpoint::input_configs(&endpoint)?;
         let device = endpoint.device;
         let highest = indices
@@ -383,7 +388,10 @@ fn open_group(
             })
             .min_by_key(|(distance, _)| *distance)
             .map(|(_, config)| config)
-            .ok_or_else(|| format!("{device_name} has no format supporting all armed channels."))?;
+            .ok_or_else(|| {
+                windfall_core::notice!("engine.recording.noFormat", device = device_name)
+                    .to_string()
+            })?;
         let rate = config.sample_rate();
         let mut feeds = Vec::with_capacity(indices.len());
         for index in indices {

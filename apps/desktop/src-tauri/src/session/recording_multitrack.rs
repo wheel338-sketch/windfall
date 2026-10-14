@@ -47,9 +47,9 @@ impl Session {
             }
             recording.check()?;
             if recording.mode == MixerRecordMode::Input && recording.input.is_none() {
-                return Err(format!(
-                    "Choose a hardware input for armed track {}.",
-                    mixer.name
+                return Err(windfall_ipc::ui_message(
+                    "recording.armedNeedsInput",
+                    serde_json::json!({"track": mixer.name}),
                 ));
             }
             let input = recording.input.as_ref();
@@ -57,9 +57,9 @@ impl Session {
             alignment.synchronize = true;
             alignment.offset_ms += recording.offset_ms;
             if alignment.offset_ms.abs() > 1000.0 {
-                return Err(format!(
-                    "Combined recording offset for {} exceeds 1000 ms.",
-                    mixer.name
+                return Err(windfall_ipc::ui_message(
+                    "recording.offsetTooLarge",
+                    serde_json::json!({"track": mixer.name}),
                 ));
             }
             routes.push(ArmedRoute {

@@ -105,6 +105,7 @@ fn what_cannot_be_written_is_refused_before_a_file_is_made() {
             .unwrap_err()
             .to_string();
         assert_eq!(checked, opened);
+        let checked = windfall_core::english::english(&checked);
         assert!(matches!(
             settings.check(sample_rate, channels),
             Err(CodecError::InvalidInput(_))

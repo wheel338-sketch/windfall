@@ -77,10 +77,11 @@ impl MidiHardwareSettings {
             return Err("MIDI channels must be between 1 and 16.".into());
         }
         if self.extra_inputs.len() > MAX_EXTRA_MIDI_INPUTS {
-            return Err(format!(
-                "At most {} MIDI inputs can be open at once.",
-                MAX_EXTRA_MIDI_INPUTS + 1
-            ));
+            return Err(windfall_core::notice!(
+                "midiHardware.tooManyInputs",
+                max = MAX_EXTRA_MIDI_INPUTS + 1
+            )
+            .to_string());
         }
         for (at, extra) in self.extra_inputs.iter().enumerate() {
             let repeated = self.input.as_deref() == Some(extra.id.as_str())
@@ -188,9 +189,11 @@ impl ControllerSettings {
     pub fn validate(&self) -> Result<(), String> {
         if !self.record_offset_ms.is_finite() || self.record_offset_ms.abs() > MAX_RECORD_OFFSET_MS
         {
-            return Err(format!(
-                "The recording offset is within {MAX_RECORD_OFFSET_MS} ms either way."
-            ));
+            return Err(windfall_core::notice!(
+                "midiHardware.offsetRange",
+                max = MAX_RECORD_OFFSET_MS
+            )
+            .to_string());
         }
         if self.record_quantize_ticks > MAX_RECORD_QUANTIZE_TICKS {
             return Err("The recording grid is too coarse.".into());

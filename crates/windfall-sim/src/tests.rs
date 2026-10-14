@@ -180,10 +180,10 @@ fn a_project_that_breaks_a_rule_does_not_become_a_document() {
     project.next_id = 1;
     let error = run(ops::doc_new, 0, &serde_json::to_value(&project).unwrap()).unwrap_err();
     assert_eq!(
-        error,
+        windfall_core::english::english(&error),
         format!(
             "the project breaks a rule of the project model: {}",
-            project.check().unwrap_err()
+            windfall_core::english::english(&project.check().unwrap_err())
         )
     );
 }
@@ -194,19 +194,19 @@ fn a_closed_handle_is_an_error_and_is_never_handed_out_again() {
     run(ops::doc_free, first, &Value::Null).unwrap();
     let message = format!("document handle {first} is not open");
     assert_eq!(
-        run(ops::doc_free, first, &Value::Null),
+        said(run(ops::doc_free, first, &Value::Null)),
         Err(message.clone())
     );
     assert_eq!(
-        run(ops::doc_undo, first, &Value::Null),
+        said(run(ops::doc_undo, first, &Value::Null)),
         Err(message.clone())
     );
     assert_eq!(
-        dispatch(first, json!({ "type": "addPattern" })),
+        said(dispatch(first, json!({ "type": "addPattern" }))),
         Err(message)
     );
     assert_eq!(
-        run(ops::doc_snapshot, 0, &Value::Null),
+        said(run(ops::doc_snapshot, 0, &Value::Null)),
         Err("document handle 0 is not open".to_owned())
     );
 
@@ -254,7 +254,9 @@ fn a_file_that_cannot_be_loaded_says_why_in_the_loaders_words() {
         garbage,
         file::from_json("not a project").unwrap_err().to_string()
     );
-    assert!(garbage.starts_with("this is not a Windfall project: "));
+    assert!(
+        windfall_core::english::english(&garbage).starts_with("this is not a Windfall project: ")
+    );
 
     let mut newer = serde_json::to_value(Project::new("Later")).unwrap();
     newer["formatVersion"] = json!(FORMAT_VERSION + 1);
@@ -271,7 +273,10 @@ fn a_file_that_cannot_be_loaded_says_why_in_the_loaders_words() {
         open(&damaged),
         file::from_json(&damaged).unwrap_err().to_string()
     );
-    assert!(open(&damaged).starts_with("the project file is damaged: "));
+    assert!(
+        windfall_core::english::english(&open(&damaged))
+            .starts_with("the project file is damaged: ")
+    );
 }
 
 /// The shell adds a channel for an audio file with one batch, in which the
@@ -302,14 +307,16 @@ fn a_panic_is_an_error_that_closes_only_the_document_in_use() {
     let bystander = new_document();
     dispatch(bystander, json!({ "type": "addPattern" })).unwrap();
 
-    let error = run(ops::sim_panic, crashed, &json!("on purpose")).unwrap_err();
+    let error = windfall_core::english::english(
+        &run(ops::sim_panic, crashed, &json!("on purpose")).unwrap_err(),
+    );
     assert!(
         error.starts_with("the document engine crashed: "),
         "{error}"
     );
     assert!(error.contains("on purpose"), "{error}");
     assert_eq!(
-        run(ops::doc_undo, crashed, &Value::Null),
+        said(run(ops::doc_undo, crashed, &Value::Null)),
         Err(format!("document handle {crashed} is not open"))
     );
 
@@ -317,6 +324,11 @@ fn a_panic_is_an_error_that_closes_only_the_document_in_use() {
     run(ops::doc_undo, bystander, &Value::Null).unwrap();
     assert_eq!(project_of(bystander).patterns.len(), 1);
     run(ops::doc_free, bystander, &Value::Null).unwrap();
+}
+
+/// A result with its refusal said in English.
+fn said<T>(result: Result<T, String>) -> Result<T, String> {
+    result.map_err(|error| windfall_core::english::english(&error))
 }
 
 /// Calls an exported function the way the JavaScript glue does.

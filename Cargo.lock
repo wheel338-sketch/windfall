@@ -5516,6 +5516,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "thiserror 2.0.21",
+ "windfall-core",
  "windfall-project",
  "zip 6.0.0",
 ]
@@ -5630,6 +5631,7 @@ dependencies = [
  "serde",
  "serde_json",
  "ts-rs",
+ "windfall-core",
  "windfall-flp",
  "windfall-midi",
  "windfall-project",
@@ -5674,6 +5676,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.21",
  "vst3",
+ "windfall-core",
  "windfall-dsp",
  "windows-sys 0.61.2",
 ]

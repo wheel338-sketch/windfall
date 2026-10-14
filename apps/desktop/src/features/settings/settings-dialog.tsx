@@ -40,7 +40,7 @@ import { UpdatesSection } from "@/features/updates/section"
 import { LanguageSection } from "./language"
 import { LanguageBoundary } from "@/lib/i18n/boundary"
 import { StemSeparationSettings } from "./stem-separation"
-import { useTranslation, translatedText as t, message, plainNumber } from "@/lib/i18n"
+import { localizeBackendText, useTranslation, translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 import {
   bufferOptions,
@@ -234,13 +234,13 @@ function AudioSection() {
       >
         {!status && t("Waiting for the audio engine.")}
         {status?.running && runningSummary(status)}
-        {status?.running && status.error && ` ${status.error}`}
+        {status?.running && status.error && ` ${localizeBackendText(status.error)}`}
         {status?.running &&
           fixed === null &&
           t(" A smaller buffer lowers latency and raises CPU load.")}
         {status &&
           !status.running &&
-          (status.error ?? t("The audio output is not running."))}
+          (status.error !== null && status.error !== undefined ? localizeBackendText(status.error) : t("The audio output is not running."))}
       </p>
     </Section>
   )

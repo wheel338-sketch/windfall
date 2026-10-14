@@ -73,8 +73,12 @@ impl ProjectPreparation {
             if pool.video_audio(&video.path).is_none() {
                 // Join picture bytes and PCM from one immutable read.
                 use std::io::Read;
-                let file = std::fs::File::open(&video.path)
-                    .map_err(|error| format!("Cannot decode video audio '{}': cannot open video: {error}. Mute it or restore the file.", video.path))?;
+                let file = std::fs::File::open(&video.path).map_err(|error| {
+                    windfall_ipc::ui_message(
+                        "video.audioOpenFailed",
+                        serde_json::json!({"file": video.path, "error": error.to_string()}),
+                    )
+                })?;
                 let mut bytes = Vec::new();
                 file.take(windfall_codec::MAX_VIDEO_FILE_BYTES + 1)
                     .read_to_end(&mut bytes)
@@ -82,8 +86,18 @@ impl ProjectPreparation {
                 if bytes.len() as u64 > windfall_codec::MAX_VIDEO_FILE_BYTES {
                     return Err("Video exceeds the 64 MiB file budget".into());
                 }
-                let audio = windfall_codec::decode_video_audio(&bytes, &windfall_codec::DecodeOptions { max_decoded_bytes: windfall_codec::MAX_VIDEO_FILE_BYTES })
-                    .map_err(|error| format!("Cannot decode video audio '{}': {error}. Mute it or choose AVI PCM / Ogg Vorbis.", video.path))?;
+                let audio = windfall_codec::decode_video_audio(
+                    &bytes,
+                    &windfall_codec::DecodeOptions {
+                        max_decoded_bytes: windfall_codec::MAX_VIDEO_FILE_BYTES,
+                    },
+                )
+                .map_err(|error| {
+                    windfall_ipc::ui_message(
+                        "video.audioDecodeFailed",
+                        serde_json::json!({"file": video.path, "error": error.to_string()}),
+                    )
+                })?;
                 if pool
                     .video_prepared_bytes()
                     .saturating_add(bytes.len())
@@ -118,9 +132,9 @@ impl ProjectPreparation {
             if !file.exists() {
                 pool.insert_unavailable_soundfont(
                     asset.clone(),
-                    format!(
-                        "Missing SoundFont: {}; choose its replacement in the editor",
-                        file.display()
+                    windfall_ipc::ui_message(
+                        "soundFonts.missing",
+                        serde_json::json!({"file": file.display().to_string()}),
                     ),
                 );
                 continue;

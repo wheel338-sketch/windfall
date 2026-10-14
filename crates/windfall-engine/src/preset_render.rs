@@ -115,10 +115,11 @@ pub fn prepare(
             InstrumentKind::SpeechVoice | InstrumentKind::TextVoice
         )
     {
-        return Err(format!(
-            "{} presets cannot be rendered as samples here.",
-            kind.name()
-        ));
+        return Err(windfall_core::notice!(
+            "engine.presetRender.unsupported",
+            kind = windfall_core::notice::term(kind.name())
+        )
+        .to_string());
     }
     let seconds = match (&params, &speech) {
         (InstrumentParams::SpeechVoice(voice), _) => {

@@ -106,8 +106,15 @@ export function dynamicMessage(source: DynamicActionMessage, language = currentL
 
 export function localizeBackendText(text: string): string {
   const native = nativeMessage(text)
-  if (native !== null) return native
+  // A message shown on its own starts with a capital, as the backend's
+  // English sentences always did; one inside another keeps its case.
+  if (native !== null) return native.charAt(0).toLocaleUpperCase(locales[currentLanguage()]) + native.slice(1)
+  // Lines of the backend joined together, some of them coded.
+  if (text.includes(NATIVE_MESSAGE_PREFIX)) return embeddedMessages(text, currentLanguage())
   if (Object.hasOwn(en, text)) return translatedText(text)
+  // A sentence of the backend's own that reaches here in lower case.
+  const capital = text.charAt(0).toUpperCase() + text.slice(1)
+  if (capital !== text && Object.hasOwn(en, capital)) return translatedText(capital)
   const prefixes = [
     ["Installation failed. Keep the current installation and retry. ", "Installation failed. Keep the current installation and retry. {detail}"],
     ["Download or signature verification failed. Nothing was installed. ", "Download or signature verification failed. Nothing was installed. {detail}"],
@@ -193,6 +200,57 @@ export function historyLabelText(label: string, language = currentLanguage()): s
 
 const NATIVE_MESSAGE_PREFIX = "windfall-message:"
 
+/** The index just after the JSON object that starts at `start`, or -1. */
+function jsonObjectEnd(text: string, start: number): number {
+  if (text[start] !== "{") return -1
+  let depth = 0
+  for (let index = start; index < text.length; index++) {
+    const c = text[index]
+    if (c === "\"") {
+      for (index++; index < text.length && text[index] !== "\""; index++) if (text[index] === "\\") index++
+      continue
+    }
+    if (c === "{") depth++
+    else if (c === "}" && --depth === 0) return index + 1
+  }
+  return -1
+}
+
+/**
+ * `text` with every coded message in it put into words: a cause, or a list
+ * of messages joined by the backend. Everything around them stays as it is.
+ */
+function embeddedMessages(text: string, language: Language): string {
+  let out = ""
+  let from = 0
+  for (;;) {
+    const at = text.indexOf(NATIVE_MESSAGE_PREFIX, from)
+    const end = at < 0 ? -1 : jsonObjectEnd(text, at + NATIVE_MESSAGE_PREFIX.length)
+    if (end < 0) return out + text.slice(from)
+    out += text.slice(from, at) + (nativeMessage(text.slice(at, end), language) ?? text.slice(at, end))
+    from = end
+  }
+}
+
+/** The values of a coded message that hold a cause: never a name somebody typed. */
+const CAUSES = new Set(["error", "errors", "problem", "reason", "detail"])
+
+/**
+ * `text` in the language shown when it is one of Windfall's own words or
+ * sentences, and as it is otherwise. A sentence the backend sends on its own
+ * starts with a capital and is a catalog key so; inside another message it
+ * may start in lower case, and keeps its case.
+ */
+function ownSentence(text: string, language: Language): string {
+  if (Object.hasOwn(en, text)) return message(text as MessageKey, {}, language)
+  const capital = text.charAt(0).toUpperCase() + text.slice(1)
+  if (capital !== text && Object.hasOwn(en, capital)) {
+    const words = message(capital as MessageKey, {}, language)
+    return words.charAt(0).toLocaleLowerCase(locales[language]) + words.slice(1)
+  }
+  return embeddedMessages(text, language)
+}
+
 /** Decode only the reserved native envelope, leaving authored text untouched. */
 export function nativeMessage(text: string, language = currentLanguage()): string | null {
   if (!text.startsWith(NATIVE_MESSAGE_PREFIX)) return null
@@ -207,12 +265,19 @@ export function nativeMessage(text: string, language = currentLanguage()): strin
     for (const [key, parameter] of Object.entries(value.params)) {
       if (typeof parameter !== "string" && (typeof parameter !== "number" || !Number.isFinite(parameter)))
         return message("native.messageInvalid", {}, language)
-      // A cause that is a coded message itself is put into words as well;
-      // anything else, such as what the operating system said, stays as it is.
-      params[key] = typeof parameter === "string" && parameter.startsWith(NATIVE_MESSAGE_PREFIX)
-        ? nativeMessage(parameter, language) ?? parameter
-        : parameter
+      // A cause that is a coded message itself, or a list with coded
+      // messages in it, is put into words as well; a cause that is one of
+      // Windfall's own sentences is said in the language shown; anything
+      // else, such as what the operating system said, stays as it is.
+      params[key] = typeof parameter !== "string" ? parameter
+        : CAUSES.has(key) && !parameter.startsWith(NATIVE_MESSAGE_PREFIX) ? ownSentence(parameter, language)
+          : embeddedMessages(parameter, language)
     }
+    // One of Windfall's own words: its translation when the catalog has one.
+    if (value.code === "text.term" && typeof params.text === "string") return ownSentence(params.text, language)
+    // A message said as a sentence of its own: it ends with a full stop.
+    if (value.code === "text.sentence" && typeof params.text === "string")
+      return /[.!?…]$/.test(params.text) ? params.text : `${params.text}.`
     const entry = en[value.code as MessageKey]
     const source = typeof entry === "string" ? entry : entry.other
     const required = [...source.matchAll(/\{(\w+)\}/g)].map((match) => match[1])

@@ -744,3 +744,20 @@ pub fn numbers(values: &[i32]) -> Vec<u8> {
         .flat_map(|value| value.to_le_bytes())
         .collect()
 }
+
+/// The report as `{:?}` shows it, with every line, title and problem in the
+/// English words the review shows: what a test that looks for a phrase in
+/// the report reads.
+pub fn words(report: &windfall_flp::report::ImportReport) -> String {
+    let english = windfall_core::english::english;
+    let mut report = report.clone();
+    for category in &mut report.categories {
+        for line in &mut category.lines {
+            line.text = english(&line.text);
+        }
+    }
+    for problem in &mut report.read_problems {
+        *problem = english(problem);
+    }
+    format!("{report:?}")
+}

@@ -368,9 +368,10 @@ impl ControllerLink {
 /// whose ids mean nothing elsewhere.
 pub fn links_problem(links: &[ControllerLink], project: Option<&Project>) -> Option<String> {
     if links.len() > MAX_CONTROLLER_LINKS {
-        return Some(format!(
-            "there are more than {MAX_CONTROLLER_LINKS} controller links"
-        ));
+        return Some(
+            windfall_core::notice!("controllers.links.tooMany", max = MAX_CONTROLLER_LINKS)
+                .to_string(),
+        );
     }
     for (at, link) in links.iter().enumerate() {
         if let Some(problem) = link.problem() {

@@ -53,7 +53,13 @@ pub struct DrumSynthRendered {
     pub warnings: Vec<String>,
 }
 fn invalid(message: &str) -> CodecError {
-    CodecError::Corrupt(format!("DrumSynth preset: {message}"))
+    CodecError::Corrupt(
+        windfall_core::notice!(
+            "codec.drumSynth",
+            problem = windfall_core::notice::term(message)
+        )
+        .to_string(),
+    )
 }
 impl DrumSynthPreset {
     pub fn parse(bytes: &[u8]) -> Result<Self, CodecError> {

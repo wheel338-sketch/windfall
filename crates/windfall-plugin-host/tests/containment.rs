@@ -99,9 +99,12 @@ fn a_plugin_with_absurd_ports_is_refused() {
     let Err(error) = module.create(ABSURD_PORTS) else {
         panic!("a plugin with four billion ports was created");
     };
+    let PluginError::Layout(reason) = error else {
+        panic!("not a layout refusal: {error:?}");
+    };
     assert_eq!(
-        error,
-        PluginError::Layout("it reports 4294967295 audio inputs".to_owned())
+        windfall_core::english::english(&reason),
+        "it reports 4294967295 audio inputs"
     );
 }
 

@@ -130,8 +130,12 @@ impl Session {
             }
             return Ok(bytes);
         }
-        let mut file =
-            std::fs::File::open(path).map_err(|error| format!("Cannot open video: {error}"))?;
+        let mut file = std::fs::File::open(path).map_err(|error| {
+            windfall_ipc::ui_message(
+                "video.openFailed",
+                serde_json::json!({"error": error.to_string()}),
+            )
+        })?;
         let max = 64 * 1024 * 1024;
         if file.metadata().map_err(|e| e.to_string())?.len() > max {
             return Err("Video exceeds the 64 MiB decoder budget".into());

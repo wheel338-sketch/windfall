@@ -423,9 +423,9 @@ fn profile_noise(
 ) -> Result<Vec<f32>, String> {
     let size = stft.size;
     if end - start < size {
-        return Err(format!(
-            "The noise profile needs at least {size} frames. Capture a longer noise-only range."
-        ));
+        return Err(
+            windfall_core::notice!("engine.edit.noiseProfileShort", frames = size).to_string(),
+        );
     }
     let bins = size / 2 + 1;
     let mut power = vec![0.0_f64; bins];
@@ -463,10 +463,11 @@ fn automatic_noise(
     let hop = size / 2;
     let available = (end - start).saturating_sub(size) / hop + 1;
     if end - start < size || available < ESTIMATE_MINIMUM {
-        return Err(format!(
-            "Automatic noise reduction needs at least {} frames. Select a longer range or capture a noise profile.",
-            size + (ESTIMATE_MINIMUM - 1) * hop
-        ));
+        return Err(windfall_core::notice!(
+            "engine.edit.noiseEstimateShort",
+            frames = size + (ESTIMATE_MINIMUM - 1) * hop
+        )
+        .to_string());
     }
     let stride = available.div_ceil(ESTIMATE_FRAMES);
     let used = available.div_ceil(stride);
@@ -981,9 +982,10 @@ mod tests {
             assert!(reduce_noise(&mut data, 2, RATE, 0, 96_000, 12.0, Some(profile)).is_err());
         }
         assert!(
-            reduce_noise(&mut data, 2, RATE, 0, 9215, 12.0, None)
-                .unwrap_err()
-                .contains("9216 frames")
+            windfall_core::english::english(
+                &reduce_noise(&mut data, 2, RATE, 0, 9215, 12.0, None).unwrap_err()
+            )
+            .contains("9216 frames")
         );
         let mut silent = vec![0.0_f32; 40_000];
         assert!(

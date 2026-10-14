@@ -95,7 +95,7 @@ pub fn parse(bytes: &[u8]) -> Result<FlpProject, FlpError> {
     if container.cut_short {
         parser.note(
             None,
-            "The file is shorter than it says it is. What is there was read.",
+            windfall_core::notice!("flp.read.cutShort").to_string(),
         );
     }
     for event in container.events {
@@ -104,7 +104,8 @@ pub fn parse(bytes: &[u8]) -> Result<FlpProject, FlpError> {
             Err(error) => {
                 parser.note(
                     None,
-                    format!("{error}. Everything before that was read, and the rest is lost."),
+                    windfall_core::notice!("flp.read.stopped", error = error.to_string())
+                        .to_string(),
                 );
             }
         }
@@ -246,7 +247,10 @@ impl Parser {
         if payload + header.len() > MAX_SOURCE_EVENT_BYTES - self.project.source_event_stream.len()
         {
             self.source_archive_full = true;
-            self.note(None, "Original source event archive exceeds 16 MiB; only the complete event prefix was retained.");
+            self.note(
+                None,
+                windfall_core::notice!("flp.read.archiveFull").to_string(),
+            );
             return;
         }
         let out = &mut self.project.source_event_stream;
@@ -551,7 +555,10 @@ impl Parser {
             }
             209 => {
                 if data.len() < 20 {
-                    self.note(offset, "A channel echo record is shorter than 20 bytes.");
+                    self.note(
+                        offset,
+                        windfall_core::notice!("flp.read.echoShort").to_string(),
+                    );
                     return true;
                 }
                 return self.on_channel(|channel| {
@@ -567,7 +574,10 @@ impl Parser {
             216 => self.project.initial_controls.extend(control_values(data)),
             218 => {
                 let Some(envelope) = envelope(data) else {
-                    self.note(offset, "An envelope of a channel is too short to read.");
+                    self.note(
+                        offset,
+                        windfall_core::notice!("flp.read.envelopeShort").to_string(),
+                    );
                     return true;
                 };
                 return self.on_channel(|channel| {
@@ -580,7 +590,10 @@ impl Parser {
             }
             219 => {
                 if data.len() < 12 {
-                    self.note(offset, "The levels of a channel are too short to read.");
+                    self.note(
+                        offset,
+                        windfall_core::notice!("flp.read.levelsShort").to_string(),
+                    );
                     return true;
                 }
                 return self.on_channel(|channel| {
@@ -628,14 +641,20 @@ impl Parser {
                         records.len() - allowed;
                 }
                 if !data.len().is_multiple_of(CONTROL_BYTES) {
-                    self.note(offset, "A recorded-control event has an incomplete 12-byte record; trailing bytes were not decoded.");
+                    self.note(
+                        offset,
+                        windfall_core::notice!("flp.read.recordedControlShort").to_string(),
+                    );
                 }
             }
             224 => self.notes(event, data),
             225 => self.mixer_controls.extend(control_values(data)),
             227 => {
                 if data.len() < 20 {
-                    self.note(offset, "A link from a controller is too short to read.");
+                    self.note(
+                        offset,
+                        windfall_core::notice!("flp.read.controllerLinkShort").to_string(),
+                    );
                     return true;
                 }
                 if self.project.remote_controllers.len() >= MAX_REMOTE_CONTROLLERS {
@@ -662,7 +681,7 @@ impl Parser {
                 let Some(curve) = automation_curve(data) else {
                     self.note(
                         offset,
-                        "The curve of an automation clip is too short to read.",
+                        windfall_core::notice!("flp.read.curveShort").to_string(),
                     );
                     return true;
                 };
@@ -907,13 +926,13 @@ impl Parser {
         if !data.len().is_multiple_of(size) {
             self.note(
                 Some(event.offset),
-                "The notes of a pattern end in the middle of a note. The whole notes were read.",
+                windfall_core::notice!("flp.read.notesCutShort").to_string(),
             );
         }
         let Some(pattern) = self.current_pattern() else {
             self.note(
                 Some(event.offset),
-                "The file has notes before it names a pattern. They were left out.",
+                windfall_core::notice!("flp.read.notesBeforePattern").to_string(),
             );
             return;
         };
@@ -978,7 +997,7 @@ impl Parser {
         if !data.len().is_multiple_of(size) {
             self.note(
                 Some(event.offset),
-                "The playlist ends in the middle of a clip. The whole clips were read.",
+                windfall_core::notice!("flp.read.playlistCutShort").to_string(),
             );
         }
         // The file counts tracks from the bottom. Without a version, a
@@ -1056,9 +1075,8 @@ impl Parser {
         if off_the_playlist > 0 {
             self.note(
                 Some(event.offset),
-                format!(
-                    "{off_the_playlist} clips of the playlist sit on a track the playlist does not have, and were left out."
-                ),
+                windfall_core::notice!("flp.read.clipsOffPlaylist", count = off_the_playlist)
+                    .to_string(),
             );
         }
         if let Some(arrangement) = self.project.arrangements.get_mut(index) {
@@ -1071,7 +1089,7 @@ impl Parser {
         if data.len() < 17 {
             self.note(
                 Some(event.offset),
-                "A track of the playlist is too short to read.",
+                windfall_core::notice!("flp.read.playlistTrackShort").to_string(),
             );
             return;
         }
@@ -1105,14 +1123,19 @@ impl Parser {
         for (what, count) in std::mem::take(&mut self.over_cap) {
             self.note(
                 None,
-                format!("The file has more {what} than are read. {count} were left out."),
+                windfall_core::notice!(
+                    "flp.read.overCap",
+                    what = windfall_core::notice::term(what),
+                    count = count
+                )
+                .to_string(),
             );
         }
         if self.dropped_diagnostics > 0 {
             let count = self.dropped_diagnostics;
             self.project.diagnostics.push(Diagnostic {
                 offset: None,
-                message: format!("{count} more problems of the same kinds are not listed."),
+                message: windfall_core::notice!("flp.read.moreProblems", count = count).to_string(),
             });
         }
         self.project

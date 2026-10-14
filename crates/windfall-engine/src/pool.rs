@@ -259,10 +259,8 @@ impl SamplePool {
             .iter()
             .find(|video| !video.muted && self.video_audio(&video.path).is_none())
             .map(|video| {
-                format!(
-                    "Video audio is unavailable: {}. Reload the file or mute its audio.",
-                    video.path
-                )
+                windfall_core::notice!("engine.video.audioUnavailable", file = video.path)
+                    .to_string()
             })
     }
 

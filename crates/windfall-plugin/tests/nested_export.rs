@@ -180,6 +180,7 @@ fn owned_unstamped_fixture_and_missing_nested_helper_are_visible_refusals() {
             &native,
             &windfall_plugin_host::export_runtime::Stamp::current()
         )
+        .map_err(|error| windfall_core::english::english(&error))
         .unwrap_err()
         .contains("no ABI stamp")
     );
@@ -196,6 +197,7 @@ fn owned_unstamped_fixture_and_missing_nested_helper_are_visible_refusals() {
             &destination,
             Platform::native().unwrap()
         )
+        .map_err(|error| windfall_core::english::english(&error))
         .unwrap_err()
         .contains("distributed audio helper")
     );
@@ -218,7 +220,9 @@ fn owned_unstamped_fixture_and_missing_nested_helper_are_visible_refusals() {
         host.set_log(move |_, message| collected.lock().unwrap().push(message.to_owned()));
         let module = host.load(&bundle).unwrap();
         let mut instance = module.create(&module.descriptors()[0].id).unwrap();
-        let error = instance.activate(48_000.0, 256).err().unwrap().to_string();
+        let error = windfall_core::english::english(
+            &instance.activate(48_000.0, 256).err().unwrap().to_string(),
+        );
         if outer == "vst3" {
             assert!(error.contains("helper is missing"), "{error}");
         } else {
@@ -227,7 +231,7 @@ fn owned_unstamped_fixture_and_missing_nested_helper_are_visible_refusals() {
                     .lock()
                     .unwrap()
                     .iter()
-                    .any(|m| m.contains("helper is missing"))
+                    .any(|m| windfall_core::english::english(m).contains("helper is missing"))
             );
         }
         assert_eq!(active_helpers(&binary).unwrap(), 0);

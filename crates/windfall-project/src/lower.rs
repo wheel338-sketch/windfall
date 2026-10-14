@@ -946,7 +946,11 @@ impl Transaction<'_> {
                 self.change_track(index, |track| {
                     track.processing.set(param as usize, value);
                 });
-                return Ok(format!("Change {}", info.name));
+                return Ok(windfall_core::notice!(
+                    "history.changeSetting",
+                    name = windfall_core::notice::term(&info.name)
+                )
+                .to_string());
             }
             Command::EnsureCurrentMixerTrack => {
                 if let Some(track) = self.project.mixer.tracks.iter().find(|track| track.current) {
@@ -2430,9 +2434,14 @@ impl Transaction<'_> {
             if let Some(value) = value {
                 let value = value.trim();
                 if value.len() > cap {
-                    return Err(CommandError::invalid(format!(
-                        "the project {field} is longer than {cap} bytes"
-                    )));
+                    return Err(CommandError::invalid(
+                        windfall_core::notice!(
+                            "project.edit.fieldTooLong",
+                            field = windfall_core::notice::term(field),
+                            max = cap
+                        )
+                        .to_string(),
+                    ));
                 }
                 *target = value.to_owned();
             }
@@ -2457,10 +2466,14 @@ impl Transaction<'_> {
         }
         if let Some(ppq) = patch.timebase_ppq {
             if !crate::timebase::is_timebase(ppq) {
-                return Err(CommandError::invalid(format!(
-                    "a timebase of {ppq} ticks per quarter note is not one of {:?}",
-                    crate::timebase::TIMEBASES
-                )));
+                return Err(CommandError::invalid(
+                    windfall_core::notice!(
+                        "project.edit.timebase",
+                        ppq = ppq,
+                        allowed = format!("{:?}", crate::timebase::TIMEBASES)
+                    )
+                    .to_string(),
+                ));
             }
             new.timebase_ppq = ppq;
         }
@@ -2471,9 +2484,9 @@ impl Transaction<'_> {
     fn add_sample(&mut self, name: String, path: SamplePath) -> Result<Label, CommandError> {
         let label = "Add sample";
         if let Some(problem) = path.problem() {
-            return Err(CommandError::invalid(format!(
-                "the sample path is not valid: {problem}"
-            )));
+            return Err(CommandError::invalid(
+                windfall_core::notice!("project.samplePathInvalid", problem = problem).to_string(),
+            ));
         }
         if let Some(existing) = self.project.samples.iter().find(|s| s.path == path) {
             self.created.push(existing.id.0);
@@ -2540,10 +2553,10 @@ impl Transaction<'_> {
                 || c.sample_playback.as_ref().is_some_and(|a| a.references(id))
         });
         if let Some(channel) = user {
-            return Err(CommandError::invalid(format!(
-                "the sample is still used by the channel \"{}\"",
-                channel.name
-            )));
+            return Err(CommandError::invalid(
+                windfall_core::notice!("project.edit.sampleUsedByChannel", channel = channel.name)
+                    .to_string(),
+            ));
         }
         let playlist = &self.project.playlist;
         let clip = playlist
@@ -2552,10 +2565,13 @@ impl Transaction<'_> {
             .find(|c| c.content.sample() == Some(id));
         if let Some(clip) = clip {
             let track = playlist.tracks.iter().find(|t| t.id == clip.track);
-            return Err(CommandError::invalid(format!(
-                "the sample is still used by an audio clip on the playlist track \"{}\"",
-                track.map_or("", |track| track.name.as_str())
-            )));
+            return Err(CommandError::invalid(
+                windfall_core::notice!(
+                    "project.edit.sampleUsedByClip",
+                    track = track.map_or("", |track| track.name.as_str())
+                )
+                .to_string(),
+            ));
         }
         let item = self.project.samples[index].clone();
         if self
@@ -3085,7 +3101,11 @@ impl Transaction<'_> {
                 .unwrap()
                 .parameters[index] = f64::from(value).clamp(info.min, info.max);
             self.run(Command::SetScriptLibrary { library })?;
-            return Ok(format!("Change script {}", info.name));
+            return Ok(windfall_core::notice!(
+                "history.changeScript",
+                name = windfall_core::notice::term(&info.name)
+            )
+            .to_string());
         }
         if let Some(rack) = self
             .project
@@ -3130,7 +3150,11 @@ impl Transaction<'_> {
                 .get(param as usize)
                 .ok_or_else(|| CommandError::invalid("the plugin parameter does not exist"))?;
             let id = parameter.id;
-            let label = format!("Change {}", parameter.name);
+            let label = windfall_core::notice!(
+                "history.changeSetting",
+                name = windfall_core::notice::term(&parameter.name)
+            )
+            .to_string();
             self.plugin_param(target, id, value)?;
             return Ok(label);
         }
@@ -3447,10 +3471,14 @@ impl Transaction<'_> {
         let label = "Toggle step";
         let lane = self.lane(pattern, channel)?;
         if step >= MAX_PATTERN_STEPS {
-            return Err(CommandError::invalid(format!(
-                "step {} is past the end of the longest pattern, which has {MAX_PATTERN_STEPS} steps",
-                u64::from(step) + 1
-            )));
+            return Err(CommandError::invalid(
+                windfall_core::notice!(
+                    "project.edit.stepPastEnd",
+                    step = u64::from(step) + 1,
+                    max = MAX_PATTERN_STEPS
+                )
+                .to_string(),
+            ));
         }
         let start = step * TICKS_PER_STEP;
         let on_step = notes_where(lane, |note| note.start == start);
@@ -4367,7 +4395,11 @@ impl Transaction<'_> {
                 .get(param as usize)
                 .ok_or_else(|| CommandError::invalid("the plugin parameter does not exist"))?;
             let id = parameter.id;
-            let label = format!("Change {}", parameter.name);
+            let label = windfall_core::notice!(
+                "history.changeSetting",
+                name = windfall_core::notice::term(&parameter.name)
+            )
+            .to_string();
             self.plugin_param(target, id, value)?;
             return Ok(label);
         }
@@ -4701,10 +4733,10 @@ impl Transaction<'_> {
                 stretch,
             } = clip.content
             else {
-                return Err(CommandError::invalid(format!(
-                    "clip {} is not an audio clip",
-                    clip.id.0
-                )));
+                return Err(CommandError::invalid(
+                    windfall_core::notice!("project.edit.notAudioClip", clip = clip.id.0)
+                        .to_string(),
+                ));
             };
             let patch = &update.patch;
             let patched = ClipContent::Audio {
@@ -4965,20 +4997,28 @@ impl Transaction<'_> {
                 let from = &self.project.mixer.tracks[self.mixer_track_index(track)?];
                 let to = &self.project.mixer.tracks[self.mixer_track_index(target)?];
                 if !from.sidechains.iter().any(|send| send.target == target) {
-                    return Err(CommandError::invalid(format!(
-                        "the mixer track \"{}\" has no sidechain to \"{}\"",
-                        from.name, to.name
-                    )));
+                    return Err(CommandError::invalid(
+                        windfall_core::notice!(
+                            "project.edit.noSidechain",
+                            from = from.name,
+                            to = to.name
+                        )
+                        .to_string(),
+                    ));
                 }
             }
             AutomationTarget::SendGain { track, target } => {
                 let from = &self.project.mixer.tracks[self.mixer_track_index(track)?];
                 let to = &self.project.mixer.tracks[self.mixer_track_index(target)?];
                 if !from.sends.iter().any(|send| send.target == target) {
-                    return Err(CommandError::invalid(format!(
-                        "the mixer track \"{}\" has no send to \"{}\"",
-                        from.name, to.name
-                    )));
+                    return Err(CommandError::invalid(
+                        windfall_core::notice!(
+                            "project.edit.noSend",
+                            from = from.name,
+                            to = to.name
+                        )
+                        .to_string(),
+                    ));
                 }
             }
             AutomationTarget::EffectParam {
@@ -5269,10 +5309,14 @@ impl Transaction<'_> {
     fn room_for_effect(&self, index: usize) -> Result<usize, CommandError> {
         let track = &self.project.mixer.tracks[index];
         if track.effects.len() >= MAX_EFFECT_SLOTS {
-            return Err(CommandError::invalid(format!(
-                "the mixer track \"{}\" is full: it holds {MAX_EFFECT_SLOTS} effects at most",
-                track.name
-            )));
+            return Err(CommandError::invalid(
+                windfall_core::notice!(
+                    "project.edit.trackFull",
+                    track = track.name,
+                    max = MAX_EFFECT_SLOTS
+                )
+                .to_string(),
+            ));
         }
         Ok(track.effects.len())
     }
@@ -5317,10 +5361,13 @@ impl Transaction<'_> {
         let channel = &self.project.channels[index];
         match &channel.source {
             ChannelSource::Sampler(sampler) => Ok(sampler.clone()),
-            ChannelSource::Instrument { .. } => Err(CommandError::invalid(format!(
-                "the channel \"{}\" plays an instrument, so it has no sampler settings",
-                channel.name
-            ))),
+            ChannelSource::Instrument { .. } => Err(CommandError::invalid(
+                windfall_core::notice!(
+                    "project.edit.instrumentHasNoSampler",
+                    channel = channel.name
+                )
+                .to_string(),
+            )),
         }
     }
 
@@ -5334,10 +5381,13 @@ impl Transaction<'_> {
         let channel = &self.project.channels[index];
         match &channel.source {
             ChannelSource::Instrument { params, .. } => Ok(*params),
-            ChannelSource::Sampler(_) => Err(CommandError::invalid(format!(
-                "the channel \"{}\" is a sampler, so it has no instrument settings",
-                channel.name
-            ))),
+            ChannelSource::Sampler(_) => Err(CommandError::invalid(
+                windfall_core::notice!(
+                    "project.edit.samplerHasNoInstrument",
+                    channel = channel.name
+                )
+                .to_string(),
+            )),
         }
     }
 
@@ -5419,10 +5469,14 @@ fn checked_points(points: Vec<AutomationPoint>) -> Result<Vec<AutomationPoint>, 
         ));
     }
     if points.len() > MAX_AUTOMATION_POINTS {
-        return Err(CommandError::invalid(format!(
-            "an automation can have {MAX_AUTOMATION_POINTS} points at most, not {}",
-            points.len()
-        )));
+        return Err(CommandError::invalid(
+            windfall_core::notice!(
+                "project.edit.tooManyPoints",
+                max = MAX_AUTOMATION_POINTS,
+                count = points.len()
+            )
+            .to_string(),
+        ));
     }
     if !points.is_sorted_by_key(|point| point.tick) {
         return Err(CommandError::invalid(
@@ -5434,9 +5488,9 @@ fn checked_points(points: Vec<AutomationPoint>) -> Result<Vec<AutomationPoint>, 
         .last()
         .is_some_and(|point| point.tick > MAX_SONG_TICKS)
     {
-        return Err(CommandError::invalid(format!(
-            "a point of the automation is past the end of the longest song, which has {longest} beats"
-        )));
+        return Err(CommandError::invalid(
+            windfall_core::notice!("project.edit.automationPastEnd", beats = longest).to_string(),
+        ));
     }
     points
         .into_iter()
@@ -5517,27 +5571,49 @@ fn checked_instrument(mut params: InstrumentParams) -> Result<InstrumentParams, 
 /// Cutoff" or "Change Osc 1 level".
 fn setting_label(descriptors: &[ParamInfo], param: u32) -> String {
     match descriptors.get(param as usize) {
-        Some(info) => format!("Change {}", info.name),
+        Some(info) => windfall_core::notice!(
+            "history.changeSetting",
+            name = windfall_core::notice::term(&info.name)
+        )
+        .to_string(),
         None => "Change setting".to_owned(),
     }
 }
 
 fn no_setting(processor: &str, param: u32) -> CommandError {
-    CommandError::invalid(format!("the {processor} has no setting number {param}"))
+    CommandError::invalid(
+        windfall_core::notice!(
+            "project.edit.noSetting",
+            processor = windfall_core::notice::term(processor),
+            param = param
+        )
+        .to_string(),
+    )
 }
 
 /// The error for settings of one kind of processor given to another kind.
 fn other_kind(given: &str, held: &str) -> CommandError {
-    CommandError::invalid(format!(
-        "these are the settings of a {given}, and this is a {held}"
-    ))
+    CommandError::invalid(
+        windfall_core::notice!(
+            "project.edit.otherKind",
+            given = windfall_core::notice::term(given),
+            held = windfall_core::notice::term(held)
+        )
+        .to_string(),
+    )
 }
 
 /// Brings a value into its range. NaN has no nearest valid value, so it is
 /// an error.
 fn clamped(what: &str, value: f32, min: f32, max: f32) -> Result<f32, CommandError> {
     if value.is_nan() {
-        return Err(CommandError::invalid(format!("{what} is not a number")));
+        return Err(CommandError::invalid(
+            windfall_core::notice!(
+                "project.edit.notANumber",
+                what = windfall_core::notice::term(what)
+            )
+            .to_string(),
+        ));
     }
     // Adding zero turns -0.0 into 0.0, which keeps "-0.0" out of project files.
     Ok(value.clamp(min, max) + 0.0)
@@ -5555,18 +5631,19 @@ fn checked_group_name(name: &str) -> Result<String, CommandError> {
 
 fn checked_color(color: u32) -> Result<u32, CommandError> {
     if color > 0xFF_FFFF {
-        return Err(CommandError::invalid(format!(
-            "{color:#x} is not a 0xRRGGBB color"
-        )));
+        return Err(CommandError::invalid(
+            windfall_core::notice!("project.edit.color", color = format!("{:#x}", color))
+                .to_string(),
+        ));
     }
     Ok(color)
 }
 
 fn checked_key(key: u8) -> Result<u8, CommandError> {
     if key > MAX_KEY {
-        return Err(CommandError::invalid(format!(
-            "key {key} is above the highest key, {MAX_KEY}"
-        )));
+        return Err(CommandError::invalid(
+            windfall_core::notice!("project.edit.keyTooHigh", key = key, max = MAX_KEY).to_string(),
+        ));
     }
     Ok(key)
 }
@@ -5604,10 +5681,14 @@ fn checked_note(note: Note) -> Result<Note, CommandError> {
 /// has to lie inside the longest pattern.
 fn placed_note(note: Note) -> Result<Note, CommandError> {
     if note.start >= MAX_PATTERN_TICKS {
-        return Err(CommandError::invalid(format!(
-            "the note would start at step {}, past the end of the longest pattern, which has {MAX_PATTERN_STEPS} steps",
-            note.start / TICKS_PER_STEP + 1
-        )));
+        return Err(CommandError::invalid(
+            windfall_core::notice!(
+                "project.edit.notePastEnd",
+                step = note.start / TICKS_PER_STEP + 1,
+                max = MAX_PATTERN_STEPS
+            )
+            .to_string(),
+        ));
     }
     checked_note(note)
 }
@@ -5620,14 +5701,14 @@ fn checked_clip(clip: Clip) -> Result<Clip, CommandError> {
     }
     let longest = MAX_SONG_TICKS / PPQ;
     if u64::from(clip.start) + u64::from(clip.length) > u64::from(MAX_SONG_TICKS) {
-        return Err(CommandError::invalid(format!(
-            "the clip would end past the end of the longest song, which has {longest} beats"
-        )));
+        return Err(CommandError::invalid(
+            windfall_core::notice!("project.edit.clipPastEnd", beats = longest).to_string(),
+        ));
     }
     if clip.offset > MAX_SONG_TICKS {
-        return Err(CommandError::invalid(format!(
-            "the clip would start further into what it plays than the longest song lasts, which is {longest} beats"
-        )));
+        return Err(CommandError::invalid(
+            windfall_core::notice!("project.edit.clipOffsetPastEnd", beats = longest).to_string(),
+        ));
     }
     Ok(clip)
 }
@@ -5746,9 +5827,10 @@ mod settings_tests {
             let error = doc
                 .dispatch(Command::UpdateSettings { patch }, None)
                 .unwrap_err();
+            assert!(matches!(error, CommandError::Invalid(_)), "{error:?}");
             assert_eq!(
-                error,
-                CommandError::Invalid(format!("the project {field} is longer than {cap} bytes"))
+                windfall_core::english::english(&error.to_string()),
+                format!("the project {field} is longer than {cap} bytes")
             );
             assert_eq!(doc.project(), &before);
             assert_eq!(doc.history(), history);

@@ -90,7 +90,11 @@ pub enum CaptureRefusal {
 
 impl std::fmt::Display for CaptureRefusal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Analyzer capture refused: {self:?}")
+        let notice = windfall_core::notice!(
+            "engine.analyzers.captureRefused",
+            detail = format!("{self:?}")
+        );
+        write!(f, "{notice}")
     }
 }
 impl std::error::Error for CaptureRefusal {}

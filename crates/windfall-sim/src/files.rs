@@ -75,7 +75,7 @@ pub fn score_read(_handle: u32, input: &str) -> Reply {
     }
     let (score, notes) = if r.bytes.starts_with(b"MThd") {
         windfall_midi::score_from_song(
-            &windfall_midi::read(&r.bytes).map_err(|e| e.to_string())?,
+            &windfall_midi::read(&r.bytes).map_err(windfall_ipc::midi_error_message)?,
             &r.name,
         )?
     } else {

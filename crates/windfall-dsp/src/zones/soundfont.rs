@@ -23,7 +23,8 @@ pub enum SoundFontError {
 }
 impl std::fmt::Display for SoundFontError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "SoundFont import failed: {self:?}")
+        let notice = windfall_core::notice!("dsp.soundFontImport", detail = format!("{self:?}"));
+        write!(f, "{notice}")
     }
 }
 impl std::error::Error for SoundFontError {}

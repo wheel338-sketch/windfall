@@ -470,6 +470,7 @@ fn midi_preset_optional_destinations_round_trip_and_remap_by_hosted_identity() {
     let error = apply_body(&mut ambiguous, channel, body.clone())
         .unwrap_err()
         .to_string();
+    let error = windfall_core::english::english(&error);
     assert!(error.contains("2 matching destinations"), "{error}");
     assert_eq!(ambiguous.project(), &duplicated_project);
     assert!(ambiguous.history().entries.is_empty());
@@ -639,6 +640,7 @@ fn channel_preset_controller_panel_rack_and_script_are_one_portable_history_edit
     let error = apply_body(&mut refused, target, body)
         .unwrap_err()
         .to_string();
+    let error = windfall_core::english::english(&error);
     assert!(error.contains("immutable revision"), "{error}");
     assert_eq!(refused.project(), &conflicted);
     assert!(refused.history().entries.is_empty());
@@ -859,7 +861,10 @@ fn a_sampler_channel_preset_carries_its_audio_and_loads_as_one_undo_step() {
             None,
         )
         .unwrap();
-    assert_eq!(applied.label, "Load channel preset");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Load channel preset"
+    );
     assert_eq!(doc.history().entries.len(), history + 1);
     let loaded = channel_of(&doc, destination);
     let captured = channel_of(&doc, source);
@@ -1320,7 +1325,10 @@ fn a_plugin_preset_replaces_one_effect_and_leaves_its_slot_alone() {
             None,
         )
         .unwrap();
-    assert_eq!(applied.label, "Load plugin preset");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Load plugin preset"
+    );
     assert_eq!(doc.history().entries.len(), history + 1);
     let slot = doc.project().mixer.track(TrackId::MASTER).unwrap().effects[1].clone();
     assert_eq!(slot.id, destination);
@@ -1573,9 +1581,11 @@ fn a_stale_destination_a_wrong_role_and_invalid_bodies_are_refused_whole() {
         },
     );
     assert!(
-        PluginPreset::capture(doc.project(), PluginTarget::Instrument { channel: drum })
-            .unwrap_err()
-            .contains("channel preset")
+        windfall_core::english::english(
+            &PluginPreset::capture(doc.project(), PluginTarget::Instrument { channel: drum })
+                .unwrap_err()
+        )
+        .contains("channel preset")
     );
     refused(
         &mut doc,
@@ -1702,7 +1712,7 @@ fn the_envelope_refuses_other_schemas_newer_versions_and_unsafe_or_repeated_asse
     newer["version"] = json!(PRESET_VERSION + 1);
     newer["kind"] = json!("somethingNew");
     newer["somethingNew"] = json!({"anything": true});
-    let message = read(&newer).unwrap_err();
+    let message = windfall_core::english::english(&read(&newer).unwrap_err());
     assert!(message.contains("newer Windfall"), "{message}");
     assert!(
         message.contains(&(PRESET_VERSION + 1).to_string()),
@@ -1863,7 +1873,9 @@ fn settings_from_another_build_are_renamed_dropped_defaulted_and_clamped_with_a_
     wild["plugin"]["state"]["params"][&renamed] = json!(1.0e30);
     let (clamped, notes) = read(&wild).unwrap();
     assert!(
-        notes.iter().any(|note| note.contains("ranges")),
+        notes
+            .iter()
+            .any(|note| windfall_core::english::english(note).contains("ranges")),
         "{notes:?}"
     );
     clamped.validate().unwrap();

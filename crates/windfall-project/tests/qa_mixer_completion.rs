@@ -78,7 +78,10 @@ fn qa_preset_replaces_processing_with_fresh_ids_preserves_routing_and_single_his
             None,
         )
         .unwrap();
-    assert_eq!(applied.label, "Load mixer track preset");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Load mixer track preset"
+    );
     let actual = doc.project().mixer.track(destination).unwrap();
     assert_eq!(actual.name, expected.name);
     assert_eq!(actual.output, expected.output);

@@ -32,7 +32,12 @@ impl Spool {
             .write(true)
             .create_new(true)
             .open(&path)
-            .map_err(|error| format!("the mix could not be set aside for mastering ({error})"))?;
+            .map_err(|error| {
+                windfall_ipc::ui_message(
+                    "export.masteringSetAside",
+                    serde_json::json!({"error": error.to_string()}),
+                )
+            })?;
         Ok(Self {
             file: Some(file),
             path,
@@ -58,7 +63,12 @@ impl Spool {
         file.as_mut()
             .ok_or_else(|| "the mix set aside for mastering is gone".to_owned())?
             .write_all(bytes)
-            .map_err(|error| format!("the mix could not be set aside for mastering ({error})"))
+            .map_err(|error| {
+                windfall_ipc::ui_message(
+                    "export.masteringSetAside",
+                    serde_json::json!({"error": error.to_string()}),
+                )
+            })
     }
 
     /// Hands the whole mix to `each` from the start, a chunk at a time.
@@ -68,7 +78,10 @@ impl Spool {
         each: &mut dyn FnMut(&[f32]) -> Result<bool, String>,
     ) -> Result<bool, String> {
         let failed = |error: std::io::Error| {
-            format!("the mix set aside for mastering could not be read ({error})")
+            windfall_ipc::ui_message(
+                "export.masteringUnreadable",
+                serde_json::json!({"error": error.to_string()}),
+            )
         };
         let file = self.file()?;
         file.flush().map_err(failed)?;

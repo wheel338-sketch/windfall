@@ -52,9 +52,9 @@ pub struct TickRange {
 impl TickRange {
     pub fn check(self) -> Result<(), String> {
         if self.start >= self.end || self.end > MAX_SONG_TICKS {
-            return Err(format!(
-                "a timeline range needs 0 <= start < end <= {MAX_SONG_TICKS} ticks"
-            ));
+            return Err(
+                windfall_core::notice!("project.timeline.range", max = MAX_SONG_TICKS).to_string(),
+            );
         }
         Ok(())
     }
@@ -107,9 +107,11 @@ impl TimelineMarker {
             return Err("a marker is past the longest song".to_owned());
         }
         if self.name.trim().is_empty() || self.name.len() > MAX_MARKER_NAME_BYTES {
-            return Err(format!(
-                "a marker needs a name of 1 to {MAX_MARKER_NAME_BYTES} bytes"
-            ));
+            return Err(windfall_core::notice!(
+                "project.timeline.markerName",
+                max = MAX_MARKER_NAME_BYTES
+            )
+            .to_string());
         }
         if let MarkerKind::Loop { end } | MarkerKind::Skip { end } | MarkerKind::Punch { end } =
             self.kind
@@ -165,9 +167,11 @@ impl Timeline {
     }
     pub fn check(&self, legacy: TimeSignature, next_id: u32) -> Result<(), String> {
         if self.meters.len() > MAX_TIMELINE_ITEMS || self.markers.len() > MAX_TIMELINE_ITEMS {
-            return Err(format!(
-                "a timeline holds at most {MAX_TIMELINE_ITEMS} meters and markers each"
-            ));
+            return Err(windfall_core::notice!(
+                "project.timeline.tooManyItems",
+                max = MAX_TIMELINE_ITEMS
+            )
+            .to_string());
         }
         MeterMap::new(legacy, &self.meters)?;
         let mut ids = HashSet::new();
@@ -253,21 +257,20 @@ pub enum MeterMapError {
 
 impl std::fmt::Display for MeterMapError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Numerator(value) => write!(
-                f,
-                "a time signature needs 1 to 16 beats per bar, not {value}"
-            ),
-            Self::Denominator(value) => write!(
-                f,
-                "a time signature's beat unit must be 2, 4, 8 or 16, not {value}"
-            ),
-            Self::TooManyChanges => f.write_str("too many meter changes"),
-            Self::UnorderedOrOutOfBounds => f.write_str(
-                "meter changes must have strictly increasing ticks before the longest song",
-            ),
-            Self::BarOverflow => f.write_str("musical bar overflow"),
-        }
+        let notice = match self {
+            Self::Numerator(value) => {
+                windfall_core::notice!("project.check.signatureBeats", beats = value)
+            }
+            Self::Denominator(value) => {
+                windfall_core::notice!("project.check.signatureUnit", unit = value)
+            }
+            Self::TooManyChanges => windfall_core::notice!("project.timeline.tooManyMeters"),
+            Self::UnorderedOrOutOfBounds => {
+                windfall_core::notice!("project.timeline.metersUnordered")
+            }
+            Self::BarOverflow => windfall_core::notice!("project.timeline.barOverflow"),
+        };
+        write!(f, "{notice}")
     }
 }
 impl std::error::Error for MeterMapError {}

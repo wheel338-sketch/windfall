@@ -246,8 +246,6 @@ type Gesture =
 const ui = () => usePlaylistStore.getState()
 const NOTHING: ReadonlySet<ClipId> = new Set()
 
-const plural = (count: number, one: string) => (count === 1 ? one : `${one}s`)
-
 /**
  * Turns the pointer on the playlist's grid into edits. It talks to the
  * canvas through `GridSurface` and takes pointer input as plain numbers, so
@@ -1457,7 +1455,7 @@ export class PlaylistSession {
         this.gesture = { kind: "committing" }
         await dispatch({
           type: "batch",
-          label: plural(clips.length, historyLabel("Slice clip")),
+          label: historyLabel("Slice clips", { count: clips.length }),
           commands: [
             { type: "updateClips", updates },
             { type: "addClips", clips },
@@ -1592,19 +1590,19 @@ export class PlaylistSession {
           scene.setGhosts(copies)
           const created = await addClips(
             copies,
-            plural(copies.length, "Clone clip")
+            historyLabel("Clone clips", { count: copies.length })
           )
           if (created && created.length > 0) ui().select(created)
         } else if (gesture.grouped) {
           await dispatch({
             type: "batch",
-            label: plural(gesture.clips.length, historyLabel("Move clip")),
+            label: historyLabel("Move clips", { count: gesture.clips.length }),
             commands: [{ type: "updateClips", updates: gesture.updates! }],
           })
         } else {
           await changeClips(
             moveChanges(gesture.clips, scene.rowOf, ticks, rows),
-            plural(gesture.clips.length, "Move clip")
+            historyLabel("Move clips", { count: gesture.clips.length })
           )
         }
         this.settle()
@@ -1640,10 +1638,9 @@ export class PlaylistSession {
         this.gesture = { kind: "committing" }
         await changeClips(
           changes,
-          plural(
-            changes.length,
-            gesture.edge === "end" ? "Resize clip" : "Trim clip"
-          )
+          gesture.edge === "end"
+            ? historyLabel("Resize clips", { count: changes.length })
+            : historyLabel("Trim clips", { count: changes.length })
         )
         this.settle()
         return
@@ -1657,7 +1654,7 @@ export class PlaylistSession {
           clips,
           gesture.kind === "place"
             ? "Add clip"
-            : plural(clips.length, "Paint clip")
+            : historyLabel("Paint clips", { count: clips.length })
         )
         this.settle()
         return

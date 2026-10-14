@@ -40,3 +40,6 @@ path = "src/bin/windfall-soak.rs"
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+windfall-core = { workspace = true, features = ["english"] }

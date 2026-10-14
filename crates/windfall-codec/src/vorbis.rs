@@ -137,10 +137,14 @@ impl VorbisWriter {
         let channels = self.planar.len();
         let encoder = self.encoder.as_mut().ok_or_else(broken_error)?;
         if !interleaved.len().is_multiple_of(channels) {
-            return Err(CodecError::InvalidInput(format!(
-                "{} samples do not make whole frames of {channels} channels",
-                interleaved.len()
-            )));
+            return Err(CodecError::InvalidInput(
+                windfall_core::notice!(
+                    "codec.partialFrames",
+                    samples = interleaved.len(),
+                    channels = channels
+                )
+                .to_string(),
+            ));
         }
         self.broken = true;
         let mut remaining = interleaved;
@@ -207,11 +211,15 @@ pub(crate) fn check_layout(
     let rate = NonZeroU32::new(sample_rate)
         .filter(|_| VORBIS_SAMPLE_RATES.contains(&sample_rate))
         .ok_or_else(|| {
-            CodecError::InvalidInput(format!(
-                "an Ogg Vorbis file can have a sample rate from {} to {} Hz, and {sample_rate} Hz was asked for",
-                VORBIS_SAMPLE_RATES.start(),
-                VORBIS_SAMPLE_RATES.end()
-            ))
+            CodecError::InvalidInput(
+                windfall_core::notice!(
+                    "codec.vorbisSampleRate",
+                    min = VORBIS_SAMPLE_RATES.start(),
+                    max = VORBIS_SAMPLE_RATES.end(),
+                    rate = sample_rate
+                )
+                .to_string(),
+            )
         })?;
     // More channels are possible in the format, in an order of their own
     // that nothing here maps to.
@@ -220,14 +228,20 @@ pub(crate) fn check_layout(
         .and_then(NonZeroU8::new)
         .filter(|count| count.get() <= 2)
         .ok_or_else(|| {
-            CodecError::InvalidInput(format!(
-                "an Ogg Vorbis file is written with one or two channels, and {channels} were asked for"
-            ))
+            CodecError::InvalidInput(
+                windfall_core::notice!("codec.vorbisChannels", channels = channels).to_string(),
+            )
         })?;
     if !(MIN_VORBIS_QUALITY..=MAX_VORBIS_QUALITY).contains(&quality) {
-        return Err(CodecError::InvalidInput(format!(
-            "Ogg Vorbis quality goes from {MIN_VORBIS_QUALITY} to {MAX_VORBIS_QUALITY}, and {quality} was asked for"
-        )));
+        return Err(CodecError::InvalidInput(
+            windfall_core::notice!(
+                "codec.vorbisQuality",
+                min = MIN_VORBIS_QUALITY,
+                max = MAX_VORBIS_QUALITY,
+                quality = quality
+            )
+            .to_string(),
+        ));
     }
     Ok((rate, count))
 }

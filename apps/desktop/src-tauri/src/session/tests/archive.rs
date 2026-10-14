@@ -276,7 +276,7 @@ fn decoded_audio_has_individual_and_aggregate_limits_without_changing_live_pool(
         decoded
             .warnings
             .iter()
-            .all(|warning| warning.contains("1 bytes per source"))
+            .all(|warning| windfall_core::english::english(warning).contains("1 bytes per source"))
     );
     let first = &project.samples[0];
     let path = file::resolve_sample_path(&first.path, None, rig.session.factory_dir()).unwrap();
@@ -362,11 +362,13 @@ fn invalid_missing_and_failed_archives_leave_document_untouched() {
     )
     .unwrap();
     assert!(
-        invalid
-            .session
-            .project_open(&invalid.file("unreadable.zip"))
-            .unwrap_err()
-            .contains("unreadable audio")
+        windfall_core::english::english(
+            &invalid
+                .session
+                .project_open(&invalid.file("unreadable.zip"))
+                .unwrap_err()
+        )
+        .contains("unreadable audio")
     );
     assert_eq!(invalid.session.document_snapshot(), before);
     assert_eq!(

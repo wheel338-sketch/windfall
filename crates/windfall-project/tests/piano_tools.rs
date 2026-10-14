@@ -464,7 +464,10 @@ fn each_tool_is_one_atomic_undoable_persistable_command() {
         let applied = doc
             .dispatch(serde_json::from_str(&encoded).unwrap(), None)
             .unwrap();
-        assert_eq!(applied.label, transform.label());
+        assert_eq!(
+            windfall_core::english::english(&applied.label),
+            transform.label()
+        );
         assert_eq!(
             selected(&doc, other),
             selected(&Document::new(before), other)

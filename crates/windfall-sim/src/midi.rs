@@ -14,7 +14,7 @@ struct Import {
 
 fn plan(input: &str) -> Result<windfall_midi::ImportPlan, String> {
     let request: Import = parse("MIDI import", input)?;
-    let song = windfall_midi::read(&request.bytes).map_err(|error| error.to_string())?;
+    let song = windfall_midi::read(&request.bytes).map_err(windfall_ipc::midi_error_message)?;
     Ok(windfall_midi::import(&song, &request.options.core()))
 }
 

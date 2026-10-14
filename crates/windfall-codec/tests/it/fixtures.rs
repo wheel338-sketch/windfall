@@ -205,7 +205,7 @@ fn the_size_limit_message_names_the_limit() {
     let error = CodecError::TooLarge {
         limit_bytes: 3 * 1024 * 1024,
     };
-    let message = error.to_string();
+    let message = windfall_core::english::english(&error.to_string());
     assert!(message.contains("too long"), "{message}");
     assert!(message.contains("3 MB"), "{message}");
 }

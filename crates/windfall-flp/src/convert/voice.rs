@@ -39,7 +39,7 @@ impl Builder<'_> {
             } else {
                 let Some(track) = self.create(
                     ReportSection::Channels,
-                    "Sample effects bus",
+                    &windfall_core::notice!("flp.subject.sampleEffectsBus").to_string(),
                     Command::AddMixerTrack {
                         name: Some(format!("{name} sample effects")),
                     },
@@ -49,7 +49,7 @@ impl Builder<'_> {
                 let track = windfall_project::TrackId(track);
                 self.apply(
                     ReportSection::Channels,
-                    "Sample effects routing",
+                    &windfall_core::notice!("flp.subject.sampleEffectsRouting").to_string(),
                     Command::SetTrackOutput {
                         id: track,
                         output: Some(target),
@@ -57,7 +57,7 @@ impl Builder<'_> {
                 );
                 self.apply(
                     ReportSection::Channels,
-                    "Sample effects owner",
+                    &windfall_core::notice!("flp.subject.sampleEffectsOwner").to_string(),
                     Command::UpdateChannel {
                         id,
                         patch: windfall_project::ChannelPatch {
@@ -88,18 +88,40 @@ impl Builder<'_> {
                 }
                 self.apply(
                     ReportSection::Channels,
-                    "Sample effect controls",
+                    &windfall_core::notice!("flp.subject.sampleEffectControls").to_string(),
                     Command::SetEffectParams {
                         track,
                         effect: windfall_project::EffectId(effect),
                         params,
                     },
                 );
-                self.report.say(ReportSection::Channels,Outcome::Approximated,format!("Channel {} sample {} mapped on its private bus; the stand-in processes summed voices instead of destructive source preprocessing.",source.iid,kind.name()));
+                self.report.say(
+                    ReportSection::Channels,
+                    Outcome::Approximated,
+                    windfall_core::notice!(
+                        "flp.voice.sampleBus",
+                        channel = source.iid,
+                        effect = windfall_core::notice::term(kind.name())
+                    )
+                    .to_string(),
+                );
             }
         }
         if let Some(p) = source.params {
-            self.report.say(ReportSection::Channels,Outcome::Approximated,format!("Channel {} keyboard fine tune {:?} cents, main-pitch participation {:?}, inclusive key region {:?}, sample offset {:?}, loop crossfade {:?}/256 mapped; original controls retained.",source.iid,source.fine_tune,p.main_pitch,p.key_region,p.sample_offset,p.crossfade));
+            self.report.say(
+                ReportSection::Channels,
+                Outcome::Approximated,
+                windfall_core::notice!(
+                    "flp.voice.keyboard",
+                    channel = source.iid,
+                    fineTune = format!("{:?}", source.fine_tune),
+                    mainPitch = format!("{:?}", p.main_pitch),
+                    keyRegion = format!("{:?}", p.key_region),
+                    sampleOffset = format!("{:?}", p.sample_offset),
+                    crossfade = format!("{:?}", p.crossfade)
+                )
+                .to_string(),
+            );
             for (field, value) in [
                 (
                     "MIDI channel through",
@@ -112,16 +134,45 @@ impl Builder<'_> {
                 ("fix legacy trim", p.fix_trim.filter(|v| *v).map(u32::from)),
             ] {
                 if let Some(value) = value {
-                    self.report.say(ReportSection::Channels,Outcome::Dropped,format!("SCOPE: Channel {} {field}={value}: PyFLP channel.py and DawVert channel.py establish the field/name; their converters and LMMS importer do not establish the MIDI-through operation, source declick kernel or legacy-trim dependency. This operation cannot be inferred from the serialized scalar; retained verbatim.",source.iid));
+                    self.report.say(
+                        ReportSection::Channels,
+                        Outcome::Dropped,
+                        windfall_core::notice!(
+                            "flp.voice.fieldScope",
+                            channel = source.iid,
+                            field = windfall_core::notice::term(field),
+                            value = value
+                        )
+                        .to_string(),
+                    );
                 }
             }
             for (i, v) in p.drum_stretch.into_iter().enumerate() {
                 if let Some(v) = v.filter(|v| *v != 0.0 && *v != 1.0) {
-                    self.report.say(ReportSection::Channels,Outcome::Dropped,format!("SCOPE: Channel {} drum stretch {}={v}: DawVert channel.py defines float fields tone/over/noise/band/time, but mi_flp.py, PyFLP and LMMS do not define their DSP units or kernel; original float retained.",source.iid,["tone","over","noise","band","time"][i]));
+                    self.report.say(
+                        ReportSection::Channels,
+                        Outcome::Dropped,
+                        windfall_core::notice!(
+                            "flp.voice.drumStretchScope",
+                            channel = source.iid,
+                            field = ["tone", "over", "noise", "band", "time"][i],
+                            value = v
+                        )
+                        .to_string(),
+                    );
                 }
             }
             if let Some(v) = p.stretch_formant.filter(|v| v.is_finite() && *v != 0.0) {
-                self.report.say(ReportSection::Channels,Outcome::Dropped,format!("Channel {} stretch formant {v} semitones decoded with DawVert (word-.5)*24; stand-in spectral stretch has a boolean formant-preservation control rather than a formant offset.",source.iid));
+                self.report.say(
+                    ReportSection::Channels,
+                    Outcome::Dropped,
+                    windfall_core::notice!(
+                        "flp.voice.stretchFormant",
+                        channel = source.iid,
+                        value = v
+                    )
+                    .to_string(),
+                );
             }
         }
     }
@@ -148,7 +199,7 @@ impl Builder<'_> {
         }
         let Some(track) = self.create(
             ReportSection::Channels,
-            "Channel filter bus",
+            &windfall_core::notice!("flp.subject.channelFilterBus").to_string(),
             Command::AddMixerTrack {
                 name: Some(format!("{name} filter")),
             },
@@ -158,7 +209,7 @@ impl Builder<'_> {
         let track = windfall_project::TrackId(track);
         self.apply(
             ReportSection::Channels,
-            "Channel filter routing",
+            &windfall_core::notice!("flp.subject.channelFilterRouting").to_string(),
             Command::SetTrackOutput {
                 id: track,
                 output: Some(target),
@@ -166,7 +217,7 @@ impl Builder<'_> {
         );
         self.apply(
             ReportSection::Channels,
-            "Channel filter owner",
+            &windfall_core::notice!("flp.subject.channelFilterOwner").to_string(),
             Command::UpdateChannel {
                 id,
                 patch: windfall_project::ChannelPatch {
@@ -223,7 +274,7 @@ impl Builder<'_> {
         }
         self.apply(
             ReportSection::Channels,
-            "Channel filter controls",
+            &windfall_core::notice!("flp.subject.channelFilterControls").to_string(),
             Command::SetEffectParams {
                 track,
                 effect,
@@ -254,7 +305,11 @@ impl Builder<'_> {
                 ],
             },
         );
-        self.report.say(ReportSection::Channels,Outcome::Approximated,format!("Channel {} cutoff/resonance/type mapped on a private bus: modern /256, legacy cutoff /1024 and resonance /640; DawVert midi_filter=(n*100)^2*925/2048 (non-fast types *2.7), Q=1+6*n. Full cutoff uses a 20kHz bypass approximation. Double/SVF slopes and per-voice processing differ. Mod X/Y clip and recorded automation use the same functions.",channel.iid));
+        self.report.say(
+            ReportSection::Channels,
+            Outcome::Approximated,
+            windfall_core::notice!("flp.voice.filter", channel = channel.iid).to_string(),
+        );
     }
     /// Runs after channel creation. The command replaces the whole voice
     /// block, so tools not described by Polyphony retain their defaults.
@@ -282,7 +337,11 @@ impl Builder<'_> {
                 depth: (word(11) as f32 / 65536.0 / 5.5).clamp(0.0, 1.0),
                 ..Default::default()
             };
-            self.report.say(section,Outcome::Approximated,format!("Channel {} Fruity DX10 vibrato/lforate mapped using DawVert amount=n/5.5, rate=n*127; shared pitch LFO depth and 0.01..20Hz stand-in range apply.",channel.iid));
+            self.report.say(
+                section,
+                Outcome::Approximated,
+                windfall_core::notice!("flp.voice.dx10Vibrato", channel = channel.iid).to_string(),
+            );
             outcome = Outcome::Approximated;
         }
         let wrapper = channel.plugin.as_ref().and_then(|p| p.hosted());
@@ -300,14 +359,31 @@ impl Builder<'_> {
             map.bend_range_semitones = (range as f32).clamp(1.0, 96.0);
             self.apply(
                 section,
-                "Channel pitch-bend range",
+                &windfall_core::notice!("flp.subject.pitchBendRange").to_string(),
                 Command::SetChannelExpressionMap {
                     id,
                     map,
                     expected: None,
                 },
             );
-            self.report.say(section,if (1..=96).contains(&range){Outcome::Exact}else{Outcome::Approximated},format!("Channel {} wrapper MIDI pitch range {range} semitones mapped to the existing plugin MIDI bend range (1..96); send-RPN flag {:?} retained. Event 83 is resonance, not pitch range; event 219 pitch is cents.",channel.iid,wrapper.as_ref().and_then(|w|w.send_pitch_bend_range)));
+            self.report.say(
+                section,
+                if (1..=96).contains(&range) {
+                    Outcome::Exact
+                } else {
+                    Outcome::Approximated
+                },
+                windfall_core::notice!(
+                    "flp.voice.wrapperPitchRange",
+                    channel = channel.iid,
+                    range = range,
+                    sendRpn = format!(
+                        "{:?}",
+                        wrapper.as_ref().and_then(|w| w.send_pitch_bend_range)
+                    )
+                )
+                .to_string(),
+            );
         }
         if let Some(plugin) = channel
             .plugin
@@ -397,8 +473,25 @@ impl Builder<'_> {
                     delay_ms,
                     retrigger,
                 };
-                self.report.say(section,Outcome::Approximated,format!("Channel {} SimSynth osc1/2/3_env and osc1/2/3_lfo are combined by enabled oscillator level into the stand-in's shared pitch routes; centered source amounts use (v-.5)*4800 cents and (v-.5)*2 LFO depth. Distinct oscillator trajectories cannot be represented by this stand-in.",channel.iid));
-                self.report.say(section,Outcome::Approximated,format!("Channel {} SimSynth svf ADSR: 4*v^3 seconds, depth=env*6.4 octaves; LFO rate=2^((1+rate*998-500)/100), saw/noise doubled; on/cutoff depth mapped, source shape {source_shape} approximated by the available sine/triangle/square. lfo_del={:?} -> LFO start delay {delay_ms} ms (4*v^3 seconds, the device's published envelope time rule; the public converter reads the field without a rule of its own); lfo_retrigger -> retrigger={retrigger}. Oscillator-specific pitch routes have no matching per-oscillator stand-in controls.",channel.iid,v(21)));
+                self.report.say(
+                    section,
+                    Outcome::Approximated,
+                    windfall_core::notice!("flp.voice.simsynthPitch", channel = channel.iid)
+                        .to_string(),
+                );
+                self.report.say(
+                    section,
+                    Outcome::Approximated,
+                    windfall_core::notice!(
+                        "flp.voice.simsynthFilter",
+                        channel = channel.iid,
+                        shape = source_shape,
+                        lfoDelay = format!("{:?}", v(21)),
+                        delay = delay_ms,
+                        retrigger = retrigger
+                    )
+                    .to_string(),
+                );
                 outcome = Outcome::Approximated;
             }
         }
@@ -407,20 +500,20 @@ impl Builder<'_> {
                 0 => {
                     outcome = Outcome::Approximated;
                     self.report.say(
-                    section,
-                    outcome,
-                    "Unlimited FL channel polyphony was brought to Windfall's maximum of 32 voices.",
-                );
+                        section,
+                        outcome,
+                        windfall_core::notice!("flp.voice.unlimitedPolyphony").to_string(),
+                    );
                     32
                 }
                 1..=32 => polyphony.max as u8,
                 max => {
                     outcome = Outcome::Approximated;
                     self.report.say(
-                    section,
-                    outcome,
-                    format!("FL channel polyphony of {max} voices was clamped to Windfall's maximum of 32."),
-                );
+                        section,
+                        outcome,
+                        windfall_core::notice!("flp.voice.polyphony", voices = max).to_string(),
+                    );
                     32
                 }
             };
@@ -432,10 +525,10 @@ impl Builder<'_> {
                         .clamp(0.0, 60000.0) as f32;
                 outcome = Outcome::Approximated;
                 self.report.say(
-                section,
-                outcome,
-                "Channel portamento time uses DawVert's (slide/1024)^4 steps fit, converted at the source tempo and clamped to Windfall's range.",
-            );
+                    section,
+                    outcome,
+                    windfall_core::notice!("flp.voice.portamento").to_string(),
+                );
             }
         }
         if let Some(params) = channel.params {
@@ -445,7 +538,16 @@ impl Builder<'_> {
                     2 => ArpeggiatorMode::Down,
                     3 | 4 => ArpeggiatorMode::UpDown,
                     _ => {
-                        self.report.say(section, Outcome::Dropped, format!("Channel {} arpeggiator direction {direction} has no stand-in mode.",channel.iid));
+                        self.report.say(
+                            section,
+                            Outcome::Dropped,
+                            windfall_core::notice!(
+                                "flp.voice.arpDirection",
+                                channel = channel.iid,
+                                direction = direction
+                            )
+                            .to_string(),
+                        );
                         ArpeggiatorMode::Off
                     }
                 };
@@ -468,7 +570,12 @@ impl Builder<'_> {
                 })
                 .unwrap();
                 outcome = Outcome::Approximated;
-                self.report.say(section,outcome,format!("Channel {} arpeggiator direction/range/gate mapped; time uses DawVert's integer fourth-power fit and nearest Windfall division (PyFLP's float reading is disputed).",channel.iid));
+                self.report.say(
+                    section,
+                    outcome,
+                    windfall_core::notice!("flp.voice.arpMapped", channel = channel.iid)
+                        .to_string(),
+                );
                 for (unsupported, value) in [
                     ("chord", params.arp_chord.filter(|v| *v != u32::MAX)),
                     ("repeat", params.arp_repeat.filter(|v| *v > 1)),
@@ -478,10 +585,13 @@ impl Builder<'_> {
                         self.report.say(
                             section,
                             Outcome::Dropped,
-                            format!(
-                                "Channel {} arpeggiator {unsupported}={value} has no equivalent.",
-                                channel.iid
-                            ),
+                            windfall_core::notice!(
+                                "flp.voice.arpUnsupported",
+                                channel = channel.iid,
+                                field = windfall_core::notice::term(unsupported),
+                                value = value
+                            )
+                            .to_string(),
                         );
                     }
                 }
@@ -489,19 +599,46 @@ impl Builder<'_> {
                     self.report.say(
                         section,
                         Outcome::Dropped,
-                        "Sticky arpeggiator endpoint repetition has no equivalent.",
+                        windfall_core::notice!("flp.voice.arpSticky").to_string(),
                     );
                 }
             }
             if let Some(gate) = params.gate.filter(|g| ![0, 450, 1446, 1447].contains(g)) {
                 outcome = Outcome::Approximated;
-                self.report.say(section,Outcome::Dropped,format!("SCOPE: Channel {} gate={gate}: PyFLP Time.gate gives musical endpoints only; DawVert channel.py stores a u16 without a logarithmic curve, and mi_flp.py/LMMS provide no formula for interior words. Source word retained.",channel.iid));
+                self.report.say(
+                    section,
+                    Outcome::Dropped,
+                    windfall_core::notice!(
+                        "flp.voice.gateScope",
+                        channel = channel.iid,
+                        gate = gate
+                    )
+                    .to_string(),
+                );
             } else if params.gate.is_some_and(|g| [450, 1446].contains(&g)) {
-                self.report.say(section,Outcome::Approximated,format!("Channel {} gate={} mapped at its public musical endpoint (450=0:03 source ticks,1446=4:00 quarter notes); full_porta bypasses gate when portamento is active.",channel.iid,params.gate.unwrap()));
+                self.report.say(
+                    section,
+                    Outcome::Approximated,
+                    windfall_core::notice!(
+                        "flp.voice.gateEndpoint",
+                        channel = channel.iid,
+                        gate = params.gate.unwrap()
+                    )
+                    .to_string(),
+                );
             }
             for (flag, name) in [(2, "ping-pong"), (4, "fat mode")] {
                 if params.delay_flags.is_some_and(|v| v & flag != 0) {
-                    self.report.say(section,Outcome::Dropped,format!("Channel {} note echo {name} is not expressible by Windfall's note echo.",channel.iid));
+                    self.report.say(
+                        section,
+                        Outcome::Dropped,
+                        windfall_core::notice!(
+                            "flp.voice.echoFlag",
+                            channel = channel.iid,
+                            flag = windfall_core::notice::term(name)
+                        )
+                        .to_string(),
+                    );
                     outcome = Outcome::Approximated;
                 }
             }
@@ -519,15 +656,21 @@ impl Builder<'_> {
             settings.echo.pitch_semitones =
                 (echo.pitch_cents as f32 / 100.0).round().clamp(-24.0, 24.0) as i8;
             outcome = Outcome::Approximated;
-            self.report.say(section,outcome,format!("Channel {} note echo feedback/time/repeats/pitch mapped (DawVert step units); Windfall limits and whole-semitone pitch apply.",channel.iid));
+            self.report.say(
+                section,
+                outcome,
+                windfall_core::notice!("flp.voice.echoMapped", channel = channel.iid).to_string(),
+            );
             if echo.pan != 0 {
                 self.report.say(
                     section,
                     Outcome::Dropped,
-                    format!(
-                        "Channel {} echo pan={} has no independent echo-pan control.",
-                        channel.iid, echo.pan
-                    ),
+                    windfall_core::notice!(
+                        "flp.voice.echoPan",
+                        channel = channel.iid,
+                        pan = echo.pan
+                    )
+                    .to_string(),
                 );
             }
         }
@@ -562,7 +705,16 @@ impl Builder<'_> {
                     _ => {}
                 }
                 outcome = Outcome::Approximated;
-                self.report.say(section,outcome,format!("Channel {} {target} ADSR and depth mapped with documented source range and DawVert envelope time fit.",channel.iid));
+                self.report.say(
+                    section,
+                    outcome,
+                    windfall_core::notice!(
+                        "flp.voice.envelopeMapped",
+                        channel = channel.iid,
+                        target = windfall_core::notice::term(target)
+                    )
+                    .to_string(),
+                );
             }
             if env.enabled {
                 for (name, value) in [
@@ -584,7 +736,18 @@ impl Builder<'_> {
                 ] {
                     if value != 0 {
                         outcome = Outcome::Approximated;
-                        self.report.say(section,Outcome::Dropped,format!("Channel {} {target} envelope {name}={value} has no corresponding ADSR feature.",channel.iid));
+                        self.report.say(
+                            section,
+                            Outcome::Dropped,
+                            windfall_core::notice!(
+                                "flp.voice.envelopeField",
+                                channel = channel.iid,
+                                target = windfall_core::notice::term(target),
+                                field = windfall_core::notice::term(name),
+                                value = value
+                            )
+                            .to_string(),
+                        );
                     }
                 }
             }
@@ -613,9 +776,28 @@ impl Builder<'_> {
                         4 => settings.envelopes.lfos.pitch = lfo,
                         _ => {}
                     }
-                    self.report.say(section,Outcome::Approximated,format!("Channel {} {target} LFO shape/depth and published sixteen-step period mapped at import tempo.",channel.iid));
+                    self.report.say(
+                        section,
+                        Outcome::Approximated,
+                        windfall_core::notice!(
+                            "flp.voice.lfoMapped",
+                            channel = channel.iid,
+                            target = windfall_core::notice::term(target)
+                        )
+                        .to_string(),
+                    );
                 } else {
-                    self.report.say(section,Outcome::Dropped,format!("SCOPE: Channel {} {target} LFO speed {:?}: PyFLP LFO.speed and DawVert channel.py establish range 200..65536 and 32950=sixteen steps, but no nonlinear period curve; mi_flp.py's LFO conversion is commented out, LMMS only reads raw data. Interior periods cannot be inferred; archived.",channel.iid,env.lfo_speed));
+                    self.report.say(
+                        section,
+                        Outcome::Dropped,
+                        windfall_core::notice!(
+                            "flp.voice.lfoSpeedScope",
+                            channel = channel.iid,
+                            target = windfall_core::notice::term(target),
+                            speed = format!("{:?}", env.lfo_speed)
+                        )
+                        .to_string(),
+                    );
                 }
                 for (name, value) in [
                     (
@@ -626,7 +808,18 @@ impl Builder<'_> {
                     ("tempo sync", env.flags & 2),
                 ] {
                     if value != 0 {
-                        self.report.say(section,Outcome::Dropped,format!("Channel {} {target} LFO {name}={value} is not expressible by the stand-in.",channel.iid));
+                        self.report.say(
+                            section,
+                            Outcome::Dropped,
+                            windfall_core::notice!(
+                                "flp.voice.lfoField",
+                                channel = channel.iid,
+                                target = windfall_core::notice::term(target),
+                                field = windfall_core::notice::term(name),
+                                value = value
+                            )
+                            .to_string(),
+                        );
                     }
                 }
                 outcome = Outcome::Approximated;
@@ -635,7 +828,7 @@ impl Builder<'_> {
         if self
             .apply(
                 section,
-                "Channel voice settings",
+                &windfall_core::notice!("flp.subject.channelVoiceSettings").to_string(),
                 Command::SetChannelVoiceSettings { id, settings },
             )
             .is_none()
@@ -716,7 +909,8 @@ mod tests {
         assert_eq!(report.approximated, 1);
         assert_eq!(report.total(), 1);
         assert!(report.lines.iter().any(|line| {
-            line.outcome == Outcome::Approximated && line.text.contains("Unlimited")
+            line.outcome == Outcome::Approximated
+                && windfall_core::english::english(&line.text).contains("Unlimited")
         }));
     }
 
@@ -749,9 +943,9 @@ mod tests {
             assert_eq!(report.lines.len(), 1);
             let line = &report.lines[0];
             assert_eq!(line.outcome, Outcome::Approximated);
-            assert!(line.text.contains("DawVert"));
-            assert!(line.text.contains("slide/1024"));
-            assert!(line.text.contains("clamped"));
+            assert!(windfall_core::english::english(&line.text).contains("DawVert"));
+            assert!(windfall_core::english::english(&line.text).contains("slide/1024"));
+            assert!(windfall_core::english::english(&line.text).contains("clamped"));
         }
     }
 
@@ -777,7 +971,7 @@ mod tests {
                     report
                         .lines
                         .iter()
-                        .any(|line| line.text.contains("clamped"))
+                        .any(|line| windfall_core::english::english(&line.text).contains("clamped"))
                 );
             }
         }

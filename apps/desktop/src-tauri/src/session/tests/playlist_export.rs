@@ -491,6 +491,7 @@ fn chosen_lanes_are_written_beside_the_path_and_follow_the_arrangement() {
         .session
         .export_playlist_tracks(options(&rig, "Empty.wav"), empty)
         .unwrap_err();
+    let error = windfall_core::english::english(&error);
     assert!(error.contains("plays nothing"), "{error}");
 }
 
@@ -509,7 +510,7 @@ fn a_playlist_track_export_that_cannot_work_is_refused_before_it_starts() {
     session.dispatch(mute, None).unwrap();
     rig.events.take();
     let refused = |options: ExportOptions, stems: ExportPlaylistStems| {
-        session.export_playlist_tracks(options, stems).unwrap_err()
+        windfall_core::english::shown(&session.export_playlist_tracks(options, stems).unwrap_err())
     };
     let asked = |tracks: Vec<PlaylistTrackId>| ExportPlaylistStems {
         tracks: Some(tracks),

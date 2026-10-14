@@ -98,7 +98,10 @@ impl Session {
             return Err("This folder path is too long for the library.".into());
         }
         if !folder.is_dir() {
-            return Err(format!("\"{shown}\" is not a folder."));
+            return Err(windfall_ipc::ui_message(
+                "browser.notAFolder",
+                serde_json::json!({"folder": shown}),
+            ));
         }
         let mut settings = self.store();
         if settings.settings().browser_roots.len() >= crate::library::MAX_ROOTS - 1 {
@@ -111,7 +114,10 @@ impl Session {
                 .iter()
                 .any(|root| paths::same(Path::new(root), &folder));
         if known {
-            return Err(format!("\"{shown}\" is already in the browser."));
+            return Err(windfall_ipc::ui_message(
+                "browser.alreadyInBrowser",
+                serde_json::json!({"folder": shown}),
+            ));
         }
         settings.update(|stored| stored.browser_roots.push(shown));
         let roots = self.roots(&settings.settings().browser_roots);
@@ -129,7 +135,10 @@ impl Session {
         let mut settings = self.store();
         let is_it = |root: &String| paths::same(Path::new(root), &folder);
         if !settings.settings().browser_roots.iter().any(is_it) {
-            return Err(format!("\"{path}\" is not in the browser."));
+            return Err(windfall_ipc::ui_message(
+                "browser.notInBrowser",
+                serde_json::json!({"folder": path}),
+            ));
         }
         settings.update(|stored| stored.browser_roots.retain(|root| !is_it(root)));
         let roots = self.roots(&settings.settings().browser_roots);
@@ -168,11 +177,9 @@ impl Session {
     pub fn sample_info_by_id(&self, sample: SampleId) -> Result<SampleInfo, String> {
         let (file, generation) = {
             let state = self.state();
-            let asset = state
-                .document
-                .project()
-                .sample(sample)
-                .ok_or_else(|| format!("sample {} does not exist", sample.0))?;
+            let asset = state.document.project().sample(sample).ok_or_else(|| {
+                windfall_ipc::ui_message("samples.notFound", serde_json::json!({"id": sample.0}))
+            })?;
             let file = locate(asset, state.project_dir(), &self.inner.factory_dir)?;
             (file, state.generation)
         };
@@ -368,13 +375,13 @@ impl Session {
         let _recording = self.recording_idle()?;
         let state = self.state();
         let project = state.document.project();
-        let asset = project
-            .sample(sample)
-            .ok_or_else(|| format!("sample {} does not exist", sample.0))?;
+        let asset = project.sample(sample).ok_or_else(|| {
+            windfall_ipc::ui_message("samples.notFound", serde_json::json!({"id": sample.0}))
+        })?;
         let buffer = state.pool.get(sample).ok_or_else(|| {
-            format!(
-                "The audio of \"{}\" is not loaded, so a clip of it cannot be made. Check that its file is there, then reload the samples.",
-                asset.name
+            windfall_ipc::ui_message(
+                "library.audioNotLoaded",
+                serde_json::json!({"sample": asset.name}),
             )
         })?;
         let commands =
@@ -704,9 +711,9 @@ impl Session {
             guard.check(state)?;
         }
         if state.generation != import.generation {
-            return Err(format!(
-                "\"{}\" was not added, because another project was opened while it was loading.",
-                paths::name(&import.file)
+            return Err(windfall_ipc::ui_message(
+                "library.notAddedSuperseded",
+                serde_json::json!({"file": paths::name(&import.file)}),
             ));
         }
         Ok(())
@@ -726,17 +733,17 @@ impl Session {
         // pool is empty. Do not install a newer import which that outstanding
         // load could overwrite. Check and dispatch share the same State lock.
         if state.loading.contains(&sample) {
-            return Err(format!(
-                "The project sample \"{}\" is still loading. Wait for loading to finish and try the import again.",
-                paths::name(file)
+            return Err(windfall_ipc::ui_message(
+                "library.stillLoading",
+                serde_json::json!({"file": paths::name(file)}),
             ));
         }
         if let Some(held) = state.pool.get(sample)
             && !self.inner.cache.same_file_version(held, buffer)
         {
-            return Err(format!(
-                "The project is already using an older or unverified version of \"{}\". Import the changed file under a new path, or reopen the project to reload its sources.",
-                paths::name(file)
+            return Err(windfall_ipc::ui_message(
+                "library.olderVersionInUse",
+                serde_json::json!({"file": paths::name(file)}),
             ));
         }
         Ok(())

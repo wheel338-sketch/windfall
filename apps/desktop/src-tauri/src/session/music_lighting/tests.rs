@@ -231,6 +231,7 @@ fn absent_service_has_a_clear_capability_message_and_external_session_uris_are_r
             }],
         )
         .unwrap_err();
+    let error = windfall_core::english::english(&error);
     assert!(error.contains("Chroma REST service unavailable"));
     assert!(error.contains("local Chroma SDK service"));
     assert!(driver.adapter.uri.is_none());

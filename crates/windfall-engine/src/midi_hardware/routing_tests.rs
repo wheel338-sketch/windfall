@@ -1082,10 +1082,7 @@ fn project_feedback_uses_its_worker_destination_without_app_midi_preferences_or_
     processor.process(&mut audio);
     missing.outputs_at(Instant::now(), &controller.playhead(), 20000000, None);
     assert!(
-        missing
-            .state()
-            .error
-            .unwrap()
+        windfall_core::english::english(&missing.state().error.unwrap())
             .contains("Project controller feedback unavailable")
     );
     assert!(

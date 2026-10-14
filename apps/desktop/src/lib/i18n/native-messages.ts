@@ -1,3 +1,10 @@
+import { nativePluginsEn, nativePluginsEs } from "./native/plugins"
+import { nativeEngineEn, nativeEngineEs } from "./native/engine"
+import { nativeMediaEn, nativeMediaEs } from "./native/media"
+import { nativeFlpEn, nativeFlpEs } from "./native/flp"
+import { nativeProjectEn, nativeProjectEs } from "./native/project"
+import { nativeDesktopEn, nativeDesktopEs } from "./native/desktop"
+import { nativeCommonEn, nativeCommonEs } from "./native/common"
 /** English source and Spanish copy for the append-only native wire codes. */
 export const nativeEn = {
   "midi.import.notesPastEnd": { one: "{count} note left out: it starts past the end of the longest song Windfall holds", other: "{count} notes left out: they start past the end of the longest song Windfall holds" },
@@ -82,6 +89,13 @@ export const nativeEn = {
   "mixerPresets.invalid": "Invalid mixer preset: {error}",
   "mixerPresets.saveFailed": "Could not save the mixer preset: {error}",
   "mixerPresets.deleteFailed": "Could not delete the mixer preset: {error}",
+  ...nativeCommonEn,
+  ...nativeDesktopEn,
+  ...nativeProjectEn,
+  ...nativeFlpEn,
+  ...nativeMediaEn,
+  ...nativeEngineEn,
+  ...nativePluginsEn,
   "native.messageUnknown": "Unknown native message ({code}).",
   "native.messageInvalid": "The native message could not be decoded.",
 } as const
@@ -169,6 +183,13 @@ export const nativeEs = {
   "mixerPresets.invalid": "Preajuste de mezclador no válido: {error}",
   "mixerPresets.saveFailed": "No se ha podido guardar el preajuste de mezclador: {error}",
   "mixerPresets.deleteFailed": "No se ha podido eliminar el preajuste de mezclador: {error}",
+  ...nativeCommonEs,
+  ...nativeDesktopEs,
+  ...nativeProjectEs,
+  ...nativeFlpEs,
+  ...nativeMediaEs,
+  ...nativeEngineEs,
+  ...nativePluginsEs,
   "native.messageUnknown": "Mensaje nativo desconocido ({code}).",
   "native.messageInvalid": "No se ha podido interpretar el mensaje nativo.",
 } satisfies Record<keyof typeof nativeEn, string | { one: string; other: string }>

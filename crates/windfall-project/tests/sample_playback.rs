@@ -423,7 +423,8 @@ fn scalar_and_original_marker_curve_automation_survive_with_assets() {
             .unwrap_err()
             .to_string();
         assert!(
-            error.contains("moves something the project does not have"),
+            windfall_core::english::english(&error)
+                .contains("moves something the project does not have"),
             "{error}"
         );
         assert_eq!(file::to_json(d.project()).unwrap(), text);

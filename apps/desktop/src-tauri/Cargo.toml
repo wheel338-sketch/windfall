@@ -69,6 +69,7 @@ libc = "0.2.190"
 raw-window-handle = "=0.6.2"
 
 [dev-dependencies]
+windfall-core = { workspace = true, features = ["english"] }
 # MIT OR Apache-2.0. Enable the existing Tauri package's mock runtime for signed-update fixtures; no new package/version.
 tauri = { version = "2.12.1", features = ["test"] }
 # MIT OR Apache-2.0.

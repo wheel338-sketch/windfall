@@ -28,7 +28,7 @@ impl Builder<'_> {
             self.report.say(
                 section,
                 Outcome::Dropped,
-                "Recorded controls exceed the import event budget.",
+                windfall_core::notice!("flp.notes.recordedControlsBudget").to_string(),
             );
         }
         for event in events.iter().take(budget) {
@@ -44,9 +44,11 @@ impl Builder<'_> {
                 {
                     self.instrument_target_report(channel, param)
                 } else {
-                    format!(
-                        "Recorded pattern target {location:#010x} is unsupported; original event records are archived in the saved project when imported from a file."
+                    windfall_core::notice!(
+                        "flp.notes.recordedTarget",
+                        location = format!("{:#010x}", location)
                     )
+                    .to_string()
                 };
                 self.report.say(section, Outcome::Dropped, text);
                 continue;
@@ -79,7 +81,8 @@ impl Builder<'_> {
                 && self
                     .apply(
                         section,
-                        "Recorded pattern automation",
+                        &windfall_core::notice!("flp.subject.recordedPatternAutomation")
+                            .to_string(),
                         Command::SetPatternEvents {
                             pattern,
                             target,
@@ -90,8 +93,11 @@ impl Builder<'_> {
                     .is_some()
             {
                 self.report.count(section, Outcome::Approximated, accepted);
-                self.report.say(section, Outcome::Approximated,
-                    "Recorded controls were mapped to held pattern events; plugin values accept public normalized f32 words as well as legacy native-unit integer words; source interpolation and nonlinear control tapers may differ.");
+                self.report.say(
+                    section,
+                    Outcome::Approximated,
+                    windfall_core::notice!("flp.notes.recordedControlsMapped").to_string(),
+                );
             } else {
                 accepted = 0;
             }
@@ -193,7 +199,7 @@ impl Builder<'_> {
                 self.report.say(
                     ReportSection::Patterns,
                     outcome,
-                    "Pattern length was rounded to Windfall's step grid or limited to 1024 steps.",
+                    windfall_core::notice!("flp.patterns.lengthRounded").to_string(),
                 );
             }
             for note in &pattern.notes {
@@ -226,7 +232,16 @@ impl Builder<'_> {
                     })
                 {
                     self.report.count(ReportSection::Notes, Outcome::Dropped, 1);
-                    self.report.say(ReportSection::Notes,Outcome::Exact,format!("Channel {} note {} excluded by the public inclusive playable key region.",note.channel,note.key));
+                    self.report.say(
+                        ReportSection::Notes,
+                        Outcome::Exact,
+                        windfall_core::notice!(
+                            "flp.notes.outsideKeyRegion",
+                            channel = note.channel,
+                            key = note.key
+                        )
+                        .to_string(),
+                    );
                     continue;
                 }
                 let fine = (f64::from(note.fine_pitch.min(240)) - 120.0) * 10.0 + channel_pitch;
@@ -245,7 +260,11 @@ impl Builder<'_> {
                     || note.key > 127
                 {
                     self.report.count(ReportSection::Notes, Outcome::Dropped, 1);
-                    self.report.say(ReportSection::Notes, Outcome::Dropped, "A note has no playable channel, an unsupported key, or starts past the longest pattern.");
+                    self.report.say(
+                        ReportSection::Notes,
+                        Outcome::Dropped,
+                        windfall_core::notice!("flp.notes.unplayable").to_string(),
+                    );
                     continue;
                 }
                 let mut outcome = if start.exact
@@ -268,7 +287,11 @@ impl Builder<'_> {
                     || note.pan > 128
                 {
                     outcome = Outcome::Approximated;
-                    self.report.say(ReportSection::Notes, outcome, "Modulation, release, slide duration and note-color MIDI channels were mapped. Slides target the highest sounding note of the same color, transpose the held chord by that interval, begin at the slide onset and finish at its end without changing original note endings; out-of-range expression was clamped.");
+                    self.report.say(
+                        ReportSection::Notes,
+                        outcome,
+                        windfall_core::notice!("flp.notes.expressionMapped").to_string(),
+                    );
                 }
                 for channel in targets {
                     let init = NoteInit {
@@ -311,10 +334,29 @@ impl Builder<'_> {
                     }
                 }
                 if channel_pitch != 0.0 {
-                    self.report.say(ReportSection::Notes,Outcome::Approximated,format!("Channel {} static pitch/fine tune {channel_pitch} cents folded into note expression; stand-in +/-1200-cent bounds apply; original events retained.",note.channel));
+                    self.report.say(
+                        ReportSection::Notes,
+                        Outcome::Approximated,
+                        windfall_core::notice!(
+                            "flp.notes.channelPitch",
+                            channel = note.channel,
+                            cents = channel_pitch
+                        )
+                        .to_string(),
+                    );
                 }
                 if add_root {
-                    self.report.say(ReportSection::Notes,Outcome::Approximated,format!("Channel {} keyboard add-root transposes the triggered key by root_note-60: {} -> {key}; MIDI bounds apply. Original root and flag retained.",note.channel,note.key));
+                    self.report.say(
+                        ReportSection::Notes,
+                        Outcome::Approximated,
+                        windfall_core::notice!(
+                            "flp.notes.addRoot",
+                            channel = note.channel,
+                            from = note.key,
+                            key = key
+                        )
+                        .to_string(),
+                    );
                 }
                 self.report.count(ReportSection::Notes, outcome, 1);
             }
@@ -342,7 +384,17 @@ impl Builder<'_> {
                     .count(ReportSection::Notes, Outcome::Approximated, 1);
             }
             for ((channel, group), notes) in groups {
-                self.report.say(ReportSection::Notes,Outcome::Exact,format!("Pattern {} note-edit group {group}: {} native note IDs grouped for selection/move/resize independently of MIDI color.",pattern.iid,notes.len()));
+                self.report.say(
+                    ReportSection::Notes,
+                    Outcome::Exact,
+                    windfall_core::notice!(
+                        "flp.notes.editGroup",
+                        pattern = pattern.iid,
+                        group = group,
+                        count = notes.len()
+                    )
+                    .to_string(),
+                );
                 edit_groups.push(windfall_project::NoteEditGroup {
                     pattern: id,
                     channel,
@@ -354,7 +406,7 @@ impl Builder<'_> {
         if !edit_groups.is_empty() {
             self.apply(
                 ReportSection::Notes,
-                "Note edit groups",
+                &windfall_core::notice!("flp.subject.noteEditGroups").to_string(),
                 Command::SetNoteEditGroups {
                     groups: edit_groups,
                 },

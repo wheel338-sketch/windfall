@@ -166,9 +166,9 @@ impl Session {
                 .map(|sample| format!("{} ({:?})", sample.name, sample.path))
                 .collect::<Vec<_>>()
                 .join("\n");
-            return Err(format!(
-                "These audio sources are missing or unreadable; no portable archive was created:\n{missing}\n{}",
-                checked.warnings.join("\n")
+            return Err(windfall_ipc::ui_message(
+                "archive.sourcesMissing",
+                serde_json::json!({"missing": missing, "warnings": checked.warnings.join("\n")}),
             ));
         }
         drop(checked);
@@ -207,7 +207,8 @@ impl Session {
         path: &str,
         job: ArchiveJob,
     ) -> Result<DocumentSnapshot, String> {
-        self.archive_open_adjusted(path, job, "The project archive", |_| {})
+        let what = windfall_ipc::ui_message("files.theArchive", serde_json::json!({}));
+        self.archive_open_adjusted(path, job, &what, |_| {})
     }
     /// Opens the archive at `path` as a copy, after `adjust` has had the
     /// project that is about to be installed. `what` names the file in the
@@ -249,9 +250,9 @@ impl Session {
         )?;
         job.check().map_err(|e| e.to_string())?;
         if !decoded.failed.is_empty() {
-            return Err(format!(
-                "{what} contains unreadable audio and was not opened:\n{}",
-                decoded.warnings.join("\n")
+            return Err(windfall_ipc::ui_message(
+                "files.unreadableAudio",
+                serde_json::json!({"what": what, "warnings": decoded.warnings.join("\n")}),
             ));
         }
         let mut project = extracted.project.clone();
@@ -271,7 +272,12 @@ impl Session {
                 Some(root),
                 decoded,
             )
-            .map_err(|refusal| refusal.message(&format!("{what} was not opened")))?;
+            .map_err(|refusal| {
+                refusal.message(&windfall_ipc::ui_message(
+                    "files.notOpened",
+                    serde_json::json!({"what": what}),
+                ))
+            })?;
         let (root, owner) = extracted.retain_owned();
         self.retain_extraction(root, owner);
         Ok(snapshot)
@@ -295,7 +301,10 @@ impl Session {
             warnings: Vec::new(),
         };
         if !project.retained_plugins.is_empty() {
-            decoded.warnings.push(format!("{} imported plugin states are retained; unsupported instruments stay silent and effects bypassed. Use the source FL project with a compatible host to recover those sounds.", project.retained_plugins.len()));
+            decoded.warnings.push(windfall_ipc::ui_message(
+                "samples.retainedPluginStates",
+                serde_json::json!({"count": project.retained_plugins.len()}),
+            ));
         }
         let mut bytes = 0u64;
         for sample in &project.samples {
@@ -390,7 +399,7 @@ impl Session {
                 }
                 Err(error) => {
                     decoded.failed.insert(sample.id);
-                    decoded.warnings.push(format!("{} ({:?}): {error}. Archive audio limits are {} bytes per source and {} bytes total decoded audio.", sample.name, sample.path, limits.entry, limits.total));
+                    decoded.warnings.push(windfall_ipc::ui_message("archive.sourceUnreadable", serde_json::json!({"name": sample.name, "path": format!("{:?}", sample.path), "error": error.to_string(), "entry": limits.entry, "total": limits.total})));
                 }
             }
         }

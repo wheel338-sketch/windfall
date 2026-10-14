@@ -6,7 +6,7 @@ import { getProjectGeneration, onProjectReplaced } from "@/lib/store/replaced"
 import { usePlaylistStore } from "@/features/playlist/store"
 import type { AudioLoggerState } from "@/features/audio-logger/types"
 import { AudioEditorButton } from "./index"
-import { translatedText as t, message, plainNumber } from "@/lib/i18n"
+import { localizeBackendText, translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 /** Uses the existing bounded native history worker. The callback copies only
  * this exact chain position, after the slot and before downstream effects. */
@@ -59,8 +59,8 @@ export function SlotRecorder({ effect }: { effect: number }) {
     <p className="text-xs text-muted-foreground">{t("Records what passes through this slot, before later effects and the fader. Insert a Send tap slot to place a transparent recorder between effects. History length follows the audio logger settings.")}</p>
     <output aria-label={t("Slot recorded duration")}>{(source?.availableSeconds ?? 0).toFixed(3)} s{source?.droppedFrames ? message(" · {droppedFrames} dropped frames", { droppedFrames: plainNumber(source.droppedFrames) }) : ""}</output>
     {error && <p role="alert">{error}</p>}
-    {state?.error && <p role="alert">{state.error}</p>}
-    {source?.error && <p role="alert">{source.error}</p>}
+    {state?.error && <p role="alert">{localizeBackendText(state.error)}</p>}
+    {source?.error && <p role="alert">{localizeBackendText(source.error)}</p>}
     <div className="flex flex-wrap gap-2">
       {!recording ? <Button size="sm" variant="outline" disabled={pending || !state || othersRecording} onClick={() => void start()}>{t("Record this slot")}</Button> : <>
         <Button size="sm" disabled={pending || !source?.availableFrames} onClick={() => void stop(true)}>{t("Stop and edit slot recording")}</Button>

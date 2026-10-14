@@ -899,8 +899,9 @@ mod tests {
             assert!(
                 report.lines.iter().any(|line| {
                     line.outcome == Outcome::Approximated
-                        && line.text.contains(name)
-                        && line.text.contains(SETTINGS_NOT_DECODED)
+                        && windfall_core::english::english(&line.text).contains(name)
+                        && windfall_core::english::english(&line.text)
+                            .contains(SETTINGS_NOT_DECODED)
                 }),
                 "{name}"
             );
@@ -952,7 +953,8 @@ mod tests {
             assert!(
                 report.lines.iter().any(|line| {
                     line.outcome == Outcome::Placeholder
-                        && line.text.contains("its settings were kept")
+                        && windfall_core::english::english(&line.text)
+                            .contains("its settings were kept")
                 }),
                 "{name}"
             );

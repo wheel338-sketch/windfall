@@ -46,7 +46,10 @@ fn amount(value: Option<f32>, what: &str) -> Result<f32, String> {
     if value.is_finite() && value >= 0.0 {
         Ok(value)
     } else {
-        Err(format!("{what} must be zero or more."))
+        Err(windfall_ipc::ui_message(
+            "sampler.amountNegative",
+            serde_json::json!({"what": what}),
+        ))
     }
 }
 
@@ -76,9 +79,19 @@ impl Session {
         request: SamplerPreprocessRequest,
         preview: bool,
     ) -> Result<PreprocessReply, String> {
-        let fade_in_ms = amount(request.fade_in_ms, "The fade-in")?;
-        let fade_out_ms = amount(request.fade_out_ms, "The fade-out")?;
-        let crossfade = amount(request.loop_crossfade, "The loop crossfade")?;
+        let none = serde_json::json!({});
+        let fade_in_ms = amount(
+            request.fade_in_ms,
+            &windfall_ipc::ui_message("sampler.theFadeIn", none.clone()),
+        )?;
+        let fade_out_ms = amount(
+            request.fade_out_ms,
+            &windfall_ipc::ui_message("sampler.theFadeOut", none.clone()),
+        )?;
+        let crossfade = amount(
+            request.loop_crossfade,
+            &windfall_ipc::ui_message("sampler.theLoopCrossfade", none),
+        )?;
 
         let (settings, sample, name, source, generation, edits, replacements, loading) = {
             let _recording = self.recording_idle()?;
@@ -190,16 +203,30 @@ impl Session {
         // Persistent app-owned storage works before the project has a save
         // path. Completed files stay for undo, redo and saved documents.
         let folder = self.store().recordings_dir().join("Sample edits");
-        std::fs::create_dir_all(&folder)
-            .map_err(|error| format!("Could not create the sample edit folder: {error}"))?;
+        std::fs::create_dir_all(&folder).map_err(|error| {
+            windfall_ipc::ui_message(
+                "sampler.editFolderNotCreated",
+                serde_json::json!({"error": error.to_string()}),
+            )
+        })?;
         let path = tempfile::Builder::new()
             .prefix("Sample-")
             .suffix(".wav")
             .tempfile_in(&folder)
-            .map_err(|error| format!("Could not create the sample edit file: {error}"))?
+            .map_err(|error| {
+                windfall_ipc::ui_message(
+                    "sampler.editFileNotCreated",
+                    serde_json::json!({"error": error.to_string()}),
+                )
+            })?
             .into_temp_path()
             .keep()
-            .map_err(|error| format!("Could not keep the sample edit file: {error}"))?;
+            .map_err(|error| {
+                windfall_ipc::ui_message(
+                    "sampler.editFileNotKept",
+                    serde_json::json!({"error": error.to_string()}),
+                )
+            })?;
         let mut file = ProcessedFile(path);
         windfall_codec::write_wav(
             &file.0,

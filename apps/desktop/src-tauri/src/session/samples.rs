@@ -38,7 +38,10 @@ pub(super) fn decode_all(
         bank_workspaces: Vec::new(),
     };
     if !project.retained_plugins.is_empty() {
-        decoded.warnings.push(format!("{} imported plugin states are retained; unsupported instruments stay silent and effects bypassed. Use the source FL project with a compatible host to recover those sounds.", project.retained_plugins.len()));
+        decoded.warnings.push(windfall_ipc::ui_message(
+            "samples.retainedPluginStates",
+            serde_json::json!({"count": project.retained_plugins.len()}),
+        ));
     }
     for sample in &project.samples {
         if project.is_soundfont_source(sample.id) || project.is_preset_source(sample.id) {
@@ -86,7 +89,7 @@ pub(super) fn locate(
             let (SamplePath::Factory(stored)
             | SamplePath::Project(stored)
             | SamplePath::External(stored)) = &sample.path;
-            format!("Missing sample: {stored}")
+            windfall_ipc::ui_message("samples.missing", serde_json::json!({"path": stored}))
         })
 }
 
@@ -96,7 +99,10 @@ fn decode(cache: &SampleCache, file: &Path) -> Result<AudioBuffer, String> {
         if file.exists() {
             error
         } else {
-            format!("Missing sample: {}", paths::display(file))
+            windfall_ipc::ui_message(
+                "samples.missing",
+                serde_json::json!({"path": paths::display(file)}),
+            )
         }
     })
 }

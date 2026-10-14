@@ -26,7 +26,10 @@ pub(crate) fn read_original(path: &std::path::Path) -> Result<Vec<u8>, String> {
         .read_to_end(&mut bytes)
         .map_err(|e| e.to_string())?;
     if bytes.len() > limit {
-        return Err(format!("Preset source exceeds {limit} bytes."));
+        return Err(windfall_ipc::ui_message(
+            "presets.sourceTooLarge",
+            serde_json::json!({"limit": limit}),
+        ));
     }
     Ok(bytes)
 }

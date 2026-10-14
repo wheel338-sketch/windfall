@@ -19,7 +19,7 @@ impl Builder<'_> {
                 self.report.say(
                     section,
                     Outcome::Dropped,
-                    "A pattern marker exceeds the pattern tick range.",
+                    windfall_core::notice!("flp.timeline.patternMarkerRange").to_string(),
                 );
                 continue;
             };
@@ -28,7 +28,7 @@ impl Builder<'_> {
                 self.report.say(
                     section,
                     Outcome::Dropped,
-                    "A pattern marker exceeds the pattern tick range.",
+                    windfall_core::notice!("flp.timeline.patternMarkerRange").to_string(),
                 );
                 continue;
             }
@@ -41,7 +41,8 @@ impl Builder<'_> {
                         self.report.say(
                             section,
                             Outcome::Dropped,
-                            "A pattern meter marker has no complete signature.",
+                            windfall_core::notice!("flp.timeline.patternMeterIncomplete")
+                                .to_string(),
                         );
                         continue;
                     };
@@ -64,7 +65,12 @@ impl Builder<'_> {
                 },
                 kind => {
                     self.report.count(section, Outcome::Dropped, 1);
-                    self.report.say(section, Outcome::Dropped, format!("Pattern marker kind {kind} is not mapped: its navigation semantics are not supported by this importer."));
+                    self.report.say(
+                        section,
+                        Outcome::Dropped,
+                        windfall_core::notice!("flp.timeline.patternMarkerKind", kind = kind)
+                            .to_string(),
+                    );
                     continue;
                 }
             };
@@ -78,7 +84,11 @@ impl Builder<'_> {
                 edit,
             };
             if self
-                .apply(section, "A pattern timeline marker", command)
+                .apply(
+                    section,
+                    &windfall_core::notice!("flp.subject.patternTimelineMarker").to_string(),
+                    command,
+                )
                 .is_some()
             {
                 self.report.count(
@@ -126,7 +136,7 @@ impl Builder<'_> {
                 self.report.say(
                     section,
                     Outcome::Dropped,
-                    "An arrangement marker exceeds the song tick range.",
+                    windfall_core::notice!("flp.timeline.arrangementMarkerRange").to_string(),
                 );
                 continue;
             };
@@ -139,7 +149,8 @@ impl Builder<'_> {
                         self.report.say(
                             section,
                             Outcome::Dropped,
-                            "An arrangement meter marker has no complete signature.",
+                            windfall_core::notice!("flp.timeline.arrangementMeterIncomplete")
+                                .to_string(),
                         );
                         continue;
                     };
@@ -183,7 +194,16 @@ impl Builder<'_> {
                     };
                     if source_end <= tick {
                         self.report.count(section, Outcome::Dropped, 1);
-                        self.report.say(section,Outcome::Dropped,format!("Marker {:?} action {} has no positive source endpoint; no region was invented.",marker.name,marker.kind));
+                        self.report.say(
+                            section,
+                            Outcome::Dropped,
+                            windfall_core::notice!(
+                                "flp.timeline.noEndpoint",
+                                name = format!("{:?}", marker.name),
+                                kind = marker.kind
+                            )
+                            .to_string(),
+                        );
                         continue;
                     }
                     Command::AddTimelineMarker {
@@ -207,7 +227,15 @@ impl Builder<'_> {
                         .max_by_key(|m| m.position);
                     let suppressed = previous.is_some_and(|m| m.kind == 4);
                     if suppressed {
-                        self.report.say(section,Outcome::Exact,format!("Pause {:?} suppressed because its preceding source marker is a song loop.",marker.name));
+                        self.report.say(
+                            section,
+                            Outcome::Exact,
+                            windfall_core::notice!(
+                                "flp.timeline.pauseSuppressed",
+                                name = format!("{:?}", marker.name)
+                            )
+                            .to_string(),
+                        );
                     }
                     Command::AddTimelineMarker {
                         tick,
@@ -236,14 +264,31 @@ impl Builder<'_> {
                         match end.filter(|end| *end > tick) {
                             Some(end) => MarkerKind::Punch { end },
                             None => {
-                                self.report.say(section,Outcome::Dropped,format!("Punch in {:?} has no later positive punch-out endpoint; label retained without inventing a recording range.",marker.name));
+                                self.report.say(
+                                    section,
+                                    Outcome::Dropped,
+                                    windfall_core::notice!(
+                                        "flp.timeline.punchWithoutEnd",
+                                        name = format!("{:?}", marker.name)
+                                    )
+                                    .to_string(),
+                                );
                                 MarkerKind::Named
                             }
                         }
                     } else {
                         MarkerKind::Named
                     };
-                    self.report.say(section,Outcome::Approximated,format!("Marker {:?} action {} translated: start is the default playback anchor; paired punch in/out is a bounded recording region; punch-out labels remain at their source ticks.",marker.name,marker.kind));
+                    self.report.say(
+                        section,
+                        Outcome::Approximated,
+                        windfall_core::notice!(
+                            "flp.timeline.markerTranslated",
+                            name = format!("{:?}", marker.name),
+                            kind = marker.kind
+                        )
+                        .to_string(),
+                    );
                     Command::AddTimelineMarker {
                         tick,
                         name: marker
@@ -263,12 +308,21 @@ impl Builder<'_> {
                 }
                 kind => {
                     self.report.count(section, Outcome::Dropped, 1);
-                    self.report.say(section, Outcome::Dropped, format!("SCOPE: Arrangement marker kind {kind}: DawVert mi_flp.py and PyFLP arrangement.py establish actions 1..5,8,9,10 but no operation for this value; source marker bytes retained without an invented action."));
+                    self.report.say(
+                        section,
+                        Outcome::Dropped,
+                        windfall_core::notice!("flp.timeline.arrangementMarkerScope", kind = kind)
+                            .to_string(),
+                    );
                     continue;
                 }
             };
             if self
-                .apply(section, "An arrangement timeline marker", command)
+                .apply(
+                    section,
+                    &windfall_core::notice!("flp.subject.arrangementTimelineMarker").to_string(),
+                    command,
+                )
                 .is_some()
             {
                 self.report.say(
@@ -278,10 +332,13 @@ impl Builder<'_> {
                     } else {
                         Outcome::Approximated
                     },
-                    format!(
-                        "Arrangement marker kind {} {:?} translated at tick {tick}.",
-                        marker.kind, marker.name
-                    ),
+                    windfall_core::notice!(
+                        "flp.timeline.arrangementMarker",
+                        kind = marker.kind,
+                        name = format!("{:?}", marker.name),
+                        tick = tick
+                    )
+                    .to_string(),
                 );
                 self.report.count(
                     section,

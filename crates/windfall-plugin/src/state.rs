@@ -311,10 +311,25 @@ impl Program {
             .filter(|source| preset_source(&self.project, source.id))
             .filter_map(
                 |source| match self.preset_sources.iter().find(|raw| raw.id == source.id) {
-                    None => Some(format!("Missing original preset source '{}'", source.name)),
-                    Some(raw) => windfall_project::Preset::from_json(&raw.bytes)
-                        .err()
-                        .map(|error| format!("Original preset source '{}': {error}", source.name)),
+                    None => Some(
+                        windfall_core::notice!(
+                            "pluginExport.presetSourceMissing",
+                            name = source.name
+                        )
+                        .to_string(),
+                    ),
+                    Some(raw) => {
+                        windfall_project::Preset::from_json(&raw.bytes)
+                            .err()
+                            .map(|error| {
+                                windfall_core::notice!(
+                                    "pluginExport.presetSourceInvalid",
+                                    name = source.name,
+                                    error = error.to_string()
+                                )
+                                .to_string()
+                            })
+                    }
                 },
             )
             .collect()
@@ -350,13 +365,22 @@ impl Program {
             let source = asset.soundfont_source();
             let result = source
                 .and_then(|id| self.soundfonts.iter().find(|b| b.id == id))
-                .ok_or_else(|| format!("Missing embedded raw SF2 source {source:?}"))
+                .ok_or_else(|| {
+                    windfall_core::notice!(
+                        "pluginExport.soundFontSourceMissing",
+                        source = format!("{:?}", source)
+                    )
+                    .to_string()
+                })
                 .and_then(|bank| pool.insert_soundfont(asset.clone(), &bank.bytes));
             if let Err(reason) = result {
-                let message = format!(
-                    "SoundFont instrument '{}' (raw source {source:?}): {reason}; this instrument is silent",
-                    channel.name
-                );
+                let message = windfall_core::notice!(
+                    "pluginExport.soundFontInstrument",
+                    instrument = channel.name,
+                    source = format!("{:?}", source),
+                    reason = windfall_core::notice::term(reason.to_string())
+                )
+                .to_string();
                 pool.insert_unavailable_soundfont(asset, message.clone());
                 errors.push(message);
             }
@@ -391,10 +415,14 @@ impl Program {
                             .map_err(|e| e.to_string())
                         });
                     if let Err(reason) = result {
-                        errors.push(format!(
-                            "Rack SoundFont instrument '{}': {reason}; this instrument is silent",
-                            node.name
-                        ));
+                        errors.push(
+                            windfall_core::notice!(
+                                "pluginExport.rackSoundFont",
+                                instrument = node.name,
+                                reason = windfall_core::notice::term(reason.to_string())
+                            )
+                            .to_string(),
+                        );
                         *bytes = None;
                     }
                 }
@@ -419,9 +447,18 @@ impl Program {
                 .soundfonts
                 .iter()
                 .find(|b| b.id == source.id)
-                .ok_or_else(|| format!("Missing embedded raw SF2 source '{}'", source.name))?;
-            windfall_dsp::sample_bank::soundfont::presets(&bank.bytes)
-                .map_err(|e| format!("Raw SF2 source '{}': {e}", source.name))?;
+                .ok_or_else(|| {
+                    windfall_core::notice!("pluginExport.soundFontNamedMissing", name = source.name)
+                        .to_string()
+                })?;
+            windfall_dsp::sample_bank::soundfont::presets(&bank.bytes).map_err(|e| {
+                windfall_core::notice!(
+                    "pluginExport.soundFontUnreadable",
+                    name = source.name,
+                    error = e.to_string()
+                )
+                .to_string()
+            })?;
         }
         let mut pool = SamplePool::new();
         let mut errors = self.prepare_soundfonts(&mut pool);

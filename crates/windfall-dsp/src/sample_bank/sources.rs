@@ -62,7 +62,8 @@ pub enum SpeechError {
 }
 impl std::fmt::Display for SpeechError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "speech render failed: {self:?}")
+        let notice = windfall_core::notice!("dsp.speechRender", detail = format!("{self:?}"));
+        write!(f, "{notice}")
     }
 }
 impl std::error::Error for SpeechError {}

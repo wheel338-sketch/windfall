@@ -350,7 +350,7 @@ fn a_consolidation_that_cannot_finish_changes_nothing_and_leaves_no_file() {
     // A lane that holds only a curve has nothing to print, and stops the
     // lanes asked for with it.
     assert_eq!(
-        refused(vec![seed.drums, seed.curves]),
+        windfall_core::english::english(&refused(vec![seed.drums, seed.curves])),
         "\"Curves\" has no unmuted pattern or audio clip to consolidate."
     );
 

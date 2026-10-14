@@ -139,7 +139,10 @@ pub(crate) fn write(regions: &[AudioRegion], frames: u32) -> Result<WavMetadata,
                 .count()
                 > 1
             {
-                return Err(format!("Repeated {prefix}annotation."));
+                return Err(windfall_ipc::ui_message(
+                    "audioEdit.repeatedAnnotation",
+                    serde_json::json!({"prefix": prefix}),
+                ));
             }
         }
         let id = index as u32 + 1;

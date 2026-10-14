@@ -61,7 +61,10 @@ pub(super) fn prepare_export_program(
             let path =
                 windfall_project::file::resolve_sample_path(&asset.path, sample_dir, factory_dir)
                     .ok_or_else(|| {
-                    format!("Original preset source '{}' cannot be resolved", asset.name)
+                    windfall_ipc::ui_message(
+                        "pluginExport.presetSourceMissing",
+                        serde_json::json!({"name": asset.name}),
+                    )
                 })?;
             let before = crate::samples::FileKey::of(&path)?;
             let bytes = super::preset_assets::read_original(&path)?;
@@ -83,9 +86,19 @@ pub(super) fn prepare_export_program(
         } else if asset.soundfont {
             let path =
                 windfall_project::file::resolve_sample_path(&asset.path, sample_dir, factory_dir)
-                    .ok_or_else(|| format!("Raw SF2 source '{}' cannot be resolved", asset.name))?;
+                    .ok_or_else(|| {
+                    windfall_ipc::ui_message(
+                        "pluginExport.soundFontMissing",
+                        serde_json::json!({"name": asset.name}),
+                    )
+                })?;
             let size = std::fs::metadata(&path)
-                .map_err(|e| format!("Raw SF2 source '{}': {e}", asset.name))?
+                .map_err(|e| {
+                    windfall_ipc::ui_message(
+                        "pluginExport.soundFontUnreadable",
+                        serde_json::json!({"name": asset.name, "error": e.to_string()}),
+                    )
+                })?
                 .len();
             let size = usize::try_from(size).map_err(|_| "Raw SF2 source size overflow")?;
             raw_bytes = raw_bytes
@@ -109,9 +122,9 @@ pub(super) fn prepare_export_program(
             });
         } else {
             let audio = pool.get(asset.id).ok_or_else(|| {
-                format!(
-                    "Sample '{}' is not decoded; plugin export requires every PCM source",
-                    asset.name
+                windfall_ipc::ui_message(
+                    "pluginExport.sampleNotDecoded",
+                    serde_json::json!({"name": asset.name}),
                 )
             })?;
             samples.push(EmbeddedSample {

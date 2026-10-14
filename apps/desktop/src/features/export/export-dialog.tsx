@@ -60,7 +60,7 @@ import {
   parseTailSecs,
   replaceExportExtension,
 } from "./names"
-import { translatedText as t, message, plainNumber } from "@/lib/i18n"
+import { localizeBackendText, translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 const MODES: Option<PlayMode>[] = [
   { value: "pattern", get label() { return t("The selected pattern") } },
@@ -473,7 +473,7 @@ function ExportForm({ onDone }: { onDone(): void }) {
             <ProgressValue />
           </Progress>
         )}
-        {run?.error && <FieldError>{t("The export failed.")}{" "}{run.error}</FieldError>}
+        {run?.error && <FieldError>{t("The export failed.")}{" "}{localizeBackendText(run.error)}</FieldError>}
         {review && !exporting && <MasteringReviewPanel review={review} />}
 
         <DialogFooter>

@@ -261,6 +261,7 @@ fn runtime_probe_and_real_host_refuse_missing_unstamped_mismatched_and_corrupt_b
     wrong.abi += 1;
     assert!(
         probe(runtime(), &wrong)
+            .map_err(|error| windfall_core::english::english(&error))
             .unwrap_err()
             .contains("runtime mismatch")
     );
@@ -268,6 +269,7 @@ fn runtime_probe_and_real_host_refuse_missing_unstamped_mismatched_and_corrupt_b
     wrong.version.push_str("-wrong");
     assert!(
         probe(runtime(), &wrong)
+            .map_err(|error| windfall_core::english::english(&error))
             .unwrap_err()
             .contains("runtime mismatch")
     );
@@ -275,6 +277,7 @@ fn runtime_probe_and_real_host_refuse_missing_unstamped_mismatched_and_corrupt_b
     wrong.target.push_str("-wrong");
     assert!(
         probe(runtime(), &wrong)
+            .map_err(|error| windfall_core::english::english(&error))
             .unwrap_err()
             .contains("runtime mismatch")
     );
@@ -283,6 +286,7 @@ fn runtime_probe_and_real_host_refuse_missing_unstamped_mismatched_and_corrupt_b
     std::fs::create_dir_all(&root).unwrap();
     assert!(
         probe(&root.join("missing"), &expected)
+            .map_err(|error| windfall_core::english::english(&error))
             .unwrap_err()
             .contains("runtime is missing")
     );
@@ -290,6 +294,7 @@ fn runtime_probe_and_real_host_refuse_missing_unstamped_mismatched_and_corrupt_b
     std::fs::write(&invalid, b"not native code").unwrap();
     assert!(
         probe(&invalid, &expected)
+            .map_err(|error| windfall_core::english::english(&error))
             .unwrap_err()
             .contains("Cannot load Windfall runtime")
     );

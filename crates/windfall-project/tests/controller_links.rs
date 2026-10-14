@@ -134,7 +134,10 @@ fn links_are_one_undo_step_and_survive_save_and_reopen() {
     ];
     let applied = set(&mut f.doc, wanted.clone()).unwrap();
     assert!(applied.touched.settings);
-    assert_eq!(applied.label, "Change controller links");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Change controller links"
+    );
     assert_eq!(f.doc.history().entries.len(), entries + 1);
     assert_eq!(links(&f.doc), wanted);
 

@@ -27,11 +27,13 @@ pub fn gain(selected: &mut [f32], db: f32) -> Result<(), String> {
     let factor = 10.0_f64.powf(f64::from(db) / 20.0);
     let peak = f64::from(peak(selected));
     if db > 0.0 && peak * factor > 1.0 {
-        return Err(format!(
-            "A gain of {db:+.2} dB would clip: the selection would peak at {:+.2} dBFS. The largest gain without clipping is {:+.2} dB.",
-            20.0 * (peak * factor).log10(),
-            -20.0 * peak.log10(),
-        ));
+        return Err(windfall_core::notice!(
+            "engine.edit.gainClips",
+            gain = format!("{:+.2}", db),
+            peak = format!("{:+.2}", 20.0 * (peak * factor).log10()),
+            largest = format!("{:+.2}", -20.0 * peak.log10())
+        )
+        .to_string());
     }
     scale(selected, factor);
     Ok(())
@@ -63,10 +65,12 @@ pub fn normalize(
                 .sqrt();
             let factor = target / rms;
             if f64::from(peak) * factor > 1.0 {
-                return Err(format!(
-                    "An RMS level of {target_db:.2} dBFS would clip this selection. The highest RMS target without clipping is {:.2} dBFS.",
-                    20.0 * (rms / f64::from(peak)).log10(),
-                ));
+                return Err(windfall_core::notice!(
+                    "engine.edit.rmsClips",
+                    target = format!("{:.2}", target_db),
+                    highest = format!("{:.2}", 20.0 * (rms / f64::from(peak)).log10())
+                )
+                .to_string());
             }
             scale(selected, factor);
         }
@@ -244,7 +248,7 @@ mod tests {
         assert_eq!(data[1], -data[0] / 2.0);
         // 0.5 peaks at -6.02 dBFS: +6.03 dB passes full scale.
         let mut data = original.clone();
-        let refusal = gain(&mut data, 6.03).unwrap_err();
+        let refusal = windfall_core::english::english(&gain(&mut data, 6.03).unwrap_err());
         assert!(refusal.contains("would clip"), "{refusal}");
         assert!(refusal.contains("+6.02 dB"), "{refusal}");
         assert_eq!(data, original);
@@ -273,7 +277,9 @@ mod tests {
         assert!((20.0 * rms.log10() + 18.0).abs() < 1e-4, "{rms}");
         // Left 0.2 and right 0.1: the RMS is 5.05 dB under the peak.
         let mut data = original.clone();
-        let refusal = normalize(&mut data, -3.0, AudioNormalizeMode::Rms).unwrap_err();
+        let refusal = windfall_core::english::english(
+            &normalize(&mut data, -3.0, AudioNormalizeMode::Rms).unwrap_err(),
+        );
         assert!(refusal.contains("-5.05 dBFS"), "{refusal}");
         assert_eq!(data, original);
         for target in [0.5, -61.0, f32::NAN] {

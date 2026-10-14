@@ -20,12 +20,18 @@ use windows::core::GUID;
 const ENCODER: GUID = GUID::from_u128(0x93af0c51_2275_45d2_a35b_f2ba21caed00);
 const DECODER: GUID = GUID::from_u128(0x32d186a7_218f_4c75_8876_dd77273a8999);
 fn error(e: windows::core::Error) -> CodecError {
-    CodecError::Encoding(format!(
-        "Windows AAC / Media Foundation: {e}. Ensure the Windows Media Feature Pack is installed"
-    ))
+    CodecError::Encoding(
+        windfall_core::notice!("codec.aacMediaFoundation", error = e.to_string()).to_string(),
+    )
 }
 fn fail(what: &str) -> CodecError {
-    CodecError::Encoding(format!("Windows AAC: {what}"))
+    CodecError::Encoding(
+        windfall_core::notice!(
+            "codec.aacFailed",
+            problem = windfall_core::notice::term(what)
+        )
+        .to_string(),
+    )
 }
 
 #[derive(Debug)]

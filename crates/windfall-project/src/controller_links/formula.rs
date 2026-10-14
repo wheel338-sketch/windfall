@@ -95,9 +95,11 @@ impl Formula {
     /// Parses `text`. The message of a failure can be shown to the user.
     pub fn parse(text: &str) -> Result<Self, String> {
         if text.len() > MAX_FORMULA_BYTES {
-            return Err(format!(
-                "A mapping formula is at most {MAX_FORMULA_BYTES} characters."
-            ));
+            return Err(windfall_core::notice!(
+                "controllers.formula.tooLong",
+                max = MAX_FORMULA_BYTES
+            )
+            .to_string());
         }
         let mut parser = Parser {
             text: text.as_bytes(),
@@ -112,10 +114,11 @@ impl Formula {
         parser.sum()?;
         parser.space();
         if parser.at != parser.text.len() {
-            return Err(format!(
-                "Unexpected `{}` in the mapping formula.",
-                parser.rest()
-            ));
+            return Err(windfall_core::notice!(
+                "controllers.formula.unexpected",
+                text = parser.rest()
+            )
+            .to_string());
         }
         Ok(parser.formula)
     }
@@ -302,10 +305,10 @@ impl Parser<'_> {
                 .to_ascii_lowercase();
             return self.named(&name);
         }
-        Err(format!(
-            "Unexpected `{}` in the mapping formula.",
-            self.rest()
-        ))
+        Err(
+            windfall_core::notice!("controllers.formula.unexpected", text = self.rest())
+                .to_string(),
+        )
     }
 
     fn close(&mut self) -> Result<(), String> {
@@ -326,11 +329,13 @@ impl Parser<'_> {
             self.at += 1;
         }
         let text = std::str::from_utf8(&self.text[start..self.at]).unwrap_or_default();
-        let value: f32 = text
-            .parse()
-            .map_err(|_| format!("`{text}` is not a number."))?;
+        let value: f32 = text.parse().map_err(|_| {
+            windfall_core::notice!("controllers.formula.notANumber", text = text).to_string()
+        })?;
         if !value.is_finite() {
-            return Err(format!("`{text}` is too large."));
+            return Err(
+                windfall_core::notice!("controllers.formula.tooLarge", text = text).to_string(),
+            );
         }
         self.emit(Op::Push(value))
     }
@@ -360,21 +365,40 @@ impl Parser<'_> {
             "step" => Op::Step,
             "clamp" => Op::Clamp,
             "lerp" => Op::Lerp,
-            _ => return Err(format!("`{name}` is not known to the mapping formula.")),
+            _ => {
+                return Err(
+                    windfall_core::notice!("controllers.formula.unknownName", name = name)
+                        .to_string(),
+                );
+            }
         };
         if !self.eat(b'(') {
-            return Err(format!("`{name}` needs its values in parentheses."));
+            return Err(windfall_core::notice!(
+                "controllers.formula.needsParentheses",
+                name = name
+            )
+            .to_string());
         }
         let wanted = op.takes();
         for index in 0..wanted {
             if index > 0 && !self.eat(b',') {
-                return Err(format!("`{name}` takes {wanted} values."));
+                return Err(windfall_core::notice!(
+                    "controllers.formula.arity",
+                    name = name,
+                    count = wanted
+                )
+                .to_string());
             }
             self.nested(Self::sum)?;
         }
         self.space();
         if self.text.get(self.at) == Some(&b',') {
-            return Err(format!("`{name}` takes {wanted} values."));
+            return Err(windfall_core::notice!(
+                "controllers.formula.arity",
+                name = name,
+                count = wanted
+            )
+            .to_string());
         }
         self.close()?;
         self.emit(op)
@@ -466,7 +490,10 @@ mod tests {
     #[test]
     fn length_depth_and_program_size_are_bounded() {
         let long = "x".to_owned() + &" + x".repeat(MAX_FORMULA_BYTES);
-        assert!(Formula::parse(&long).unwrap_err().contains("at most"));
+        assert!(
+            windfall_core::english::english(&Formula::parse(&long).unwrap_err())
+                .contains("at most")
+        );
         // Fits the text limit but not the program.
         let many = "x".to_owned() + &"+x".repeat(40);
         assert!(many.len() <= MAX_FORMULA_BYTES);

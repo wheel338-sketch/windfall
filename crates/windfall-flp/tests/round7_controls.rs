@@ -168,7 +168,7 @@ fn multiband_delay_sixteen_bands_and_eight_banks_import_play_and_reopen() {
     assert_eq!(value(&params, "banks.7.timeMs.3"), 1000.0);
     assert_eq!(value(&params, "banks.7.level.4"), 1.0);
     assert_eq!(value(&params, "banks.7.pan.5"), -1.0);
-    let report = format!("{:?}", c.report);
+    let report = common::words(&c.report);
     assert!(report.contains("bank_8/pan.15="));
     assert!(report.contains("banks.7.pan.15"));
     assert!(!report.contains("no corresponding stand-in control"));
@@ -333,7 +333,7 @@ fn simsynth_pulse_width_octave_layers_filter_outputs_and_lfo_delay_import_play_a
     // 4 * .5^3 seconds.
     assert_eq!((lfos.pitch.delay_ms, lfos.pitch.retrigger), (500.0, true));
     assert_eq!((lfos.cutoff.delay_ms, lfos.cutoff.retrigger), (500.0, true));
-    let report = format!("{:?}", c.report);
+    let report = common::words(&c.report);
     assert!(!report.contains("pulse-width shaping has no stand-in control"));
     assert!(
         report.contains("osc1_pw") && report.contains("svf_band") && report.contains("lfo_del")
@@ -408,17 +408,17 @@ fn a_decoded_control_without_a_stand_in_control_is_filed_as_omitted_and_the_rest
         effects
             .lines
             .iter()
-            .find(|line| line.text.contains(part))
+            .find(|line| windfall_core::english::english(&line.text).contains(part))
             .unwrap_or_else(|| panic!("no line about {part}: {:?}", effects.lines))
     };
     let omitted = line("postgain=64");
     assert_eq!(omitted.outcome, Outcome::Dropped);
-    assert!(omitted.text.ends_with(
+    assert!(windfall_core::english::english(&omitted.text).ends_with(
         "omitted: decoded public field with no corresponding stand-in control (state retained)."
     ));
     let translated = line("threshold=100");
     assert_eq!(translated.outcome, Outcome::Approximated);
-    assert!(translated.text.contains("ceilingDb"));
+    assert!(windfall_core::english::english(&translated.text).contains("ceilingDb"));
     // The original state is kept whole either way.
     assert_eq!(reopened(&c).retained_plugins[0].state, state);
     // The review's list of what was left out names the device and the field,
@@ -438,7 +438,10 @@ fn a_decoded_control_without_a_stand_in_control_is_filed_as_omitted_and_the_rest
     let dropped = effects
         .lines
         .iter()
-        .filter(|line| line.outcome == Outcome::Dropped && line.text.ends_with("(state retained)."))
+        .filter(|line| {
+            line.outcome == Outcome::Dropped
+                && windfall_core::english::english(&line.text).ends_with("(state retained).")
+        })
         .count();
     assert_eq!(dropped, listed.fields.len());
 
@@ -452,14 +455,14 @@ fn a_decoded_control_without_a_stand_in_control_is_filed_as_omitted_and_the_rest
     let unnamed = effects
         .lines
         .iter()
-        .find(|line| line.text.contains("unknown_1"))
+        .find(|line| windfall_core::english::english(&line.text).contains("unknown_1"))
         .unwrap();
     assert_eq!(unnamed.outcome, Outcome::Approximated);
-    assert!(unnamed.text.contains("without a meaning"));
+    assert!(windfall_core::english::english(&unnamed.text).contains("without a meaning"));
     assert!(
         effects
             .lines
             .iter()
-            .all(|line| !line.text.contains("omitted:"))
+            .all(|line| !windfall_core::english::english(&line.text).contains("omitted:"))
     );
 }

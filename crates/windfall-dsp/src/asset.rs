@@ -90,15 +90,14 @@ pub enum AssetError {
 
 impl std::fmt::Display for AssetError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
+        let notice = match self {
             Self::TooManyPoints => {
-                write!(f, "a curve holds at most {MAX_CURVE_POINTS} points")
+                windfall_core::notice!("dsp.curveTooManyPoints", max = MAX_CURVE_POINTS)
             }
-            Self::Full => f.write_str(
-                "the effect asset memory is full; release unused project history or sources",
-            ),
-            Self::Collision => f.write_str("the curve could not be stored; move a point slightly"),
-        }
+            Self::Full => windfall_core::notice!("dsp.assetMemoryFull"),
+            Self::Collision => windfall_core::notice!("dsp.curveCollision"),
+        };
+        write!(f, "{notice}")
     }
 }
 
@@ -840,10 +839,12 @@ mod tests {
         let points = vec![CurvePoint::new(0.0, 0.5); MAX_CURVE_POINTS + 1];
         let encoded = serde_json::to_string(&points).unwrap();
         assert!(
-            serde_json::from_str::<CurveRef>(&encoded)
-                .unwrap_err()
-                .to_string()
-                .contains("at most 64")
+            windfall_core::english::english(
+                &serde_json::from_str::<CurveRef>(&encoded)
+                    .unwrap_err()
+                    .to_string()
+            )
+            .contains("at most 64")
         );
         assert!(serde_json::from_str::<ShapeRef>(&encoded).is_err());
         assert!(
@@ -994,7 +995,8 @@ mod tests {
         );
         let too_many = serde_json::to_string(&vec![point(0.5, 0.5); MAX_CURVE_POINTS + 1]).unwrap();
         let error = serde_json::from_str::<CurveRef>(&too_many).unwrap_err();
-        assert!(error.to_string().contains("at most 64 points"), "{error}");
+        let error = windfall_core::english::english(&error.to_string());
+        assert!(error.contains("at most 64 points"), "{error}");
     }
 
     #[test]

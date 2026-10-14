@@ -177,7 +177,7 @@ export function LibraryControls() {
       )}
       {(results?.issues ?? []).map((issue) => (
         <Alert key={issue} variant="destructive">
-          <AlertDescription className="wrap-anywhere">{issue}</AlertDescription>
+          <AlertDescription className="wrap-anywhere">{localizeBackendText(issue)}</AlertDescription>
         </Alert>
       ))}
     </div>

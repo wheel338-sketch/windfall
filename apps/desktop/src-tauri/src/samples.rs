@@ -69,9 +69,9 @@ impl FileKey {
     pub(crate) fn of(path: &Path) -> Result<Self, String> {
         let metadata = fs::metadata(path).map_err(|error| unreadable(path, &error))?;
         if metadata.is_dir() {
-            return Err(format!(
-                "\"{}\" is a folder, not an audio file",
-                paths::display(path)
+            return Err(windfall_ipc::ui_message(
+                "samples.isFolder",
+                serde_json::json!({"file": paths::display(path)}),
             ));
         }
         Ok(Self {
@@ -84,7 +84,10 @@ impl FileKey {
 }
 
 fn unreadable(path: &Path, error: &dyn std::fmt::Display) -> String {
-    format!("Could not load \"{}\": {error}", paths::display(path))
+    windfall_ipc::ui_message(
+        "samples.loadFailed",
+        serde_json::json!({"file": paths::display(path), "error": error.to_string()}),
+    )
 }
 
 /// A small cache of decoded audio files and their waveform overviews.
@@ -529,17 +532,17 @@ mod tests {
         let cache = SampleCache::new();
 
         let missing = folder.path().join("missing.wav");
-        let error = cache.decode(&missing).unwrap_err();
+        let error = windfall_core::english::english(&cache.decode(&missing).unwrap_err());
         assert!(error.starts_with("Could not load \""), "{error}");
         assert!(error.contains("missing.wav"), "{error}");
 
         let text = folder.path().join("notes.wav");
         fs::write(&text, "not audio at all").unwrap();
-        let error = cache.info(&text).unwrap_err();
+        let error = windfall_core::english::english(&cache.info(&text).unwrap_err());
         assert!(error.contains("notes.wav"), "{error}");
         assert!(error.contains("not a supported audio file"), "{error}");
 
-        let error = cache.decode(folder.path()).unwrap_err();
+        let error = windfall_core::english::english(&cache.decode(folder.path()).unwrap_err());
         assert!(error.contains("is a folder"), "{error}");
         assert!(cache.peek(&text).is_none());
     }
@@ -575,9 +578,7 @@ mod bank_budget_tests {
         let cache = SampleCache::new();
         let pending = budget.reserve(1).unwrap();
         assert!(
-            cache
-                .decode_sample_bank(&path, &budget)
-                .unwrap_err()
+            windfall_core::english::english(&cache.decode_sample_bank(&path, &budget).unwrap_err())
                 .contains("memory refused")
         );
         assert!(

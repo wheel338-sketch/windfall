@@ -280,7 +280,10 @@ pub fn resolve_native_slices(
             .find(|(id, _, _)| *id == request.sample)
             .filter(|(_, f, c)| *f > 0 && *c > 0)
         else {
-            warnings.push(format!("Native slices for sample {} need the missing sample's frame/channel metadata; reference and original state retained.",request.sample.0));
+            warnings.push(
+                windfall_core::notice!("flp.slices.needMetadata", sample = request.sample.0)
+                    .to_string(),
+            );
             continue;
         };
         let Some(channel) = document.project().channel(request.channel) else {
@@ -309,10 +312,9 @@ pub fn resolve_native_slices(
                 f64::from(next.start) * channels as f64 / 2.0
             });
             if start >= end || end > frames as f64 {
-                warnings.push(format!(
-                    "Native slice {} has invalid source boundaries; its key is silent.",
-                    s.name
-                ));
+                warnings.push(
+                    windfall_core::notice!("flp.slices.badBoundaries", slice = s.name).to_string(),
+                );
                 continue;
             }
             slices[usize::from(s.key - base)] = SliceRegion {
@@ -332,7 +334,9 @@ pub fn resolve_native_slices(
             asset: Some(asset),
         };
         if let Err(error) = document.dispatch(command, None) {
-            warnings.push(format!("Native slice mapping refused: {error}"));
+            warnings.push(
+                windfall_core::notice!("flp.slices.refused", error = error.to_string()).to_string(),
+            );
             continue;
         }
         if let Some(channel) = document.project().channel(request.channel)
@@ -375,7 +379,14 @@ pub fn resolve_normalization(
             .iter()
             .find(|(s, p)| *s == sample && p.is_finite() && *p > 0.0)
         else {
-            warnings.push(format!("Channel {} normalization needs non-silent decoded sample {}; original flag retained.",id.0,sample.0));
+            warnings.push(
+                windfall_core::notice!(
+                    "flp.slices.normalizationNeedsAudio",
+                    channel = id.0,
+                    sample = sample.0
+                )
+                .to_string(),
+            );
             continue;
         };
         let Some(channel) = doc.project().channel(id) else {
@@ -386,7 +397,15 @@ pub fn resolve_normalization(
         };
         let gain = settings.gain / peak;
         if gain > windfall_project::MAX_GAIN {
-            warnings.push(format!("Channel {} inverse-peak normalization gain {gain} exceeds the stand-in gain limit {} and is clamped.",id.0,windfall_project::MAX_GAIN));
+            warnings.push(
+                windfall_core::notice!(
+                    "flp.slices.normalizationClamped",
+                    channel = id.0,
+                    gain = gain,
+                    max = windfall_project::MAX_GAIN
+                )
+                .to_string(),
+            );
         }
         if let Err(e) = doc.dispatch(
             Command::UpdateSampler {
@@ -414,19 +433,22 @@ pub fn resolve_sample_trim(
     let mut warnings = Vec::new();
     for &(id, sample, threshold) in requests {
         let Some((_, data, channels)) = pcm.iter().find(|(s, _, c)| *s == sample && *c > 0) else {
-            warnings.push(format!(
-                "Channel {} silence trim needs decoded sample {}.",
-                id.0, sample.0
-            ));
+            warnings.push(
+                windfall_core::notice!(
+                    "flp.slices.trimNeedsAudio",
+                    channel = id.0,
+                    sample = sample.0
+                )
+                .to_string(),
+            );
             continue;
         };
         let frames = data.len() / channels;
         let audible = |f: &[f32]| f.iter().any(|v| v.is_finite() && v.abs() > threshold);
         let Some(first) = data.chunks_exact(*channels).position(audible) else {
-            warnings.push(format!(
-                "Channel {} silence trim would remove the whole sample; original window kept.",
-                id.0
-            ));
+            warnings.push(
+                windfall_core::notice!("flp.slices.trimWholeSample", channel = id.0).to_string(),
+            );
             continue;
         };
         let last = data.chunks_exact(*channels).rposition(audible).unwrap() + 1;
@@ -439,7 +461,9 @@ pub fn resolve_sample_trim(
         let start = settings.start.max(first as f32 / frames as f32);
         let end = settings.end.min(last as f32 / frames as f32);
         if start >= end {
-            warnings.push(format!("Channel {} silence trim does not intersect its saved window; original window kept.",id.0));
+            warnings.push(
+                windfall_core::notice!("flp.slices.trimOutsideWindow", channel = id.0).to_string(),
+            );
             continue;
         }
         if let Err(e) = doc.dispatch(
@@ -469,10 +493,14 @@ pub fn resolve_layer_samples(
     let mut warnings = Vec::new();
     for &(channel, sample) in requests {
         let Some((_, buffer)) = pcm.iter().find(|(s, _)| *s == sample) else {
-            warnings.push(format!(
-                "Layer Kick channel {} needs decoded sample {}; path and state retained.",
-                channel.0, sample.0
-            ));
+            warnings.push(
+                windfall_core::notice!(
+                    "flp.slices.layerKickNeedsAudio",
+                    channel = channel.0,
+                    sample = sample.0
+                )
+                .to_string(),
+            );
             continue;
         };
         let Some(source) = doc.project().channel(channel).map(|c| c.source.clone()) else {
@@ -487,7 +515,9 @@ pub fn resolve_layer_samples(
         if buffer.frames() > windfall_dsp::instrument_asset::MAX_LAYER_FRAMES
             || buffer.channels() != 1
         {
-            warnings.push(format!("Layer Kick sample {} is averaged to mono and limited to 32,768 frames with a 64-frame end fade; int16 stand-in quantization applies.",sample.0));
+            warnings.push(
+                windfall_core::notice!("flp.slices.layerKickMono", sample = sample.0).to_string(),
+            );
         }
         let asset = windfall_dsp::InstrumentAsset::Pcm(
             windfall_dsp::instrument_asset::LayerPcm::from_samples(buffer.sample_rate(), &mono),

@@ -768,8 +768,9 @@ impl Session {
             && let Err(error) =
                 self.controller_script_feedback(feedback, plan.generation, applied_revision)
         {
-            lock(&self.inner.controllers).error = Some(format!(
-                "Controller movement applied; MIDI feedback failed: {error}"
+            lock(&self.inner.controllers).error = Some(windfall_ipc::ui_message(
+                "controllers.feedbackFailed",
+                serde_json::json!({"error": error.to_string()}),
             ));
         }
         if !committed {
@@ -807,7 +808,10 @@ impl Session {
         });
         if let Err(error) = outcome {
             let mut hub = lock(&self.inner.controllers);
-            hub.error = Some(format!("The note log could not be saved: {error}"));
+            hub.error = Some(windfall_ipc::ui_message(
+                "controllers.noteLogNotSaved",
+                serde_json::json!({"error": error.to_string()}),
+            ));
             hub.log_dirty = true;
         }
     }
@@ -1580,8 +1584,9 @@ impl Session {
         generation: u64,
     ) -> Result<ControllerState, String> {
         if targets.len() > MAX_LEARN_TARGETS {
-            return Err(format!(
-                "At most {MAX_LEARN_TARGETS} controls can be linked in one pass."
+            return Err(windfall_ipc::ui_message(
+                "controllers.tooManyLearnTargets",
+                serde_json::json!({"max": MAX_LEARN_TARGETS}),
             ));
         }
         if targets.is_empty() && !multi {
@@ -1599,8 +1604,9 @@ impl Session {
                 project.settings.controller_links.len()
             };
             if existing + targets.len() > MAX_CONTROLLER_LINKS {
-                return Err(format!(
-                    "There can be at most {MAX_CONTROLLER_LINKS} controller links."
+                return Err(windfall_ipc::ui_message(
+                    "controllers.tooManyLinks",
+                    serde_json::json!({"max": MAX_CONTROLLER_LINKS}),
                 ));
             }
             // A link with any source will do to check the targets.

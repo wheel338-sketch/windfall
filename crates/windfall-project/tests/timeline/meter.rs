@@ -261,7 +261,10 @@ fn typed_preparation_errors_preserve_the_document_string_adapter() {
     ] {
         assert_eq!(MeterMap::checked(signature, &[]).err(), Some(cause));
         assert_eq!(
-            MeterMap::new(signature, &[]).err().as_deref(),
+            MeterMap::new(signature, &[])
+                .err()
+                .map(|error| windfall_core::english::english(&error))
+                .as_deref(),
             Some(message)
         );
     }

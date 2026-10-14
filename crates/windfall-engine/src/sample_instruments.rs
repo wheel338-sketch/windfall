@@ -104,9 +104,13 @@ impl SamplePool {
                 let bytes = match &asset {
                     SampleInstrumentAsset::Zones { zones } => {
                         zones.iter().try_fold(0usize, |sum, zone| {
-                            let audio = self
-                                .get(SampleId(zone.sample))
-                                .ok_or_else(|| format!("Missing zone sample {}", zone.sample))?;
+                            let audio = self.get(SampleId(zone.sample)).ok_or_else(|| {
+                                windfall_core::notice!(
+                                    "engine.sampleInstruments.zoneMissing",
+                                    sample = zone.sample
+                                )
+                                .to_string()
+                            })?;
                             sum.checked_add(audio.retained_pcm_bytes())
                                 .ok_or_else(|| "sample bank byte overflow".to_owned())
                         })?
@@ -137,7 +141,11 @@ impl SamplePool {
                                 let audio = self
                                     .get(SampleId(mapping.sample))
                                     .ok_or_else(|| {
-                                        format!("Missing zone sample {}", mapping.sample)
+                                        windfall_core::notice!(
+                                            "engine.sampleInstruments.zoneMissing",
+                                            sample = mapping.sample
+                                        )
+                                        .to_string()
                                     })?
                                     .clone();
                                 Ok(LoadedZone {

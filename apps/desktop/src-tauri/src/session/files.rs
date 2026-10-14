@@ -76,25 +76,30 @@ impl Refusal {
     pub(super) fn message(self, what: &str) -> String {
         match self {
             Refusal::Cancelled => "Project archive cancelled.".into(),
-            Refusal::SamplerPreparation => {
-                format!("{what}: sampler preparation failed; see the project warning.")
-            }
-            Refusal::NativePreparation => {
-                format!("{what}: native plugin preparation failed; see the project warning.")
-            }
-            Refusal::ProjectPreparation => {
-                format!("{what}: project preparation failed; see the project warning.")
-            }
-            Refusal::EngineChanged => format!(
-                "{what}: engine readiness changed before publication. Try again; see the project warning."
+            Refusal::SamplerPreparation => windfall_ipc::ui_message(
+                "files.refusedSamplerPreparation",
+                serde_json::json!({"what": what}),
+            ),
+            Refusal::NativePreparation => windfall_ipc::ui_message(
+                "files.refusedNativePreparation",
+                serde_json::json!({"what": what}),
+            ),
+            Refusal::ProjectPreparation => windfall_ipc::ui_message(
+                "files.refusedProjectPreparation",
+                serde_json::json!({"what": what}),
+            ),
+            Refusal::EngineChanged => windfall_ipc::ui_message(
+                "files.refusedEngineChanged",
+                serde_json::json!({"what": what}),
             ),
             Refusal::Recording => "Stop or cancel recording before replacing the project.".into(),
-            Refusal::Superseded => {
-                format!("{what} because another project was opened or started after it.")
-            }
-            Refusal::Edited => format!(
-                "{what} because the project was edited in the meantime. Save or discard those changes, then try again."
+            Refusal::Superseded => windfall_ipc::ui_message(
+                "files.refusedSuperseded",
+                serde_json::json!({"what": what}),
             ),
+            Refusal::Edited => {
+                windfall_ipc::ui_message("files.refusedEdited", serde_json::json!({"what": what}))
+            }
         }
     }
 }
@@ -110,7 +115,12 @@ impl Session {
         #[cfg(test)]
         self.pause("new:install");
         self.install(&ticket, Document::new(project), None, None, None, decoded)
-            .map_err(|refusal| refusal.message("The new project was not started"))
+            .map_err(|refusal| {
+                refusal.message(&windfall_ipc::ui_message(
+                    "files.newProjectNotStarted",
+                    serde_json::json!({}),
+                ))
+            })
     }
 
     /// Opens the project file at `path`. Samples that are missing or cannot
@@ -158,11 +168,7 @@ impl Session {
             Some(origin) => {
                 decoded.warnings.insert(
                     0,
-                    format!(
-                        "\"{}\" is a backup of \"{}\". It was opened as a copy: use Save as to keep it.",
-                        paths::name(&file),
-                        paths::name(&origin)
-                    ),
+                    windfall_ipc::ui_message("files.openedBackup", serde_json::json!({"file": paths::name(&file), "original": paths::name(&origin)})),
                 );
                 None
             }
@@ -182,7 +188,10 @@ impl Session {
                 decoded,
             )
             .map_err(|refusal| {
-                refusal.message(&format!("\"{}\" was not opened", paths::name(&file)))
+                refusal.message(&windfall_ipc::ui_message(
+                    "files.fileNotOpened",
+                    serde_json::json!({"file": paths::name(&file)}),
+                ))
             })?;
         if has_own_file {
             self.store().remember_project(&file);
@@ -361,15 +370,15 @@ impl Session {
                         self.publish(&mut state, &touched);
                     }
                     None if unchanged => {
-                        return Err(format!(
-                            "A copy was saved at {}, but the open project could not move without losing sample sources in its undo history. The open project and history are unchanged.",
-                            paths::display(&target)
+                        return Err(windfall_ipc::ui_message(
+                            "files.copySavedNotMoved",
+                            serde_json::json!({"path": paths::display(&target)}),
                         ));
                     }
                     None => {
-                        return Err(format!(
-                            "A copy was saved at {}. {EDITED_WHILE_MOVING}",
-                            paths::display(&target)
+                        return Err(windfall_ipc::ui_message(
+                            "files.copySavedEditedWhileMoving",
+                            serde_json::json!({"path": paths::display(&target), "reason": EDITED_WHILE_MOVING}),
                         ));
                     }
                 }
@@ -757,9 +766,13 @@ fn left_behind<'a>(
 }
 
 /// Starts a message from one of the project crate's errors, which begin in
-/// lower case, with a capital.
+/// lower case, with a capital. A coded message is left as it is: the
+/// interface puts it into words, with a capital, where it shows it.
 fn sentence(error: impl std::fmt::Display) -> String {
     let text = error.to_string();
+    if text.starts_with(windfall_core::notice::NOTICE_PREFIX) {
+        return text;
+    }
     let mut chars = text.chars();
     match chars.next() {
         Some(first) => first.to_uppercase().chain(chars).collect(),
@@ -828,11 +841,7 @@ fn carry_samples(
         }
         let placed =
             place_sample(&source, to, relative, &taken, &mut missing).map_err(|error| {
-                format!(
-                    "Could not copy the sample \"{}\" to {}: {error}. The project was not saved.",
-                    sample.name,
-                    paths::display(to)
-                )
+                windfall_ipc::ui_message("files.sampleNotCopied", serde_json::json!({"sample": sample.name, "folder": paths::display(to), "error": error.to_string()}))
             })?;
         if placed != *relative {
             taken.insert(placed.to_lowercase());
@@ -880,7 +889,7 @@ fn carry_owned_presets(
             .and_then(|n| n.to_str())
             .ok_or("Invalid owned preset filename.")?;
         let placed = place_sample(source, to, &format!("Presets/{name}"), &taken, &mut || {})
-            .map_err(|e| format!("Could not carry owned preset {}: {e}", source.display()))?;
+            .map_err(|e| windfall_ipc::ui_message("files.presetNotCarried", serde_json::json!({"file": source.display().to_string(), "error": e.to_string()})))?;
         taken.insert(placed.to_lowercase());
         let original = sample.path.clone();
         sample.path = SamplePath::Project(placed);
@@ -938,8 +947,9 @@ fn place_sample(
             Ok(_) => {}
         }
     }
-    Err(io::Error::other(format!(
-        "{MAX_SAMPLE_NAMES} other files there already have its name"
+    Err(io::Error::other(windfall_ipc::ui_message(
+        "files.sampleNamesTaken",
+        serde_json::json!({"count": MAX_SAMPLE_NAMES}),
     )))
 }
 

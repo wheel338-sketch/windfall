@@ -33,7 +33,10 @@ use crate::units::{fader_gain, fader_is_exact, insert_pan};
 /// The level of a route, a fader or a mix that was left alone.
 const FULL: i32 = 12_800;
 
-const FITTED_FADER: &str = "A fader or send level that is not at 0% or 100% went through a fitted curve, so it can be off by a little.";
+/// The line that says a level went through a fitted curve.
+fn fitted_fader() -> String {
+    windfall_core::notice!("flp.mixer.fittedFader").to_string()
+}
 
 impl Builder<'_> {
     pub(super) fn mixer(&mut self) {
@@ -69,9 +72,12 @@ impl Builder<'_> {
             self.report.say(
                 ReportSection::Mixer,
                 Outcome::Dropped,
-                format!(
-                    "Windfall's mixer holds {MAX_MIXER_SIGNAL_TRACKS} tracks. {left_out} more were left out, and what played into them plays into the master."
-                ),
+                windfall_core::notice!(
+                    "flp.mixer.tooManyTracks",
+                    max = MAX_MIXER_SIGNAL_TRACKS,
+                    count = left_out
+                )
+                .to_string(),
             );
         }
         if let Some(current) = current
@@ -82,7 +88,7 @@ impl Builder<'_> {
             self.report.say(
                 ReportSection::Mixer,
                 Outcome::Dropped,
-                "The effects on FL Studio's \"current\" mixer track, which follows the selection, were left out.",
+                windfall_core::notice!("flp.mixer.currentTrackEffects").to_string(),
             );
         }
 
@@ -148,7 +154,7 @@ impl Builder<'_> {
         if !fader_is_exact(raw) {
             worst.note(Outcome::Approximated);
             self.report
-                .say(section, Outcome::Approximated, FITTED_FADER);
+                .say(section, Outcome::Approximated, fitted_fader());
         }
         if index == 0 {
             // FL Studio's main volume comes after the master insert. The
@@ -160,7 +166,7 @@ impl Builder<'_> {
                 self.report.say(
                     section,
                     Outcome::Approximated,
-                    "The project's main volume was folded into the master track's fader.",
+                    windfall_core::notice!("flp.mixer.mainVolume").to_string(),
                 );
             }
         }
@@ -188,7 +194,7 @@ impl Builder<'_> {
         if self
             .apply(
                 section,
-                &format!("The settings of the mixer track \"{name}\""),
+                &windfall_core::notice!("flp.subject.trackSettings", track = name).to_string(),
                 command,
             )
             .is_none()
@@ -201,9 +207,7 @@ impl Builder<'_> {
             self.report.say(
                 section,
                 Outcome::Approximated,
-                format!(
-                    "Mixer track \"{name}\": stereo separation was mapped linearly from -64..64 to -1..1; -1 doubles the side signal and +1 sums to mono. FL Studio's listening direction is unverified."
-                ),
+                windfall_core::notice!("flp.mixer.stereoSeparation", track = name).to_string(),
             );
         }
         if has_eq_gain(insert) || has_eq_shape(insert) {
@@ -211,9 +215,7 @@ impl Builder<'_> {
             self.report.say(
                 section,
                 Outcome::Approximated,
-                format!(
-                    "Mixer track \"{name}\": the insert EQ frequency and width were not decoded; Windfall's default frequencies and Q values were kept."
-                ),
+                windfall_core::notice!("flp.mixer.insertEq", track = name).to_string(),
             );
         }
         self.report.count(section, worst.0, 1);
@@ -244,7 +246,7 @@ impl Builder<'_> {
                 self.report.say(
                     section,
                     Outcome::Dropped,
-                    "A mixer route points to an unavailable insert and was left out.",
+                    windfall_core::notice!("flp.mixer.routeToMissingInsert").to_string(),
                 );
             }
         }
@@ -288,7 +290,7 @@ impl Builder<'_> {
             };
             self.apply(
                 section,
-                &format!("The output of the mixer track \"{name}\""),
+                &windfall_core::notice!("flp.subject.trackOutput", track = name).to_string(),
                 command,
             );
         }
@@ -317,11 +319,15 @@ impl Builder<'_> {
                     if level != 0 {
                         self.sends.insert((index, route.target));
                     } else {
-                        self.report.say(section, Outcome::Approximated, "A zero-level enabled route became a unity detector-only sidechain. Dynamic transitions between audible send and sidechain require review.");
+                        self.report.say(
+                            section,
+                            Outcome::Approximated,
+                            windfall_core::notice!("flp.mixer.zeroRouteSidechain").to_string(),
+                        );
                     }
                     if !fader_is_exact(level) {
                         self.report
-                            .say(section, Outcome::Approximated, FITTED_FADER);
+                            .say(section, Outcome::Approximated, fitted_fader());
                     }
                 }
                 Err(_) => self.loop_refused(&name, route.target),
@@ -338,9 +344,7 @@ impl Builder<'_> {
         self.report.say(
             ReportSection::Mixer,
             Outcome::Dropped,
-            format!(
-                "The route from \"{from}\" to \"{to}\" would feed a mixer track back into itself, which Windfall does not allow. It was left out."
-            ),
+            windfall_core::notice!("flp.mixer.routeLoop", from = from, to = to).to_string(),
         );
     }
 
@@ -374,10 +378,11 @@ impl Builder<'_> {
         let section = ReportSection::Effects;
         let plugin = &slot.plugin;
         let lines = super::native::reports(&plugin.internal_name, &plugin.state);
-        let omitted: Vec<_> = lines
+        let omitted: Vec<String> = lines
             .iter()
-            .filter_map(|text| super::native::omitted_field(&plugin.internal_name, text))
+            .filter_map(|text| super::native::omitted_field(text))
             .collect();
+        let omitted: Vec<&str> = omitted.iter().map(String::as_str).collect();
         self.report.omit(&plugin.internal_name, &omitted);
         for text in lines {
             self.report
@@ -414,17 +419,29 @@ impl Builder<'_> {
                     .map_or(PluginPlaceholderFormat::UNKNOWN, |hosted| {
                         hosted.format.label()
                     });
-                let vendor = hosted
-                    .as_ref()
-                    .and_then(|hosted| hosted.vendor.as_deref())
-                    .map_or_else(String::new, |vendor| format!(" by {vendor}"));
-                format!(
-                    "Mixer track \"{track_name}\": the plugin \"{shown}\"{vendor} ({format}) is not one Windfall can load yet. Its place and its settings were kept for when it can."
-                )
+                match hosted.as_ref().and_then(|hosted| hosted.vendor.as_deref()) {
+                    Some(vendor) => windfall_core::notice!(
+                        "flp.mixer.pluginByVendorNotLoadable",
+                        track = track_name,
+                        plugin = shown,
+                        vendor = vendor,
+                        format = format
+                    ),
+                    None => windfall_core::notice!(
+                        "flp.mixer.pluginNotLoadable",
+                        track = track_name,
+                        plugin = shown,
+                        format = format
+                    ),
+                }
+                .to_string()
             } else {
-                format!(
-                    "Mixer track \"{track_name}\": the effect \"{shown}\" has no Windfall equivalent. It was left out of the chain, and its settings were kept."
+                windfall_core::notice!(
+                    "flp.mixer.effectUnknown",
+                    track = track_name,
+                    effect = shown
                 )
+                .to_string()
             };
             self.report.say(section, Outcome::Placeholder, what);
             return;
@@ -440,14 +457,19 @@ impl Builder<'_> {
             self.report.say(
                 section,
                 Outcome::Dropped,
-                format!(
-                    "Mixer track \"{track_name}\": a track holds {MAX_EFFECT_SLOTS} effects, so \"{shown}\" was left out."
-                ),
+                windfall_core::notice!(
+                    "flp.mixer.trackFull",
+                    track = track_name,
+                    max = MAX_EFFECT_SLOTS,
+                    effect = shown
+                )
+                .to_string(),
             );
             return;
         }
         let kind = translated.params.kind();
-        let what = format!("The effect \"{shown}\" on the mixer track \"{track_name}\"");
+        let what = windfall_core::notice!("flp.subject.effect", effect = shown, track = track_name)
+            .to_string();
         let command = Command::AddEffect {
             track,
             kind,
@@ -465,7 +487,12 @@ impl Builder<'_> {
         };
         self.apply(
             section,
-            &format!("The settings of {}", lower_first(&what)),
+            &windfall_core::notice!(
+                "flp.subject.effectSettings",
+                effect = shown,
+                track = track_name
+            )
+            .to_string(),
             command,
         );
         if kind == windfall_dsp::EffectKind::SendTap && plugin.state.len() == 16 {
@@ -481,7 +508,7 @@ impl Builder<'_> {
             {
                 self.apply(
                     section,
-                    "The send tap destination",
+                    &windfall_core::notice!("flp.subject.sendTapDestination").to_string(),
                     Command::SetEffectOutput {
                         effect: id,
                         output: 0,
@@ -489,7 +516,11 @@ impl Builder<'_> {
                     },
                 );
             } else {
-                self.report.say(section, Outcome::Dropped, "The send tap destination is relative, negative or unavailable and was not guessed.");
+                self.report.say(
+                    section,
+                    Outcome::Dropped,
+                    windfall_core::notice!("flp.mixer.sendTapDestination").to_string(),
+                );
             }
             let volume = u32::from_le_bytes(
                 plugin.state[8..12]
@@ -498,7 +529,7 @@ impl Builder<'_> {
             );
             self.apply(
                 section,
-                "The send tap level",
+                &windfall_core::notice!("flp.subject.sendTapLevel").to_string(),
                 Command::SetEffectParams {
                     track,
                     effect: id,
@@ -509,7 +540,11 @@ impl Builder<'_> {
                     ),
                 },
             );
-            self.report.say(section, Outcome::Approximated, "Send tap level uses a linear approximation of the source logarithmic level; source pan and dry controls are not mapped.");
+            self.report.say(
+                section,
+                Outcome::Approximated,
+                windfall_core::notice!("flp.mixer.sendTapLevel").to_string(),
+            );
         }
         let mix = slot.mix.unwrap_or(FULL);
         let patch = EffectSlotPatch {
@@ -529,22 +564,35 @@ impl Builder<'_> {
         };
         self.apply(
             section,
-            &format!("The mix of {}", lower_first(&what)),
+            &windfall_core::notice!("flp.subject.effectMix", effect = shown, track = track_name)
+                .to_string(),
             command,
         );
 
         let outcome = Outcome::Approximated;
-        self.report.say(section, outcome, "Mapped effects use a different processor and may sound different even when their control values translate exactly.");
+        self.report.say(
+            section,
+            outcome,
+            windfall_core::notice!("flp.mixer.mappedEffects").to_string(),
+        );
         self.report.count(section, outcome, 1);
         if !translated.notes.is_empty() {
             self.report.say(
                 section,
                 Outcome::Approximated,
-                format!(
-                    "Mixer track \"{track_name}\": \"{shown}\" became a Windfall {}: {}.",
-                    kind.name().to_lowercase(),
-                    translated.notes.join("; ")
-                ),
+                windfall_core::notice!(
+                    "flp.mixer.becameEffect",
+                    track = track_name,
+                    effect = shown,
+                    kind = windfall_core::notice::term(kind.name()),
+                    notes = translated
+                        .notes
+                        .iter()
+                        .map(|note| windfall_core::notice::term(note).to_string())
+                        .collect::<Vec<_>>()
+                        .join("; ")
+                )
+                .to_string(),
             );
         }
         self.effects.insert(
@@ -644,14 +692,6 @@ fn current_insert(count: usize) -> Option<u16> {
     matches!(count, 105 | 127).then(|| (count - 1) as u16)
 }
 
-fn lower_first(text: &str) -> String {
-    let mut characters = text.chars();
-    match characters.next() {
-        Some(first) => first.to_lowercase().chain(characters).collect(),
-        None => String::new(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -739,7 +779,8 @@ mod tests {
             } else {
                 assert!(lines.iter().any(|line| {
                     line.outcome == Outcome::Approximated
-                        && line.text.contains("listening direction is unverified")
+                        && windfall_core::english::english(&line.text)
+                            .contains("listening direction is unverified")
                 }));
             }
         }
@@ -853,13 +894,15 @@ mod tests {
         let category = imported.report.category(ReportSection::Mixer);
         assert_eq!(category.approximated, 1);
         assert!(category.lines.iter().any(|line| {
-            line.text.contains("frequency and width were not decoded")
+            windfall_core::english::english(&line.text)
+                .contains("frequency and width were not decoded")
                 && line.outcome == Outcome::Approximated
         }));
         assert!(imported.report.categories.iter().all(|category| {
             category.lines.iter().all(|line| {
-                !line.text.contains("Windfall's tracks have no")
-                    && !line.text.contains("no three-band equaliser")
+                !windfall_core::english::english(&line.text).contains("Windfall's tracks have no")
+                    && !windfall_core::english::english(&line.text)
+                        .contains("no three-band equaliser")
             })
         }));
     }
@@ -884,7 +927,8 @@ mod tests {
                 .category(ReportSection::Mixer)
                 .lines
                 .iter()
-                .any(|line| line.text.contains("frequency and width were not decoded"))
+                .any(|line| windfall_core::english::english(&line.text)
+                    .contains("frequency and width were not decoded"))
         );
     }
 

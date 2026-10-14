@@ -54,9 +54,11 @@ impl Panel {
     pub fn visible(&self, _: bool) {}
 }
 /// The same bounded load transaction is used by all three native panels.
+/// What the panels show is English: the exported plugin has no interface
+/// language, so a coded message is put into its English words here.
 fn load_program(state: &Publication, path: &str) -> Result<(), String> {
     let file = std::fs::File::open(path.trim()).map_err(|e| e.to_string())?;
-    load_reader(state, file)
+    load_reader(state, file).map_err(|error| windfall_core::english::english(&error))
 }
 fn load_reader(state: &Publication, reader: impl std::io::Read) -> Result<(), String> {
     use std::io::Read;
@@ -68,7 +70,7 @@ fn load_reader(state: &Publication, reader: impl std::io::Read) -> Result<(), St
     state.load_editor(crate::Program::decode(&bytes)?)
 }
 fn status_text(state: &Publication, ready: &str) -> String {
-    state.preparation_error().unwrap_or(ready).to_owned()
+    windfall_core::english::english(state.preparation_error().unwrap_or(ready))
 }
 #[cfg(test)]
 mod tests {

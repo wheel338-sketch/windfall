@@ -78,8 +78,12 @@ impl PluginHost {
     /// did not put on the blocklist. A file that crashes here takes the app
     /// with it.
     pub fn load(&self, path: &Path) -> Result<PluginModule, PluginError> {
-        let format = PluginFormat::of(path)
-            .ok_or_else(|| PluginError::Load(format!("{} is not a plugin file", path.display())))?;
+        let format = PluginFormat::of(path).ok_or_else(|| {
+            PluginError::Load(
+                windfall_core::notice!("pluginHost.notAPluginFile", path = path.display())
+                    .to_string(),
+            )
+        })?;
         let inner = match format {
             PluginFormat::Clap => ModuleInner::Clap(ClapModule::load(path)?),
             PluginFormat::Vst3 => ModuleInner::Vst3(Vst3Module::load(path)?),

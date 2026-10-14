@@ -27,19 +27,21 @@ pub extern "C" fn windfall_runtime_helpers() -> u64 {
 pub(crate) fn validate(binding: &PluginBinding) -> Result<(), String> {
     binding.validate().map_err(str::to_owned)?;
     if !matches!(binding.format.as_str(), "clap" | "vst3") {
-        return Err(format!(
-            "Nested provider '{}' is unavailable: exported Windfall supports CLAP/VST3 process helpers, not Audio Units",
-            binding.format
-        ));
+        return Err(
+            windfall_core::notice!("pluginExport.nestedFormat", format = binding.format)
+                .to_string(),
+        );
     }
     if matches!(
         binding.wrapper.processing,
         PluginProcessingMode::InProcess | PluginProcessingMode::Threaded
     ) {
-        return Err(format!(
-            "Nested {} '{}' requests an in-process/threaded owner; select Automatic or Bridged before export",
-            binding.format, binding.name
-        ));
+        return Err(windfall_core::notice!(
+            "pluginExport.nestedOwner",
+            format = binding.format,
+            plugin = binding.name
+        )
+        .to_string());
     }
     if binding.id == "org.windfall.program"
         || binding
@@ -109,10 +111,11 @@ impl Provider {
     }
     fn at(helper: PathBuf) -> Result<Arc<Self>, String> {
         if !helper.is_file() {
-            return Err(format!(
-                "Nested CLAP/VST3 audio helper is missing: {}",
-                helper.display()
-            ));
+            return Err(windfall_core::notice!(
+                "pluginExport.nestedHelperMissing",
+                path = helper.display()
+            )
+            .to_string());
         }
         let session =
             windfall_plugin_host::bridge::auth::session_nonce().map_err(|e| e.to_string())?;
@@ -139,12 +142,14 @@ impl Provider {
         let plugin = Path::new(&binding.path);
         let approved_binary =
             windfall_plugin_host::paths::plugin_file_identity(plugin).map_err(|e| {
-                format!(
-                    "Nested {} '{}' cannot load {}: {e}",
-                    binding.format,
-                    binding.name,
-                    plugin.display()
+                windfall_core::notice!(
+                    "pluginExport.nestedCannotLoad",
+                    format = binding.format,
+                    plugin = binding.name,
+                    path = plugin.display(),
+                    error = e.to_string()
                 )
+                .to_string()
             })?;
         let mut token = self.next.load(Ordering::Acquire);
         loop {
@@ -206,8 +211,15 @@ impl Provider {
             audio_timeout: Duration::from_secs(2),
             cancelled: None,
         };
-        let (control, mut audio, tail) = supervisor::launch(options)
-            .map_err(|e| format!("Nested {} '{}' refused: {e}", binding.format, binding.name))?;
+        let (control, mut audio, tail) = supervisor::launch(options).map_err(|e| {
+            windfall_core::notice!(
+                "pluginExport.nestedRefused",
+                format = binding.format,
+                plugin = binding.name,
+                error = e.to_string()
+            )
+            .to_string()
+        })?;
         HELPERS.fetch_add(1, Ordering::AcqRel);
         audio.set_sidechain_input(binding.sidechain_input);
         let frontier = Arc::new(Frontier::default());
@@ -593,11 +605,17 @@ mod tests {
             assert!(validate(&b).is_ok());
         }
         b.format = "au".into();
-        assert!(validate(&b).unwrap_err().contains("Audio Units"));
+        assert!(
+            validate(&b)
+                .map_err(|error| windfall_core::english::english(&error))
+                .unwrap_err()
+                .contains("Audio Units")
+        );
         b.format = "clap".into();
         b.wrapper.processing = PluginProcessingMode::InProcess;
         assert!(
             validate(&b)
+                .map_err(|error| windfall_core::english::english(&error))
                 .unwrap_err()
                 .contains("select Automatic or Bridged")
         );
@@ -605,9 +623,15 @@ mod tests {
         assert!(validate(&b).is_err());
         b.wrapper.processing = PluginProcessingMode::Bridged;
         b.id = "org.windfall.program".into();
-        assert!(validate(&b).unwrap_err().contains("unbounded"));
+        assert!(
+            validate(&b)
+                .map_err(|error| windfall_core::english::english(&error))
+                .unwrap_err()
+                .contains("unbounded")
+        );
         assert!(
             Provider::at(PathBuf::from("absent-export-owned-helper"))
+                .map_err(|error| windfall_core::english::english(&error))
                 .unwrap_err()
                 .contains("helper is missing")
         );

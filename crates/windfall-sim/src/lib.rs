@@ -76,7 +76,7 @@ fn last_panic() -> MutexGuard<'static, String> {
 }
 
 fn not_open(handle: u32) -> String {
-    format!("document handle {handle} is not open")
+    windfall_core::notice!("sim.notOpen", handle = handle).to_string()
 }
 
 fn open(document: Document) -> Result<u32, String> {
@@ -110,7 +110,9 @@ fn parse<'a, T: Deserialize<'a>>(what: &str, input: &'a str) -> Result<T, String
 }
 
 fn json(value: &impl Serialize) -> Reply {
-    serde_json::to_string(value).map_err(|error| format!("could not encode the result: {error}"))
+    serde_json::to_string(value).map_err(|error| {
+        windfall_core::notice!("sim.encodeFailed", error = error.to_string()).to_string()
+    })
 }
 
 mod flp;
@@ -181,7 +183,7 @@ pub mod ops {
     pub fn doc_new(_handle: u32, input: &str) -> Reply {
         let project: Project = parse("project", input)?;
         project.check().map_err(|problem| {
-            format!("the project breaks a rule of the project model: {problem}")
+            windfall_core::notice!("sim.invalidProject", problem = problem).to_string()
         })?;
         json(&open(Document::new(project))?)
     }
@@ -378,8 +380,9 @@ fn record_panics() {
 /// `{"error": …}` text a caller receives. A panic becomes an error.
 pub fn call(op: Op, handle: u32, input: &str) -> String {
     record_panics();
-    let reply = panic::catch_unwind(AssertUnwindSafe(|| op(handle, input)))
-        .unwrap_or_else(|_| Err(format!("the document engine crashed: {}", last_panic())));
+    let reply = panic::catch_unwind(AssertUnwindSafe(|| op(handle, input))).unwrap_or_else(|_| {
+        Err(windfall_core::notice!("sim.crashed", detail = last_panic().as_str()).to_string())
+    });
     match reply {
         Ok(value) => format!("{{\"ok\":{value}}}"),
         Err(message) => {

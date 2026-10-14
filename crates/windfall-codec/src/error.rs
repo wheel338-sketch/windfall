@@ -2,56 +2,55 @@ use std::io;
 
 use symphonia::core::errors::Error as SymphoniaError;
 
-/// Why an audio file could not be read or written. The messages are written
-/// to be shown to the user as they are.
+/// Why an audio file could not be read or written. The text of each is a
+/// coded message (see `windfall_core::notice`) to be shown to the user; a
+/// reason it carries is one of Windfall's own words (a term), a coded
+/// message itself, or what the operating system or decoder said.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum CodecError {
     /// The operating system refused to open, read, write or rename the file.
-    #[error("could not access the file: {0}")]
+    #[error("{}", windfall_core::notice!("codec.io", error = _0.to_string()))]
     Io(#[from] io::Error),
 
     /// The data is not in a container or codec Windfall can read, or it
     /// states more channels or a higher sample rate than any real file has.
-    #[error("this is not a supported audio file ({0})")]
+    #[error("{}", windfall_core::notice!("codec.unsupported", reason = windfall_core::notice::term(_0)))]
     UnsupportedFormat(String),
 
     /// The file looks like audio but is damaged or cut short, and nothing
     /// usable could be decoded from it.
-    #[error("the audio file is damaged ({0})")]
+    #[error("{}", windfall_core::notice!("codec.corrupt", reason = windfall_core::notice::term(_0)))]
     Corrupt(String),
 
     /// The file is empty or holds no audio frames.
-    #[error("the file contains no audio")]
+    #[error("{}", windfall_core::notice!("codec.noAudio"))]
     NoAudio,
 
     /// Decoding would need more memory than [`DecodeOptions`] allows.
     ///
     /// [`DecodeOptions`]: crate::DecodeOptions
-    #[error(
-        "the audio is too long to load: it needs more than {} MB of memory",
-        limit_bytes / (1024 * 1024)
-    )]
+    #[error("{}", windfall_core::notice!("codec.tooLarge", megabytes = limit_bytes / (1024 * 1024)))]
     TooLarge {
         /// The limit that was exceeded, in bytes of decoded samples.
         limit_bytes: u64,
     },
 
     /// The system could not provide the memory the decoded audio needs.
-    #[error("there is not enough free memory to load the audio")]
+    #[error("{}", windfall_core::notice!("codec.outOfMemory"))]
     OutOfMemory,
 
     /// A WAV file cannot hold more than 4 GB.
-    #[error("the audio is too long for a WAV file, which cannot be larger than 4 GB")]
+    #[error("{}", windfall_core::notice!("codec.wavTooLarge"))]
     WavTooLarge,
 
     /// The caller asked for something that cannot be written, such as a file
     /// with no channels.
-    #[error("cannot write the audio file: {0}")]
+    #[error("{}", windfall_core::notice!("codec.invalidInput", reason = windfall_core::notice::term(_0)))]
     InvalidInput(String),
 
     /// An encoder gave up on audio it was handed.
-    #[error("the audio could not be encoded ({0})")]
+    #[error("{}", windfall_core::notice!("codec.encoding", reason = windfall_core::notice::term(_0)))]
     Encoding(String),
 }
 

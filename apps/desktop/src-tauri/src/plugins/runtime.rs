@@ -717,11 +717,11 @@ fn maintain_owner(
                     errors.retain(|(target, _)| *target != record.binding.target);
                     errors.push((
                         record.binding.target,
-                        format!(
-                            "Process bridge recovery is pending; retry manually: {}",
-                            status
+                        windfall_ipc::ui_message(
+                            "plugins.bridgeRecoveryPending",
+                            serde_json::json!({"error": status
                                 .error
-                                .unwrap_or_else(|| { "native helper unavailable".into() })
+                                .unwrap_or_else(|| { "native helper unavailable".into() })}),
                         ),
                     ));
                 }
@@ -815,7 +815,13 @@ fn maintain_owner(
                     .lock()
                     .unwrap_or_else(|error| error.into_inner());
                 errors.retain(|(before, _)| *before != *target);
-                errors.push((*target, format!("The plugin refused content scaling at application scale {application} and monitor scale {monitor}.")));
+                errors.push((
+                    *target,
+                    windfall_ipc::ui_message(
+                        "plugins.contentScaleRefused",
+                        serde_json::json!({"application": application, "monitor": monitor}),
+                    ),
+                ));
             }
             PluginNotification::LatencyChanged { .. }
             | PluginNotification::RestartRequested
@@ -1879,8 +1885,9 @@ impl Runtime {
                     && (application != 1.0
                         || error != windfall_plugin_host::gui::EditorError::UnsupportedScale)
                 {
-                    return Err(format!(
-                        "The editor opened, but its content could not be scaled: {error}"
+                    return Err(windfall_ipc::ui_message(
+                        "plugins.editorScaleFailed",
+                        serde_json::json!({"error": error.to_string()}),
                     ));
                 }
             } else {
@@ -2184,9 +2191,9 @@ impl Runtime {
                         .remove(&token);
                 }
                 if !refused.is_empty() {
-                    return Err(format!(
-                        "Native helper update shutdown failed: {}",
-                        refused.join("; ")
+                    return Err(windfall_ipc::ui_message(
+                        "plugins.helperUpdateShutdownFailed",
+                        serde_json::json!({"errors": refused.join("; ")}),
                     ));
                 }
             }

@@ -751,9 +751,14 @@ fn open(
     let name = device_name(&device);
     report.device = Some(name.clone());
 
-    let default = device
-        .default_output_config()
-        .map_err(|error| format!("could not read the output format of \"{name}\": {error}"))?;
+    let default = device.default_output_config().map_err(|error| {
+        windfall_core::notice!(
+            "engine.device.formatUnreadable",
+            device = name,
+            error = error.to_string()
+        )
+        .to_string()
+    })?;
     let preferred = choose_channel_config(
         &device,
         choose_config(&device, default, settings.sample_rate),
@@ -792,16 +797,26 @@ fn open(
         report.latency_ms = latency_ms(buffer_frames, config.sample_rate());
         report.error = None;
         controller.shared().begin_stream();
-        let started = stream
-            .play()
-            .map_err(|error| format!("could not start the stream on \"{name}\": {error}"));
+        let started = stream.play().map_err(|error| {
+            windfall_core::notice!(
+                "engine.device.streamFailed",
+                device = name,
+                error = error.to_string()
+            )
+            .to_string()
+        });
         let stream = finish_start(controller, admission, stream, started)?;
         return Ok(CpalStream {
             _stream: stream,
             faults,
         });
     }
-    Err(format!("could not open \"{name}\": {last_error}"))
+    Err(windfall_core::notice!(
+        "engine.device.openFailed",
+        device = name,
+        error = last_error.to_string()
+    )
+    .to_string())
 }
 
 fn find_host(name: Option<&str>) -> Result<cpal::Host, String> {
@@ -811,8 +826,17 @@ fn find_host(name: Option<&str>) -> Result<cpal::Host, String> {
     let id = cpal::available_hosts()
         .into_iter()
         .find(|id| id.name().eq_ignore_ascii_case(name))
-        .ok_or_else(|| format!("audio host \"{name}\" is not available"))?;
-    cpal::host_from_id(id).map_err(|error| format!("could not open audio host \"{name}\": {error}"))
+        .ok_or_else(|| {
+            windfall_core::notice!("engine.device.hostMissing", host = name).to_string()
+        })?;
+    cpal::host_from_id(id).map_err(|error| {
+        windfall_core::notice!(
+            "engine.device.hostFailed",
+            host = name,
+            error = error.to_string()
+        )
+        .to_string()
+    })
 }
 
 fn find_device(host: &cpal::Host, name: Option<&str>) -> Result<cpal::Device, String> {
@@ -822,9 +846,14 @@ fn find_device(host: &cpal::Host, name: Option<&str>) -> Result<cpal::Device, St
             .ok_or_else(|| "no audio output device was found".to_owned());
     };
     host.output_devices()
-        .map_err(|error| format!("could not list audio devices: {error}"))?
+        .map_err(|error| {
+            windfall_core::notice!("engine.device.listFailed", error = error.to_string())
+                .to_string()
+        })?
         .find(|device| device_name(device) == name)
-        .ok_or_else(|| format!("audio output device \"{name}\" was not found"))
+        .ok_or_else(|| {
+            windfall_core::notice!("engine.device.outputMissing", device = name).to_string()
+        })
 }
 
 fn device_name(device: &cpal::Device) -> String {
@@ -873,7 +902,7 @@ fn choose_channel_config(
 ) -> Result<SupportedStreamConfig, String> {
     let most = crate::hardware_output::MAX_OUTPUT_CHANNELS as u16;
     if requested.is_some_and(|channels| channels == 0 || channels > most) {
-        return Err(format!("Choose 1–{most} output channels"));
+        return Err(windfall_core::notice!("engine.device.outputChannels", max = most).to_string());
     }
     if preferred.channels() <= most
         && requested.is_none_or(|channels| channels == preferred.channels())
@@ -978,9 +1007,10 @@ fn build(
 > {
     let format = config.sample_format();
     if !writable(format) {
-        return Err(BuildFailure::Driver(format!(
-            "the sample format {format} is not supported"
-        )));
+        return Err(BuildFailure::Driver(
+            windfall_core::notice!("engine.device.sampleFormat", format = format.to_string())
+                .to_string(),
+        ));
     }
     let stream_config = StreamConfig {
         channels: config.channels(),

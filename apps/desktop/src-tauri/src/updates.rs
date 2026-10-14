@@ -289,10 +289,12 @@ pub async fn update_check(
         })
         .build()
         .map_err(|error| error.to_string())?;
-    let Some(mut update) = updater
-        .check()
-        .await
-        .map_err(|error| format!("Update check failed; retry when online. {error}"))?
+    let Some(mut update) = updater.check().await.map_err(|error| {
+        windfall_ipc::ui_message(
+            "updates.checkFailed",
+            serde_json::json!({"error": error.to_string()}),
+        )
+    })?
     else {
         return Ok(CheckResult {
             configured: true,
@@ -351,7 +353,10 @@ async fn verify_bounded_bytes(update: &mut Update, bytes: Vec<u8>) -> Result<Vec
     update.timeout = Some(Duration::from_secs(15));
     update.no_proxy = true;
     update.download(|_, _| {}, || {}).await.map_err(|error| {
-        format!("Download or signature verification failed. Nothing was installed. {error}")
+        windfall_ipc::ui_message(
+            "updates.downloadFailed",
+            serde_json::json!({"error": error.to_string()}),
+        )
     })
 }
 
@@ -515,12 +520,12 @@ pub async fn update_install(
                 .ok_or("No verified update package.")?;
             if let Err(error) = candidate.update.install(bytes) {
                 let rollback = shutdown.rollback();
-                return Err(format!(
-                    "Installation failed. Keep the current installation and retry. {error}{}",
-                    rollback
+                return Err(windfall_ipc::ui_message(
+                    "updates.installFailed",
+                    serde_json::json!({"error": error.to_string(), "rollback": rollback
                         .err()
                         .map(|error| format!("; {error}"))
-                        .unwrap_or_default()
+                        .unwrap_or_default()}),
                 ));
             }
             // macOS/Linux return on success; retain the freeze until restart.

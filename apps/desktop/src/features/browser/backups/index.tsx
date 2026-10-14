@@ -13,7 +13,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { openProjectPath } from "@/lib/flows/project"
 import { backend, errorMessage } from "@/lib/ipc"
 import { useProjectStore } from "@/lib/store/project"
-import { translatedText as t, message as i18nMessage } from "@/lib/i18n"
+import { localizeBackendText, translatedText as t, message as i18nMessage } from "@/lib/i18n"
 
 function NoBackups({ unsaved = false }: { unsaved?: boolean }) {
   return (
@@ -84,7 +84,7 @@ function SavedBackups({ projectPath }: { projectPath: string }) {
     return (
       <Alert variant="destructive">
         <AlertTitle>{t("Could not list backups")}</AlertTitle>
-        <AlertDescription>{listing.error}</AlertDescription>
+        <AlertDescription>{localizeBackendText(listing.error)}</AlertDescription>
       </Alert>
     )
   }

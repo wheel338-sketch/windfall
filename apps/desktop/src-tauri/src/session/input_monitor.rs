@@ -73,7 +73,10 @@ impl Session {
                 }
                 recording.check()?;
                 let input = recording.input.as_ref().ok_or_else(|| {
-                    format!("Choose an input for monitored track {}.", track.name)
+                    windfall_ipc::ui_message(
+                        "recording.monitorNeedsInput",
+                        serde_json::json!({"track": track.name}),
+                    )
                 })?;
                 let setting = RecordingMonitorSettings {
                     track: track.id,

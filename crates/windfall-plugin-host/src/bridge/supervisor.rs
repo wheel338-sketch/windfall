@@ -385,9 +385,11 @@ impl Process {
             {
                 Ok(())
             } else {
-                Err(format!(
-                    "helper termination failed; exit is unconfirmed: {error}"
-                ))
+                Err(windfall_core::notice!(
+                    "pluginHost.helperTermination",
+                    error = error.to_string()
+                )
+                .to_string())
             };
         }
         let deadline = Instant::now() + Duration::from_secs(1);

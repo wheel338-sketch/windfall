@@ -24,19 +24,22 @@ pub enum SamplerPreparationError {
 }
 impl std::fmt::Display for SamplerPreparationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Cancelled => f.write_str("Sampler preparation was cancelled."),
+        let notice = match self {
+            Self::Cancelled => windfall_core::notice!("engine.sampler.cancelled"),
             Self::Budget {
                 requested,
                 retained,
                 limit,
-            } => write!(
-                f,
-                "Sampler preparation needs {requested} bytes with {retained} retained; the strict budget is {limit} bytes. Reduce duration or the prepared key range, and let old voices retire."
+            } => windfall_core::notice!(
+                "engine.sampler.budget",
+                requested = requested,
+                retained = retained,
+                limit = limit
             ),
-            Self::Unsupported(reason) => f.write_str(reason),
-            Self::Asset(reason) => f.write_str(reason),
-        }
+            Self::Unsupported(reason) => windfall_core::notice::term(reason),
+            Self::Asset(reason) => windfall_core::notice::term(reason),
+        };
+        write!(f, "{notice}")
     }
 }
 impl std::error::Error for SamplerPreparationError {}

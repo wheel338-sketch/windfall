@@ -1,6 +1,8 @@
-# Sentences with values in them that this crate still builds with format!.
+# Sentences with values in them that are still built with format!, write!
+# or an #[error] attribute, in this crate and in the crates under crates/.
 # Checked by message_guard.rs against the source: the two sets must be equal.
-# One entry per line: the file under src/, a bar, and the literal as written.
+# One entry per line: the file (under src/ for this crate, from the crate
+# folder for the others), a bar, and the literal as written.
 
 # Nobody is shown these. Each comes after a comment line giving the reason.
 [internal]
@@ -8,132 +10,98 @@
 assistant/provider.rs | Return only one JSON object conforming to this contract. Do not execute actions or invent IDs. Commands will be validated and reviewed by the user. Never echo credentials. {contract}
 # the name of a file that is written
 session/audio_logger.rs | Logged-{}-{}-{}.wav
+session/performance_recording.rs | Performance-{}-{}.wav
+session/analysis_jobs.rs | Analysis-{}-{}-{index}.wav
+session/audio_editor.rs | Edit-{}-{}.wav
+session/recording.rs | Take-{}-{}.wav
+session/recording_takes.rs | Take-{}-{}-pass-{}.wav
+windfall-engine/src/bin/windfall-soak.rs | soak/{}.wav
+windfall-midi/src/gm.rs | Drums/{file}.wav
+windfall-plugin/src/package.rs | .windfall-plugin-{}-{}
+windfall-plugin/src/package.rs | Windfall.{format}/Contents/Info.plist
+windfall-plugin/src/package.rs | Windfall.{format}/Contents/PkgInfo
+windfall-plugin-host/src/bridge/helper.rs | windfall-backpressure-{:016x}.ready
 # the name of a lock file
 session/extractions.rs | windfall-project-collector-{hash:x}.lock
-# the name of a file that is written
-session/performance_recording.rs | Performance-{}-{}.wav
+# the name of an operating-system object shared with the audio helper
+windfall-plugin-host/src/bridge/supervisor.rs | Local\\Windfall-Audio-{:016x}-{:016x}
 # an HTTP request line
 update_transfer.rs | GET /{path} HTTP/1.1\r\n
 # an HTTP response head
 update_transfer.rs | HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n
+remote_protocol.rs | HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {accept}\r\n\r\n
+remote_protocol.rs | HTTP/1.1 {status}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nContent-Security-Policy: default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'\r\nConnection: close\r\n\r\n
+# text written into a WAV file's region note, read back by Windfall; a file's content, not a message
+session/audio_editor/wav_regions.rs | Collapsed annotation: {note}
+# the name of the sample a preview plays; the preview shows its length and waveform, never this name
+session/sampler_preprocess.rs | {name} (prepared preview)
+# the property list written into an exported plugin bundle for macOS
+windfall-plugin/src/package.rs | <?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\"><plist version=\"1.0\"><dict><key>CFBundleIdentifier</key><string>org.windfall.program.{format}</string><key>CFBundleExecutable</key><string>Windfall</string><key>CFBundleName</key><string>Windfall</string><key>CFBundlePackageType</key><string>BNDL</string><key>CFBundleVersion</key><string>1</string><key>CFBundleShortVersionString</key><string>{numeric_version}</string></dict></plist>
+# the command-line soak tool's usage errors, printed to a developer's terminal
+windfall-engine/src/bin/windfall-soak.rs | {flag} needs a value
+windfall-engine/src/bin/windfall-soak.rs | unknown option {other}
+windfall-engine/src/bin/windfall-soak.rs | {flag} needs a whole number, got \"{value}\"
+# the developer's English for a MIDI read error, import adjustment or export note; every path to the interface (the desktop and the browser simulator) sends these as codes through windfall_ipc::midi_error_message, midi_adjustment_message, midi_export_messages and midi_export_error
+windfall-midi/src/error.rs | the MIDI file is cut short: {what} at byte {offset} runs past the end of the file
+windfall-midi/src/error.rs | the MIDI file is longer than Windfall can count: its last event is past tick {}
+windfall-midi/src/error.rs | the MIDI file says it is format {format}, and only formats 0, 1 and 2 exist
+windfall-midi/src/error.rs | the MIDI file's header cannot be used: {problem}
+windfall-midi/src/error.rs | the file is {bytes} bytes, more than the {limit} bytes a MIDI file may have here
+windfall-midi/src/error.rs | track {track} of the MIDI file is damaged at byte {offset}: {problem}
+windfall-midi/src/export.rs | pattern {} does not exist
+windfall-midi/src/export.rs | the song plays more than {MAX_EXPORTED_NOTES} notes, which is more than one MIDI export holds
+windfall-midi/src/export.rs | the song's note expression needs more than {MAX_EXPRESSION_MESSAGES} MIDI messages; export it without note expression or with a longer step
+windfall-midi/src/import.rs | \"{channel}\" is on the MIDI drum channel and plays a synth, so its drums are heard as pitches
+windfall-midi/src/import.rs | the tempo changes {changes} times and {kept} of the changes are kept, which is as many as an automation holds
+windfall-midi/src/import.rs | the time signature {numerator}/{denominator} is not one Windfall has, so {}/{} is used
+windfall-midi/src/import.rs | {} bent further than an octave, which is as far as a note's fine pitch goes
+windfall-midi/src/import.rs | {} brought into Windfall's range of {MIN_TEMPO_BPM} to {MAX_TEMPO_BPM} bpm
+windfall-midi/src/import.rs | {} given the fine pitch and modulation of the pitch bend and controllers at their start; later movement inside a note is not imported
+windfall-midi/src/import.rs | {} left out: one import brings in at most {MAX_IMPORTED_NOTES} notes
+windfall-midi/src/import.rs | {} left out: they start past the end of the longest song Windfall holds
+windfall-midi/src/import.rs | {} not imported
+windfall-midi/src/import.rs | {} not imported: colliding events, song bounds or the timeline item limit
+windfall-midi/src/import.rs | {} on keys the drum kit has no sound for, left on a synth channel
+windfall-midi/src/import.rs | {} shortened to end with the longest song Windfall holds
+windfall-midi/src/import.rs | {} split where a pattern ends: the rest of each starts the next pattern as a new note
+windfall-midi/src/expression.rs | {} bending further than the {}-semitone bend range: held at its end
+windfall-midi/src/expression.rs | {} overlapping another on the same MIDI channel with a different bend or controller: the latest note wins
+windfall-midi/src/expression.rs | {} sharing an MPE channel: more than 15 notes sound at once
+windfall-midi/src/expression.rs | {} with a colour group: MPE gives every note a channel of its own instead
+windfall-midi/src/expression.rs | {} with a pan of their own left at the channel's pan: another pan sounds on the channel at the same time
+windfall-midi/src/expression.rs | {} with a pan of their own: MPE has no pan for a single note
+windfall-midi/src/expression.rs | {} with fine pitch, modulation, pan, slide or portamento: not written without note expression
+windfall-midi/src/expression.rs | {} with modulation Y below neutral: written as 0
+windfall-midi/src/expression.rs | {} with no held note to slide: nothing written
+# the report of windfall-plugin-check, a developer tool the application does not run
+windfall-plugin-host/src/check.rs | latency {} samples
+windfall-plugin-host/src/check.rs | {BLOCKS} blocks, output peak {peak:.4}, tail {tail}
+windfall-plugin-host/src/check.rs | {count} plugins in the file
+windfall-plugin-host/src/check.rs | {} audio inputs, {} audio outputs, {} note inputs
+windfall-plugin-host/src/check.rs | {} of {} parameters could not be read
+windfall-plugin-host/src/check.rs | {} output samples were not numbers
+windfall-plugin-host/src/check.rs | {} parameters, {texts} with text
+# what a JSON reader says it expected, quoted inside the reader's own English message about a malformed file; that message is a library's, shown as it came
+windfall-dsp/src/additive/harmonic_stack.rs | up to {MAX_PARTIALS} partial levels
+windfall-dsp/src/asset.rs | at most {MAX_CURVE_POINTS} effect curve points
+# the lines of the factory loop index the generator writes (JSON)
+windfall-factory/src/loops.rs | {{\"id\":\"{}\",\"name\":\"{}\",\"path\":\"{}\",\"genre\":\"{}\",\"tempo\":{},\"key\":{},\"mode\":\"minor\",\"bars\":{},\"provenance\":\"{}\"}}
+windfall-factory/src/loops.rs | {{\"schema\":1,\"loops\":[{}]}}\n
+
+# Not messages: names the project keeps as data once they are made. Each
+# comes after a comment line giving the reason.
+[data]
+# the name a sample is given when it is made; the project keeps it and the user can rename it
+session/library.rs | {} (preset source)
+session/loop_content.rs | {} ({} BPM, key {} minor)
+session/recording_takes.rs | Recording take {}
+# the name an automation clip is given when it is made; the project keeps it and the user can rename it
+windfall-project/src/lower.rs | {} track volume
+windfall-project/src/lower.rs | {} track pan
+# the name an imported mixer track is given; the project keeps it and the user can rename it
+windfall-flp/src/convert/voice.rs | {name} sample effects
 
 # Shown to the user in English whatever the interface language. Each is to be
-# sent as a code with named parameters (windfall_ipc::ui_message) and its line
-# removed. Recorded 2026-10-13; this list only shrinks.
+# sent as a code with named parameters and its line removed. This list only
+# shrinks.
 [backlog]
-commands.rs | Could not save sheet music: {error}
-commands.rs | The task stopped unexpectedly: {error}
-commands.rs | Unknown panel: {id}
-files_commands.rs | The task stopped unexpectedly: {error}
-library.rs | Could not index {}: {error}. Check folder access or reconnect the drive, then refresh; you can remove an unavailable folder from the browser.
-library.rs | Could not read library metadata ({e}). Close Windfall and repair or rename {} before saving favorites or tags. The original file has been preserved.
-library.rs | Could not read {}: {e}. Check file access, then refresh the library.
-library.rs | Could not read {}: {e}. Check that the file and folder are still available, then refresh the library.
-library.rs | Could not save favorites and tags to {}: {e}. Check free space and write access, then try again.
-library.rs | Could not start the library worker: {e}. Restart Windfall to try again.
-paths.rs | \"{path}\" is not a full path
-plugins/bridge.rs | Isolated plugin render failed: {error:?}
-plugins/platform_editors.rs | The helper's plugin editor refused application scale {application} at monitor scale {monitor}.
-samples.rs | Could not load \"{}\": {error}
-samples.rs | \"{}\" is a folder, not an audio file
-session/analysis_jobs/source_namespace/drive.rs | Cannot retain the effective drive object ({status:#x}).
-session/audio_editor/wav_regions.rs | Collapsed annotation: {note}
-session/audio_editor/wav_regions.rs | Repeated {prefix}annotation.
-session/audio_logger.rs | Could not create the logged audio file: {error}
-session/audio_logger.rs | Could not create the recordings folder: {error}
-session/audio_logger.rs | Effect {} (not in this project)
-session/audio_logger.rs | Mixer track {} (not in this project)
-session/audio_logger.rs | Mixer track: {name}
-session/audio_logger.rs | The audio logger follows at most {AUDIO_LOGGER_MAX_TRACKS} mixer tracks, each once.
-session/audio_logger.rs | The audio logger keeps {AUDIO_LOGGER_MIN_SECONDS} to {AUDIO_LOGGER_MAX_SECONDS} seconds.
-session/consolidate.rs | \"{}\" has no unmuted pattern or audio clip to consolidate.
-session/controllers.rs | At most {MAX_LEARN_TARGETS} controls can be linked in one pass.
-session/controllers.rs | Controller movement applied; MIDI feedback failed: {error}
-session/controllers.rs | The note log could not be saved: {error}
-session/controllers.rs | There can be at most {MAX_CONTROLLER_LINKS} controller links.
-session/derived_assets.rs | Could not collect unused derived audio {}: {error}
-session/export.rs | Could not start the export: {error}
-session/export.rs | The export would be {:.0} minutes long. The longest {} file Windfall can write at {} Hz is {:.0} minutes.
-session/export.rs | \"{}\": the destination is not a file
-session/export.rs | {} Hz is not a sample rate Windfall can export.
-session/export/mastering.rs | the mix could not be set aside for mastering ({error})
-session/export/mastering.rs | the mix set aside for mastering could not be read ({error})
-session/extractions.rs | Could not checkpoint the unsaved extracted project: {error}. Its initial project and audio are retained.
-session/extractions.rs | Could not preserve preset capture audio: {e}
-session/extractions.rs | Could not reclaim abandoned extraction {}: {error}
-session/extractions.rs | Could not record extracted audio ownership: {e}
-session/extractions.rs | Could not recover extracted project {}: {error}
-session/extractions.rs | Could not remove unused extracted audio {}: {error}
-session/extractions.rs | Kept extracted audio {} because a saved reference could not be checked: {error}
-session/extractions.rs | Recovered an unsaved template/archive project at {}. Open it from Recent projects to recover its audio.
-session/files.rs | {what} because another project was opened or started after it.
-session/files.rs | {what} because the project was edited in the meantime. Save or discard those changes, then try again.
-session/files.rs | {what}: engine readiness changed before publication. Try again; see the project warning.
-session/files.rs | {what}: native plugin preparation failed; see the project warning.
-session/files.rs | {what}: project preparation failed; see the project warning.
-session/files.rs | {what}: sampler preparation failed; see the project warning.
-session/flp.rs | Could not read the FL project: {e}
-session/flp.rs | Could not search {}: {e}
-session/flp.rs | More than one file matches {basename}; choose a more specific search folder.
-session/flp.rs | Sample {} has {} cues; only the MIDI-key range 60..127 fits the stand-in.
-session/flp.rs | Sample {} loop bounds or backward mode cannot be applied.
-session/flp.rs | Sample {} loop lies outside its trimmed playback region.
-session/flp.rs | Sample {} loop metadata was not applied: {error}
-session/flp.rs | Sample {} loop points came from its WAV smpl chunk; loop release/seam behavior can differ.
-session/flp.rs | Sample {} requests loop points but its WAV has none.
-session/flp.rs | Sample {} requests loop points, but only RIFF/WAVE loop metadata is supported.
-session/flp.rs | Sample {}: only the first loop and indefinite repetition are represented.
-session/flp.rs | Slicex sample {} cue metadata: {error}; embedded cue fallback retained.
-session/flp.rs | The converted project is invalid: {e}
-session/input_monitor.rs | Choose an input for monitored track {}.
-session/library.rs | \"{path}\" is not in the browser.
-session/library.rs | \"{shown}\" is already in the browser.
-session/library.rs | \"{shown}\" is not a folder.
-session/library.rs | sample {} does not exist
-session/music_lighting.rs | Chroma REST service returned HTTP {}
-session/music_lighting.rs | Chroma REST service unavailable: {e}. Enable the local Chroma SDK service.
-session/music_lighting.rs | Chroma rejected the request: {}
-session/music_lighting.rs | Chroma response failed: {e}
-session/music_lighting.rs | Could not initialise Chroma HTTP client: {e}
-session/music_lighting.rs | Could not start Chroma worker: {error}
-session/plugin_export.rs | Original preset source '{}' cannot be resolved
-session/plugin_export.rs | Raw SF2 source '{}' cannot be resolved
-session/plugin_export.rs | Raw SF2 source '{}': {e}
-session/plugin_export.rs | Sample '{}' is not decoded; plugin export requires every PCM source
-session/preparation.rs | Cannot decode video audio '{}': cannot open video: {error}. Mute it or restore the file.
-session/preparation.rs | Cannot decode video audio '{}': {error}. Mute it or choose AVI PCM / Ogg Vorbis.
-session/preparation.rs | Missing SoundFont: {}; choose its replacement in the editor
-session/preset_assets.rs | Preset source exceeds {limit} bytes.
-session/presets.rs | Could not delete the preset: {error}
-session/presets.rs | Could not open the preset: {error}
-session/presets.rs | Could not read the preset library: {error}
-session/presets.rs | Could not read the preset: {error}
-session/presets.rs | Could not save the preset: {error}
-session/presets.rs | The audio \"{}\" is not the size it was when the preset was saved; it may have been replaced.
-session/presets.rs | The plugin \"{}\" ({}) is not installed at {}. Its saved state is kept, and it stays silent or bypassed until the plugin is there.
-session/presets.rs | The preset's audio \"{}\" could not be copied: {error}
-session/presets.rs | The preset's audio \"{}\" is larger than a preset can bring along.
-session/presets.rs | The preset's audio \"{}\" is not a file.
-session/presets.rs | The preset's audio \"{}\" is not beside it. Put it back, or load the preset without its audio.
-session/presets.rs | \"{name}\" cannot be used as a file name.
-session/presets.rs | \"{}\" is a {} preset, not a channel preset.
-session/recording_multitrack.rs | Choose a hardware input for armed track {}.
-session/recording_multitrack.rs | Combined recording offset for {} exceeds 1000 ms.
-session/recording_takes.rs | Recording take {}
-session/sample_bank_files.rs | invalid sample-bank manifest: {e}
-session/sample_instruments.rs | Could not open SoundFont: {e}
-session/sample_instruments.rs | Could not read SoundFont: {e}
-session/sample_instruments.rs | SoundFont file exceeds the {limit}-byte read limit
-session/sampler_preprocess.rs | {name} (prepared preview)
-session/sampler_preprocess.rs | {what} must be zero or more.
-session/samples.rs | Missing sample: {stored}
-session/samples.rs | Missing sample: {}
-session/samples.rs | {} imported plugin states are retained; unsupported instruments stay silent and effects bypassed. Use the source FL project with a compatible host to recover those sounds.
-session/timeline.rs | pattern {} does not exist
-session/transport.rs | pattern {} does not exist
-session/update_shutdown.rs | Plugin editors could not resume after update cancellation: {}
-session/update_shutdown.rs | Update preparation could not capture current native state; nothing was installed. {error}
-session/versions.rs | Could not save the new version: {}
-updates.rs | Download or signature verification failed. Nothing was installed. {error}
-updates.rs | Installation failed. Keep the current installation and retry. {error}{}
-updates.rs | Update check failed; retry when online. {error}

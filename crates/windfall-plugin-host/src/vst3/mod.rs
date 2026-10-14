@@ -248,7 +248,9 @@ impl Vst3Module {
         self.with_factory(|factory| unsafe {
             let result = factory.createInstance(cid.as_ptr(), T::IID.as_ptr().cast(), &mut raw);
             if result != kResultOk {
-                return Err(PluginError::Create(format!("factory returned {result}")));
+                return Err(PluginError::Create(
+                    windfall_core::notice!("pluginHost.factoryResult", result = result).to_string(),
+                ));
             }
             ComPtr::from_raw(raw.cast()).ok_or_else(|| PluginError::Create("null instance".into()))
         })

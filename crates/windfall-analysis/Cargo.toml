@@ -26,3 +26,6 @@ ort = { version = "=2.0.0-rc.10", default-features = false, features = ["load-dy
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+windfall-core = { workspace = true, features = ["english"] }

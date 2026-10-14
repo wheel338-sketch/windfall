@@ -41,9 +41,14 @@ fn checked(status: i32, operation: &str) -> Result<(), PluginError> {
     if status == 0 {
         Ok(())
     } else {
-        Err(PluginError::Create(format!(
-            "Audio Unit {operation}: OSStatus {status}"
-        )))
+        Err(PluginError::Create(
+            windfall_core::notice!(
+                "pluginHost.auStatus",
+                operation = windfall_core::notice::term(operation),
+                status = status
+            )
+            .to_string(),
+        ))
     }
 }
 fn fourcc(value: &[u8; 4]) -> u32 {

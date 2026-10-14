@@ -66,10 +66,22 @@ pub struct WavTempo {
 }
 
 fn bad(message: &str) -> CodecError {
-    CodecError::InvalidInput(format!("WAV metadata: {message}"))
+    CodecError::InvalidInput(
+        windfall_core::notice!(
+            "codec.wavMetadata",
+            problem = windfall_core::notice::term(message)
+        )
+        .to_string(),
+    )
 }
 fn corrupt(message: &str) -> CodecError {
-    CodecError::Corrupt(format!("WAV metadata: {message}"))
+    CodecError::Corrupt(
+        windfall_core::notice!(
+            "codec.wavMetadata",
+            problem = windfall_core::notice::term(message)
+        )
+        .to_string(),
+    )
 }
 fn u16le(b: &[u8], at: usize) -> u16 {
     u16::from_le_bytes(b[at..at + 2].try_into().expect("checked chunk"))

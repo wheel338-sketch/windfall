@@ -118,9 +118,9 @@ pub(crate) fn check_claim(
     sample_rate: u32,
 ) -> std::result::Result<(), CodecError> {
     let reason = if channels > MAX_CHANNELS {
-        format!("it has {channels} channels")
+        windfall_core::notice!("codec.channelCount", channels = channels).to_string()
     } else if sample_rate > MAX_SAMPLE_RATE {
-        format!("it has a sample rate of {sample_rate} Hz")
+        windfall_core::notice!("codec.sampleRate", rate = sample_rate).to_string()
     } else {
         return Ok(());
     };
@@ -1485,7 +1485,10 @@ mod tests {
             let refusal = guard(bytes, filter(), seekable)
                 .read_to_end(&mut seen)
                 .unwrap_err();
-            (seen.len(), refusal.to_string())
+            (
+                seen.len(),
+                windfall_core::english::english(&refusal.to_string()),
+            )
         });
         assert_eq!(seeking, streaming);
         seeking

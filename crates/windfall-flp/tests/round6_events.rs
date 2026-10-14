@@ -38,7 +38,7 @@ fn channel_portamento_uses_public_nonlinear_time_at_the_import_tempo() {
         assert!(poly.mono_legato);
         assert_eq!(poly.max_voices, 4);
         assert_eq!(poly.portamento_ms, expected);
-        assert!(format!("{:?}", result.report).contains("slide/1024"));
+        assert!(common::words(&result.report).contains("slide/1024"));
         result.project.check().unwrap();
     }
 }
@@ -77,7 +77,7 @@ fn raw_channel_parameter_offsets_map_arp_and_report_unexpressible_fields() {
         assert_eq!(arp.range_octaves, 3);
         assert_eq!(arp.gate, 0.5);
         assert_eq!(arp.rate, NoteDivision::Sixteenth);
-        let report = format!("{:?}", result.report);
+        let report = common::words(&result.report);
         for field in [
             "chord",
             "repeat",
@@ -106,7 +106,7 @@ fn echo_record_reads_signed_fields_and_converts_feedback_pitch_and_time() {
     assert_eq!(echo.repeats, 4);
     assert_eq!(echo.pitch_semitones, -7);
     assert_eq!(echo.time, EchoTime::Milliseconds { ms: 250.0 });
-    assert!(format!("{:?}", result.report).contains("echo pan=-1600"));
+    assert!(common::words(&result.report).contains("echo pan=-1600"));
 }
 
 #[test]
@@ -145,7 +145,7 @@ fn all_five_envelope_tables_and_lfo_tails_retain_their_owner_and_target() {
         assert_eq!(lfo.rate_hz, 0.5);
         assert_eq!(lfo.depth, 0.5);
     }
-    let report = format!("{:?}", result.report);
+    let report = common::words(&result.report);
     for target in [
         "pan ADSR",
         "cutoff ADSR",
@@ -165,7 +165,11 @@ fn truncated_echo_and_optional_envelope_tails_are_bounded_and_reported() {
     e.data(218, &[0; 36]);
     let read = parse(&bytes(&e)).unwrap();
     assert!(read.channels[0].echo.is_none());
-    assert!(read.diagnostics.iter().any(|d| d.message.contains("echo")));
+    assert!(
+        read.diagnostics
+            .iter()
+            .any(|d| windfall_core::english::english(&d.message).contains("echo"))
+    );
     assert!(read.channels[0].envelopes[0].lfo_speed.is_none());
     import(&bytes(&e), &ConvertOptions::default())
         .unwrap()
@@ -199,7 +203,7 @@ fn balance_state_and_recorded_parameter_events_use_public_numbered_controls() {
     let range = result.project.automation_range(&lane.target).unwrap();
     assert!((range.value(lane.points[0].value) - 0.5).abs() < 1e-6);
     assert!((range.value(lane.points[1].value) - 1.0).abs() < 1e-6);
-    assert!(format!("{:?}", result.report).contains("two-word state"));
+    assert!(common::words(&result.report).contains("two-word state"));
     assert_eq!(result.project.retained_plugins[0].state, u32s(&[-64, 128]));
     result.project.check().unwrap();
 }
@@ -262,7 +266,7 @@ fn simsynth_native_state_maps_oscillators_amplitude_and_preserves_original_blob(
     }
     assert_eq!(params.gain, 0.6);
     assert_eq!(result.project.retained_plugins[0].state, state);
-    assert!(format!("{:?}", result.report).contains("svf_cut"));
+    assert!(common::words(&result.report).contains("svf_cut"));
     let saved = windfall_project::file::to_json(&result.project).unwrap();
     let loaded = windfall_project::file::from_json(&saved).unwrap();
     assert_eq!(loaded, result.project);
@@ -294,7 +298,7 @@ fn marker_loop_skip_and_pause_use_the_next_source_marker_without_invented_extent
     e.text(205, "Unterminated");
     let result = import(&bytes(&e), &ConvertOptions::default()).unwrap();
     assert!(result.project.playlist.timeline.markers.is_empty());
-    assert!(format!("{:?}", result.report).contains("no positive source endpoint"));
+    assert!(common::words(&result.report).contains("no positive source endpoint"));
 }
 
 #[test]

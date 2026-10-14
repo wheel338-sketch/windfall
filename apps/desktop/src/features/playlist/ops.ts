@@ -38,7 +38,7 @@ import { playlist, project, selectedClips } from "./selectors"
 import { nudgeTicks, snapTicks } from "./snap"
 import { usePlaylistStore } from "./store"
 import { documentRowFor, trackRowsNow } from "./track-rows"
-import { translatedText as t, message, plainNumber } from "@/lib/i18n"
+import { historyLabel, translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 /*
  * Everything the playlist does to the project and the transport. Each
@@ -46,8 +46,6 @@ import { translatedText as t, message, plainNumber } from "@/lib/i18n"
  */
 
 const ui = () => usePlaylistStore.getState()
-
-const plural = (count: number, one: string) => (count === 1 ? one : `${one}s`)
 
 /** One command under a history label of our own choosing. */
 function labelled(label: string, ...commands: Command[]): Command {
@@ -207,7 +205,7 @@ export async function deleteClips(ids: readonly ClipId[]): Promise<void> {
     }
   }
   await dispatch(
-    labelled(plural(clips.length, "Delete clip"), ...cleanup, {
+    labelled(historyLabel("Delete clips", { count: clips.length }), ...cleanup, {
       type: "removeClips",
       clips,
     })
@@ -222,8 +220,11 @@ export async function setClipsMuted(
   const changes = playlist()
     .clips.filter((clip) => wanted.has(clip.id) && clip.muted !== muted)
     .map((clip) => ({ id: clip.id, muted }))
-  const verb = muted ? "Mute clip" : "Unmute clip"
-  await changeClips(changes, plural(changes.length, verb))
+  const count = changes.length
+  await changeClips(
+    changes,
+    muted ? historyLabel("Mute clips", { count }) : historyLabel("Unmute clips", { count })
+  )
 }
 
 export function selectAll(): void {
@@ -256,7 +257,7 @@ export async function cutSelection(): Promise<void> {
   const clips = selectedClips()
   if (!copySelection()) return
   await dispatch(
-    labelled(plural(clips.length, "Cut clip"), {
+    labelled(historyLabel("Cut clips", { count: clips.length }), {
       type: "removeClips",
       clips: clips.map((clip) => clip.id),
     })
@@ -313,7 +314,7 @@ export async function paste(): Promise<void> {
     currentSnapTicks(),
     contentExists
   ).map(withLiveMixerTrack)
-  const created = await addClips(clips, plural(clips.length, "Paste clip"))
+  const created = await addClips(clips, historyLabel("Paste clips", { count: clips.length }))
   if (created && created.length > 0) ui().select(created)
 }
 
@@ -324,7 +325,7 @@ export async function duplicateSelection(): Promise<void> {
     rowOfTrack(),
     currentSnapTicks()
   )
-  const created = await addClips(clips, plural(clips.length, "Duplicate clip"))
+  const created = await addClips(clips, historyLabel("Duplicate clips", { count: clips.length }))
   if (created && created.length > 0) ui().select(created)
 }
 
@@ -345,7 +346,7 @@ export async function nudgeSelection(
   )
   await changeClips(
     moveChanges(clips, rowOf, move.ticks, move.rows),
-    plural(clips.length, "Move clip")
+    historyLabel("Move clips", { count: clips.length })
   )
 }
 

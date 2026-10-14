@@ -6,7 +6,7 @@ import { changeStageMedia, DEFAULT_STAGE_MEDIA, mediaDocumentGuard } from "@/fea
 import { backend } from "@/lib/ipc"
 import { reportError } from "@/lib/errors"
 import { useProjectStore } from "@/lib/store/project"
-import { translatedText as t, message } from "@/lib/i18n"
+import { localizeBackendText, translatedText as t, message } from "@/lib/i18n"
 
 export function PerformanceRecordingControls({ onHeldChange }: { onHeldChange?(held: boolean): void }) {
   const media = useProjectStore((state) => state.project.settings.stageMedia)
@@ -52,7 +52,7 @@ export function PerformanceRecordingControls({ onHeldChange }: { onHeldChange?(h
       <span ref={elapsed} className="text-xs text-muted-foreground">{t("0.0 / 60 seconds")}</span>
     </div>
     <p className="text-xs text-muted-foreground">{t("Records the callback launch log and final stereo mix, including native plugins. Stop the song first. Saved takes replay and export that exact mix; editing pads and project settings is locked during capture.")}</p>
-    {state?.error && <Alert variant="destructive"><AlertDescription>{state.error}</AlertDescription></Alert>}
+    {state?.error && <Alert variant="destructive"><AlertDescription>{localizeBackendText(state.error)}</AlertDescription></Alert>}
     {takes.map((take, index) => <div key={take.sample} className="flex flex-wrap items-center gap-2 text-sm">
       <span>{t("Performance")}{" "}{index + 1} · {(take.frames / take.sampleRate).toFixed(2)} s · {take.events.length}{" "}{t("launches")}</span>
       <Button variant="outline" size="sm" disabled={busy || !!held || backend.kind !== "tauri"} onClick={() => { void run(() => replay(index)) }}>{t("Replay performance")}{" "}{index + 1}</Button>

@@ -2069,10 +2069,9 @@ fn n4_native_final_block_export_failure(vst3: bool) {
         .unwrap();
     let progress = rig.events.wait_for_export();
     assert!(
-        progress
-            .error
-            .as_deref()
-            .is_some_and(|error| error.contains("plugin render failed")),
+        progress.error.as_deref().is_some_and(
+            |error| windfall_core::english::english(error).contains("plugin render failed")
+        ),
         "{progress:?}"
     );
     assert!(
@@ -2106,12 +2105,9 @@ fn n4_native_final_block_export_failure(vst3: bool) {
         })
         .unwrap();
     let stems_progress = rig.events.wait_for_export();
-    assert!(
-        stems_progress
-            .error
-            .as_deref()
-            .is_some_and(|error| error.contains("plugin render failed"))
-    );
+    assert!(stems_progress.error.as_deref().is_some_and(|error| {
+        windfall_core::english::english(error).contains("plugin render failed")
+    }));
     assert!(stems_progress.files.is_none() && stems_progress.cancelled != Some(true));
     assert!(std::fs::read_dir(rig.folder.path()).unwrap().all(|entry| {
         let name = entry.unwrap().file_name().to_string_lossy().into_owned();
@@ -2359,12 +2355,10 @@ fn n4_failed_facades(vst3: bool) {
             "{name}: effect fallback retains its negotiated dry delay"
         );
         let visible_deadline = std::time::Instant::now() + std::time::Duration::from_secs(1);
-        while !manager
-            .state()
-            .instances
-            .iter()
-            .any(|entry| entry.target == target && entry.error.contains("retry manually"))
-        {
+        while !manager.state().instances.iter().any(|entry| {
+            entry.target == target
+                && windfall_core::english::english(&entry.error).contains("retry manually")
+        }) {
             assert!(
                 std::time::Instant::now() < visible_deadline,
                 "failed helper was not visible in manager"

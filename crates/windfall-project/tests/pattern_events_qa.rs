@@ -609,7 +609,10 @@ fn an_lfo_is_written_into_a_lane_in_one_edit() {
     let applied = doc
         .dispatch(json(&generate(Vec::new(), 0, 960)), None)
         .unwrap();
-    assert_eq!(applied.label, "Write event LFO");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Write event LFO"
+    );
     assert_eq!(applied.created.len(), 1);
     assert_eq!(entries(doc), before + 1);
     let lane = lanes(doc);

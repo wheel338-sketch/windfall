@@ -179,7 +179,7 @@ fn a_plugin_that_crashes_the_scanner_is_blamed_and_skipped() {
     let failure = scan.plugins[1].failure.as_ref().unwrap();
     assert_eq!(failure.kind, FailureKind::Crashed);
     assert_eq!(
-        failure.message,
+        windfall_core::english::english(&failure.message),
         "the helper process exited with code 0xc0000005"
     );
     assert!(failure.is_dangerous());
@@ -500,7 +500,7 @@ fn the_real_scanner_reads_the_test_plugins() {
     let failure = absurd.failure.as_ref().unwrap();
     assert_eq!(failure.kind, FailureKind::Rejected);
     assert!(
-        failure.message.contains("4294967295 audio inputs"),
+        windfall_core::english::english(&failure.message).contains("4294967295 audio inputs"),
         "{failure:?}"
     );
     assert_eq!(
@@ -524,7 +524,10 @@ fn the_real_scanner_survives_a_plugin_that_crashes_on_load() {
     assert_eq!(failure.kind, FailureKind::Crashed);
     if cfg!(windows) {
         // An access violation.
-        assert!(failure.message.ends_with("0xc0000005"), "{failure:?}");
+        assert!(
+            windfall_core::english::english(&failure.message).ends_with("0xc0000005"),
+            "{failure:?}"
+        );
     }
 }
 

@@ -336,9 +336,10 @@ pub enum RenderError {
 impl std::fmt::Display for RenderError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Timeline(error) => f.write_str(error),
+            Self::Timeline(error) | Self::Plugin(error) => {
+                write!(f, "{}", windfall_core::notice::term(error))
+            }
             Self::Sampler(error) => error.fmt(f),
-            Self::Plugin(error) => f.write_str(error),
         }
     }
 }

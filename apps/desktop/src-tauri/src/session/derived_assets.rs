@@ -66,9 +66,9 @@ impl Session {
                     assets.owned.remove(&path);
                 }
                 Err(error) => {
-                    return Err(format!(
-                        "Could not collect unused derived audio {}: {error}",
-                        path.display()
+                    return Err(windfall_ipc::ui_message(
+                        "derivedAudio.collectFailed",
+                        serde_json::json!({"path": path.display().to_string(), "error": error.to_string()}),
                     ));
                 }
             }

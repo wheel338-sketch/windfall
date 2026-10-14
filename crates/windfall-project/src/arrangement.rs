@@ -76,25 +76,26 @@ pub enum SourceReference {
     Audio { source: SampleId },
 }
 
+/// What is wrong with an arrangement edit. Its text is a coded message.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum ArrangementError {
-    #[error("{kind} ID {id} does not exist")]
+    #[error("{}", windfall_core::notice!("arrangements.missingId", kind = windfall_core::notice::term(kind), id = id))]
     MissingId { kind: &'static str, id: u32 },
-    #[error("{kind} ID {id} is duplicated or reused")]
+    #[error("{}", windfall_core::notice!("arrangements.duplicateId", kind = windfall_core::notice::term(kind), id = id))]
     DuplicateId { kind: &'static str, id: u32 },
-    #[error("a name needs non-whitespace text and no NUL, up to 256 UTF-8 bytes")]
+    #[error("{}", windfall_core::notice!("arrangements.invalidName", max = 256))]
     InvalidName,
-    #[error("the last arrangement cannot be deleted")]
+    #[error("{}", windfall_core::notice!("arrangements.lastArrangement"))]
     LastArrangement,
-    #[error("the active arrangement must exist, or be absent for an empty book")]
+    #[error("{}", windfall_core::notice!("arrangements.invalidActive"))]
     InvalidActive,
-    #[error("track group parenting would create a cycle")]
+    #[error("{}", windfall_core::notice!("arrangements.groupCycle"))]
     GroupCycle,
-    #[error("a clip group needs at least two different clips")]
+    #[error("{}", windfall_core::notice!("arrangements.tooFewClips"))]
     TooFewClips,
-    #[error("clip {0:?} already belongs to another group")]
+    #[error("{}", windfall_core::notice!("arrangements.clipGrouped", clip = _0.0))]
     ClipAlreadyGrouped(ClipId),
-    #[error("clip {0:?} would move outside the song or available tracks")]
+    #[error("{}", windfall_core::notice!("arrangements.moveOutOfBounds", clip = _0.0))]
     MoveOutOfBounds(ClipId),
 }
 

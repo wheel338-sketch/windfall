@@ -171,12 +171,12 @@ fn drumsynth_native_sampler_import_reports_limits_and_reopens_original_preset_wi
     assert!(
         info.source_warnings
             .iter()
-            .any(|w| w.contains("reference model"))
+            .any(|w| windfall_core::english::english(w).contains("reference model"))
     );
     assert!(
         info.source_warnings
             .iter()
-            .any(|w| w.contains("own extension.text"))
+            .any(|w| windfall_core::english::english(w).contains("own extension.text"))
     );
     let before = rig.session.document_snapshot();
     let result = rig.session.add_channel_from_file(&source, None).unwrap();

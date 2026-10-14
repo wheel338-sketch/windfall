@@ -116,18 +116,18 @@ pub struct EditorInfo {
 /// Why an editor could not be opened.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum EditorError {
-    #[error("the plugin has no editor")]
+    #[error("{}", windfall_core::notice!("pluginHost.editor.noEditor"))]
     NoEditor,
-    #[error("the plugin's editor is already open")]
+    #[error("{}", windfall_core::notice!("pluginHost.editor.alreadyOpen"))]
     AlreadyOpen,
-    #[error("the plugin editor does not support application scaling")]
+    #[error("{}", windfall_core::notice!("pluginHost.editor.unsupportedScale"))]
     UnsupportedScale,
-    #[error("application scale must be finite and between 75% and 200%")]
+    #[error("{}", windfall_core::notice!("pluginHost.editor.invalidScale"))]
     InvalidScale,
     /// The plugin's parent API is not available on this target/window system.
-    #[error("the plugin editor's native parent API is unsupported on this platform")]
+    #[error("{}", windfall_core::notice!("pluginHost.editor.unsupportedPlatform"))]
     UnsupportedPlatform,
-    #[error("the editor could not be opened: {0}")]
+    #[error("{}", windfall_core::notice!("pluginHost.editor.failed", detail = windfall_core::notice::term(_0.to_string())))]
     Failed(String),
 }
 

@@ -310,7 +310,7 @@ fn effects_and_instruments_are_edited_like_everything_else() {
         id: synth,
         envelope: None,
     };
-    let error = session.dispatch(wrong, None).unwrap_err();
+    let error = windfall_core::english::english(&session.dispatch(wrong, None).unwrap_err());
     assert!(error.contains("plays an instrument"), "{error}");
 
     // The synth can be played by hand like any channel.

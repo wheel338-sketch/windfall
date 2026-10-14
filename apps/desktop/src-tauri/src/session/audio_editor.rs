@@ -436,8 +436,12 @@ impl Session {
         if !prepared.valid(&state) {
             return Err(STALE.into());
         }
-        fs::rename(&staged.0, &target)
-            .map_err(|e| format!("Could not publish WavPack file: {e}"))?;
+        fs::rename(&staged.0, &target).map_err(|e| {
+            windfall_ipc::ui_message(
+                "audioEdit.wavpackNotPublished",
+                serde_json::json!({"error": e.to_string()}),
+            )
+        })?;
         Ok(())
     }
 
@@ -703,8 +707,12 @@ impl Session {
         // Persistent app-owned storage works before the project has a save path.
         // Completed files remain for undo/redo and saved documents.
         let folder = self.store().recordings_dir().join("Audio edits");
-        fs::create_dir_all(&folder)
-            .map_err(|e| format!("Could not create audio edit folder: {e}"))?;
+        fs::create_dir_all(&folder).map_err(|e| {
+            windfall_ipc::ui_message(
+                "audioEdit.folderNotCreated",
+                serde_json::json!({"error": e.to_string()}),
+            )
+        })?;
         let mut owned = None;
         for _ in 0..1000 {
             let path = folder.join(format!(
@@ -718,7 +726,12 @@ impl Session {
                     break;
                 }
                 Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
-                Err(e) => return Err(format!("Could not create audio edit file: {e}")),
+                Err(e) => {
+                    return Err(windfall_ipc::ui_message(
+                        "audioEdit.fileNotCreated",
+                        serde_json::json!({"error": e.to_string()}),
+                    ));
+                }
             }
         }
         let mut owned = owned.ok_or("Could not reserve an audio edit file.")?;
@@ -757,7 +770,12 @@ impl Session {
         // without decoding under state. WAV Float32 preserves the edit exactly.
         let decoded = self.inner.cache.decode(&owned.0)?;
         let sample = SampleId(document.project().next_id);
-        let label = format!("Audio edit: {operation_label}");
+        let label = windfall_ipc::ui_message(
+            "history.audioEdit",
+            serde_json::json!({
+                "operation": windfall_core::notice::term(operation_label).to_string(),
+            }),
+        );
         let source = document
             .project()
             .sample(clip.content.sample().unwrap())

@@ -516,9 +516,10 @@ impl<'de> Deserialize<'de> for LayerChildren {
     fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
         let children = Vec::<crate::ChannelId>::deserialize(de)?;
         if children.len() > MAX_LAYER_CHILDREN {
-            return Err(serde::de::Error::custom(format!(
-                "a layer plays at most {MAX_LAYER_CHILDREN} channels"
-            )));
+            return Err(serde::de::Error::custom(
+                windfall_core::notice!("project.layer.tooManyChildren", max = MAX_LAYER_CHILDREN)
+                    .to_string(),
+            ));
         }
         Ok(Self::new(children))
     }

@@ -50,15 +50,20 @@ pub(super) fn read_soundfont_with_limit(
     budget: &Arc<windfall_dsp::sample_bank::BankBudget>,
     limit: u64,
 ) -> Result<(Vec<u8>, windfall_dsp::sample_bank::BankReservation), String> {
-    let mut file =
-        std::fs::File::open(path).map_err(|e| format!("Could not open SoundFont: {e}"))?;
+    let mut file = std::fs::File::open(path).map_err(|e| {
+        windfall_ipc::ui_message(
+            "soundFonts.openFailed",
+            serde_json::json!({"error": e.to_string()}),
+        )
+    })?;
     let metadata = file.metadata().map_err(|e| e.to_string())?;
     if metadata.len() > limit {
         if limit == 160 * 1024 * 1024 {
             return Err("SoundFont file exceeds 160 MiB".into());
         }
-        return Err(format!(
-            "SoundFont file exceeds the {limit}-byte read limit"
+        return Err(windfall_ipc::ui_message(
+            "soundFonts.tooLarge",
+            serde_json::json!({"limit": limit}),
         ));
     }
     let size = usize::try_from(metadata.len()).map_err(|_| "SoundFont file size overflow")?;
@@ -66,8 +71,12 @@ pub(super) fn read_soundfont_with_limit(
     // Exact allocation avoids read_to_end growth temporarily doubling the PCM
     // bytes in the encoded bank. A growth/truncation never expands this buffer.
     let mut bytes = vec![0; size];
-    file.read_exact(&mut bytes)
-        .map_err(|e| format!("Could not read SoundFont: {e}"))?;
+    file.read_exact(&mut bytes).map_err(|e| {
+        windfall_ipc::ui_message(
+            "soundFonts.readFailed",
+            serde_json::json!({"error": e.to_string()}),
+        )
+    })?;
     let mut extra = [0; 1];
     if file.read(&mut extra).map_err(|e| e.to_string())? != 0
         || std::fs::metadata(path)

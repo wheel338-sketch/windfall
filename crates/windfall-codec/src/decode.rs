@@ -484,8 +484,11 @@ fn float_bits(codec: AudioCodecId) -> Option<u32> {
 }
 
 fn channel_count(channels: usize) -> Result<u16, CodecError> {
-    u16::try_from(channels)
-        .map_err(|_| CodecError::UnsupportedFormat(format!("it has {channels} channels")))
+    u16::try_from(channels).map_err(|_| {
+        CodecError::UnsupportedFormat(
+            windfall_core::notice!("codec.channelCount", channels = channels).to_string(),
+        )
+    })
 }
 
 /// The decoded samples so far, grown without ever aborting on a failed
@@ -789,9 +792,11 @@ mod tests {
         assert!(check_stated_layout(&AudioCodecParameters::new()).is_ok());
 
         let refusal = |channels, sample_rate| {
-            check_stated_layout(&track(channels, sample_rate))
-                .unwrap_err()
-                .to_string()
+            windfall_core::english::english(
+                &check_stated_layout(&track(channels, sample_rate))
+                    .unwrap_err()
+                    .to_string(),
+            )
         };
         assert_eq!(
             refusal(65, 44_100),

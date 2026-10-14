@@ -566,7 +566,7 @@ fn unanswered_native_helper_capture_has_a_bounded_visible_refusal_before_the_pro
         Err(error) => error,
     };
     assert!(
-        error.contains("could not capture current native state"),
+        windfall_core::english::english(&error).contains("could not capture current native state"),
         "{error}"
     );
     assert!(started.elapsed() < Duration::from_secs(9));

@@ -252,13 +252,18 @@ impl Session {
             let decoded = decode_all(&self.inner.cache, &project, None, &self.inner.factory_dir);
             return self
                 .install(&ticket, Document::new(project), None, None, None, decoded)
-                .map_err(|refusal| refusal.message("The new project was not started"));
+                .map_err(|refusal| {
+                    refusal.message(&windfall_ipc::ui_message(
+                        "files.newProjectNotStarted",
+                        serde_json::json!({}),
+                    ))
+                });
         }
         let file = self.user_template(id)?;
         self.archive_open_adjusted(
             &paths::display(&file),
             self.archive_job()?,
-            "The template",
+            &windfall_ipc::ui_message("files.theTemplate", serde_json::json!({})),
             fresh,
         )
     }

@@ -1186,25 +1186,22 @@ pub(super) fn unmapped(device: &str, field: &str) -> Unmapped {
 
 /// How the import review words a decoded sound control that has no stand-in
 /// control. Lines that end with it are filed as dropped, not approximated.
-pub(super) const OMITTED: &str =
-    "omitted: decoded public field with no corresponding stand-in control (state retained).";
+
+/// The code of the review line that names a decoded sound control without a
+/// stand-in control. Such a line is filed as dropped, not approximated.
+const OMITTED: &str = "flp.native.fieldOmitted";
 
 /// The field an omitted line of [`reports`] is about, for the list of
 /// omitted controls the review shows by device.
-pub(super) fn omitted_field<'a>(name: &str, line: &'a str) -> Option<&'a str> {
-    if !line.ends_with(OMITTED) {
-        return None;
-    }
-    line.strip_prefix(name)?
-        .strip_prefix('.')?
-        .split('=')
-        .next()
+pub(super) fn omitted_field(line: &str) -> Option<String> {
+    let notice = windfall_core::notice::decode(line)?;
+    (notice.code == OMITTED).then(|| notice.text("field"))?
 }
 
 /// The review outcome of one line of [`reports`]: an omitted control is not
 /// in the Windfall project; everything else is there in some form.
 pub(super) fn outcome(line: &str) -> crate::report::Outcome {
-    if line.ends_with(OMITTED) {
+    if windfall_core::notice::code_of(line).as_deref() == Some(OMITTED) {
         crate::report::Outcome::Dropped
     } else {
         crate::report::Outcome::Approximated
@@ -1224,11 +1221,20 @@ pub(super) fn reports(name: &str, state: &[u8]) -> Vec<String> {
                 .get(i * 8..i * 8 + 8)
                 .and_then(|b| b.try_into().ok())
                 .map(f64::from_le_bytes);
-            lines.push(format!("{name}.{field}={raw:?}: public f64 at {}; oscillator tuning/shape/level, pulse width, cutoff/Q, band/high filter levels, ADSR, LFO delay and shared modulation use the reported numerical rules; unk fields have no public meaning and remain opaque.",i*8));
+            lines.push(
+                windfall_core::notice!(
+                    "flp.native.simsynthFloat",
+                    device = name,
+                    field = field,
+                    value = format!("{:?}", raw),
+                    offset = i * 8
+                )
+                .to_string(),
+            );
         }
         for (i,field) in "osc1_on osc1_o1 osc1_o2 osc1_warm osc2_on osc2_o1 osc2_o2 osc2_warm osc3_on osc3_o1 osc3_o2 osc3_warm lfo_on lfo_retrigger svf_on unk_6 lfo_trackamp unk_7 chorus_on unk_8".split_whitespace().enumerate(){
             let raw=state.get(436+i*4..440+i*4).and_then(|b|b.try_into().ok()).map(u32::from_le_bytes);
-            lines.push(format!("{name}.{field}={raw:?}: public flag at {}; oscillator/LFO/filter enable, octave layers and LFO retrigger mapped; warmth, trackamp and chorus are reported per channel; unknown words remain opaque.",436+i*4));
+            lines.push(windfall_core::notice!("flp.native.simsynthFlag", device = name, field = field, value = format!("{:?}", raw), offset = 436+i*4).to_string());
         }
         return lines;
     }
@@ -1241,9 +1247,9 @@ pub(super) fn reports(name: &str, state: &[u8]) -> Vec<String> {
         });
     let Some((descriptors, l)) = layout else {
         if key == "fruity vocoder" {
-            return vec![format!(
-                "{name}: public variable layout is truncated or has a band count above 128; original state retained, safe defaults used."
-            )];
+            return vec![
+                windfall_core::notice!("flp.native.vocoderLayout", device = name).to_string(),
+            ];
         }
         if matches!(
             key.as_str(),
@@ -1268,48 +1274,138 @@ pub(super) fn reports(name: &str, state: &[u8]) -> Vec<String> {
                 .iter()
                 .any(|(n, _)| n.eq_ignore_ascii_case(name.trim()))
         {
-            return vec![format!(
-                "SCOPE: {name}: DawVert fl_studio.ddef/flp_dec_plugins.py and PyFLP plugin.py define no native state layout for this device; LMMS importer supplies no decoder. fl_studio.dset anonymous param_N ranges do not establish state offsets or knob meanings. Blob retained; registered stand-in defaults used."
-            )];
+            return vec![
+                windfall_core::notice!("flp.native.noLayoutScope", device = name).to_string(),
+            ];
         }
         return Vec::new();
     };
     let Some(bytes) = l.payload(state) else {
-        return vec![format!(
-            "{name}: invalid SSLF header/length; state retained, defaults used."
-        )];
+        return vec![windfall_core::notice!("flp.native.badHeader", device = name).to_string()];
     };
     if bytes.len() < l.minimum {
-        return vec![format!(
-            "{name}: public layout requires {} bytes, has {}; defaults used, blob retained.",
-            l.minimum,
-            bytes.len()
-        )];
+        return vec![
+            windfall_core::notice!(
+                "flp.native.tooShort",
+                device = name,
+                required = l.minimum,
+                found = bytes.len()
+            )
+            .to_string(),
+        ];
     }
     if !l.usable(state) {
-        return vec![format!(
-            "{name}: a documented field is nonfinite or outside the public source range; state retained, safe defaults used."
-        )];
+        return vec![windfall_core::notice!("flp.native.unusable", device = name).to_string()];
     }
-    let mut reports:Vec<String>=l.fields.iter().filter(|f|(!f.target.is_empty() || unmapped(&key, &f.name) != Unmapped::Structure) && key != "multiband delay").map(|f| {
-        match f.read(bytes) {
-            None=>format!("{name}.{}: truncated/nonfinite public field; safe default retained.",f.name),
-            Some(v)=>match descriptors.iter().find(|p|p.id==f.target) {
-                Some(info)=>format!("{name}.{}={v} -> {}={} ({}, range {}..{}); stand-in bounds apply.",f.name,info.id,f.value(v,info),if f.formula.is_some(){"stated numerical rule"}else{"linear range fit"},f.range.0,f.range.1),
-                None if key=="fruity phase inverter" && f.name=="state"=>format!("{name}.state={v}: 0..1024 fitted to binary inversion of both sides (>512); public sources give no left/right bitmask."),
-                None if matches!(f.name.as_str(),"on"|"enabled"|"effect_on")=>format!("{name}.{}={v}: native enable state controls the imported effect slot.",f.name),
-                None if matches!(key.as_str(),"slicex"|"fruity slicer") && matches!(f.name.as_str(),"pitch"|"master_pitch")=>format!("{name}.{}={v}: pitch/100 mapped to sample playback slice pitch.",f.name),
-                None if key=="fruity dx10" && matches!(f.name.as_str(),"mod_fine"|"mod2_fine")=>format!("{name}.{}={v}: DawVert fine=(raw/65536)^4*180 cents folded into operator ratio by 2^(cents/1200); zero coarse/fine disables its branch.",f.name),
-                None=>match unmapped(&key, &f.name) {
-                    Unmapped::Structure=>format!("{name}.{}={v}: layout structure, not a control.",f.name),
-                    Unmapped::Display=>format!("{name}.{}={v}: editor display state; nothing heard depends on it (state retained).",f.name),
-                    Unmapped::NoMeaning=>format!("{name}.{}={v}: named in the public layout without a meaning; kept opaque (state retained).",f.name),
-                    Unmapped::Elsewhere(rule)=>format!("{name}.{}={v}: {rule}.",f.name),
-                    Unmapped::Open=>format!("{name}.{}={v}: {OMITTED}",f.name),
+    let mut reports: Vec<String> = l
+        .fields
+        .iter()
+        .filter(|f| {
+            (!f.target.is_empty() || unmapped(&key, &f.name) != Unmapped::Structure)
+                && key != "multiband delay"
+        })
+        .map(|f| match f.read(bytes) {
+            None => {
+                windfall_core::notice!("flp.native.fieldTruncated", device = name, field = f.name)
+                    .to_string()
+            }
+            Some(v) => match descriptors.iter().find(|p| p.id == f.target) {
+                Some(info) => windfall_core::notice!(
+                    "flp.native.fieldMapped",
+                    device = name,
+                    field = f.name,
+                    value = v,
+                    target = info.id,
+                    mapped = f.value(v, info),
+                    rule = windfall_core::notice::term(if f.formula.is_some() {
+                        "stated numerical rule"
+                    } else {
+                        "linear range fit"
+                    }),
+                    min = f.range.0,
+                    max = f.range.1
+                )
+                .to_string(),
+                None if key == "fruity phase inverter" && f.name == "state" => {
+                    windfall_core::notice!(
+                        "flp.native.phaseInverterState",
+                        device = name,
+                        value = v
+                    )
+                    .to_string()
+                }
+                None if matches!(f.name.as_str(), "on" | "enabled" | "effect_on") => {
+                    windfall_core::notice!(
+                        "flp.native.enableState",
+                        device = name,
+                        field = f.name,
+                        value = v
+                    )
+                    .to_string()
+                }
+                None if matches!(key.as_str(), "slicex" | "fruity slicer")
+                    && matches!(f.name.as_str(), "pitch" | "master_pitch") =>
+                {
+                    windfall_core::notice!(
+                        "flp.native.slicePitch",
+                        device = name,
+                        field = f.name,
+                        value = v
+                    )
+                    .to_string()
+                }
+                None if key == "fruity dx10"
+                    && matches!(f.name.as_str(), "mod_fine" | "mod2_fine") =>
+                {
+                    windfall_core::notice!(
+                        "flp.native.dx10Fine",
+                        device = name,
+                        field = f.name,
+                        value = v
+                    )
+                    .to_string()
+                }
+                None => match unmapped(&key, &f.name) {
+                    Unmapped::Structure => windfall_core::notice!(
+                        "flp.native.fieldStructure",
+                        device = name,
+                        field = f.name,
+                        value = v
+                    )
+                    .to_string(),
+                    Unmapped::Display => windfall_core::notice!(
+                        "flp.native.fieldDisplay",
+                        device = name,
+                        field = f.name,
+                        value = v
+                    )
+                    .to_string(),
+                    Unmapped::NoMeaning => windfall_core::notice!(
+                        "flp.native.fieldNoMeaning",
+                        device = name,
+                        field = f.name,
+                        value = v
+                    )
+                    .to_string(),
+                    Unmapped::Elsewhere(rule) => windfall_core::notice!(
+                        "flp.native.fieldElsewhere",
+                        device = name,
+                        field = f.name,
+                        value = v,
+                        rule = windfall_core::notice::term(rule)
+                    )
+                    .to_string(),
+                    Unmapped::Open => windfall_core::notice!(
+                        "flp.native.fieldOmitted",
+                        device = name,
+                        field = f.name,
+                        value = v
+                    )
+                    .to_string(),
                 },
             },
-        }
-    }).collect();
+        })
+        .collect();
     if key == "multiband delay" {
         // One line per bank and row keeps all 384 values inside the bounded
         // report: each names its source field, value and stand-in control.
@@ -1334,44 +1430,70 @@ pub(super) fn reports(name: &str, state: &[u8]) -> Vec<String> {
                                     v.clamp(f64::from(info.min), f64::from(info.max))
                                 )
                             }
-                            _ => format!("{}: truncated/nonfinite, default kept", f.name),
+                            _ => windfall_core::notice!(
+                                "flp.native.bandDelayFieldTruncated",
+                                field = f.name
+                            )
+                            .to_string(),
                         },
                     )
                     .collect::<Vec<_>>();
-                reports.push(format!(
-                    "{name}: {} (raw float taken as {unit}; the public definition gives no unit).",
-                    fields.join(", ")
-                ));
+                reports.push(
+                    windfall_core::notice!(
+                        "flp.native.bandDelayRow",
+                        device = name,
+                        fields = fields.join(", "),
+                        unit = windfall_core::notice::term(unit)
+                    )
+                    .to_string(),
+                );
             }
         }
-        reports.push(format!("{name}: the public definition names no playing bank, band frequencies, feedback or wet level. Bank 1 plays; the other seven are kept as selectable banks; band edges are Windfall's own (40 Hz to 16 kHz, equal ratios); feedback and mix stay at the stand-in defaults."));
+        reports
+            .push(windfall_core::notice!("flp.native.bandDelayBanks", device = name).to_string());
     }
     if key == "fruity free filter" {
-        reports.push(format!("{name}: DawVert dataset numbers/ranges and universal converter disagree on frequency/type ranges; explicit dataset numbering is retained, but converter type/700 and freq/1024 ranges supply the seven named responses and Hz. The converter's negative index at type=0 is treated as lowpass safe fallback; source range disagreement is an approximation, not established acoustic parity."));
+        reports.push(windfall_core::notice!("flp.native.freeFilter", device = name).to_string());
     }
     if key == "effector" {
-        reports.push(format!("SCOPE: {name}: fl_studio.ddef contains only a commented thirteen-field prefix. Its wet/X/Y floats use an explicit 0..1 stand-in fit and bypass controls slot enable; effect selector ordering, modulation units and parameter numbering are absent from the public converter/PyFLP/LMMS. Every prefix field is decoded/reported, trailing bytes remain opaque."));
+        reports.push(windfall_core::notice!("flp.native.effectorScope", device = name).to_string());
     }
     if key == "slicex" {
-        reports.push(format!("{name}: public filename, data_exists/header, embedded WAV length/PCM and cue.sampleoffset are decoded by the sample reader. SCOPE: DawVert flp_dec_plugins.py, PyFLP and LMMS define no second-deck/custom-region mapping after this WAV payload; no additional region schema is inferred."));
+        reports.push(windfall_core::notice!("flp.native.slicexScope", device = name).to_string());
     }
     if key == "fruity waveshaper" && bytes.len() >= 34 {
         let count = u32::from_le_bytes(bytes[30..34].try_into().expect("bounded header"));
         if count > 256 {
-            reports.push(format!(
-                "{name}.shape: count {count} exceeds 256; identity curve retained."
-            ));
+            reports.push(
+                windfall_core::notice!("flp.native.shapeCount", device = name, points = count)
+                    .to_string(),
+            );
         }
         for i in 0..count.min(256) as usize {
             let Some(p) = bytes.get(34 + i * 24..58 + i * 24) else {
-                reports.push(format!(
-                    "{name}.shape.point{i}: incomplete public record; identity curve retained."
-                ));
+                reports.push(
+                    windfall_core::notice!(
+                        "flp.native.shapePointIncomplete",
+                        device = name,
+                        point = i
+                    )
+                    .to_string(),
+                );
                 break;
             };
             let tension = f32::from_le_bytes(p[16..20].try_into().expect("bounded point"));
             let mode = p[20];
-            reports.push(format!("{name}.shape.point{i}: mode={mode}, tension={tension}, flags={:?}; shape sampled onto 33 stand-in knots; normal/tension uses the shared exponential curve fit, instant uses hold. Other source mode labels lack an acoustic curve formula in flp_dec_plugins.py/PyFLP and use the disclosed curve fit; original bytes retained.",&p[21..24]));
+            reports.push(
+                windfall_core::notice!(
+                    "flp.native.shapePoint",
+                    device = name,
+                    point = i,
+                    mode = mode,
+                    tension = tension,
+                    flags = format!("{:?}", &p[21..24])
+                )
+                .to_string(),
+            );
         }
     }
     reports

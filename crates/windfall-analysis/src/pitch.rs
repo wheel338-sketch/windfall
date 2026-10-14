@@ -12,19 +12,19 @@ pub type PitchResult<T> = std::result::Result<T, PitchError>;
 
 #[derive(Debug, Error)]
 pub enum PitchError {
-    #[error("Invalid pitch input/configuration: {0}")]
+    #[error("{}", windfall_core::notice!("analysis.pitch.invalid", detail = windfall_core::notice::term(_0.to_string())))]
     Invalid(&'static str),
-    #[error("Pitch arithmetic/capacity overflow")]
+    #[error("{}", windfall_core::notice!("analysis.pitch.overflow"))]
     Overflow,
-    #[error("Pitch resource limit exceeded: {0}")]
+    #[error("{}", windfall_core::notice!("analysis.pitch.limit", detail = windfall_core::notice::term(_0.to_string())))]
     Limit(&'static str),
-    #[error("Pitch allocation refused")]
+    #[error("{}", windfall_core::notice!("analysis.pitch.allocation"))]
     Allocation,
-    #[error("Nonfinite PCM at interleaved sample {sample}")]
+    #[error("{}", windfall_core::notice!("analysis.pitch.nonfinitePcm", sample = sample))]
     NonfinitePcm { sample: usize },
-    #[error("Pitch selection needs at least {required} frames, got {actual}")]
+    #[error("{}", windfall_core::notice!("analysis.pitch.tooShort", required = required, actual = actual))]
     TooShort { required: u64, actual: u64 },
-    #[error("Pitch numerical calculation failed")]
+    #[error("{}", windfall_core::notice!("analysis.pitch.numerical"))]
     Numerical,
     #[error(transparent)]
     Work(#[from] AnalysisError),

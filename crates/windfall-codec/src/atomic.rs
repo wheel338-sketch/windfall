@@ -31,7 +31,10 @@ impl AtomicFile {
     pub fn create(path: &Path) -> Result<Self, CodecError> {
         let final_path = path.to_path_buf();
         let name = final_path.file_name().ok_or_else(|| {
-            CodecError::InvalidInput(format!("{} is not a file name", final_path.display()))
+            CodecError::InvalidInput(
+                windfall_core::notice!("codec.notAFileName", path = final_path.display())
+                    .to_string(),
+            )
         })?;
 
         // The name is unique among running processes, so a file already there

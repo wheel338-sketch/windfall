@@ -2,8 +2,11 @@
 //! Export a stable C stamp and bounded error copy for loaders before factory use.
 use std::{ffi::c_char, sync::Mutex};
 static ERROR: Mutex<String> = Mutex::new(String::new());
+/// Keeps the last error for the host. The exported plugin has no interface
+/// language: a coded message is kept in its English words.
 pub(crate) fn error(message: impl Into<String>) {
-    *ERROR.lock().unwrap_or_else(|e| e.into_inner()) = message.into();
+    *ERROR.lock().unwrap_or_else(|e| e.into_inner()) =
+        windfall_core::english::english(&message.into());
 }
 #[unsafe(no_mangle)]
 pub extern "C" fn windfall_runtime_stamp() -> *const c_char {

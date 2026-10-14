@@ -139,7 +139,10 @@ impl WavWriter {
         layout.info_chunk = info_chunk(tags, layout.max_data_bytes())?;
         let final_path = path.as_ref().to_path_buf();
         let name = final_path.file_name().ok_or_else(|| {
-            CodecError::InvalidInput(format!("{} is not a file name", final_path.display()))
+            CodecError::InvalidInput(
+                windfall_core::notice!("codec.notAFileName", path = final_path.display())
+                    .to_string(),
+            )
         })?;
 
         // The name is unique among running processes, so a file already there
@@ -194,11 +197,14 @@ impl WavWriter {
             .len()
             .is_multiple_of(usize::from(self.layout.channels))
         {
-            return Err(CodecError::InvalidInput(format!(
-                "{} samples do not make whole frames of {} channels",
-                interleaved.len(),
-                self.layout.channels
-            )));
+            return Err(CodecError::InvalidInput(
+                windfall_core::notice!(
+                    "codec.partialFrames",
+                    samples = interleaved.len(),
+                    channels = self.layout.channels
+                )
+                .to_string(),
+            ));
         }
 
         let bytes_per_sample = u64::from(self.layout.format.bytes_per_sample());
@@ -336,9 +342,10 @@ impl Layout {
         let block_align = channels.checked_mul(format.bytes_per_sample());
         let byte_rate = block_align.and_then(|align| sample_rate.checked_mul(u32::from(align)));
         let (Some(block_align), Some(byte_rate)) = (block_align, byte_rate) else {
-            return Err(CodecError::InvalidInput(format!(
-                "{channels} channels at {sample_rate} Hz do not fit a WAV header"
-            )));
+            return Err(CodecError::InvalidInput(
+                windfall_core::notice!("codec.wavHeader", channels = channels, rate = sample_rate)
+                    .to_string(),
+            ));
         };
         Ok(Self {
             sample_rate,
@@ -677,7 +684,7 @@ mod tests {
 
         let error = writer.write(&[0.0, 0.0]).unwrap_err();
         assert!(matches!(error, CodecError::WavTooLarge));
-        assert!(error.to_string().contains("4 GB"));
+        assert!(windfall_core::english::english(&error.to_string()).contains("4 GB"));
 
         // Every size in the largest header still fits its 32-bit field.
         let header = writer.layout.header(limit);

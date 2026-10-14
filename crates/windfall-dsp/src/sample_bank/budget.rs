@@ -37,10 +37,13 @@ impl BankBudget {
         let mut used = self.used();
         loop {
             if bytes > self.limit.saturating_sub(used) {
-                return Err(format!(
-                    "Sample-bank memory refused: {bytes} bytes requested, {used} retained or preparing, {} budget. Release old voices or reduce the bank.",
-                    self.limit
-                ));
+                return Err(windfall_core::notice!(
+                    "dsp.sampleBankMemory",
+                    bytes = bytes,
+                    used = used,
+                    limit = self.limit
+                )
+                .to_string());
             }
             match self.used.compare_exchange_weak(
                 used,

@@ -52,9 +52,9 @@ fn regular_library(path: &Path) -> Result<PathBuf> {
     Ok(std::fs::canonicalize(path)?)
 }
 fn failed(error: impl std::fmt::Display) -> AnalysisError {
-    AnalysisError::Adapter(format!(
-        "ONNX Runtime capability error: {error}. Check the installed CPU library, dependencies and waveform model pack."
-    ))
+    AnalysisError::Adapter(
+        windfall_core::notice!("analysis.onnxCapability", error = error.to_string()).to_string(),
+    )
 }
 struct OrtPrepared {
     session: ort::session::Session,

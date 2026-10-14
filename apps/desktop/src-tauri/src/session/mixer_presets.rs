@@ -314,9 +314,9 @@ impl Session {
                 .collect::<Vec<_>>(),
             Err(error) if error.kind() == io::ErrorKind::NotFound => Vec::new(),
             Err(error) => {
-                return Err(format!(
-                    "Could not read the mixer preset library {}: {error}",
-                    folder.display()
+                return Err(windfall_ipc::ui_message(
+                    "mixerPresets.libraryUnreadable",
+                    serde_json::json!({"folder": folder.display().to_string(), "error": error.to_string()}),
                 ));
             }
         };
@@ -355,8 +355,9 @@ impl Session {
             .filter(|entry| is_preset_file(&entry.path()))
             .count();
         if held >= MAX_LIBRARY_PRESETS {
-            return Err(format!(
-                "The mixer preset library is full ({MAX_LIBRARY_PRESETS} presets). Delete one first"
+            return Err(windfall_ipc::ui_message(
+                "mixerPresets.libraryFull",
+                serde_json::json!({"max": MAX_LIBRARY_PRESETS}),
             ));
         }
         let stem = file_stem(&preset.name);

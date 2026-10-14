@@ -91,7 +91,7 @@ fn audio_clip_normalize_defaults_off_and_round_trips_with_history() {
                 None,
             )
             .unwrap();
-        assert_eq!(applied.label, label);
+        assert_eq!(windfall_core::english::english(&applied.label), label);
         assert!(applied.touched.playlist);
         assert!(matches!(doc.project().playlist.clips[0].content,
             ClipContent::Audio { normalize: enabled, gain: 1.0, .. } if enabled == normalize));

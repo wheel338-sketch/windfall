@@ -130,7 +130,10 @@ fn fail(doc: &mut Document, command: Command) -> CommandError {
 fn assert_invalid(error: CommandError, words: &str) {
     match error {
         CommandError::Invalid(message) => {
-            assert!(message.contains(words), "\"{message}\" lacks \"{words}\"");
+            assert!(
+                windfall_core::english::english(&message).contains(words),
+                "\"{message}\" lacks \"{words}\""
+            );
         }
         other => panic!("expected an invalid-input error, got {other:?}"),
     }
@@ -340,7 +343,10 @@ fn update_settings_changes_each_field() {
         },
     );
     assert_eq!(applied.touched, touched(|t| t.settings = true));
-    assert_eq!(applied.label, "Change project settings");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Change project settings"
+    );
     assert!(applied.created.is_empty());
     let settings = &doc.project().settings;
     assert_eq!(settings.name, "Banger");
@@ -420,7 +426,10 @@ fn a_command_that_changes_nothing_leaves_no_history() {
     let mut doc = document();
     let applied = run(&mut doc, tempo(120.0));
     assert!(applied.touched.is_empty());
-    assert_eq!(applied.label, "Change tempo");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Change tempo"
+    );
     assert!(doc.history().entries.is_empty());
     assert!(!doc.is_dirty());
 }
@@ -438,7 +447,10 @@ fn add_sample_registers_a_file() {
         },
     );
     assert_eq!(applied.touched, touched(|t| t.samples = true));
-    assert_eq!(applied.label, "Add sample");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Add sample"
+    );
     let [sample] = doc.project().samples.as_slice() else {
         panic!("expected one sample");
     };
@@ -542,7 +554,10 @@ fn remove_sample_fails_while_a_channel_uses_it() {
     );
     let applied = run(&mut doc, Command::RemoveSample { id: sample });
     assert_eq!(applied.touched, touched(|t| t.samples = true));
-    assert_eq!(applied.label, "Delete sample");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Delete sample"
+    );
     assert!(doc.project().samples.is_empty());
 }
 
@@ -561,7 +576,10 @@ fn add_channel_makes_a_mixer_track_and_routes_to_it() {
             mixer_track: None,
         },
     );
-    assert_eq!(applied.label, "Add channel");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Add channel"
+    );
     assert_eq!(
         applied.touched,
         touched(|t| {
@@ -653,7 +671,10 @@ fn add_channel_rejects_unknown_references() {
         },
     );
     assert_eq!(error, not_found("sample", 50));
-    assert_eq!(error.to_string(), "sample 50 does not exist");
+    assert_eq!(
+        windfall_core::english::english(&error.to_string()),
+        "sample 50 does not exist"
+    );
     let error = fail(
         &mut doc,
         Command::AddChannel {
@@ -755,7 +776,10 @@ fn remove_channel_takes_its_notes_and_leaves_its_track() {
     );
 
     let applied = run(&mut doc, Command::RemoveChannel { id: kick });
-    assert_eq!(applied.label, "Delete channel");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Delete channel"
+    );
     assert_eq!(
         applied.touched,
         touched(|t| {
@@ -809,7 +833,10 @@ fn duplicate_channel_copies_the_channel_and_its_notes() {
     let tracks_before = doc.project().mixer.tracks.len();
 
     let applied = run(&mut doc, Command::DuplicateChannel { id: kick });
-    assert_eq!(applied.label, "Duplicate channel");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Duplicate channel"
+    );
     assert_eq!(
         applied.touched,
         touched(|t| {
@@ -871,7 +898,10 @@ fn move_channel_reorders_the_rack() {
 
     let applied = run(&mut doc, Command::MoveChannel { id: a, index: 2 });
     assert_eq!(applied.touched, touched(|t| t.channels = true));
-    assert_eq!(applied.label, "Move channel");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Move channel"
+    );
     assert_eq!(order(&doc), [b, c, a]);
 
     run(&mut doc, Command::MoveChannel { id: c, index: 0 });
@@ -925,7 +955,10 @@ fn update_channel_changes_each_field() {
         ),
     );
     assert_eq!(applied.touched, touched(|t| t.channels = true));
-    assert_eq!(applied.label, "Change channel");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Change channel"
+    );
     let channel = doc.project().channel(kick).unwrap();
     assert_eq!(channel.name, "Boom");
     assert_eq!(channel.color, 0x123456);
@@ -958,7 +991,10 @@ fn renaming_a_channel_renames_the_mixer_track_made_for_it() {
     // One command, one undo step, both names. `run` undoes and redoes it.
     let steps = doc.history().entries.len();
     let applied = run(&mut doc, rename_channel(lead, "Lead"));
-    assert_eq!(applied.label, "Rename channel");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Rename channel"
+    );
     assert_eq!(
         applied.touched,
         touched(|t| {
@@ -1194,7 +1230,7 @@ fn update_channel_labels_say_what_changed() {
     ];
     for (patch, expected) in cases {
         assert_eq!(run(&mut doc, update_channel(kick, patch)).label, expected);
-        assert_eq!(label(&doc), expected);
+        assert_eq!(windfall_core::english::english(&label(&doc)), expected);
     }
 }
 
@@ -1294,7 +1330,10 @@ fn set_channel_sample_sets_and_clears() {
 
     let applied = run(&mut doc, set(kick, Some(sample)));
     assert_eq!(applied.touched, touched(|t| t.channels = true));
-    assert_eq!(applied.label, "Change channel sample");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Change channel sample"
+    );
     assert_eq!(sampler(&doc, kick).sample, Some(sample));
     // The channel keeps the name it was given.
     assert_eq!(doc.project().channel(kick).unwrap().name, "Kick");
@@ -1338,7 +1377,10 @@ fn update_sampler_changes_each_field() {
         ),
     );
     assert_eq!(applied.touched, touched(|t| t.channels = true));
-    assert_eq!(applied.label, "Change sampler");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Change sampler"
+    );
     assert_eq!(
         sampler(&doc, kick),
         SamplerSettings {
@@ -1373,10 +1415,16 @@ fn sampler_loops_validate_and_undo_as_sampler_edits() {
         )
     };
     let applied = run(&mut doc, change(Some(SamplerLoopMode::Forward), None, None));
-    assert_eq!(applied.label, "Change sample loop mode");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Change sample loop mode"
+    );
     assert_eq!(sampler(&doc, id).loop_mode, SamplerLoopMode::Forward);
     let applied = run(&mut doc, change(None, Some(0.25), Some(0.75)));
-    assert_eq!(applied.label, "Change sample loop range");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Change sample loop range"
+    );
     assert_eq!(sampler(&doc, id).loop_start, 0.25);
     assert_eq!(sampler(&doc, id).loop_end, 0.75);
     run(
@@ -1430,7 +1478,10 @@ fn update_sampler_validates_its_values() {
             },
         ),
     );
-    assert_eq!(applied.label, "Change tuning");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Change tuning"
+    );
     assert_eq!(sampler(&doc, kick).tune, MAX_TUNE_SEMITONES);
     run(
         &mut doc,
@@ -1517,7 +1568,10 @@ fn set_sampler_envelope_turns_it_on_and_off() {
 
     let applied = run(&mut doc, set(kick, Some(Envelope::default())));
     assert_eq!(applied.touched, touched(|t| t.channels = true));
-    assert_eq!(applied.label, "Change envelope");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Change envelope"
+    );
     assert_eq!(sampler(&doc, kick).envelope, Some(Envelope::default()));
 
     run(
@@ -1563,7 +1617,10 @@ fn add_pattern_appends_an_empty_pattern() {
     let mut doc = document();
     let applied = run(&mut doc, Command::AddPattern { name: None });
     let id = PatternId(applied.created[0]);
-    assert_eq!(applied.label, "Add pattern");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Add pattern"
+    );
     assert_eq!(
         applied.touched,
         touched(|t| {
@@ -1603,7 +1660,10 @@ fn remove_pattern_takes_its_clips() {
     add_clip(&mut doc, lane, second, 7680);
 
     let applied = run(&mut doc, Command::RemovePattern { id: second });
-    assert_eq!(applied.label, "Delete pattern");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Delete pattern"
+    );
     assert_eq!(
         applied.touched,
         touched(|t| {
@@ -1662,7 +1722,10 @@ fn duplicate_pattern_copies_notes_under_new_ids() {
         panic!("expected one created id");
     };
     let copy_id = PatternId(copy_id);
-    assert_eq!(applied.label, "Duplicate pattern");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Duplicate pattern"
+    );
     assert_eq!(
         applied.touched,
         touched(|t| {
@@ -1711,7 +1774,10 @@ fn move_pattern_reorders_the_list() {
         },
     );
     assert_eq!(applied.touched, touched(|t| t.pattern_list = true));
-    assert_eq!(applied.label, "Move pattern");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Move pattern"
+    );
     assert_eq!(order(&doc), [third, PATTERN, second]);
 
     run(
@@ -1759,7 +1825,10 @@ fn update_pattern_changes_each_field() {
         ),
     );
     assert_eq!(applied.touched, touched(|t| t.patterns = vec![PATTERN]));
-    assert_eq!(applied.label, "Change pattern");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Change pattern"
+    );
     let pattern = doc.project().pattern(PATTERN).unwrap();
     assert_eq!(pattern.name, "Intro");
     assert_eq!(pattern.color, 0x00FF00);
@@ -1813,7 +1882,10 @@ fn toggle_step_adds_then_removes_a_note() {
     let (kick, _) = add_channel(&mut doc, "Kick");
 
     let applied = run(&mut doc, toggle(kick, 4));
-    assert_eq!(applied.label, "Toggle step");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Toggle step"
+    );
     assert_eq!(applied.touched, touched(|t| t.patterns = vec![PATTERN]));
     let [id] = applied.created[..] else {
         panic!("expected one created id");
@@ -1993,7 +2065,7 @@ fn add_notes_creates_ids_in_order_and_keeps_the_lane_sorted() {
             ],
         },
     );
-    assert_eq!(applied.label, "Add notes");
+    assert_eq!(windfall_core::english::english(&applied.label), "Add notes");
     assert_eq!(applied.touched, touched(|t| t.patterns = vec![PATTERN]));
     let ids = &applied.created;
     assert_eq!(ids.len(), 4);
@@ -2121,7 +2193,10 @@ fn remove_notes_removes_them_and_drops_an_empty_lane() {
     };
 
     let applied = run(&mut doc, remove(vec![ids[1]]));
-    assert_eq!(applied.label, "Delete note");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Delete note"
+    );
     assert_eq!(applied.touched, touched(|t| t.patterns = vec![PATTERN]));
     let left: Vec<NoteId> = lane_notes(&doc, PATTERN, kick)
         .iter()
@@ -2213,7 +2288,10 @@ fn update_notes_changes_notes_and_keeps_the_lane_sorted() {
             ],
         ),
     );
-    assert_eq!(applied.label, "Move notes");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Move notes"
+    );
     assert_eq!(applied.touched, touched(|t| t.patterns = vec![PATTERN]));
     assert!(applied.created.is_empty());
     let notes = lane_notes(&doc, PATTERN, kick);
@@ -2269,7 +2347,7 @@ fn update_notes_labels_say_what_changed() {
     ];
     for (patch, expected) in cases {
         let applied = run(&mut doc, update_notes(kick, vec![(ids[0], patch)]));
-        assert_eq!(applied.label, expected);
+        assert_eq!(windfall_core::english::english(&applied.label), expected);
     }
     let resize = NotePatch {
         length: Some(99),
@@ -2279,7 +2357,10 @@ fn update_notes_labels_say_what_changed() {
         &mut doc,
         update_notes(kick, vec![(ids[0], resize), (ids[1], resize)]),
     );
-    assert_eq!(applied.label, "Resize notes");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Resize notes"
+    );
 }
 
 #[test]
@@ -2304,22 +2385,28 @@ fn a_note_dragged_by_its_start_is_resized_not_moved() {
         &mut doc,
         update_notes(kick, vec![(ids[0], front(360, 360))]),
     );
-    assert_eq!(applied.label, "Resize note");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Resize note"
+    );
     assert_eq!(ends(&doc), before);
     let both = vec![(ids[0], front(420, 300)), (ids[1], front(900, 300))];
     let applied = run(&mut doc, update_notes(kick, both));
-    assert_eq!(applied.label, "Resize notes");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Resize notes"
+    );
     assert_eq!(ends(&doc), before);
 
     // With an end that moves too, or a key, it is a move.
     let applied = run(&mut doc, update_notes(kick, vec![(ids[0], front(0, 240))]));
-    assert_eq!(applied.label, "Move note");
+    assert_eq!(windfall_core::english::english(&applied.label), "Move note");
     let keyed = NotePatch {
         key: Some(61),
         ..front(120, 120)
     };
     let applied = run(&mut doc, update_notes(kick, vec![(ids[0], keyed)]));
-    assert_eq!(applied.label, "Move note");
+    assert_eq!(windfall_core::english::english(&applied.label), "Move note");
     // One note resized from its front and another moved is a move.
     let mixed = vec![
         (ids[0], front(60, 180)),
@@ -2332,7 +2419,10 @@ fn a_note_dragged_by_its_start_is_resized_not_moved() {
         ),
     ];
     let applied = run(&mut doc, update_notes(kick, mixed));
-    assert_eq!(applied.label, "Move notes");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Move notes"
+    );
 }
 
 #[test]
@@ -2411,7 +2501,10 @@ fn clear_lane_removes_every_note_of_the_channel() {
     let clear = |pattern, channel| Command::ClearLane { pattern, channel };
 
     let applied = run(&mut doc, clear(PATTERN, kick));
-    assert_eq!(applied.label, "Clear notes");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Clear notes"
+    );
     assert_eq!(applied.touched, touched(|t| t.patterns = vec![PATTERN]));
     assert!(lane_notes(&doc, PATTERN, kick).is_empty());
     assert_eq!(lane_notes(&doc, PATTERN, hat).len(), 1);
@@ -2433,7 +2526,10 @@ fn clear_lane_removes_every_note_of_the_channel() {
 fn add_mixer_track_adds_a_track_routed_to_the_master() {
     let mut doc = document();
     let applied = run(&mut doc, Command::AddMixerTrack { name: None });
-    assert_eq!(applied.label, "Add mixer track");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Add mixer track"
+    );
     assert_eq!(applied.touched, touched(|t| t.mixer = true));
     let added = track(&doc, TrackId(applied.created[0]));
     assert_eq!(added.name, "Insert 1");
@@ -2494,7 +2590,10 @@ fn remove_mixer_track_reroutes_to_the_master_and_drops_sends() {
     }
 
     let applied = run(&mut doc, Command::RemoveMixerTrack { id: bus });
-    assert_eq!(applied.label, "Delete mixer track");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Delete mixer track"
+    );
     assert_eq!(
         applied.touched,
         touched(|t| {
@@ -2562,7 +2661,10 @@ fn update_mixer_track_changes_each_field() {
         ),
     );
     assert_eq!(applied.touched, touched(|t| t.mixer = true));
-    assert_eq!(applied.label, "Change mixer track");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Change mixer track"
+    );
     let changed = track(&doc, insert);
     assert_eq!(changed.name, "Drums");
     assert_eq!(changed.color, 0x0000FF);
@@ -2580,7 +2682,10 @@ fn update_mixer_track_changes_each_field() {
         )
     };
     let applied = run(&mut doc, volume(TrackId::MASTER, 5.0));
-    assert_eq!(applied.label, "Change mixer track volume");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Change mixer track volume"
+    );
     assert_eq!(track(&doc, TrackId::MASTER).volume, MAX_GAIN);
     assert_invalid(fail(&mut doc, volume(insert, f32::NAN)), "not a number");
 
@@ -2613,7 +2718,10 @@ fn set_track_output_routes_a_track() {
     let b = add_mixer_track(&mut doc);
 
     let applied = run(&mut doc, output(a, Some(b)));
-    assert_eq!(applied.label, "Route mixer track");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Route mixer track"
+    );
     assert_eq!(applied.touched, touched(|t| t.mixer = true));
     assert_eq!(track(&doc, a).output, Some(b));
 
@@ -2676,7 +2784,7 @@ fn set_send_adds_changes_and_removes_a_send() {
     let b = add_mixer_track(&mut doc);
 
     let applied = run(&mut doc, send(a, b, Some(0.5)));
-    assert_eq!(applied.label, "Add send");
+    assert_eq!(windfall_core::english::english(&applied.label), "Add send");
     assert_eq!(applied.touched, touched(|t| t.mixer = true));
     assert_eq!(
         track(&doc, a).sends,
@@ -2687,7 +2795,10 @@ fn set_send_adds_changes_and_removes_a_send() {
     );
 
     let applied = run(&mut doc, send(a, b, Some(9.0)));
-    assert_eq!(applied.label, "Change send level");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Change send level"
+    );
     assert_eq!(
         track(&doc, a).sends,
         [Send {
@@ -2697,7 +2808,10 @@ fn set_send_adds_changes_and_removes_a_send() {
     );
 
     let applied = run(&mut doc, send(a, b, None));
-    assert_eq!(applied.label, "Remove send");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Remove send"
+    );
     assert!(track(&doc, a).sends.is_empty());
     assert!(run(&mut doc, send(a, b, None)).touched.is_empty());
 
@@ -2728,7 +2842,10 @@ fn playlist_tracks_are_added_renamed_and_muted() {
             index: None,
         },
     );
-    assert_eq!(applied.label, "Add playlist track");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Add playlist track"
+    );
     assert_eq!(applied.touched, touched(|t| t.playlist = true));
     let id = PlaylistTrackId(applied.created[0]);
     assert_eq!(
@@ -2759,7 +2876,10 @@ fn playlist_tracks_are_added_renamed_and_muted() {
             },
         ),
     );
-    assert_eq!(applied.label, "Rename playlist track");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Rename playlist track"
+    );
     assert_eq!(applied.touched, touched(|t| t.playlist = true));
     let applied = run(
         &mut doc,
@@ -2774,7 +2894,10 @@ fn playlist_tracks_are_added_renamed_and_muted() {
             },
         ),
     );
-    assert_eq!(applied.label, "Mute playlist track");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Mute playlist track"
+    );
     assert_eq!(
         doc.project().playlist.tracks[1],
         PlaylistTrack {
@@ -2827,7 +2950,10 @@ fn playlist_tracks_are_added_at_an_index_and_moved() {
     let clip = add_clip(&mut doc, b, PATTERN, 0);
     let moved = |id, index| Command::MovePlaylistTrack { id, index };
     let applied = run(&mut doc, moved(b, 0));
-    assert_eq!(applied.label, "Move playlist track");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Move playlist track"
+    );
     assert_eq!(applied.touched, touched(|t| t.playlist = true));
     assert!(applied.created.is_empty());
     assert_eq!(order(&doc), [b, top, a, middle, last]);
@@ -2866,7 +2992,10 @@ fn remove_playlist_track_takes_its_clips() {
     add_clip(&mut doc, first, PATTERN, 3840);
 
     let applied = run(&mut doc, Command::RemovePlaylistTrack { id: first });
-    assert_eq!(applied.label, "Delete playlist track");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Delete playlist track"
+    );
     assert_eq!(applied.touched, touched(|t| t.playlist = true));
     let clips: Vec<ClipId> = doc.project().playlist.clips.iter().map(|c| c.id).collect();
     assert_eq!(clips, [kept]);
@@ -2902,7 +3031,7 @@ fn add_clips_creates_ids_in_order_and_keeps_clips_sorted() {
             ],
         },
     );
-    assert_eq!(applied.label, "Add clips");
+    assert_eq!(windfall_core::english::english(&applied.label), "Add clips");
     assert_eq!(applied.touched, touched(|t| t.playlist = true));
     let ids = &applied.created;
     assert!(ids.windows(2).all(|pair| pair[0] < pair[1]));
@@ -3019,7 +3148,7 @@ fn an_audio_clip_is_added_with_its_values_brought_into_range() {
         ..audio_clip(lane, 960, 7_680, content.clone())
     };
     let applied = run(&mut doc, Command::AddClips { clips: vec![init] });
-    assert_eq!(applied.label, "Add clip");
+    assert_eq!(windfall_core::english::english(&applied.label), "Add clip");
     assert_eq!(applied.touched, touched(|t| t.playlist = true));
     let id = ClipId(applied.created[0]);
     assert_eq!(
@@ -3177,7 +3306,7 @@ fn update_audio_clips_changes_what_is_particular_to_audio() {
     assert_eq!(bus, TrackId(4));
     for (change, expected) in cases {
         let applied = run(&mut doc, update(vec![(a, patch(change))]));
-        assert_eq!(applied.label, expected);
+        assert_eq!(windfall_core::english::english(&applied.label), expected);
         assert_eq!(applied.touched, touched(|t| t.playlist = true));
         assert!(applied.created.is_empty());
     }
@@ -3209,7 +3338,10 @@ fn update_audio_clips_changes_what_is_particular_to_audio() {
         (a, patch(|p| p.pan = Some(-7.0))),
     ]);
     let applied = run(&mut doc, both);
-    assert_eq!(applied.label, "Change audio clips");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Change audio clips"
+    );
     let ClipContent::Audio { gain, pan, .. } = clip_of(&doc, a).content else {
         panic!("not an audio clip");
     };
@@ -3401,7 +3533,7 @@ fn check_names_each_broken_rule_of_an_audio_clip() {
         match project.check() {
             Ok(()) => panic!("case {index} (\"{words}\") passed the check"),
             Err(problem) => assert!(
-                problem.contains(words),
+                windfall_core::english::english(&problem).contains(words),
                 "case {index}: \"{problem}\" lacks \"{words}\""
             ),
         }
@@ -3476,7 +3608,10 @@ fn remove_clips_removes_them() {
         not_found("clip", 600)
     );
     let applied = run(&mut doc, remove(vec![a]));
-    assert_eq!(applied.label, "Delete clip");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Delete clip"
+    );
     assert_eq!(applied.touched, touched(|t| t.playlist = true));
     let clips: Vec<ClipId> = doc.project().playlist.clips.iter().map(|c| c.id).collect();
     assert_eq!(clips, [b]);
@@ -3513,7 +3648,7 @@ fn update_clips_changes_clips_and_keeps_them_sorted() {
             },
         )]),
     );
-    assert_eq!(applied.label, "Move clip");
+    assert_eq!(windfall_core::english::english(&applied.label), "Move clip");
     assert_eq!(applied.touched, touched(|t| t.playlist = true));
     let clips = &doc.project().playlist.clips;
     let order: Vec<ClipId> = clips.iter().map(|c| c.id).collect();
@@ -3539,7 +3674,10 @@ fn update_clips_changes_clips_and_keeps_them_sorted() {
         &mut doc,
         update_clips(vec![(a, resize.clone()), (b, resize)]),
     );
-    assert_eq!(applied.label, "Resize clips");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Resize clips"
+    );
     let unmute = ClipPatch {
         muted: Some(false),
         ..ClipPatch::default()
@@ -3648,7 +3786,10 @@ fn a_batch_is_one_undo_step() {
         )
         .unwrap();
     doc.project().check().unwrap();
-    assert_eq!(applied.label, "Add sample");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Add sample"
+    );
     assert_eq!(applied.created.len(), 3);
     let pattern = PatternId(applied.created[1]);
     assert_eq!(
@@ -3662,7 +3803,7 @@ fn a_batch_is_one_undo_step() {
         })
     );
     assert_eq!(doc.history().entries.len(), 1);
-    assert_eq!(label(&doc), "Add sample");
+    assert_eq!(windfall_core::english::english(&label(&doc)), "Add sample");
 
     doc.undo().unwrap();
     assert!(same_content(doc.project(), &before));
@@ -3702,8 +3843,14 @@ fn a_batch_takes_its_label_or_its_first_commands() {
         &mut doc,
         batch(Some("Set up drums"), vec![tempo(100.0), tempo(101.0)]),
     );
-    assert_eq!(applied.label, "Set up drums");
-    assert_eq!(label(&doc), "Set up drums");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Set up drums"
+    );
+    assert_eq!(
+        windfall_core::english::english(&label(&doc)),
+        "Set up drums"
+    );
 
     let nested = batch(
         None,
@@ -3910,7 +4057,10 @@ fn dispatches_of_one_gesture_collapse_into_one_undo_step() {
             .unwrap();
     }
     assert_eq!(doc.history().entries.len(), 2);
-    assert_eq!(label(&doc), "Change channel volume");
+    assert_eq!(
+        windfall_core::english::english(&label(&doc)),
+        "Change channel volume"
+    );
     let after = doc.project().clone();
     assert_eq!(after.channel(kick).unwrap().volume, 0.5);
 
@@ -4012,7 +4162,7 @@ fn a_gesture_can_span_different_commands() {
     doc.dispatch(toggle(kick, 8), Some(3)).unwrap();
     assert_eq!(doc.history().entries.len(), entries + 1);
     // The step keeps the label of the gesture's first command.
-    assert_eq!(label(&doc), "Move notes");
+    assert_eq!(windfall_core::english::english(&label(&doc)), "Move notes");
     let after = doc.project().clone();
 
     doc.undo().unwrap();
@@ -4434,7 +4584,7 @@ fn check_names_each_broken_rule() {
         match project.check() {
             Ok(()) => panic!("case {index} (\"{words}\") passed the check"),
             Err(problem) => assert!(
-                problem.contains(words),
+                windfall_core::english::english(&problem).contains(words),
                 "case {index}: \"{problem}\" lacks \"{words}\""
             ),
         }
@@ -4477,7 +4627,10 @@ fn add_effect_puts_a_default_effect_on_the_track() {
             index: None,
         },
     );
-    assert_eq!(applied.label, "Add effect");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Add effect"
+    );
     assert_eq!(applied.touched, touched(|t| t.mixer = true));
     let reverb = EffectId(applied.created[0]);
     assert_eq!(applied.created.len(), 1);
@@ -4607,7 +4760,10 @@ fn remove_effect_takes_one_effect_out_of_the_chain() {
     );
 
     let applied = run(&mut doc, remove(track_id, eq));
-    assert_eq!(applied.label, "Delete effect");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Delete effect"
+    );
     assert_eq!(applied.touched, touched(|t| t.mixer = true));
     assert_eq!(effect_ids(&doc, track_id), [reverb]);
     assert_eq!(effect_ids(&doc, other), [elsewhere]);
@@ -4631,7 +4787,10 @@ fn move_effect_reorders_a_chain() {
     };
 
     let applied = run(&mut doc, to(a, 2));
-    assert_eq!(applied.label, "Move effect");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Move effect"
+    );
     assert_eq!(effect_ids(&doc, track_id), [b, c, a]);
     run(&mut doc, to(a, 0));
     assert_eq!(effect_ids(&doc, track_id), [a, b, c]);
@@ -4748,7 +4907,10 @@ fn update_effect_switches_and_mixes() {
     };
 
     let applied = run(&mut doc, update(enabled(false)));
-    assert_eq!(applied.label, "Switch effect off");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Switch effect off"
+    );
     assert_eq!(applied.touched, touched(|t| t.mixer = true));
     assert!(!slot(&doc, track_id, effect).enabled);
     assert_eq!(
@@ -4805,7 +4967,10 @@ fn set_effect_param_sets_one_setting_within_its_range() {
     let (auto_makeup, detector) = (index("autoMakeup"), index("detector"));
 
     let applied = run(&mut doc, set_param(track_id, effect, threshold, -30.0));
-    assert_eq!(applied.label, "Change Threshold");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Change Threshold"
+    );
     assert_eq!(applied.touched, touched(|t| t.mixer = true));
     assert_eq!(
         compressor(&doc),
@@ -4908,7 +5073,10 @@ fn set_effect_params_replaces_every_setting() {
     };
 
     let applied = run(&mut doc, set(EffectParams::Limiter(preset)));
-    assert_eq!(applied.label, "Change effect settings");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Change effect settings"
+    );
     assert_eq!(applied.touched, touched(|t| t.mixer = true));
     assert_eq!(
         slot(&doc, track_id, effect).params,
@@ -4985,7 +5153,10 @@ fn duplicate_effect_copies_an_effect_right_after_it() {
             effect: delay,
         },
     );
-    assert_eq!(applied.label, "Duplicate effect");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Duplicate effect"
+    );
     assert_eq!(applied.touched, touched(|t| t.mixer = true));
     let copy = EffectId(applied.created[0]);
     assert_eq!(effect_ids(&doc, track_id), [eq, delay, copy]);
@@ -5029,7 +5200,10 @@ fn a_setting_is_named_in_the_history() {
             };
             let previous_history = doc.history();
             let applied = run(&mut doc, set_param(track_id, effect, param, other));
-            assert_eq!(applied.label, format!("Change {}", info.name));
+            assert_eq!(
+                windfall_core::english::english(&applied.label),
+                format!("Change {}", info.name)
+            );
             if info.min == info.max {
                 // A fixed descriptor, such as the final echo unit's send
                 // without a destination, must remain a history-free no-op.
@@ -5048,7 +5222,10 @@ fn a_setting_is_named_in_the_history() {
             info.max
         };
         let applied = run(&mut doc, set_synth(channel, param, other));
-        assert_eq!(applied.label, format!("Change {}", info.name));
+        assert_eq!(
+            windfall_core::english::english(&applied.label),
+            format!("Change {}", info.name)
+        );
     }
     let named = |id: &str| format!("Change {}", synth[param_index::<SynthParams>(id)].name);
     assert_eq!(named("filter.cutoffHz"), "Change Cutoff");
@@ -5083,7 +5260,10 @@ fn replace_effect_puts_a_new_effect_in_the_same_place() {
         kind,
     };
     let applied = run(&mut doc, replace(delay, EffectKind::Reverb));
-    assert_eq!(applied.label, "Replace effect");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Replace effect"
+    );
     assert_eq!(applied.touched, touched(|t| t.mixer = true));
     assert_eq!(doc.history().entries.len(), steps + 1);
     let reverb = EffectId(applied.created[0]);
@@ -5203,7 +5383,10 @@ fn a_knob_drag_on_an_effect_is_one_undo_step() {
     doc.dispatch(mix, Some(7)).unwrap();
     // The step is named after the setting the drag began on.
     assert_eq!(doc.history().entries.len(), steps + 1);
-    assert_eq!(label(&doc), "Change Decay");
+    assert_eq!(
+        windfall_core::english::english(&label(&doc)),
+        "Change Decay"
+    );
     let EffectParams::Reverb(reverb) = slot(&doc, track_id, effect).params else {
         panic!("not a reverb");
     };
@@ -5265,7 +5448,10 @@ fn add_channel_can_make_an_instrument_channel() {
             mixer_track: None,
         },
     );
-    assert_eq!(applied.label, "Add channel");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Add channel"
+    );
     assert_eq!(
         applied.touched,
         touched(|t| {
@@ -5362,7 +5548,10 @@ fn set_instrument_param_sets_one_setting_within_its_range() {
     let index = param_index::<SynthParams>;
 
     let applied = run(&mut doc, set_synth(channel, index("glideMs"), 120.0));
-    assert_eq!(applied.label, "Change Glide");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Change Glide"
+    );
     assert_eq!(applied.touched, touched(|t| t.channels = true));
     assert_eq!(
         synth(&doc, channel),
@@ -5435,7 +5624,10 @@ fn set_instrument_params_replaces_every_setting() {
     preset.oscillators[2].level = 0.8;
 
     let applied = run(&mut doc, set(preset));
-    assert_eq!(applied.label, "Change instrument settings");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Change instrument settings"
+    );
     assert_eq!(applied.touched, touched(|t| t.channels = true));
     assert_eq!(synth(&doc, channel), preset);
 
@@ -5508,10 +5700,9 @@ fn sampler_and_instrument_commands_do_not_cross() {
     ];
     let message = "the channel \"Lead\" plays an instrument, so it has no sampler settings";
     for command in on_instrument {
-        assert_eq!(
-            fail(&mut doc, command),
-            CommandError::Invalid(message.to_owned())
-        );
+        let error = fail(&mut doc, command);
+        assert!(matches!(error, CommandError::Invalid(_)), "{error:?}");
+        assert_eq!(windfall_core::english::english(&error.to_string()), message);
     }
 
     let on_sampler = [
@@ -5523,10 +5714,9 @@ fn sampler_and_instrument_commands_do_not_cross() {
     ];
     let message = "the channel \"Drum\" is a sampler, so it has no instrument settings";
     for command in on_sampler {
-        assert_eq!(
-            fail(&mut doc, command),
-            CommandError::Invalid(message.to_owned())
-        );
+        let error = fail(&mut doc, command);
+        assert!(matches!(error, CommandError::Invalid(_)), "{error:?}");
+        assert_eq!(windfall_core::english::english(&error.to_string()), message);
     }
 
     // The commands every channel shares work on both.
@@ -5558,7 +5748,10 @@ fn a_knob_drag_on_an_instrument_is_one_undo_step() {
         assert_eq!(applied.touched, touched(|t| t.channels = true));
     }
     assert_eq!(doc.history().entries.len(), steps + 1);
-    assert_eq!(label(&doc), "Change Cutoff");
+    assert_eq!(
+        windfall_core::english::english(&label(&doc)),
+        "Change Cutoff"
+    );
     assert_eq!(synth(&doc, channel).filter.cutoff_hz, 500.0);
     doc.undo().unwrap();
     assert_eq!(doc.project(), &start);
@@ -6411,7 +6604,10 @@ fn an_automation_starts_as_one_point_on_the_value_its_target_has() {
                 points: None,
             },
         );
-        assert_eq!(applied.label, "Add automation");
+        assert_eq!(
+            windfall_core::english::english(&applied.label),
+            "Add automation"
+        );
         assert_eq!(applied.touched, touched(|t| t.automations = true));
         let id = AutomationId(applied.created[0]);
         let added = automation(&doc, id);
@@ -6614,7 +6810,10 @@ fn a_curve_is_checked_and_its_values_brought_into_range() {
         point(MAX_SONG_TICKS, 0.5),
     ];
     let applied = run(&mut doc, set(wild));
-    assert_eq!(applied.label, "Change automation curve");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Change automation curve"
+    );
     assert_eq!(applied.touched, touched(|t| t.automations = true));
     assert!(applied.created.is_empty());
     assert_eq!(
@@ -6722,7 +6921,10 @@ fn an_automation_is_renamed_recolored_and_duplicated() {
             },
         ),
     );
-    assert_eq!(applied.label, "Rename automation");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Rename automation"
+    );
     assert_eq!(applied.touched, touched(|t| t.automations = true));
     let applied = run(
         &mut doc,
@@ -6734,7 +6936,10 @@ fn an_automation_is_renamed_recolored_and_duplicated() {
             },
         ),
     );
-    assert_eq!(applied.label, "Change automation color");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Change automation color"
+    );
     let changed = automation(&doc, first);
     assert_eq!((changed.name.as_str(), changed.color), ("Fade", 0x112233));
     let bad = AutomationPatch {
@@ -6766,7 +6971,10 @@ fn an_automation_is_renamed_recolored_and_duplicated() {
         },
     );
     let applied = run(&mut doc, Command::DuplicateAutomation { id: first });
-    assert_eq!(applied.label, "Duplicate automation");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Duplicate automation"
+    );
     assert_eq!(applied.touched, touched(|t| t.automations = true));
     let copy = AutomationId(applied.created[0]);
     assert_eq!(automation_ids(&doc), [first, copy, second]);
@@ -6799,7 +7007,7 @@ fn an_automation_clip_is_a_window_onto_its_curve() {
 
     // One point: the clip is a bar long, so there is something to hold.
     let applied = run(&mut doc, add(automation_clip(lane, 0, id)));
-    assert_eq!(applied.label, "Add clip");
+    assert_eq!(windfall_core::english::english(&applied.label), "Add clip");
     assert_eq!(applied.touched, touched(|t| t.playlist = true));
     let short = ClipId(applied.created[0]);
     assert_eq!(clip_of(&doc, short).length, 3_840);
@@ -6872,7 +7080,10 @@ fn an_automation_clip_is_a_window_onto_its_curve() {
     // Deleting the automation takes every clip of it, and nothing else.
     let before = doc.project().clone();
     let applied = run(&mut doc, Command::RemoveAutomation { id });
-    assert_eq!(applied.label, "Delete automation");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Delete automation"
+    );
     assert_eq!(
         applied.touched,
         touched(|t| {
@@ -6970,7 +7181,7 @@ fn what_an_automation_moves_takes_the_automation_with_it() {
     ];
     for (command, gone, label) in cases {
         let applied = run(&mut doc, command.clone());
-        assert_eq!(applied.label, label);
+        assert_eq!(windfall_core::english::english(&applied.label), label);
         assert!(applied.touched.automations && applied.touched.playlist);
         let expected: Vec<usize> = (0..targets.len()).filter(|i| !gone.contains(i)).collect();
         assert_eq!(left(&doc), expected, "{command:?}");
@@ -7055,7 +7266,10 @@ fn an_effect_that_moves_to_another_track_keeps_its_automations() {
         index: 0,
     };
     let applied = run(&mut doc, across);
-    assert_eq!(applied.label, "Move effect");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Move effect"
+    );
     assert_eq!(
         applied.touched,
         touched(|t| {
@@ -7217,7 +7431,7 @@ fn check_names_each_broken_rule_of_an_automation() {
         match project.check() {
             Ok(()) => panic!("case {index} (\"{words}\") passed the check"),
             Err(problem) => assert!(
-                problem.contains(words),
+                windfall_core::english::english(&problem).contains(words),
                 "case {index}: \"{problem}\" lacks \"{words}\""
             ),
         }

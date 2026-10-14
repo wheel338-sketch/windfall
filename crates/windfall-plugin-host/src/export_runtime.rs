@@ -29,15 +29,16 @@ impl Stamp {
             || (expected.target == "universal-macos"
                 && matches!(self.target.as_str(), "x86_64-macos" | "aarch64-macos"));
         if self.abi != expected.abi || self.version != expected.version || !target_matches {
-            return Err(format!(
-                "Windfall runtime mismatch: expected ABI {} version {} target {}, found ABI {} version {} target {}",
-                expected.abi,
-                expected.version,
-                expected.target,
-                self.abi,
-                self.version,
-                self.target
-            ));
+            return Err(windfall_core::notice!(
+                "pluginHost.runtimeMismatch",
+                expectedAbi = expected.abi,
+                expectedVersion = expected.version,
+                expectedTarget = expected.target,
+                foundAbi = self.abi,
+                foundVersion = self.version,
+                foundTarget = self.target
+            )
+            .to_string());
         }
         Ok(())
     }
@@ -68,25 +69,35 @@ pub fn resolve(locations: &[PathBuf]) -> Result<PathBuf, String> {
             return Ok(path.clone());
         }
     }
-    Err(format!(
-        "Windfall runtime is missing; searched {}",
-        locations
+    Err(windfall_core::notice!(
+        "pluginHost.runtimeNotFound",
+        searched = locations
             .iter()
             .map(|p| p.display().to_string())
             .collect::<Vec<_>>()
             .join(", ")
-    ))
+    )
+    .to_string())
 }
 pub fn probe(path: &Path, expected: &Stamp) -> Result<Stamp, String> {
     if !path.is_file() {
-        return Err(format!("Windfall runtime is missing: {}", path.display()));
+        return Err(
+            windfall_core::notice!("pluginHost.runtimeMissing", path = path.display()).to_string(),
+        );
     }
     // SAFETY: an export runtime is native code, exactly like a scanned plugin.
     // Keep the library alive until its version string has been copied.
-    let library = unsafe { libloading::Library::new(path) }
-        .map_err(|e| format!("Cannot load Windfall runtime {}: {e}", path.display()))?;
-    let stamp = unsafe { library.get::<unsafe extern "C" fn() -> *const c_char>(SYMBOL) }
-        .map_err(|_| format!("Windfall runtime {} has no ABI stamp", path.display()))?;
+    let library = unsafe { libloading::Library::new(path) }.map_err(|e| {
+        windfall_core::notice!(
+            "pluginHost.runtimeLoadFailed",
+            path = path.display(),
+            error = e.to_string()
+        )
+        .to_string()
+    })?;
+    let stamp = unsafe { library.get::<unsafe extern "C" fn() -> *const c_char>(SYMBOL) }.map_err(
+        |_| windfall_core::notice!("pluginHost.runtimeNoStamp", path = path.display()).to_string(),
+    )?;
     let pointer = unsafe { stamp() };
     unsafe { read_stamp(pointer, expected) }
 }
@@ -95,7 +106,9 @@ unsafe fn read_stamp(pointer: *const c_char, expected: &Stamp) -> Result<Stamp, 
         return Err("Windfall runtime has a null ABI stamp".into());
     }
     let value: Stamp = serde_json::from_slice(unsafe { CStr::from_ptr(pointer) }.to_bytes())
-        .map_err(|e| format!("Windfall runtime has an invalid ABI stamp: {e}"))?;
+        .map_err(|e| {
+            windfall_core::notice!("pluginHost.runtimeBadStamp", error = e.to_string()).to_string()
+        })?;
     value.validate(expected)?;
     Ok(value)
 }
@@ -139,6 +152,7 @@ mod tests {
             assert!(
                 bad.1
                     .validate(&expected)
+                    .map_err(|error| windfall_core::english::english(&error))
                     .unwrap_err()
                     .contains("runtime mismatch")
             );
@@ -163,6 +177,7 @@ mod tests {
         ] {
             assert!(
                 unsafe { read_stamp(text.as_ptr(), &expected) }
+                    .map_err(|error| windfall_core::english::english(&error))
                     .unwrap_err()
                     .contains("invalid ABI stamp")
             );

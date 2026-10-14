@@ -251,8 +251,14 @@ impl Builder<'_> {
                     ReportSection::Automation,
                     Outcome::Dropped,
                     match source {
-                        ControlTarget::ChannelPlugin {channel,param} => self.instrument_target_report(channel,param),
-                        target => format!("Automation target {target:?} is unsupported or was not imported; kept in source events."),
+                        ControlTarget::ChannelPlugin { channel, param } => {
+                            self.instrument_target_report(channel, param)
+                        }
+                        target => windfall_core::notice!(
+                            "flp.automation.targetUnsupported",
+                            target = format!("{:?}", target)
+                        )
+                        .to_string(),
                     },
                 );
                 continue;
@@ -328,7 +334,11 @@ impl Builder<'_> {
                 1,
             );
             if approximated {
-                self.report.say(ReportSection::Automation, outcome, "Automation tension, unsupported modes, controller mappings or model limits were approximated; controller formulas and smoothing are not reproduced.");
+                self.report.say(
+                    ReportSection::Automation,
+                    outcome,
+                    windfall_core::notice!("flp.automation.approximated").to_string(),
+                );
             }
             if let Some(id) = id {
                 ids.push(AutomationId(id));
@@ -338,7 +348,7 @@ impl Builder<'_> {
             self.report.say(
                 ReportSection::Automation,
                 Outcome::Dropped,
-                "An automation channel has no usable target and its clips were left out.",
+                windfall_core::notice!("flp.automation.noTarget").to_string(),
             );
         }
         ids
@@ -388,7 +398,7 @@ impl Builder<'_> {
             if let Some(source) = source {
                 self.apply(
                     ReportSection::Playlist,
-                    "Playlist track mute",
+                    &windfall_core::notice!("flp.subject.playlistTrackMute").to_string(),
                     Command::UpdatePlaylistTrack {
                         id,
                         patch: PlaylistTrackPatch {
@@ -411,7 +421,7 @@ impl Builder<'_> {
                     self.report.say(
                         ReportSection::Playlist,
                         Outcome::Dropped,
-                        "Playlist track height was brought within Windfall's limits.",
+                        windfall_core::notice!("flp.playlist.trackHeight").to_string(),
                     );
                 }
             }
@@ -475,7 +485,15 @@ impl Builder<'_> {
                                     stretch: Default::default(),
                                 });
                                 if source.stretched {
-                                    self.report.say(ReportSection::Playlist, Outcome::Approximated, format!("Audio clip \"{}\" keeps its sample but time stretching is not reproduced.", source.name));
+                                    self.report.say(
+                                        ReportSection::Playlist,
+                                        Outcome::Approximated,
+                                        windfall_core::notice!(
+                                            "flp.playlist.stretchLost",
+                                            clip = source.name
+                                        )
+                                        .to_string(),
+                                    );
                                 }
                                 outcome = Outcome::Approximated;
                             }
@@ -489,7 +507,11 @@ impl Builder<'_> {
                     }
                     if start.unwrap_or(0.0) != 0.0 {
                         outcome = Outcome::Approximated;
-                        self.report.say(ReportSection::Playlist, outcome, "Channel clip offsets use disputed source units and may need adjustment after import.");
+                        self.report.say(
+                            ReportSection::Playlist,
+                            outcome,
+                            windfall_core::notice!("flp.playlist.clipOffsets").to_string(),
+                        );
                     }
                     let amount = f64::from(start.unwrap_or(0.0));
                     let audio = matches!(self.channels.get(&channel), Some(ChannelRole::Audio(_)));
@@ -515,7 +537,7 @@ impl Builder<'_> {
                 self.report.say(
                     ReportSection::Playlist,
                     Outcome::Dropped,
-                    "A clip has unavailable content or lies outside Windfall's timeline limits.",
+                    windfall_core::notice!("flp.playlist.clipUnavailable").to_string(),
                 );
                 continue;
             }
@@ -547,7 +569,7 @@ impl Builder<'_> {
             {
                 if let Some(ids) = self.apply(
                     ReportSection::Playlist,
-                    "A legacy playlist block",
+                    &windfall_core::notice!("flp.subject.legacyPlaylistBlock").to_string(),
                     Command::AddClips {
                         clips: vec![ClipInit {
                             track,
@@ -577,8 +599,11 @@ impl Builder<'_> {
             .channel(channel)
             .and_then(|c| c.plugin.as_ref())
             .map_or("unnamed", |p| p.internal_name.as_str());
-        format!(
-            "SCOPE: Instrument {name} parameter {param} unsupported; retained opaquely: DawVert fl_studio.dset supplies no named automation numbers for the decoded 3x Osc/DX10/Plucked/BooBass/Fruit Kick/SimSynth/Slicer/Granulizer/BassDrum states; Sytrus/Harmless entries are anonymous param_N ranges. PyFLP plugin.py parsers and LMMS importer supply no semantic number-to-knob map. State offsets were not substituted for parameter numbers; source event retained."
+        windfall_core::notice!(
+            "flp.automation.instrumentParamScope",
+            device = name,
+            param = param
         )
+        .to_string()
     }
 }

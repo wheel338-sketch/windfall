@@ -28,19 +28,20 @@ pub fn check_settings(
 ) -> Result<(), String> {
     let layer = settings.layer;
     if layer.children.len() > MAX_LAYER_CHILDREN {
-        return Err(format!(
-            "a layer plays at most {MAX_LAYER_CHILDREN} channels"
-        ));
+        return Err(windfall_core::notice!(
+            "project.layer.tooManyChildren",
+            max = MAX_LAYER_CHILDREN
+        )
+        .to_string());
     }
     for child in layer.children.iter() {
         if child == id {
             return Err("a layer cannot play itself".into());
         }
         if find(channels, child).is_none() {
-            return Err(format!(
-                "layer child channel {} is not in the project",
-                child.0
-            ));
+            return Err(
+                windfall_core::notice!("project.layer.childMissing", channel = child.0).to_string(),
+            );
         }
     }
     // Walk down from the children. Reaching `id` again is a loop. The walk

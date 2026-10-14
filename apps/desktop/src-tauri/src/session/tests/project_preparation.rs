@@ -382,7 +382,7 @@ fn p1_session_native_error_and_meter_refusal_leave_document_pool_history_transpo
     let document = rig.session.document_snapshot();
     let pool = rig.session.state().pool.clone();
     let transport = rig.session.controller().transport();
-    let error = rig.session.dispatch(add(), None).unwrap_err();
+    let error = windfall_core::english::shown(&rig.session.dispatch(add(), None).unwrap_err());
     assert!(
         error.contains("Native plugin preparation failed"),
         "{error}"
@@ -678,7 +678,9 @@ fn p1_session_pending_decoder_completion_retries_with_exact_fresh_sources_and_of
             );
             let sample = windfall_project::SampleId(*result.created.last().unwrap());
             assert_eq!(
-                rig.session.sample_info_by_id(sample).unwrap_err(),
+                windfall_core::english::english(
+                    &rig.session.sample_info_by_id(sample).unwrap_err()
+                ),
                 "Missing sample: sounds/own.wav"
             );
             assert!(rig.session.state().failed.contains(&missing));
@@ -719,7 +721,7 @@ fn p1_session_repeated_pending_completions_exhaust_visible_retry_bound_without_m
     let before = rig.session.document_snapshot();
     let source_pool = rig.session.state().pool.clone();
     let transport = rig.session.controller().transport();
-    let error = rig.session.dispatch(add(), None).unwrap_err();
+    let error = windfall_core::english::english(&rig.session.dispatch(add(), None).unwrap_err());
     assert!(error.contains("source changed"), "{error}");
     assert!(error.contains("retry limit (8 attempts)"), "{error}");
     assert_eq!(rig.session.document_snapshot(), before);

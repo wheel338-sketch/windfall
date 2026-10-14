@@ -77,7 +77,7 @@ pub struct LibraryResults {
 
 pub fn normalize_tags(tags: &[String]) -> Result<Vec<String>, String> {
     if tags.len() > MAX_TAGS {
-        return Err(format!("Use at most {MAX_TAGS} tags."));
+        return Err(windfall_core::notice!("library.tooManyTags", max = MAX_TAGS).to_string());
     }
     let mut normalized = Vec::new();
     for tag in tags {
@@ -86,9 +86,9 @@ pub fn normalize_tags(tags: &[String]) -> Result<Vec<String>, String> {
             continue;
         }
         if tag.chars().count() > MAX_TAG_CHARS || tag.chars().any(char::is_control) {
-            return Err(format!(
-                "Tags must be at most {MAX_TAG_CHARS} characters, without control characters."
-            ));
+            return Err(
+                windfall_core::notice!("library.tagTooLong", max = MAX_TAG_CHARS).to_string(),
+            );
         }
         normalized.push(tag);
     }
@@ -123,9 +123,9 @@ pub struct LibraryQuery(Expr);
 impl LibraryQuery {
     pub fn parse(query: &str) -> Result<Self, String> {
         if query.len() > MAX_QUERY_BYTES {
-            return Err(format!(
-                "Search is limited to {MAX_QUERY_BYTES} UTF-8 bytes."
-            ));
+            return Err(
+                windfall_core::notice!("library.queryTooLong", max = MAX_QUERY_BYTES).to_string(),
+            );
         }
         let mut tokens = Vec::new();
         let mut chars = query.chars().peekable();
@@ -171,7 +171,11 @@ impl LibraryQuery {
             };
             tokens.push(token);
             if tokens.len() > MAX_QUERY_TOKENS {
-                return Err(format!("Use at most {MAX_QUERY_TOKENS} search tokens."));
+                return Err(windfall_core::notice!(
+                    "library.tooManyTokens",
+                    max = MAX_QUERY_TOKENS
+                )
+                .to_string());
             }
         }
         if tokens.is_empty() {

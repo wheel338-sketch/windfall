@@ -336,15 +336,22 @@ impl ScriptLibrary {
                 if self.channel_is_dynamic(project, binding.channel) {
                     transform
                         .maximum_end(super::ScriptNote::from(note))
-                        .map_err(|e| format!("script declared time bounds: {e:?}"))?;
+                        .map_err(|e| {
+                            windfall_core::notice!("scripts.timeBounds", error = format!("{:?}", e))
+                                .to_string()
+                        })?;
                 }
                 transform
                     .evaluate_notes(super::ScriptNote::from(note))
                     .map_err(|e| {
-                        format!(
-                            "script {} revision {} failed on note {}: {e:?}",
-                            binding.script.id, binding.script.revision, note.id.0
+                        windfall_core::notice!(
+                            "scripts.noteFailed",
+                            script = binding.script.id,
+                            revision = binding.script.revision,
+                            note = note.id.0,
+                            error = format!("{:?}", e)
                         )
+                        .to_string()
                     })?;
             }
         }
@@ -367,7 +374,13 @@ impl ScriptLibrary {
                     if self.channel_is_dynamic(project, lane.channel) {
                         let end = transform
                             .maximum_end(super::ScriptNote::from(note))
-                            .map_err(|e| format!("script declared time bounds: {e:?}"))?;
+                            .map_err(|e| {
+                                windfall_core::notice!(
+                                    "scripts.timeBounds",
+                                    error = format!("{:?}", e)
+                                )
+                                .to_string()
+                            })?;
                         length = length.max(end);
                         notes.push((
                             channel.timing,
@@ -379,7 +392,10 @@ impl ScriptLibrary {
                     }
                     for note in transform
                         .evaluate_notes(super::ScriptNote::from(note))
-                        .map_err(|e| format!("script note bounds: {e:?}"))?
+                        .map_err(|e| {
+                            windfall_core::notice!("scripts.noteBounds", error = format!("{:?}", e))
+                                .to_string()
+                        })?
                         .as_slice()
                     {
                         length = length.max(note.start.saturating_add(note.length));

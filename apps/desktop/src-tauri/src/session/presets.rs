@@ -172,8 +172,12 @@ impl Session {
         if json.len() > MAX_PRESET_FILE_BYTES {
             return Err("The preset is larger than 256 MiB.".into());
         }
-        file::write_atomic(&target, json.as_bytes())
-            .map_err(|error| format!("Could not save the preset: {error}"))?;
+        file::write_atomic(&target, json.as_bytes()).map_err(|error| {
+            windfall_ipc::ui_message(
+                "presets.saveFailed",
+                serde_json::json!({"error": error.to_string()}),
+            )
+        })?;
         Ok(paths::display(&target))
     }
 
@@ -205,9 +209,9 @@ impl Session {
             match asset_file(folder, asset).and_then(|file| fs::metadata(file).ok()) {
                 Some(metadata) if metadata.is_file() => {
                     if metadata.len() != asset.bytes {
-                        notes.push(format!(
-                            "The audio \"{}\" is not the size it was when the preset was saved; it may have been replaced.",
-                            asset.name
+                        notes.push(windfall_ipc::ui_message(
+                            "presets.audioSizeChanged",
+                            serde_json::json!({"name": asset.name}),
                         ));
                     }
                 }
@@ -216,12 +220,7 @@ impl Session {
         }
         for binding in hosted(&preset) {
             if !Path::new(&binding.path).exists() {
-                notes.push(format!(
-                    "The plugin \"{}\" ({}) is not installed at {}. Its saved state is kept, and it stays silent or bypassed until the plugin is there.",
-                    binding.name,
-                    binding.format.to_uppercase(),
-                    binding.path
-                ));
+                notes.push(windfall_ipc::ui_message("presets.pluginMissing", serde_json::json!({"name": binding.name, "format": binding.format.to_uppercase(), "path": binding.path})));
             }
         }
         Ok(PresetReview {
@@ -262,10 +261,9 @@ impl Session {
         let review = self.preset_read(path)?;
         let kind = review.preset.kind;
         let Some(body) = review.preset.channel else {
-            return Err(format!(
-                "\"{}\" is a {} preset, not a channel preset.",
-                paths::name(Path::new(&review.path)),
-                kind.label()
+            return Err(windfall_ipc::ui_message(
+                "presets.notChannelPreset",
+                serde_json::json!({"file": paths::name(Path::new(&review.path)), "kind": windfall_core::notice::term(kind.label()).to_string()}),
             ));
         };
         let folder = Path::new(&review.path).parent().unwrap_or(Path::new("."));
@@ -286,9 +284,9 @@ impl Session {
                 }
                 None if without_audio => None,
                 None => {
-                    return Err(format!(
-                        "The preset's audio \"{}\" is not beside it. Put it back, or load the preset without its audio.",
-                        asset.name
+                    return Err(windfall_ipc::ui_message(
+                        "presets.audioMissing",
+                        serde_json::json!({"name": asset.name}),
                     ));
                 }
             },
@@ -325,7 +323,12 @@ impl Session {
         let listing = match fs::read_dir(&folder) {
             Ok(listing) => listing,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
-            Err(error) => return Err(format!("Could not read the preset library: {error}")),
+            Err(error) => {
+                return Err(windfall_ipc::ui_message(
+                    "presets.libraryUnreadable",
+                    serde_json::json!({"error": error.to_string()}),
+                ));
+            }
         };
         let mut entries = Vec::new();
         for item in listing.flatten() {
@@ -383,8 +386,12 @@ impl Session {
         if !inside || !is_preset {
             return Err("Only a preset of the preset library can be deleted here.".into());
         }
-        fs::remove_file(&target)
-            .map_err(|error| format!("Could not delete the preset: {error}"))?;
+        fs::remove_file(&target).map_err(|error| {
+            windfall_ipc::ui_message(
+                "presets.deleteFailed",
+                serde_json::json!({"error": error.to_string()}),
+            )
+        })?;
         let audio = folder.join(format!("{} audio", paths::stem(&target)));
         if audio.is_dir()
             && let Err(error) = fs::remove_dir_all(&audio)
@@ -513,19 +520,32 @@ pub(super) fn safe_file_stem(name: &str) -> Result<String, String> {
             && (upper.starts_with("COM") || upper.starts_with("LPT"))
             && upper.ends_with(|c: char| c.is_ascii_digit()));
     if cleaned.is_empty() || cleaned == "." || cleaned == ".." || device {
-        return Err(format!("\"{name}\" cannot be used as a file name."));
+        return Err(windfall_ipc::ui_message(
+            "presets.badFileName",
+            serde_json::json!({"name": name}),
+        ));
     }
     Ok(cleaned)
 }
 
 /// Reads a file that may be at most `limit` bytes long.
 fn read_capped(path: &Path, limit: usize) -> Result<Vec<u8>, String> {
-    let opened = File::open(path).map_err(|error| format!("Could not open the preset: {error}"))?;
+    let opened = File::open(path).map_err(|error| {
+        windfall_ipc::ui_message(
+            "presets.openFailed",
+            serde_json::json!({"error": error.to_string()}),
+        )
+    })?;
     let mut bytes = Vec::new();
     opened
         .take(limit as u64 + 1)
         .read_to_end(&mut bytes)
-        .map_err(|error| format!("Could not read the preset: {error}"))?;
+        .map_err(|error| {
+            windfall_ipc::ui_message(
+                "presets.readFailed",
+                serde_json::json!({"error": error.to_string()}),
+            )
+        })?;
     if bytes.len() > limit {
         return Err("The preset file is larger than 256 MiB.".into());
     }
@@ -537,22 +557,22 @@ fn read_capped(path: &Path, limit: usize) -> Result<Vec<u8>, String> {
 /// leaves no half file there.
 fn copy_audio(source: &Path, destination: &Path) -> Result<u64, String> {
     let failed = |error: io::Error| {
-        format!(
-            "The preset's audio \"{}\" could not be copied: {error}",
-            paths::name(source)
+        windfall_ipc::ui_message(
+            "presets.audioNotCopied",
+            serde_json::json!({"name": paths::name(source), "error": error.to_string()}),
         )
     };
     let metadata = fs::metadata(source).map_err(failed)?;
     if !metadata.is_file() {
-        return Err(format!(
-            "The preset's audio \"{}\" is not a file.",
-            paths::name(source)
+        return Err(windfall_ipc::ui_message(
+            "presets.audioNotAFile",
+            serde_json::json!({"name": paths::name(source)}),
         ));
     }
     if metadata.len() > MAX_PRESET_ASSET_BYTES {
-        return Err(format!(
-            "The preset's audio \"{}\" is larger than a preset can bring along.",
-            paths::name(source)
+        return Err(windfall_ipc::ui_message(
+            "presets.audioTooLarge",
+            serde_json::json!({"name": paths::name(source)}),
         ));
     }
     if paths::same(&paths::clean(source), &paths::clean(destination)) {

@@ -238,7 +238,7 @@ fn missing_audio_is_reported_and_loads_only_when_asked_to() {
     let refused =
         rig.session
             .preset_apply_channel(&written, destination, expected.clone(), false, false);
-    assert!(refused.unwrap_err().contains("not beside it"));
+    assert!(windfall_core::english::english(&refused.unwrap_err()).contains("not beside it"));
     assert_eq!(rig.project(), before);
 
     // Asked to, the settings load and the sampler is left with no sample.
@@ -421,9 +421,7 @@ fn plugin_presets_keep_a_missing_plugins_state_and_the_library_lists_them() {
     )
     .unwrap();
     assert!(
-        rig.session
-            .preset_read(&newer)
-            .unwrap_err()
+        windfall_core::english::english(&rig.session.preset_read(&newer).unwrap_err())
             .contains("newer Windfall")
     );
 }

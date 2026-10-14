@@ -1365,7 +1365,7 @@ fn actual_output_io_refusal_preserves_replacement_and_reserves_failed_cleanup() 
     release.release();
     let result = manager.wait(id).unwrap();
     assert_eq!(result.status, JobStatus::Failed);
-    assert!(result.failure.unwrap().contains("cleanup failed"));
+    assert!(windfall_core::english::english(&result.failure.unwrap()).contains("cleanup failed"));
     assert_eq!(
         fs::read(&staging).unwrap(),
         b"replacement file must survive refusal"
@@ -1838,11 +1838,7 @@ fn absent_corrupt_model_and_input_rate_channel_empty_bounds_fail_before_adapter(
     missing.model.sha256 = [2; 32];
     let id = manager.submit(missing).unwrap();
     assert!(
-        manager
-            .wait(id)
-            .unwrap()
-            .failure
-            .unwrap()
+        windfall_core::english::english(&manager.wait(id).unwrap().failure.unwrap())
             .contains("absent")
     );
     assert_eq!(adapter.starts.load(Ordering::SeqCst), 0);
@@ -1852,7 +1848,10 @@ fn absent_corrupt_model_and_input_rate_channel_empty_bounds_fail_before_adapter(
         .unwrap();
     fs::write(&cache_path, b"wrong size").unwrap();
     let id = manager.submit(request(&audio)).unwrap();
-    assert!(manager.wait(id).unwrap().failure.unwrap().contains("size"));
+    assert!(
+        windfall_core::english::english(&manager.wait(id).unwrap().failure.unwrap())
+            .contains("size")
+    );
     assert_eq!(adapter.starts.load(Ordering::SeqCst), 0);
     fixture.staging_empty();
     for (rate, channels, samples) in [

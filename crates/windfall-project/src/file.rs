@@ -45,39 +45,39 @@ pub const BACKUP_FOLDER: &str = "Backup";
 /// How many backups of a project [`write_backup`] usually keeps.
 pub const DEFAULT_BACKUP_COUNT: usize = 20;
 
-/// Why a project could not be loaded.
+/// Why a project could not be loaded. Its text is a coded message (see
+/// `windfall_core::notice`); what the operating system or the JSON reader
+/// said is one of its values, as it came.
 #[derive(Debug, Error)]
 pub enum LoadError {
-    #[error("could not read {}: {source}", path.display())]
+    #[error("{}", windfall_core::notice!("project.load.readFailed", path = path.display(), error = source.to_string()))]
     Io {
         path: PathBuf,
         #[source]
         source: io::Error,
     },
-    #[error("this is not a Windfall project: {0}")]
+    #[error("{}", windfall_core::notice!("project.load.notAProject", error = _0.to_string()))]
     Parse(#[from] serde_json::Error),
-    #[error(
-        "this project was saved by a newer version of Windfall (file format {found}; this version reads up to format {supported})"
-    )]
+    #[error("{}", windfall_core::notice!("project.load.tooNew", found = found, supported = supported))]
     TooNew { found: u32, supported: u32 },
-    #[error("the project file is damaged: {0}")]
+    #[error("{}", windfall_core::notice!("project.load.damaged", problem = _0))]
     Invalid(String),
 }
 
-/// Why a project could not be saved.
+/// Why a project could not be saved. Its text is a coded message.
 #[derive(Debug, Error)]
 pub enum SaveError {
-    #[error("could not write {}: {source}", path.display())]
+    #[error("{}", windfall_core::notice!("project.save.writeFailed", path = path.display(), error = source.to_string()))]
     Io {
         path: PathBuf,
         #[source]
         source: io::Error,
     },
-    #[error("could not encode the project: {0}")]
+    #[error("{}", windfall_core::notice!("project.save.encodeFailed", error = _0.to_string()))]
     Encode(#[from] serde_json::Error),
     #[error("{0}")]
     BadName(String),
-    #[error("the project breaks a rule of the file format and was not saved: {0}")]
+    #[error("{}", windfall_core::notice!("project.save.invalid", problem = _0))]
     Invalid(String),
 }
 
@@ -271,16 +271,19 @@ pub fn write_backup_with(
         .file_stem()
         .and_then(|stem| stem.to_str())
         .ok_or_else(|| {
-            SaveError::BadName(format!(
-                "{} does not name a project file",
-                project_path.display()
-            ))
+            SaveError::BadName(
+                windfall_core::notice!(
+                    "project.file.notAProjectName",
+                    path = project_path.display()
+                )
+                .to_string(),
+            )
         })?;
     let forbidden = |c: char| c.is_control() || r#"/\:*?"<>|"#.contains(c);
     if timestamp.is_empty() || timestamp.contains(forbidden) {
-        return Err(SaveError::BadName(format!(
-            "\"{timestamp}\" cannot be used as the timestamp in a backup's file name"
-        )));
+        return Err(SaveError::BadName(
+            windfall_core::notice!("project.file.badTimestamp", timestamp = timestamp).to_string(),
+        ));
     }
 
     let folder = project_path.with_file_name(BACKUP_FOLDER);
@@ -444,9 +447,12 @@ fn rename_patiently(
         if tries == RENAME_ATTEMPTS {
             return Err(io::Error::new(
                 error.kind(),
-                format!(
-                    "the file could not be replaced in {tries} tries; another program may be holding it open ({error})"
-                ),
+                windfall_core::notice!(
+                    "project.file.replaceFailed",
+                    tries = tries,
+                    error = error.to_string()
+                )
+                .to_string(),
             ));
         }
         wait(backoff);
@@ -629,10 +635,15 @@ fn migrate(value: &mut Value, from: u32, migrations: &[Migration]) -> Result<(),
     for (index, migration) in migrations.iter().enumerate().skip(from as usize - 1) {
         let version = index + 1;
         migration(value).map_err(|problem| {
-            LoadError::Invalid(format!(
-                "could not upgrade from format {version} to {}: {problem}",
-                version + 1
-            ))
+            LoadError::Invalid(
+                windfall_core::notice!(
+                    "project.file.upgradeFailed",
+                    from = version,
+                    to = version + 1,
+                    problem = problem
+                )
+                .to_string(),
+            )
         })?;
         if let Some(object) = value.as_object_mut() {
             object.insert("formatVersion".to_owned(), Value::from(version + 1));
@@ -770,7 +781,7 @@ mod tests {
         let mut value = json!({ "formatVersion": 1 });
         let error = migrate(&mut value, 1, &[rename_title]).unwrap_err();
         assert_eq!(
-            error.to_string(),
+            windfall_core::english::english(&error.to_string()),
             "the project file is damaged: could not upgrade from format 1 to 2: no title"
         );
     }
@@ -908,7 +919,7 @@ mod tests {
         assert_eq!(calls, RENAME_ATTEMPTS);
         assert_eq!(waited, Duration::from_millis(310));
         assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
-        let message = error.to_string();
+        let message = windfall_core::english::english(&error.to_string());
         assert!(
             message.starts_with(
                 "the file could not be replaced in 6 tries; another program may be holding it open"
@@ -971,8 +982,7 @@ mod tests {
         let held = open_unshared(&target);
         let error = write_atomic(&target, b"the new project").unwrap_err();
         assert!(
-            error
-                .to_string()
+            windfall_core::english::english(&error.to_string())
                 .contains("another program may be holding it open"),
             "{error}"
         );

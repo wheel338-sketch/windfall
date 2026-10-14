@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest"
 
 import rustSource from "../../../../../crates/windfall-ipc/src/ui_messages.rs?raw"
-import { catalogs, localizeBackendText, nativeMessage, setLanguage } from "."
+import { catalogs, localizeBackendText, message, nativeMessage, setLanguage } from "."
 import { nativeEn, nativeEs } from "./native-messages"
 import type { MessageKey } from "./types"
 
@@ -82,5 +82,73 @@ describe("native coded message localization", () => {
       .toBe("No se ha podido interpretar el mensaje nativo.")
     expect(nativeMessage('windfall-message:{"code":"future.code","params":{}}', "es"))
       .toBe("Mensaje nativo desconocido (future.code).")
+  })
+
+  /** A coded message as the backend writes it, values in name order. */
+  const coded = (code: string, params: Record<string, string | number> = {}) =>
+    `windfall-message:${JSON.stringify({ code, params: Object.fromEntries(Object.entries(params).sort(([a], [b]) => a.localeCompare(b))) })}`
+  const term = (text: string) => coded("text.term", { text })
+
+  it("says one of Windfall's own words in the language shown, and anything else as it is", () => {
+    expect(nativeMessage(term("Cutoff"), "en")).toBe("Cutoff")
+    expect(nativeMessage(term("Cutoff"), "es")).toBe(message("Cutoff" as MessageKey, {}, "es"))
+    expect(nativeMessage(term("Somebody's Knob"), "es")).toBe("Somebody's Knob")
+    // A term whose text is itself coded is put into words.
+    expect(nativeMessage(term(coded("files.theTemplate")), "es")).toBe("La plantilla")
+  })
+
+  it("ends a message sent as a sentence with one full stop", () => {
+    const quality = coded("codec.vorbisQuality", { max: 10, min: -1, quality: 11 })
+    setLanguage("es")
+    expect(localizeBackendText(coded("text.sentence", { text: quality })))
+      .toBe(`${localizeBackendText(quality)}.`)
+    const ended = coded("archive.error.cancelled")
+    expect(localizeBackendText(coded("text.sentence", { text: ended }))).toBe(localizeBackendText(ended))
+    setLanguage("en")
+  })
+
+  it("puts every coded message of a list the backend joined into words, and capitalises one shown alone", () => {
+    const list = [coded("samples.missing", { path: "C:/a.wav" }), "what the system said", coded("samples.missing", { path: "C:/b.wav" })].join("; ")
+    const failed = coded("updates.editorsNotResumed", { errors: list })
+    expect(nativeMessage(failed, "es")).toBe(
+      "Los editores de plugins no se han podido reanudar tras cancelar la actualización: Falta la muestra: C:/a.wav; what the system said; Falta la muestra: C:/b.wav")
+    setLanguage("es")
+    expect(localizeBackendText(list)).toBe("Falta la muestra: C:/a.wav; what the system said; Falta la muestra: C:/b.wav")
+    // A project error starts in lower case, as it reads inside another one.
+    const damaged = coded("project.load.damaged", { problem: coded("project.check.noMaster") })
+    expect(localizeBackendText(damaged)).toBe("El archivo del proyecto está dañado: el mezclador no tiene pista maestra")
+    setLanguage("en")
+    expect(localizeBackendText(damaged)).toBe("The project file is damaged: the mixer has no master track")
+  })
+
+  it("says a refusal of each family in Spanish: project validation, the FL import review, an edit, a desktop file and a history label", () => {
+    // Project validation, with the owner a coded phrase of its own.
+    const owner = coded("project.owner.mixerTrack", { id: 3 })
+    const volume = coded("project.check.volume", { max: 4, owner, value: 2.5 })
+    setLanguage("es")
+    expect(localizeBackendText(coded("project.load.damaged", { problem: volume })))
+      .toBe("El archivo del proyecto está dañado: la pista de mezclador 3 tiene un volumen de 2,5, fuera del intervalo de 0 a 4")
+    // An edit refused by the command lowering.
+    expect(localizeBackendText(coded("project.edit.trackFull", { max: 10, track: "Drums" })))
+      .toBe("La pista de mezclador «Drums» está llena: admite como máximo 10 efectos")
+    expect(localizeBackendText(coded("project.notFound", { id: 12, kind: term("channel") })))
+      .toBe(`${message("channel" as MessageKey, {}, "es")} 12: no existe`.replace(/^./, (first) => first.toLocaleUpperCase("es")))
+    // Lines of the FL import review, plural and with notes made of terms.
+    expect(localizeBackendText(coded("flp.mixer.effectUnknown", { effect: "Fruity Blank", track: "Insert 3" })))
+      .toBe("Pista de mezclador «Insert 3»: el efecto «Fruity Blank» no tiene equivalente en Windfall. Se ha dejado fuera de la cadena y se han conservado sus ajustes.")
+    expect(localizeBackendText(coded("flp.mixer.tooManyTracks", { count: 1, max: 125 })))
+      .toBe("El mezclador de Windfall tiene 125 pistas. Se ha omitido 1 más, y lo que sonaba en ella suena en la pista maestra.")
+    expect(localizeBackendText(coded("flp.native.fieldOmitted", { device: "Fruity Limiter", field: "ceiling", value: 0.5 })))
+      .toBe("Fruity Limiter.ceiling=0,5: omitido: campo público decodificado sin un control equivalente en el sustituto (se conserva el estado).")
+    const notes = [term("its second response curve has no equivalent"), term("the slopes of its cut bands were not carried over")].join("; ")
+    expect(localizeBackendText(coded("flp.mixer.becameEffect", { effect: "EQ", kind: term("Parametric EQ"), notes, track: "Master" })))
+      .toBe(`Pista de mezclador «Master»: «EQ» se ha convertido en el efecto ${message("Parametric EQ" as MessageKey, {}, "es")} de Windfall: su segunda curva de respuesta no tiene equivalente; no se han trasladado las pendientes de sus bandas de corte.`)
+    // A desktop refusal that names what was not done.
+    const what = coded("files.fileNotOpened", { file: "song.windfall" })
+    expect(localizeBackendText(coded("files.refusedEdited", { what })))
+      .toBe("«song.windfall» no se ha abierto porque el proyecto se editó mientras tanto. Guarda o descarta esos cambios y vuelve a intentarlo.")
+    setLanguage("en")
+    expect(localizeBackendText(coded("files.refusedEdited", { what })))
+      .toBe("\"song.windfall\" was not opened because the project was edited in the meantime. Save or discard those changes, then try again.")
   })
 })

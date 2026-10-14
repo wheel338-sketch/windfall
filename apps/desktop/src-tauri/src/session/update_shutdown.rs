@@ -80,8 +80,19 @@ impl Session {
                 shutdown.editors_closed = true;
                 manager.runtime.update_close_editors(CAPTURE_WAIT)?;
                 stage("editors-closed")?;
-                let captured = manager.runtime.capture_for_update(project.clone(), revision.ok_or("Missing plugin revision")?, CAPTURE_WAIT)
-                    .map_err(|error| format!("Update preparation could not capture current native state; nothing was installed. {error}"))?;
+                let captured = manager
+                    .runtime
+                    .capture_for_update(
+                        project.clone(),
+                        revision.ok_or("Missing plugin revision")?,
+                        CAPTURE_WAIT,
+                    )
+                    .map_err(|error| {
+                        windfall_ipc::ui_message(
+                            "updates.captureFailed",
+                            serde_json::json!({"error": error}),
+                        )
+                    })?;
                 shutdown.captured = Some(captured);
             } else {
                 shutdown.captured = Some(project.clone());
@@ -289,9 +300,9 @@ impl UpdateShutdown {
                     }
                 }
                 if !errors.is_empty() {
-                    return Err(format!(
-                        "Plugin editors could not resume after update cancellation: {}",
-                        errors.join("; ")
+                    return Err(windfall_ipc::ui_message(
+                        "updates.editorsNotResumed",
+                        serde_json::json!({"errors": errors.join("; ")}),
                     ));
                 }
             }

@@ -526,7 +526,10 @@ fn a_project_that_breaks_a_rule_is_not_saved() {
     broken.settings.tempo_bpm = 9000.0;
     let error = save(&broken, &path).unwrap_err();
     assert!(matches!(error, SaveError::Invalid(_)), "{error}");
-    assert!(error.to_string().contains("tempo 9000"), "{error}");
+    assert!(
+        windfall_core::english::english(&error.to_string()).contains("tempo 9000"),
+        "{error}"
+    );
     // The good file is still there, and nothing was left beside it.
     assert_eq!(load(&path).unwrap(), demo_project());
     assert_eq!(file_names(folder.path()), ["Song.windfall"]);
@@ -617,8 +620,7 @@ fn load_refuses_text_that_is_not_a_project() {
         let error = from_json(text).unwrap_err();
         assert!(matches!(error, LoadError::Parse(_)), "{text:?}: {error}");
         assert!(
-            error
-                .to_string()
+            windfall_core::english::english(&error.to_string())
                 .starts_with("this is not a Windfall project")
         );
     }
@@ -639,7 +641,7 @@ fn load_refuses_a_file_from_a_newer_version() {
         }
     ));
     assert_eq!(
-        error.to_string(),
+        windfall_core::english::english(&error.to_string()),
         "this project was saved by a newer version of Windfall (file format 2; this version reads up to format 1)"
     );
 
@@ -676,7 +678,7 @@ fn load_refuses_a_project_that_breaks_the_rules_and_says_why() {
         assert!(DEMO_JSON.contains(from));
         let error = from_json(&DEMO_JSON.replace(from, to)).unwrap_err();
         assert!(matches!(error, LoadError::Invalid(_)), "{error}");
-        let message = error.to_string();
+        let message = windfall_core::english::english(&error.to_string());
         assert!(message.starts_with("the project file is damaged: "));
         assert!(message.contains(words), "\"{message}\" lacks \"{words}\"");
     }

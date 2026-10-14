@@ -244,11 +244,14 @@ impl FlacWriter {
             return Err(broken_error());
         }
         if !interleaved.len().is_multiple_of(self.channels) {
-            return Err(CodecError::InvalidInput(format!(
-                "{} samples do not make whole frames of {} channels",
-                interleaved.len(),
-                self.channels
-            )));
+            return Err(CodecError::InvalidInput(
+                windfall_core::notice!(
+                    "codec.partialFrames",
+                    samples = interleaved.len(),
+                    channels = self.channels
+                )
+                .to_string(),
+            ));
         }
         self.broken = true;
         let full_scale = self.depth.full_scale();
@@ -433,22 +436,33 @@ pub(crate) fn check_layout(sample_rate: u32, channels: u16, level: u8) -> Result
         ));
     }
     if sample_rate > MAX_FLAC_SAMPLE_RATE {
-        return Err(CodecError::InvalidInput(format!(
-            "a FLAC file cannot have a sample rate above {MAX_FLAC_SAMPLE_RATE} Hz, and {sample_rate} Hz was asked for"
-        )));
+        return Err(CodecError::InvalidInput(
+            windfall_core::notice!(
+                "codec.flacSampleRate",
+                max = MAX_FLAC_SAMPLE_RATE,
+                rate = sample_rate
+            )
+            .to_string(),
+        ));
     }
     if channels == 0 {
         return Err(CodecError::InvalidInput("there are no channels".to_owned()));
     }
     if channels > MAX_FLAC_CHANNELS {
-        return Err(CodecError::InvalidInput(format!(
-            "a FLAC file cannot have more than {MAX_FLAC_CHANNELS} channels, and {channels} were asked for"
-        )));
+        return Err(CodecError::InvalidInput(
+            windfall_core::notice!(
+                "codec.flacChannels",
+                max = MAX_FLAC_CHANNELS,
+                channels = channels
+            )
+            .to_string(),
+        ));
     }
     if level > MAX_FLAC_LEVEL {
-        return Err(CodecError::InvalidInput(format!(
-            "FLAC compression levels go from 0 to {MAX_FLAC_LEVEL}, and {level} was asked for"
-        )));
+        return Err(CodecError::InvalidInput(
+            windfall_core::notice!("codec.flacLevel", max = MAX_FLAC_LEVEL, level = level)
+                .to_string(),
+        ));
     }
     Ok(())
 }

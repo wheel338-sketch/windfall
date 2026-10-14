@@ -195,7 +195,10 @@ fn registry() -> &'static Registry {
     REGISTRY.get_or_init(Registry::new)
 }
 fn refused(reason: lifecycle::Refusal) -> PluginError {
-    PluginError::Load(format!("macOS VST3 {reason:?}"))
+    PluginError::Load(
+        windfall_core::notice!("pluginHost.macosVst3", reason = format!("{:?}", reason))
+            .to_string(),
+    )
 }
 fn load_error(error: io::Error) -> PluginError {
     PluginError::Load(error.to_string())

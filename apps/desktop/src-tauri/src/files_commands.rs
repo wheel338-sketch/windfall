@@ -26,7 +26,12 @@ where
 {
     tauri::async_runtime::spawn_blocking(work)
         .await
-        .map_err(|error| format!("The task stopped unexpectedly: {error}"))?
+        .map_err(|error| {
+            windfall_ipc::ui_message(
+                "tasks.stopped",
+                serde_json::json!({"error": error.to_string()}),
+            )
+        })?
 }
 
 /// What the plugin manager says the last scan found. Empty where native

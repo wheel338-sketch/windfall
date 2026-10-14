@@ -23,6 +23,7 @@ thiserror.workspace = true
 ts-rs.workspace = true
 
 [dev-dependencies]
+windfall-core = { workspace = true, features = ["english"] }
 # MIT OR Apache-2.0.
 proptest = { version = "1", default-features = false, features = ["std"] }
 

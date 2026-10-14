@@ -88,7 +88,7 @@ fn missing_corrupt_and_budget_refused_banks_report_identity_and_only_silence_the
         assert!(program.validate_soundfont_sources().is_err());
         let mut guest = GuestEngine::activate(&program, 48_000.0).unwrap();
         assert_eq!(guest.preparation_errors().len(), 1);
-        assert!(guest.preparation_errors()[0].contains("silent"));
+        assert!(windfall_core::english::english(&guest.preparation_errors()[0]).contains("silent"));
         guest.midi(0, 60, 127);
         assert!(guest.render(256).unwrap().iter().all(|v| *v == 0.0));
         let mut other = program.project.channels[0].clone();
@@ -103,7 +103,9 @@ fn missing_corrupt_and_budget_refused_banks_report_identity_and_only_silence_the
         mixed.project.channels.push(other);
         let state = Publication::new(mixed);
         state.activate(48_000.0).unwrap();
-        assert!(state.preparation_error().unwrap().contains("silent"));
+        assert!(
+            windfall_core::english::english(&state.preparation_error().unwrap()).contains("silent")
+        );
         let engine = unsafe { state.audio() }.unwrap();
         engine.midi(0, 60, 127);
         assert!(engine.render(256).unwrap().iter().all(|v| *v == 0.0));

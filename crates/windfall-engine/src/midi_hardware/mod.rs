@@ -330,7 +330,10 @@ impl Runtime {
             .as_ref()
             .ok_or("MIDI worker stopped")?
             .try_send(Request::Feedback(self.controller.hardware_epoch(), packets))
-            .map_err(|e| format!("controller feedback queue refused: {e}"))
+            .map_err(|e| {
+                windfall_core::notice!("engine.midi.feedbackQueue", error = e.to_string())
+                    .to_string()
+            })
     }
 
     fn request(
@@ -754,8 +757,13 @@ impl Worker {
             match self.ports.output(feedback::PROJECT_FEEDBACK_OUTPUT) {
                 Ok(output) => self.project_feedback = Some(output),
                 Err(error) => {
-                    self.state.error =
-                        Some(format!("Project controller feedback unavailable: {error}"))
+                    self.state.error = Some(
+                        windfall_core::notice!(
+                            "engine.midi.projectFeedback",
+                            error = error.to_string()
+                        )
+                        .to_string(),
+                    )
                 }
             }
         }
@@ -802,13 +810,20 @@ impl Worker {
             );
         });
         if project_refused
-            && !self
-                .state
-                .error
-                .as_ref()
-                .is_some_and(|error| error.starts_with("Project controller feedback unavailable:"))
+            && !self.state.error.as_ref().is_some_and(|error| {
+                windfall_core::notice::code_of(error).as_deref()
+                    == Some("engine.midi.projectFeedback")
+            })
         {
-            self.state.error = Some("Project controller feedback unavailable: Windows xinput support or its output adapter is not available".into());
+            self.state.error = Some(
+                windfall_core::notice!(
+                    "engine.midi.projectFeedback",
+                    error = windfall_core::notice::term(
+                        "Windows xinput support or its output adapter is not available"
+                    )
+                )
+                .to_string(),
+            );
         }
         while let Some(front) = self.pending.front().copied() {
             if front.due > now_nanos {

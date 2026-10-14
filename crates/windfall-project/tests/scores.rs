@@ -252,7 +252,10 @@ fn loading_replaces_or_merges_in_one_undo_step_with_new_note_ids() {
         .load_command(doc.project(), short, bass, ScoreLoadMode::Replace)
         .unwrap();
     let applied = doc.dispatch(command, None).unwrap();
-    assert_eq!(applied.label, "Load score");
+    assert_eq!(
+        windfall_core::english::english(&applied.label),
+        "Load score"
+    );
     assert_eq!(doc.history().entries.len(), history + 1);
     assert_eq!(contents(doc.project(), short, bass), source);
     // The pattern grew to play all of the score; the other lane is as it was.
@@ -353,7 +356,7 @@ fn files_that_are_not_readable_scores_are_refused_with_the_reason() {
     let mut newer = file.clone();
     newer["version"] = json!(SCORE_VERSION + 1);
     newer["notes"] = json!("a shape this build does not know");
-    let message = read(&newer).unwrap_err();
+    let message = windfall_core::english::english(&read(&newer).unwrap_err());
     assert!(message.contains("newer Windfall"), "{message}");
     let mut unversioned = file.clone();
     unversioned.as_object_mut().unwrap().remove("version");

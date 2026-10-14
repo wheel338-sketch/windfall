@@ -1266,6 +1266,7 @@ fn recovery_failure_stays_dry_and_can_be_retired_on_its_owner() {
     // as a restart, an update or a cancelled hand-over does, still can.
     let error =
         take_back_and_restore(&runtime, project.plugins[0].target, audio.as_mut()).unwrap_err();
+    let error = windfall_core::english::english(&error);
     assert!(error.contains("activated"), "{error}");
     let mut left = [0.25; 64];
     let mut right = left;

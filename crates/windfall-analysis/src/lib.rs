@@ -38,41 +38,39 @@ pub type Result<T> = std::result::Result<T, AnalysisError>;
 
 #[derive(Debug, Error)]
 pub enum AnalysisError {
-    #[error("Invalid analysis input: {0}")]
+    #[error("{}", windfall_core::notice!("analysis.error.invalid", detail = windfall_core::notice::term(_0.to_string())))]
     Invalid(&'static str),
-    #[error("Analysis budget exceeded: {0}")]
+    #[error("{}", windfall_core::notice!("analysis.error.budget", detail = windfall_core::notice::term(_0.to_string())))]
     Budget(&'static str),
-    #[error("Analysis cancelled")]
+    #[error("{}", windfall_core::notice!("analysis.error.cancelled"))]
     Cancelled,
-    #[error("Analysis deadline exceeded")]
+    #[error("{}", windfall_core::notice!("analysis.error.deadline"))]
     Deadline,
-    #[error("Analysis identifiers exhausted")]
+    #[error("{}", windfall_core::notice!("analysis.error.exhausted"))]
     Exhausted,
-    #[error("Analysis service is shut down")]
+    #[error("{}", windfall_core::notice!("analysis.error.shutdown"))]
     Shutdown,
-    #[error("Unknown analysis job or ticket")]
+    #[error("{}", windfall_core::notice!("analysis.error.unknown"))]
     Unknown,
-    #[error("Analysis job is not ready for this operation")]
+    #[error("{}", windfall_core::notice!("analysis.error.notReady"))]
     NotReady,
-    #[error("Analysis apply is already claimed")]
+    #[error("{}", windfall_core::notice!("analysis.error.claimed"))]
     Claimed,
-    #[error("The document, source, selection or model changed; reopen analysis")]
+    #[error("{}", windfall_core::notice!("analysis.error.stale"))]
     Stale,
-    #[error(
-        "Model is absent. Explicitly import the pinned local model; network access is unavailable"
-    )]
+    #[error("{}", windfall_core::notice!("analysis.error.modelAbsent"))]
     ModelAbsent,
-    #[error("Model or artifact checksum mismatch")]
+    #[error("{}", windfall_core::notice!("analysis.error.checksum"))]
     Checksum,
-    #[error("Model size does not match its manifest")]
+    #[error("{}", windfall_core::notice!("analysis.error.modelSize"))]
     ModelSize,
-    #[error("A competitor owns the output destination")]
+    #[error("{}", windfall_core::notice!("analysis.error.collision"))]
     Collision,
-    #[error("Analysis adapter failed: {0}")]
+    #[error("{}", windfall_core::notice!("analysis.error.adapter", detail = windfall_core::notice::term(_0.to_string())))]
     Adapter(String),
-    #[error("Analysis IO failed: {0}")]
+    #[error("{}", windfall_core::notice!("analysis.error.io", detail = windfall_core::notice::term(_0.to_string())))]
     Io(#[from] std::io::Error),
-    #[error("Analysis codec failed: {0}")]
+    #[error("{}", windfall_core::notice!("analysis.error.codec", detail = windfall_core::notice::term(_0.to_string())))]
     Codec(#[from] windfall_codec::CodecError),
 }
 

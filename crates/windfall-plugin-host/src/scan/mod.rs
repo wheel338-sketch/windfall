@@ -110,7 +110,7 @@ pub struct RunOutput {
 /// The scanner could not be run at all. This says nothing about the plugin,
 /// so it is never cached.
 #[derive(Debug, thiserror::Error)]
-#[error("the plugin scanner could not be started: {0}")]
+#[error("{}", windfall_core::notice!("pluginHost.scannerUnavailable", detail = windfall_core::notice::term(_0)))]
 pub struct ScannerUnavailable(pub String);
 
 /// Something that can run the scanner on a file. The real one starts a
@@ -261,7 +261,11 @@ fn hide_console(_command: &mut Command) {}
 pub(crate) fn exit_words(code: Option<i32>) -> String {
     match code {
         // Windows reports crashes as large codes such as 0xC0000005.
-        Some(code) => format!("the helper process exited with code {:#x}", code as u32),
+        Some(code) => windfall_core::notice!(
+            "pluginHost.helperExit",
+            code = format!("{:#x}", code as u32)
+        )
+        .to_string(),
         None => "the helper process was ended by a signal".to_owned(),
     }
 }
@@ -373,5 +377,7 @@ pub fn scan_file(runner: &dyn ScanRunner, path: &Path) -> Result<FileScan, Scann
 
 /// Checks that a file's format is one the host scans.
 pub(crate) fn format_of(path: &Path) -> Result<PluginFormat, String> {
-    PluginFormat::of(path).ok_or_else(|| format!("{} is not a plugin file", path.display()))
+    PluginFormat::of(path).ok_or_else(|| {
+        windfall_core::notice!("pluginHost.notAPluginFile", path = path.display()).to_string()
+    })
 }

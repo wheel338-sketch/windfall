@@ -49,7 +49,7 @@ fn playlist_track_solo_defaults_false_and_patch_round_trips_with_history() {
                 None,
             )
             .unwrap();
-        assert_eq!(applied.label, label);
+        assert_eq!(windfall_core::english::english(&applied.label), label);
         assert!(applied.touched.playlist);
         assert_eq!(doc.project().playlist.tracks[0].solo, solo);
         assert!(doc.project().playlist.tracks[0].muted);
