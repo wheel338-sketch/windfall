@@ -236,6 +236,8 @@ function embeddedMessages(text: string, language: Language): string {
 
 /** The values of a coded message that hold a cause: never a name somebody typed. */
 const CAUSES = new Set(["error", "errors", "problem", "reason", "detail"])
+/** The values that number a thing rather than count it: written as they are, never grouped. */
+const IDENTIFIERS = new Set(["id", "handle", "channel", "clip", "effect", "output", "pattern", "track"])
 
 /**
  * `text` in the language shown when it is one of Windfall's own words or
@@ -271,7 +273,7 @@ export function nativeMessage(text: string, language = currentLanguage()): strin
       // messages in it, is put into words as well; a cause that is one of
       // Windfall's own sentences is said in the language shown; anything
       // else, such as what the operating system said, stays as it is.
-      params[key] = typeof parameter !== "string" ? parameter
+      params[key] = typeof parameter !== "string" ? IDENTIFIERS.has(key) ? String(parameter) : parameter
         : CAUSES.has(key) && !parameter.startsWith(NATIVE_MESSAGE_PREFIX) ? ownSentence(parameter, language)
           : embeddedMessages(parameter, language)
     }

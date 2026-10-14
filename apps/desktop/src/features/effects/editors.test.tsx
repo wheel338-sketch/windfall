@@ -30,6 +30,7 @@ import { customEditor, EffectEditor } from "./effect-editor"
 import { EQ_BANDS } from "./eq/bands"
 import { useEqView } from "./eq/eq-view"
 import { frequencyToX, gainToY, plotRect } from "./eq/geometry"
+import { historyLabelText } from "@/lib/i18n"
 
 vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }),
@@ -520,7 +521,7 @@ describe("the equaliser display", () => {
     expect(band.q).toBe(1)
     expect(history().cursor).toBe(before + 1)
     // One step, named after the setting the drag moved first.
-    expect(history().entries.at(-1)?.label).toBe("Change Peak 2 frequency")
+    expect(historyLabelText(history().entries.at(-1)!.label, "en")).toBe("Change Peak 2 frequency")
     // The node sits where the band is now.
     expect(node("Peak 2")).toHaveAttribute(
       "aria-valuenow",

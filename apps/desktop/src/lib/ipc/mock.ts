@@ -263,10 +263,12 @@ function describeStatus(settings: StoredAudioSettings): EngineStatus {
 
 /**
  * Starts a message from the document, which begins in lower case, with a
- * capital, as the shell does for what it shows about files.
+ * capital, as the shell does for what it shows about files. A coded message
+ * is left as it is: the interface gives it its capital where it shows it.
  */
 function sentence(error: unknown): Error {
   const text = error instanceof Error ? error.message : String(error)
+  if (text.startsWith("windfall-message:")) return new Error(text)
   return new Error(text.charAt(0).toUpperCase() + text.slice(1))
 }
 

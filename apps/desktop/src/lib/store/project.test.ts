@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { DocumentSnapshot, ProjectPatch } from "@/bindings"
 import type { Backend } from "@/lib/ipc"
-import { settle, startTestApp } from "@/test/harness"
+import { settle, startTestApp, toastWords } from "@/test/harness"
 
 import {
   dispatch,
@@ -80,7 +80,7 @@ describe("project store", () => {
     const result = await dispatch({ type: "removeChannel", id: 4242 })
     expect(result).toBeNull()
     // The document says "channel 4242 does not exist". It is shown as a sentence.
-    expect(toast.error).toHaveBeenCalledWith("Channel 4242 does not exist")
+    expect(vi.mocked(toast.error).mock.calls.map(([title]) => toastWords(title))).toContainEqual("Channel 4242 does not exist")
     expect(state().revision).toBe(0)
   })
 

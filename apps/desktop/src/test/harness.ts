@@ -1,3 +1,5 @@
+import { isValidElement } from "react"
+
 import { installKeymap } from "@/lib/actions"
 import { registerBuiltinActions } from "@/lib/actions/builtin"
 import { setBackend } from "@/lib/ipc"
@@ -7,6 +9,7 @@ import {
   type MockDialogs,
   type MockOptions,
 } from "@/lib/ipc/mock"
+import { localizeBackendText } from "@/lib/i18n"
 import { connectStores } from "@/lib/store/connect"
 import { useEngineStore } from "@/lib/store/engine"
 import { useProjectStore } from "@/lib/store/project"
@@ -21,6 +24,16 @@ export const TEST_DIALOGS: MockDialogs = {
   exportPath: (suggested) => Promise.resolve(suggested),
   folder: () => Promise.resolve("/samples/Test"),
   audioFile: () => Promise.resolve("/factory/Drums/Kicks/Kick 02.wav"),
+}
+
+/**
+ * The words a toast's title or description shows: a coded backend message is
+ * handed to the toast as an element that says it in the language shown.
+ */
+export function toastWords(content: unknown): string {
+  if (isValidElement<{ source?: unknown }>(content) && typeof content.props.source === "string")
+    return localizeBackendText(content.props.source)
+  return String(content)
 }
 
 /** Lets promises that are already resolved run their callbacks. */

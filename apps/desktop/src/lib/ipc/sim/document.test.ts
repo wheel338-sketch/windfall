@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest"
 
+import { nativeMessage } from "@/lib/i18n"
+
 // The source of the generated binding, to read the list of commands from.
 import commandBinding from "@/bindings/Command.ts?raw"
 import type {
@@ -1071,9 +1073,13 @@ describe("SimDocument", () => {
     const reopened = SimDocument.open(document.fileText())
     expect(reopened.project()).toEqual(document.project())
     expect(reopened.isDirty()).toBe(false)
-    expect(() => SimDocument.open("[]")).toThrow(
-      "this is not a Windfall project"
-    )
+    let refusal = ""
+    try {
+      SimDocument.open("[]")
+    } catch (error) {
+      refusal = nativeMessage((error as Error).message, "en") ?? ""
+    }
+    expect(refusal).toContain("this is not a Windfall project")
     document.dispose()
     reopened.dispose()
   })

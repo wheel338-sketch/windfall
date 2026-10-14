@@ -24,6 +24,7 @@ import { useTransportStore } from "@/lib/store/transport"
 import { useUiStore } from "@/lib/store/ui"
 import { useWarningsStore } from "@/lib/store/warnings"
 import { settle, TEST_DIALOGS } from "@/test/harness"
+import { historyLabelText } from "@/lib/i18n"
 
 /*
  * "Create automation clip" in the menu of every control that can be
@@ -78,7 +79,7 @@ afterEach(() => {
 const flush = () => act(settle)
 const project = () => useProjectStore.getState().project
 const history = () => useProjectStore.getState().history
-const labels = () => history().entries.map((entry) => entry.label)
+const labels = () => history().entries.map((entry) => historyLabelText(entry.label, "en"))
 
 type Ids = {
   kick: number

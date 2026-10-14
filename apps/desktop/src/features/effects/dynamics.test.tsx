@@ -28,6 +28,7 @@ import {
   transientShape,
 } from "./dynamics/curves"
 import { customEditor, EffectEditor } from "./effect-editor"
+import { historyLabelText } from "@/lib/i18n"
 
 vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }),
@@ -283,7 +284,7 @@ describe("the purpose-built dynamics editors on the real document", () => {
       const edited = slotOf(effect).params
       expect(edited).not.toEqual(original)
       expect(history().cursor).toBe(before + 1)
-      expect(history().entries.at(-1)?.label).toBe(`Change ${info.name}`)
+      expect(historyLabelText(history().entries.at(-1)!.label, "en")).toBe(`Change ${info.name}`)
       await undo()
       await flush()
       expect(slotOf(effect).params).toEqual(original)

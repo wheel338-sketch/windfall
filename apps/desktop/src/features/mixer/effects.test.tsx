@@ -16,7 +16,7 @@ import { dispatch, redo, undo } from "@/lib/store/project"
 import { useHintStore } from "@/lib/store/hint"
 import { usePromptStore } from "@/lib/store/prompts"
 import { useUiStore } from "@/lib/store/ui"
-import { startTestApp } from "@/test/harness"
+import { startTestApp, toastWords } from "@/test/harness"
 
 import MixerPanel from "."
 import { MAX_EFFECT_SLOTS } from "./effect-ops"
@@ -189,7 +189,7 @@ describe("the effect rack on a strip", () => {
 
     // The core refuses too, in its own words.
     await dispatch({ type: "addEffect", track: kick, kind: "delay" })
-    expect(toast.error).toHaveBeenCalledWith(
+    expect(vi.mocked(toast.error).mock.calls.map(([title]) => toastWords(title))).toContainEqual(
       expect.stringContaining(
         'The mixer track "Kick" is full: it holds 10 effects at most'
       )

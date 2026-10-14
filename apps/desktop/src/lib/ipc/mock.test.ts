@@ -7,9 +7,17 @@ import type {
   TransportState,
 } from "@/bindings"
 import { sourceSample } from "@/lib/channel-source"
+import { nativeMessage } from "@/lib/i18n"
 import { TEST_DIALOGS } from "@/test/harness"
 
 import { errorMessage, errorSource } from "./backend"
+
+/** What the user is shown when `work` fails: its message in the interface language. */
+const shown = (work: Promise<unknown>) =>
+  work.then(
+    () => { throw new Error("the call did not fail") },
+    (error: unknown) => errorMessage(error),
+  )
 import { createMockBackend } from "./mock"
 import { demoProject } from "./sim/project"
 
@@ -60,8 +68,9 @@ describe("mock backend: document", () => {
 
     const refused = backend.dispatch({ type: "removeChannel", id: 12345 })
     // The document's words, as the shell passes them on.
-    await expect(refused).rejects.toThrow(
-      new Error("channel 12345 does not exist")
+    const error = await refused.catch((reason: unknown) => reason)
+    expect(nativeMessage((error as Error).message, "en")).toBe(
+      "channel 12345 does not exist"
     )
     // What the user is shown starts with a capital.
     expect(errorMessage(await refused.catch((error: unknown) => error))).toBe(
@@ -157,9 +166,13 @@ describe("mock backend: document", () => {
       ...project,
       patterns: [{ ...project.patterns[0], lanes }],
     }
-    expect(() =>
+    let refusal = ""
+    try {
       createMockBackend({ storage: null, project: unsorted })
-    ).toThrow("the project breaks a rule of the project model")
+    } catch (error) {
+      refusal = nativeMessage((error as Error).message, "en") ?? ""
+    }
+    expect(refusal).toContain("the project breaks a rule of the project model")
   })
 
   it("rejects every call once it is disposed", async () => {
@@ -315,24 +328,22 @@ describe("mock backend: files", () => {
         JSON.stringify({ ...files, [path]: text })
       )
     put("/projects/garbage.windfall", "not a project")
-    await expect(
-      backend.projectOpen("/projects/garbage.windfall")
-    ).rejects.toThrow(/^This is not a Windfall project: /)
+    expect(await shown(backend.projectOpen("/projects/garbage.windfall"))).toMatch(
+      /^This is not a Windfall project: /
+    )
 
     put(
       "/projects/newer.windfall",
       JSON.stringify({ ...project, formatVersion: 99 })
     )
-    await expect(
-      backend.projectOpen("/projects/newer.windfall")
-    ).rejects.toThrow(
+    expect(await shown(backend.projectOpen("/projects/newer.windfall"))).toBe(
       "This project was saved by a newer version of Windfall (file format 99; this version reads up to format 1)"
     )
 
     put("/projects/damaged.windfall", JSON.stringify({ ...project, nextId: 1 }))
-    await expect(
-      backend.projectOpen("/projects/damaged.windfall")
-    ).rejects.toThrow(/^The project file is damaged: /)
+    expect(await shown(backend.projectOpen("/projects/damaged.windfall"))).toMatch(
+      /^The project file is damaged: /
+    )
 
     // None of them replaced the open project.
     expect((await backend.documentSnapshot()).path).toBe(

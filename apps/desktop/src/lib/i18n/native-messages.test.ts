@@ -97,6 +97,15 @@ describe("native coded message localization", () => {
     expect(nativeMessage(term(coded("files.theTemplate")), "es")).toBe("La plantilla")
   })
 
+  it("writes an id as it is and groups a count", () => {
+    setLanguage("es")
+    expect(localizeBackendText(coded("project.notFound", { id: 12345, kind: term("channel") })))
+      .toContain(" 12345")
+    expect(localizeBackendText(coded("flp.mixer.tooManyTracks", { count: 12345, max: 125 })))
+      .toContain(new Intl.NumberFormat("es").format(12345))
+    setLanguage("en")
+  })
+
   it("ends a message sent as a sentence with one full stop", () => {
     const quality = coded("codec.vorbisQuality", { max: 10, min: -1, quality: 11 })
     setLanguage("es")

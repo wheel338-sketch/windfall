@@ -34,6 +34,7 @@ import {
   ui,
 } from "./test-utils"
 import { PlaylistToolbar } from "./toolbar"
+import { historyLabel } from "@/lib/i18n"
 
 vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }),
@@ -136,7 +137,7 @@ describe("Slice tool", () => {
       expect(send).toHaveBeenCalledTimes(1)
       expect(send.mock.calls[0][0]).toEqual({
         type: "batch",
-        label: "Slice clip",
+        label: historyLabel("Slice clips", { count: 1 }),
         commands: [
           {
             type: "updateClips",
@@ -217,7 +218,7 @@ describe("Slice tool", () => {
     expect(send).toHaveBeenCalledTimes(1)
     expect(send.mock.calls[0][0]).toEqual({
       type: "batch",
-      label: "Slice clips",
+      label: historyLabel("Slice clips", { count: 2 }),
       commands: [
         {
           type: "updateClips",

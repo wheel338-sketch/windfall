@@ -43,7 +43,7 @@ refusal, a warning pushed for the user, a `reason:` field). At `0f8a682c`,
 568 of them had a catalog entry (540 desktop, 28 core). All 2,121 have one
 now, with Spanish.
 
-Registry: 82 codes at `0f8a682c`, 856 now (append-only; the pins test holds
+Registry: 82 codes at `0f8a682c`, 860 now (append-only; the pins test holds
 the first and last). 203 `ui_message` calls in the desktop and 658
 `notice!` calls in the core crates name registered codes and give their
 declared parameters. New plain catalog modules: `messages/backend-statics.ts`
@@ -169,7 +169,33 @@ take {}", the automation names "{} track volume" / "{} track pan", and
     codes).
   One English expectation changed: an FL import line about one clip now
   reads "1 clip of the playlist sits …" where it read "1 clips … sit"; the
-  line is a plural entry now.
+  line is a plural entry now. Likewise a MIDI score note "1 note starts
+  past …" / "1 note was cut …" (were "1 notes …").
+- `r1` to `r3`: the failed tests again, with the later assertions of the
+  same tests (a test stops at its first failure). Two more product
+  findings: an export refusal had lost its full stop, because the desktop's
+  `sentence()` now passes a coded message through; it sends it inside the
+  new `text.sentence`, which the interface and `english` end with exactly
+  one full stop. And a SoundFont import refused for memory put the Rust
+  debug form of its reason into the message (`MemoryBudget("windfall-message:…")`),
+  which nothing could put into words; the reason is now passed on as the
+  coded message it is. `r3`: 1 / 0 / 0.
+- Checkpoint commits `cf10190a`, `4f16d4a5`.
+- `b1`, `b2`: bindings regenerated, 627 files, all current. `s1`, `s2`:
+  simulator rebuilt, current.
+- `f1` to `f3`: the i18n frontend tests. Findings, all fixed in the
+  product: `localizeBackendText` read a backend list that starts with a
+  coded message as one broken message ("No se ha podido interpretar el
+  mensaje nativo"); it now puts such a list into words line by line. One
+  Spanish entry named `{max}` twice
+  (`project.timeline.tooManyItems`). The settings dialog showed the audio
+  error unlocalized and built from fragments. The whole-app guard read the
+  catalog key `title` (the FL event 194, sent as a term) as a display
+  property; the event is now named "project title", which says more to the
+  user, rather than the guard being given an exception. Terms Spanish
+  shares with English (`clip`, `swing`, `tempo`, `color`, `audio`,
+  `ping-pong`, `pogo`, `plugin`) and the parameter-only codes were added to
+  `sameAsEnglish` with their reasons. `f3`: 12 files, 48 / 0.
 
 ## Gates
 

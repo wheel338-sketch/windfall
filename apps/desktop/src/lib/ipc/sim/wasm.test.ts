@@ -7,7 +7,20 @@ import type {
   ProjectPatch,
 } from "@/bindings"
 
+import { nativeMessage } from "@/lib/i18n"
+
 import { instantiateSim, sim } from "./wasm"
+
+/** What a failed call says, in English as the interface says a coded message. */
+function said(work: () => unknown): string {
+  try {
+    work()
+  } catch (error) {
+    const text = error instanceof Error ? error.message : String(error)
+    return nativeMessage(text, "en") ?? text
+  }
+  throw new Error("the call did not fail")
+}
 
 function open(name = "Test"): number {
   const project = sim.call<Project>("project_new", 0, name)
@@ -80,28 +93,26 @@ describe("the WebAssembly document", () => {
       sim.call("doc_dispatch", doc, { command })
 
     // `CommandError::NotFound` and `CommandError::Invalid`.
-    expect(dispatch({ type: "removeChannel", id: 12345 })).toThrow(
-      new Error("channel 12345 does not exist")
+    expect(said(dispatch({ type: "removeChannel", id: 12345 }))).toBe(
+      "channel 12345 does not exist"
     )
-    expect(dispatch({ type: "removePattern", id: 1 })).toThrow(
-      new Error("a project needs at least one pattern")
+    expect(said(dispatch({ type: "removePattern", id: 1 }))).toBe(
+      "a project needs at least one pattern"
     )
-    expect(dispatch({ type: "removeMixerTrack", id: 0 })).toThrow(
-      new Error("the master track cannot be deleted")
+    expect(said(dispatch({ type: "removeMixerTrack", id: 0 }))).toBe(
+      "the master track cannot be deleted"
     )
     expect(
-      dispatch({ type: "updatePattern", id: 1, patch: { color: 0x1000000 } })
-    ).toThrow(new Error("0x1000000 is not a 0xRRGGBB color"))
+      said(dispatch({ type: "updatePattern", id: 1, patch: { color: 0x1000000 } }))
+    ).toBe("0x1000000 is not a 0xRRGGBB color")
     // `LoadError`.
-    expect(() => sim.call("doc_from_file_json", 0, "{}")).toThrow(
+    expect(said(() => sim.call("doc_from_file_json", 0, "{}"))).toMatch(
       /^this is not a Windfall project: missing field `formatVersion`/
     )
-    expect(() =>
-      sim.call("doc_from_file_json", 0, '{"formatVersion": 7}')
-    ).toThrow(
-      new Error(
-        "this project was saved by a newer version of Windfall (file format 7; this version reads up to format 1)"
-      )
+    expect(
+      said(() => sim.call("doc_from_file_json", 0, '{"formatVersion": 7}'))
+    ).toBe(
+      "this project was saved by a newer version of Windfall (file format 7; this version reads up to format 1)"
     )
     sim.call("doc_free", doc)
   })
@@ -143,7 +154,7 @@ describe("the WebAssembly document", () => {
     expect(next.patch.revision).toBe(before.revision + 1)
     expect(next.created).toEqual([before.project.nextId])
     sim.call("doc_free", doc)
-    expect(() => sim.call("doc_free", doc)).toThrow(
+    expect(said(() => sim.call("doc_free", doc))).toBe(
       `document handle ${doc} is not open`
     )
   })
