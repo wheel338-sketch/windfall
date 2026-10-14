@@ -30,7 +30,13 @@ pub enum SoundFontError {
 }
 impl std::fmt::Display for SoundFontError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let notice = windfall_core::notice!("dsp.soundFontImport", detail = format!("{self:?}"));
+        // A refused memory budget says why in a coded message of its own;
+        // the rest name the part of the file that was wrong.
+        let detail = match self {
+            Self::MemoryBudget(reason) => reason.clone(),
+            other => format!("{other:?}"),
+        };
+        let notice = windfall_core::notice!("dsp.soundFontImport", detail = detail);
         write!(f, "{notice}")
     }
 }

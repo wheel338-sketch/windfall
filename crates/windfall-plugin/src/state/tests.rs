@@ -115,7 +115,8 @@ fn missing_corrupt_and_budget_refused_banks_report_identity_and_only_silence_the
     let program = bank_program();
     let mut pool = SamplePool::with_sample_bank_budget(1);
     let errors = program.prepare_soundfonts(&mut pool);
-    assert!(errors[0].contains("Sample-bank memory refused"));
+    let refusal = windfall_core::english::english(&errors[0]);
+    assert!(refusal.contains("Sample-bank memory refused"), "{refusal}");
     assert_eq!(pool.sample_bank_retained_bytes(), 0);
 }
 
