@@ -485,15 +485,17 @@ impl InstanceBackend for VstInstance {
         }
     }
     fn save_state(&mut self, limit: usize) -> Result<Option<Vec<u8>>, PluginError> {
-        if self.active {
-            return Err(PluginError::State(
-                "saved while active; return the processor first",
-            ));
-        }
+        // State is read on this thread whether or not the processor runs: a
+        // save while music plays must not take the plugin away from the
+        // audio. A running processor has every edit that was delivered to
+        // it; edits still on their way are saved beside the state below.
+        //
         // Controller edits made while inactive are not delivered through
         // process until activation. Preserve those edits alongside component
         // state rather than silently saving the component's older values.
-        if let Some(controller) = &self.objects.controller {
+        if !self.active
+            && let Some(controller) = &self.objects.controller
+        {
             for v in self.values.iter() {
                 let value = unsafe { controller.getParamNormalized(v.id) };
                 if value.is_finite() && value.to_bits() != v.normalized().to_bits() {
@@ -511,7 +513,7 @@ impl InstanceBackend for VstInstance {
         let overhead = 16 + pending.len() * 12;
         let stream = Stream::new(Vec::new(), limit.saturating_sub(overhead), true);
         let iface = stream.to_com_ptr::<IBStream>().expect("stream");
-        // SAFETY: inactive component and bounded main-thread stream.
+        // SAFETY: main-thread component call with a bounded stream.
         if unsafe { self.objects.component.getState(iface.as_ptr()) } != kResultOk
             || stream.failed()
         {
@@ -525,7 +527,7 @@ impl InstanceBackend for VstInstance {
                 true,
             );
             let iface = stream.to_com_ptr::<IBStream>().expect("stream");
-            // SAFETY: inactive main-thread controller and bounded stream.
+            // SAFETY: main-thread controller call with a bounded stream.
             let result = unsafe { controller.getState(iface.as_ptr()) };
             if stream.failed() {
                 return Err(PluginError::State("saved within the state limit"));

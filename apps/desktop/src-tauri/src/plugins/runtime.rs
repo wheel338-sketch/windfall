@@ -380,15 +380,26 @@ impl Instance {
             return Err("Plugin capture was cancelled".into());
         }
         self.check_capture_document(desired)?;
-        if self.binding.format == "clap" && !(rebuilding && self.restart) {
+        // A capture that does not replace the unit leaves the plugin with
+        // the audio: no hand-over, so no fade, no gap and no replayed note.
+        // Only a plugin that asked to be restarted is taken back, because
+        // the unit that plays it is about to be replaced anyway.
+        if matches!(self.binding.format.as_str(), "clap" | "vst3") && !(rebuilding && self.restart)
+        {
+            if self.binding.format == "vst3" && self.note_capabilities.failed() {
+                return Err(
+                    "A failed plugin remains bypassed/silent; retry before capturing state".into(),
+                );
+            }
             let state = self
                 .plugin
                 .save_state()
                 .map_err(|error| error.to_string())?;
             let mut parameters = self.parameter_values();
             self.check_capture_document(desired)?;
-            // CLAP state remains active. Unapplied controls accompany the
-            // opaque state and are restored after it on reopen/offline create.
+            // The state is read while the plugin stays active. Unapplied
+            // controls accompany the opaque state and are restored after it
+            // on reopen/offline create.
             for intent in self.capture_intents(desired) {
                 if let Some(param) = parameters.iter_mut().find(|param| param.0 == intent.id) {
                     param.1 = intent.value;
@@ -1950,6 +1961,20 @@ impl Runtime {
         let selection = self.selection(binding.target);
         let helper = super::bridge::helper_path(self.bridge_helper.as_deref())?;
         let render_error = self.render_error.clone();
+        // One carry per plugin target, shared by every unit that plays that
+        // target for this provider, in process or in a helper.
+        let carry = (!offline).then(|| {
+            self.carries
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .entry(binding.target)
+                .or_insert_with(|| {
+                    Arc::new(Mutex::new(
+                        windfall_plugin_host::project_expression::Carry::new(),
+                    ))
+                })
+                .clone()
+        });
         self.call(move |owner| {
             let stamp = Self::approved_binding(owner, &binding)?;
             owner.next = owner
@@ -1969,13 +1994,29 @@ impl Runtime {
             {
                 options.state = state.state;
             }
-            let (record, audio) = super::bridge::launch(
+            let (record, mut audio) = super::bridge::launch(
                 options,
                 binding.clone(),
                 controls.clone(),
                 selection,
                 render_error,
             )?;
+            if let Some(carry) = carry {
+                audio.share_carry(carry);
+            }
+            // The plugin of the helper that plays this target changed what
+            // it can do, and this helper replaces it. With the replacement
+            // ready, the old one fades its output out and leaves each
+            // sounding note's ramp where the new helper finds it.
+            if !offline
+                && let Some(old) = selected(&owner.selection, binding.target)
+                    .and_then(|token| owner.bridges.get(&token))
+                && old.playback
+                && !old.status().failed
+                && old.control.readmission_requested()
+            {
+                old.departure.leave(Duration::from_millis(150));
+            }
             if !offline {
                 owner
                     .controls
@@ -2727,6 +2768,9 @@ impl HostedEffect for Audio {
             self.note_capabilities
                 .publish(capabilities.0, capabilities.1);
         }
+        if let Some(adapter) = self.adapter() {
+            self.note_capabilities.fail(adapter.failed());
+        }
     }
     fn transport(&mut self, transport: windfall_engine::plugins::PluginTransport) {
         if !self.retired
@@ -2900,6 +2944,9 @@ impl Audio {
             .ownership
             .as_ref()
             .and_then(|ownership| ownership.current());
+        if let Some(adapter) = adapter {
+            self.note_capabilities.fail(adapter.failed());
+        }
         for (bus, output) in self.rendered.buses.iter_mut().enumerate() {
             let output = &mut output[output_offset..output_offset + left.len().min(right.len())];
             match adapter {

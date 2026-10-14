@@ -13,8 +13,8 @@ use windows_sys::Win32::Security::Cryptography::{
 };
 
 const MAGIC: &[u8; 4] = b"WFAH";
-// Hello4 commits to ABI10 project expression/ramp payloads before Load disclosure.
-const VERSION: u32 = 4;
+// Hello5 commits to ABI11 ramp hand-over payloads before Load disclosure.
+const VERSION: u32 = 5;
 const HELLO_BYTES: usize = 40;
 const BOOT_MAGIC: &[u8; 4] = b"WFAP";
 const BOOT_VERSION: u32 = 1;
@@ -229,12 +229,12 @@ pub fn accept(
         if Instant::now() >= deadline {
             return Err(io::Error::new(
                 io::ErrorKind::TimedOut,
-                "helper authentication timed out (requires Hello4 / mapping ABI10; incompatible helpers are refused)",
+                "helper authentication timed out (requires Hello5 / mapping ABI11; incompatible helpers are refused)",
             ));
         }
         if child.try_wait()?.is_some() {
             return Err(io::Error::other(
-                "helper exited before authentication (requires Hello4 / mapping ABI10; incompatible helpers are refused)",
+                "helper exited before authentication (requires Hello5 / mapping ABI11; incompatible helpers are refused)",
             ));
         }
         // At most eight new accepts per iteration, including rejected excess.
@@ -299,7 +299,7 @@ pub fn accept(
                 {
                     return Err(io::Error::new(
                         io::ErrorKind::Unsupported,
-                        "audio helper protocol mismatch: this host requires Hello4 / mapping ABI10; replace the older helper",
+                        "audio helper protocol mismatch: this host requires Hello5 / mapping ABI11; replace the older helper",
                     ));
                 }
                 reject = true;

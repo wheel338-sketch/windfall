@@ -685,3 +685,77 @@ fn per_note_channel_gestures_stay_independent_and_an_undeclared_channel_moves_th
     expression_audio(unit.as_mut(), 64);
     assert_eq!(unit.voices(), 0);
 }
+
+/// What one unit plays over `frames`, with a pan ramp started at frame 448.
+/// With `capture`, the plugin's state is captured from another thread from
+/// frame 512 on, while audio keeps running, as a save during playback does.
+fn played_through_a_capture(
+    runtime: &Arc<Runtime>,
+    binding: &PluginBinding,
+    frames: usize,
+    capture: bool,
+) -> Vec<[f32; 2]> {
+    let id = NoteInstanceId(11);
+    let mut unit = runtime.instrument(binding, 48_000, 64).unwrap();
+    unit.transport(transport());
+    unit.set_note_pan_law(PanLaw::ConstantPower);
+    unit.note_on_instance(id, 69, 0.4, -0.5, NoteExpression::NEUTRAL);
+    let mut project = windfall_project::Project::new("Capture while playing");
+    project.plugins.push(binding.clone());
+    runtime.commit_parameters(&project);
+    let mut heard = Vec::with_capacity(frames);
+    let mut task = None;
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    while heard.len() < frames || task.is_some() {
+        assert!(std::time::Instant::now() < deadline, "capture did not end");
+        if heard.len() == 448 {
+            unit.set_note_expression(id, 0.7, NoteExpression::NEUTRAL);
+        }
+        if heard.len() == 512 && capture {
+            let (runtime, project) = (runtime.clone(), project.clone());
+            task = Some(std::thread::spawn(move || runtime.capture(project)));
+        }
+        unit.control_boundary();
+        heard.extend(expression_audio(unit.as_mut(), 64));
+        if task.as_ref().is_some_and(|task| task.is_finished()) {
+            let saved = task.take().unwrap().join().unwrap().unwrap();
+            assert!(!saved.plugins[0].state.is_empty());
+        } else if task.is_some() {
+            // The owner thread needs time; audio does not wait for it.
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    }
+    heard.truncate(frames);
+    assert!(peak(&heard) > 0.05);
+    heard
+}
+
+#[test]
+fn a_state_capture_during_a_sounding_note_leaves_the_audio_untouched() {
+    // Saving, autosaving or capturing a preset while music plays does not
+    // replace the unit, so nothing about its sound may change: no fade, no
+    // gap, no restarted note and no restarted ramp. Each run is compared
+    // sample for sample with the same notes played without a capture.
+    // Each run has a runtime of its own: a second unit of one runtime would
+    // take the first one's note over, which is the migration tested above.
+    type Fixture = fn() -> (Arc<Runtime>, Vec<PluginBinding>);
+    let kinds: [(&str, Fixture); 2] = [
+        ("VST3", || fixtures(&[26])),
+        ("CLAP", || clap_expression_fixtures(&[false])),
+    ];
+    for (label, fixture) in kinds {
+        let (runtime, bindings) = fixture();
+        let plain = played_through_a_capture(&runtime, &bindings[0], 4096, false);
+        let (runtime, bindings) = fixture();
+        let captured = played_through_a_capture(&runtime, &bindings[0], 4096, true);
+        let first = plain
+            .iter()
+            .zip(&captured)
+            .position(|(plain, captured)| plain != captured);
+        assert_eq!(
+            first, None,
+            "{label}: the capture changed the audio from frame {first:?}"
+        );
+        println!("CAPTURE {label}: 4096 frames identical with and without a state capture");
+    }
+}

@@ -85,6 +85,20 @@ pub struct Audio {
     last: [f32; 2],
     health: Health,
     completed_proof: Option<(u64, u64, u64)>,
+    /// Ramps taken over from a replaced helper, waiting for the block that
+    /// starts their notes to be submitted.
+    handed: Box<[crate::project_expression::Carried]>,
+    handed_count: usize,
+    handed_stage: Option<crate::project_expression::ChannelStage>,
+    /// The owner wants the plugin: the helper fades out and reports.
+    depart: bool,
+    /// What the helper reported with the last output that was played.
+    report: Box<[crate::project_expression::Carried]>,
+    report_count: usize,
+    report_stage: Option<crate::project_expression::ChannelStage>,
+    departed: bool,
+    /// The block now being played ended faded out; the next one is silent.
+    fading: bool,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OfflineError {
@@ -144,6 +158,17 @@ impl Audio {
             last: [0.0; 2],
             health: Health::default(),
             completed_proof: None,
+            handed: vec![crate::project_expression::Carried::EMPTY; crate::MAX_NOTE_INSTANCES]
+                .into_boxed_slice(),
+            handed_count: 0,
+            handed_stage: None,
+            depart: false,
+            report: vec![crate::project_expression::Carried::EMPTY; crate::MAX_NOTE_INSTANCES]
+                .into_boxed_slice(),
+            report_count: 0,
+            report_stage: None,
+            departed: false,
+            fading: false,
         };
         audio.begin_block();
         Ok(audio)
@@ -160,6 +185,9 @@ impl Audio {
     }
     pub fn health(&self) -> Health {
         self.health
+    }
+    pub fn sample_rate(&self) -> u32 {
+        self.region.config.sample_rate
     }
     pub fn latency(&self) -> usize {
         self.region.config.latency()
@@ -221,6 +249,11 @@ impl Audio {
             self.input.instances[self.input.instance_count] = *note;
             self.input.instance_count += 1;
         }
+        self.input.handed[..self.handed_count].copy_from_slice(&self.handed[..self.handed_count]);
+        self.input.handed_count = self.handed_count;
+        self.input.handed_stage = self.handed_stage;
+        self.input.depart = self.depart;
+        self.input.depart_at = 0;
         self.input.control_start = self.generation;
         self.input.control_end = self.generation;
         self.input.controls_complete = true;
@@ -407,13 +440,79 @@ impl Audio {
     pub fn supports_note_instances(&self) -> bool {
         self.note_instances
     }
+    /// The owner wants the plugin, or no longer does. From this frame the
+    /// helper fades its output out (or back in), holds the ramps of its
+    /// notes where they are and reports them with every block.
+    pub fn request_departure(&mut self, depart: bool) {
+        if depart == self.depart {
+            return;
+        }
+        self.depart = depart;
+        self.input.depart = depart;
+        self.input.depart_at = self.cursor as u32;
+        if !depart {
+            self.departed = false;
+            self.fading = false;
+        }
+    }
+    /// True once output that had faded out for the departure was played.
+    pub fn departed(&self) -> bool {
+        self.depart && self.departed
+    }
+    /// The ramps the helper held after the last output that was played
+    /// while a departure was requested, by native id, and its channel stage.
+    pub fn departure_report(
+        &self,
+    ) -> (
+        &[crate::project_expression::Carried],
+        Option<&crate::project_expression::ChannelStage>,
+    ) {
+        (
+            &self.report[..self.report_count],
+            self.report_stage.as_ref(),
+        )
+    }
+    /// Starts a note that another helper was playing, with its ramp where
+    /// that helper left it. `stage` comes with the first such note.
+    pub fn note_on_instance_carried(
+        &mut self,
+        note: NoteSnapshot,
+        serial: u64,
+        ramp: crate::project_expression::NoteRamp,
+        stage: Option<crate::project_expression::ChannelStage>,
+    ) -> bool {
+        if !self.note_on_instance(note) {
+            return false;
+        }
+        if self.handed_count < self.handed.len() {
+            let carried = crate::project_expression::Carried {
+                id: u64::from(note.id),
+                key: note.key,
+                channel: note.channel,
+                serial,
+                ramp,
+            };
+            self.handed[self.handed_count] = carried;
+            self.input.handed[self.handed_count] = carried;
+            self.handed_count += 1;
+            self.input.handed_count = self.handed_count;
+            if self.handed_stage.is_none() {
+                self.handed_stage = stage;
+                self.input.handed_stage = stage;
+            }
+        }
+        true
+    }
     pub fn supports_note_pitch(&self) -> bool {
         self.expression_masks
             .iter()
             .any(|mask| mask & crate::NoteExpressionKind::Tuning.mask() != 0)
     }
     pub fn note_on_instance(&mut self, note: NoteSnapshot) -> bool {
-        if !self.note_instances || !note.valid() || self.instances.iter().any(|n| n.id == note.id) {
+        // A plugin without note instances owns its notes by id too: the
+        // helper plays them by key and channel, and the channel applies
+        // their pan and volume.
+        if !note.valid() || self.instances.iter().any(|n| n.id == note.id) {
             return false;
         }
         let Some(slot) = self.instances.iter().position(|n| n.id == 0) else {
@@ -688,6 +787,16 @@ impl Audio {
                     self.signals
                         .processed_generation
                         .store(self.health.acknowledged_generation, Ordering::Release);
+                    if self.depart && self.output.report_stage.is_some() {
+                        let count = self.output.report_count;
+                        self.report[..count].copy_from_slice(&self.output.report[..count]);
+                        self.report_count = count;
+                        self.report_stage = self.output.report_stage;
+                        // The block collected before this one ended faded
+                        // out and has now been played to its last frame.
+                        self.departed = self.fading && self.output.departed;
+                        self.fading = self.output.departed;
+                    }
                     true
                 }
                 Ok(false) => false,
@@ -803,6 +912,9 @@ impl Audio {
                 }
                 if !self.signals.failed.load(Ordering::Acquire) {
                     if self.region.submit(self.sequence, &self.input) {
+                        // The helper has the ramps handed in with this block.
+                        self.handed_count = 0;
+                        self.handed_stage = None;
                         self.health.submitted_blocks =
                             self.health.submitted_blocks.saturating_add(1);
                         self.signals

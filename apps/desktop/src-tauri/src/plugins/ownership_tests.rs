@@ -403,6 +403,90 @@ fn capture(
     result
 }
 
+/// A capture that takes the plugin back from the audio. An ordinary capture
+/// reads state while the plugin stays active; only a plugin that asked to be
+/// restarted is taken back, because its unit is about to be replaced. This
+/// marks the selected plugin as having asked and captures the way a rebuild
+/// does, so the hand-back and its refusals are exercised as they run in the
+/// product.
+fn restart_capture(
+    runtime: &Arc<Runtime>,
+    project: Project,
+    audio: &mut dyn HostedEffect,
+) -> Result<Project, String> {
+    let target = project.plugins[0].target;
+    let token = runtime.selected_token(target).unwrap();
+    runtime
+        .call(move |owner| {
+            owner.instances.get_mut(&token).unwrap().restart = true;
+            Ok(())
+        })
+        .unwrap();
+    let revision = runtime.document_revision();
+    let task = {
+        let runtime = runtime.clone();
+        std::thread::spawn(move || {
+            runtime.capture_for_update(project, revision, Duration::from_secs(15))
+        })
+    };
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    while !task.is_finished() {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "capture did not complete"
+        );
+        audio.control_boundary();
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    let result = task.join().unwrap();
+    audio.control_boundary();
+    runtime
+        .call(move |owner| {
+            if let Some(record) = owner.instances.get_mut(&token) {
+                record.restart = false;
+            }
+            Ok(())
+        })
+        .unwrap();
+    result
+}
+
+/// Takes the plugin back from the audio and gives it back again, as every
+/// hand-over does, and says how the return went.
+fn take_back_and_restore(
+    runtime: &Arc<Runtime>,
+    target: PluginTarget,
+    audio: &mut dyn HostedEffect,
+) -> Result<(), String> {
+    let token = runtime.selected_token(target).unwrap();
+    let (done, done_rx) = mpsc::channel();
+    runtime
+        .jobs
+        .send(Box::new(move |owner| {
+            let record = owner.instances.get_mut(&token).unwrap();
+            record.ownership.request();
+            let adapter = loop {
+                if let Some(adapter) = record.ownership.take_returned() {
+                    break adapter;
+                }
+                std::thread::sleep(Duration::from_millis(1));
+            };
+            let result = record.release(adapter).and_then(|()| record.restore());
+            done.send(result).unwrap();
+        }))
+        .unwrap();
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        audio.control_boundary();
+        if let Ok(result) = done_rx.try_recv() {
+            audio.control_boundary();
+            return result;
+        }
+        assert!(std::time::Instant::now() < deadline, "not returned");
+        std::thread::sleep(Duration::from_millis(1));
+    }
+}
+
 /// Hold exclusive ownership off audio until the test has delivered its edits.
 fn pause_adapter<T: HostedEffect + ?Sized>(runtime: &Runtime, audio: &mut T) -> mpsc::Sender<()> {
     let (ready, ready_rx) = mpsc::channel();
@@ -477,8 +561,20 @@ fn runtime_repair_capture_reconciles_absent_controls_and_keeps_timeout_intent() 
         .unwrap()
         .value = 0.75;
     runtime.commit_parameters(&project);
-    let error = runtime.capture(project.clone()).unwrap_err();
-    assert!(error.contains("boundary"), "{error}");
+    // This used to be refused for want of an audio block boundary, because
+    // a capture took the plugin away from the audio. State is now read
+    // while the plugin stays active, so no boundary is needed, and the
+    // control the processor has not applied yet accompanies the state.
+    let quiet = runtime.capture(project.clone()).unwrap();
+    assert_eq!(
+        quiet.plugins[0]
+            .parameters
+            .iter()
+            .find(|p| p.id == 7)
+            .unwrap()
+            .value,
+        0.75
+    );
     assert_eq!(
         runtime.selected_token(project.plugins[0].target),
         Some(token)
@@ -536,7 +632,9 @@ fn runtime_repair_capture_refusal_retains_pending_controls_and_stale_snapshot_is
     );
     let error = runtime.capture(stale).unwrap_err();
     assert!(error.contains("parameters changed"), "{error}");
-    let error = capture(&runtime, project.clone(), audio.as_mut()).unwrap_err();
+    // The refusal is the plugin refusing to be deactivated, which only a
+    // capture that takes it back asks of it.
+    let error = restart_capture(&runtime, project.clone(), audio.as_mut()).unwrap_err();
     assert!(error.contains("setActive(false) refused"), "{error}");
     assert_eq!(
         runtime.selected_token(project.plugins[0].target),
@@ -1121,7 +1219,11 @@ fn capture_refusal_returns_the_exact_active_adapter_and_owner_retirement_cleans_
         let token = runtime.selected_token(binding.target).unwrap();
         let mut project = Project::new("Refusal");
         project.plugins.push(binding.clone());
-        let error = capture(&runtime, project, audio.as_mut()).unwrap_err();
+        // An ordinary capture no longer deactivates the plugin, so it is
+        // not refused: the state is read and the audio is left alone.
+        let saved = capture(&runtime, project.clone(), audio.as_mut()).unwrap();
+        assert!(!saved.plugins[0].state.is_empty());
+        let error = restart_capture(&runtime, project, audio.as_mut()).unwrap_err();
         assert!(
             error.contains(if gain == 0.75 {
                 "setProcessing(false) refused"
@@ -1160,7 +1262,11 @@ fn recovery_failure_stays_dry_and_can_be_retired_on_its_owner() {
     audio.transport(transport());
     let mut project = Project::new("Recovery failure");
     project.plugins.push(binding);
-    let error = capture(&runtime, project, audio.as_mut()).unwrap_err();
+    // An ordinary capture does not deactivate the plugin any more, so it
+    // cannot fail to come back from one. Taking it back and giving it back,
+    // as a restart, an update or a cancelled hand-over does, still can.
+    let error =
+        take_back_and_restore(&runtime, project.plugins[0].target, audio.as_mut()).unwrap_err();
     assert!(error.contains("activated"), "{error}");
     let mut left = [0.25; 64];
     let mut right = left;
@@ -1401,14 +1507,17 @@ fn vst3_instrument_engine_playback_state_reopen_and_wav_export_are_deterministic
 }
 
 #[test]
-fn vst3_no_callback_refuses_capture_without_deactivating_the_processor() {
+fn vst3_capture_without_a_callback_reads_state_and_never_deactivates_the_processor() {
+    // Was: refused for want of a block boundary. A capture does not take
+    // the plugin from the audio any more, so it needs no callback; what
+    // stays required is that the processor is never deactivated for it.
     let (runtime, binding) = fixture(0);
     let mut audio = runtime.effect(&binding, 48_000, 64).unwrap();
     audio.transport(transport());
     let mut project = Project::new("Disconnected callback");
     project.plugins = vec![binding];
-    let error = runtime.capture(project).unwrap_err();
-    assert!(error.contains("block boundary"), "{error}");
+    let saved = runtime.capture(project).unwrap();
+    assert!(!saved.plugins[0].state.is_empty());
     audio.control_boundary();
     let mut left = [1.0; 64];
     let mut right = left;

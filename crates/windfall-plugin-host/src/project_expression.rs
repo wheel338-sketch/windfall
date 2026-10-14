@@ -301,7 +301,107 @@ impl NoteRamp {
     pub fn target(&self) -> (PluginNoteExpression, u32) {
         (self.target, self.duration - self.elapsed.min(self.duration))
     }
+    /// The whole ramp as explicit protocol words: the pan ramp, where each
+    /// control started, where it is going and by what step, the frames gone
+    /// and in all, the law, and each property's route weight on its way.
+    pub fn encode(&self) -> [u32; RAMP_WORDS] {
+        let mut words = [0; RAMP_WORDS];
+        words[..PAN_WORDS].copy_from_slice(&self.pan.state());
+        let mut at = PAN_WORDS;
+        for values in [&self.from, &self.target.values, &self.step] {
+            for value in values {
+                words[at] = value.to_bits() as u32;
+                words[at + 1] = (value.to_bits() >> 32) as u32;
+                at += 2;
+            }
+        }
+        words[at..].copy_from_slice(&[
+            self.from_mask,
+            self.target.mask,
+            self.elapsed,
+            self.duration,
+            encode_law(self.law),
+            u32::from(self.routes.pan) | u32::from(self.routes.volume) << 1,
+            self.weight[0].to_bits(),
+            self.weight[1].to_bits(),
+            self.weight_step[0].to_bits(),
+            self.weight_step[1].to_bits(),
+            self.weight_left,
+        ]);
+        words
+    }
+    /// A ramp from [`NoteRamp::encode`], refused unless every number is
+    /// finite, every count is within the second a ramp may last and every
+    /// weight is a share between none and all.
+    pub fn decode(
+        words: [u32; RAMP_WORDS],
+    ) -> Result<Self, crate::bridge::protocol::ProtocolError> {
+        use crate::bridge::protocol::ProtocolError;
+        let pan = NotePan::from_state(
+            words[..PAN_WORDS]
+                .try_into()
+                .map_err(|_| ProtocolError::Layout)?,
+            LONGEST_RAMP,
+        )
+        .ok_or(ProtocolError::Event)?;
+        let doubles = |first: usize| -> [f64; 7] {
+            std::array::from_fn(|index| {
+                f64::from_bits(crate::bridge::protocol::pair(
+                    words[first + index * 2],
+                    words[first + index * 2 + 1],
+                ))
+            })
+        };
+        let tail = &words[PAN_WORDS + 42..];
+        let ramp = Self {
+            pan,
+            from: doubles(PAN_WORDS),
+            from_mask: tail[0],
+            target: PluginNoteExpression {
+                values: doubles(PAN_WORDS + 14),
+                mask: tail[1],
+            },
+            step: doubles(PAN_WORDS + 28),
+            elapsed: tail[2],
+            duration: tail[3],
+            law: decode_law(tail[4])?,
+            routes: Routes {
+                pan: tail[5] & 1 != 0,
+                volume: tail[5] & 2 != 0,
+            },
+            weight: [f32::from_bits(tail[6]), f32::from_bits(tail[7])],
+            weight_step: [f32::from_bits(tail[8]), f32::from_bits(tail[9])],
+            weight_left: tail[10],
+        };
+        let finite = ramp
+            .from
+            .iter()
+            .chain(&ramp.target.values)
+            .chain(&ramp.step)
+            .all(|value| value.is_finite())
+            && ramp.weight_step.iter().all(|step| step.is_finite());
+        if !finite
+            || ramp.from_mask & !0x7f != 0
+            || ramp.target.mask & !0x7f != 0
+            || tail[5] > 3
+            || ramp.elapsed > ramp.duration
+            || ramp.duration > LONGEST_RAMP
+            || ramp.weight_left > LONGEST_RAMP
+            || ramp
+                .weight
+                .iter()
+                .any(|weight| !(0.0..=1.0).contains(weight))
+        {
+            return Err(ProtocolError::Event);
+        }
+        Ok(ramp)
+    }
 }
+const PAN_WORDS: usize = NotePan::STATE_WORDS;
+/// Words of one [`NoteRamp`] in the bridge protocol.
+pub const RAMP_WORDS: usize = PAN_WORDS + 3 * 14 + 11;
+/// No ramp or fade outlasts five milliseconds at the highest admitted rate.
+const LONGEST_RAMP: u32 = 384_000 / 200;
 
 /// The channel's side of the routes: one pair of gains for the plugin's
 /// whole output. It follows the most recently started sounding note, moves
@@ -415,7 +515,38 @@ impl ChannelStage {
         self.left = before.left;
         self.fresh = before.fresh;
     }
+    /// What [`ChannelStage::inherit`] takes, as explicit protocol words.
+    pub fn encode(&self) -> [u32; STAGE_WORDS] {
+        [
+            self.gain[0].to_bits(),
+            self.gain[1].to_bits(),
+            self.leader as u32,
+            (self.leader >> 32) as u32,
+            self.left,
+            u32::from(self.fresh),
+        ]
+    }
+    /// A stage at rest at `rate` holding what [`ChannelStage::encode`] wrote.
+    pub fn decode(
+        words: [u32; STAGE_WORDS],
+        rate: f32,
+    ) -> Result<Self, crate::bridge::protocol::ProtocolError> {
+        let mut stage = Self::new(rate);
+        stage.gain = [f32::from_bits(words[0]), f32::from_bits(words[1])];
+        stage.leader = crate::bridge::protocol::pair(words[2], words[3]);
+        stage.left = words[4];
+        stage.fresh = words[5] == 1;
+        if stage.gain.iter().any(|gain| !gain.is_finite())
+            || stage.left > LONGEST_RAMP
+            || words[5] > 1
+        {
+            return Err(crate::bridge::protocol::ProtocolError::Event);
+        }
+        Ok(stage)
+    }
 }
+/// Words of the carried part of a [`ChannelStage`] in the bridge protocol.
+pub const STAGE_WORDS: usize = 6;
 
 /// Delays the channel's share by the plugin's own latency. What the plugin
 /// is sent now reaches its output that many frames later, and the two halves
@@ -506,6 +637,45 @@ pub struct Carried {
     pub serial: u64,
     pub ramp: NoteRamp,
 }
+/// Words of one [`Carried`] note in the bridge protocol.
+pub const CARRIED_WORDS: usize = 6 + RAMP_WORDS;
+impl Carried {
+    pub const EMPTY: Self = Self {
+        id: 0,
+        key: 0,
+        channel: 0,
+        serial: 0,
+        ramp: NoteRamp::EMPTY,
+    };
+    pub fn encode(&self) -> [u32; CARRIED_WORDS] {
+        let mut words = [0; CARRIED_WORDS];
+        words[..6].copy_from_slice(&[
+            self.id as u32,
+            (self.id >> 32) as u32,
+            u32::from(self.key),
+            u32::from(self.channel),
+            self.serial as u32,
+            (self.serial >> 32) as u32,
+        ]);
+        words[6..].copy_from_slice(&self.ramp.encode());
+        words
+    }
+    pub fn decode(
+        words: [u32; CARRIED_WORDS],
+    ) -> Result<Self, crate::bridge::protocol::ProtocolError> {
+        use crate::bridge::protocol::{ProtocolError, pair};
+        if words[2] > 127 || words[3] > 15 {
+            return Err(ProtocolError::Event);
+        }
+        Ok(Self {
+            id: pair(words[0], words[1]),
+            key: words[2] as u8,
+            channel: words[3] as u8,
+            serial: pair(words[4], words[5]),
+            ramp: NoteRamp::decode(words[6..].try_into().map_err(|_| ProtocolError::Layout)?)?,
+        })
+    }
+}
 /// One plugin target's sounding notes and channel stage, written by the unit
 /// that plays them and read by the unit that takes over. Both run on the
 /// audio thread, one after the other, so the lock around this is only ever
@@ -518,17 +688,7 @@ pub struct Carry {
 impl Carry {
     pub fn new() -> Self {
         Self {
-            owners: vec![
-                Carried {
-                    id: 0,
-                    key: 0,
-                    channel: 0,
-                    serial: 0,
-                    ramp: NoteRamp::EMPTY,
-                };
-                crate::MAX_NOTE_INSTANCES
-            ]
-            .into_boxed_slice(),
+            owners: vec![Carried::EMPTY; crate::MAX_NOTE_INSTANCES].into_boxed_slice(),
             count: 0,
             stage: None,
         }
@@ -551,6 +711,11 @@ impl Carry {
     }
     pub fn stage(&self) -> Option<ChannelStage> {
         self.stage
+    }
+    /// Forgets what was carried: the unit that wrote it plays on after all.
+    pub fn clear(&mut self) {
+        self.count = 0;
+        self.stage = None;
     }
     pub fn serial(&self) -> u64 {
         self.owners[..self.count]
@@ -580,6 +745,8 @@ struct Owner {
     dirty: bool,
     /// Held over a recovery and not yet named by its snapshot.
     stale: bool,
+    /// Taken over mid-ramp from another helper and not yet played here.
+    carried: bool,
 }
 impl Owner {
     const EMPTY: Self = Self {
@@ -593,6 +760,7 @@ impl Owner {
         fresh: false,
         dirty: false,
         stale: false,
+        carried: false,
     };
 }
 /// Helper-side ownership, allocated once before Ready. Incoming expressions are
@@ -607,6 +775,13 @@ pub struct Bank {
     stage: ChannelStage,
     delay: ShareDelay,
     gain: [f32; 2],
+    /// Ramps another helper left for notes about to start here, by their
+    /// native id in this helper. Allocated once; filled per block.
+    handed: Box<[Carried]>,
+    handed_count: usize,
+    handed_stage: Option<ChannelStage>,
+    /// Nothing has sounded here yet, so a handed stage can still be taken.
+    untouched: bool,
 }
 impl Bank {
     pub fn new(rate: f32) -> Self {
@@ -621,6 +796,10 @@ impl Bank {
             recovering: false,
             stage: ChannelStage::new(rate),
             gain: [1.0; 2],
+            handed: vec![Carried::EMPTY; crate::MAX_NOTE_INSTANCES].into_boxed_slice(),
+            handed_count: 0,
+            handed_stage: None,
+            untouched: true,
         }
     }
     pub fn reset(&mut self) {
@@ -630,6 +809,54 @@ impl Bank {
         self.stage.reset();
         self.delay.reset();
         self.gain = [1.0; 2];
+        self.handed_count = 0;
+        self.handed_stage = None;
+    }
+    /// The ramps and stage a replaced helper left, for the notes this block
+    /// starts. `id` is the note's native id here. Replaces what was handed
+    /// before; a note that does not start in this block never sees them.
+    pub fn hand(&mut self, notes: &[Carried], stage: Option<ChannelStage>) {
+        self.handed_count = notes.len().min(self.handed.len());
+        self.handed[..self.handed_count].copy_from_slice(&notes[..self.handed_count]);
+        self.handed_stage = stage;
+    }
+    /// The owner asked for the plugin: fade the output out, and bring it
+    /// back if the request is withdrawn. While it is out the ramps wait.
+    pub fn set_departing(&mut self, departing: bool) {
+        if departing && !self.stage.departing() {
+            self.stage.depart();
+        } else if !departing && self.stage.departing() {
+            self.stage.resume();
+        }
+    }
+    /// True once the output has faded out for a requested departure.
+    pub fn departed(&self) -> bool {
+        self.stage.departed()
+    }
+    pub fn stage(&self) -> &ChannelStage {
+        &self.stage
+    }
+    /// Every sounding note with its ramp where it is now, by native id.
+    pub fn report(&self, out: &mut [Carried]) -> usize {
+        let mut count = 0;
+        for owner in self
+            .owners
+            .iter()
+            .filter(|owner| owner.id != 0 && !owner.fresh)
+        {
+            if count == out.len() {
+                break;
+            }
+            out[count] = Carried {
+                id: u64::from(owner.id),
+                key: owner.key,
+                channel: owner.channel,
+                serial: owner.serial,
+                ramp: owner.ramp,
+            };
+            count += 1;
+        }
+        count
     }
     /// The plugin's latency in frames, from a control thread.
     pub fn set_latency(&mut self, frames: usize) {
@@ -687,17 +914,49 @@ impl Bank {
                     return false;
                 }
                 let slot = held.or_else(|| self.owners.iter().position(|owner| owner.id == 0));
+                let handed = self.handed[..self.handed_count]
+                    .iter()
+                    .find(|note| {
+                        note.id == u64::from(id) && note.key == key && note.channel == channel
+                    })
+                    .copied();
                 if let Some(slot) = slot {
-                    self.serial += 1;
-                    self.owners[slot] = Owner {
-                        id,
-                        key,
-                        channel,
-                        serial: self.serial,
-                        fresh: true,
-                        dirty: true,
-                        ..Owner::EMPTY
-                    };
+                    if let Some(handed) = handed {
+                        // The same note in the helper that replaced its
+                        // plugin: the value, its target and the frames it
+                        // has left carry on. The first one also brings the
+                        // channel stage over and fades this helper in.
+                        if self.untouched
+                            && let Some(stage) = self.handed_stage
+                        {
+                            self.stage.inherit(&stage);
+                            self.stage.arrive();
+                        }
+                        self.serial = self.serial.max(handed.serial);
+                        self.owners[slot] = Owner {
+                            id,
+                            key,
+                            channel,
+                            serial: handed.serial,
+                            target: handed.ramp.target().0,
+                            ramp: handed.ramp,
+                            carried: true,
+                            dirty: true,
+                            ..Owner::EMPTY
+                        };
+                    } else {
+                        self.serial += 1;
+                        self.owners[slot] = Owner {
+                            id,
+                            key,
+                            channel,
+                            serial: self.serial,
+                            fresh: true,
+                            dirty: true,
+                            ..Owner::EMPTY
+                        };
+                    }
+                    self.untouched = false;
                 } else {
                     self.overflow = true;
                 }
@@ -756,13 +1015,28 @@ impl Bank {
         }
         let fade = fade_frames(self.rate);
         let mut leader = (0, (1.0, 1.0));
+        // While the output fades out for a plugin that is leaving, the
+        // notes' ramps wait: they go on in whichever helper plays next.
+        let waiting = self.stage.departing();
+        let mut primed = None;
         for owner in self.owners.iter_mut().filter(|owner| owner.id != 0) {
-            let mask = processor.note_expression_mask(owner.channel);
+            // A plugin played by key and channel takes no note expression:
+            // everything about its notes is the channel's.
+            let mask = if instances {
+                processor.note_expression_mask(owner.channel)
+            } else {
+                0
+            };
             if owner.fresh {
                 owner.ramp = NoteRamp::new(owner.target, self.law, routes);
                 owner.fresh = false;
                 owner.dirty = false;
             } else if owner.dirty {
+                if owner.carried {
+                    // What this plugin does not offer is the channel's at
+                    // once; everything else moves across the fade.
+                    owner.ramp.limit(Routes::of(instances, mask));
+                }
                 owner
                     .ramp
                     .retarget(owner.target, self.law, routes, self.rate);
@@ -771,7 +1045,17 @@ impl Bank {
                 owner.ramp.route(routes, fade);
             }
             owner.ramp.limit(Routes::of(instances, mask));
-            let (controls, host) = owner.ramp.tick_split();
+            let (controls, host) = if waiting {
+                owner.ramp.split()
+            } else {
+                owner.ramp.tick_split()
+            };
+            if owner.carried {
+                owner.carried = false;
+                if primed.is_none_or(|(serial, _)| owner.serial > serial) {
+                    primed = Some((owner.serial, host));
+                }
+            }
             if owner.serial > leader.0 {
                 leader = (owner.serial, host);
             }
@@ -811,6 +1095,11 @@ impl Bank {
                 }
             }
         }
+        if let Some(share) = primed {
+            // A note taken over continues from the share it had, instead of
+            // waiting out the plugin's latency from none.
+            self.delay.prime(share);
+        }
         self.gain = if self.law.is_some() {
             let delayed = self.delay.push(leader);
             self.stage.tick(delayed.0, delayed.1)
@@ -824,6 +1113,118 @@ impl Bank {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_ramp_mid_flight_crosses_the_bridge_exactly_and_bad_words_are_refused() {
+        use crate::bridge::protocol::ProtocolError;
+        let from = PluginNoteExpression {
+            values: [0.8, 0.25, -0.5, 0.3, 0.4, 0.7, 0.9],
+            mask: 0x7f,
+        };
+        let to = PluginNoteExpression {
+            values: [0.6, 0.85, 0.25, 0.1, 0.2, 0.3, 0.4],
+            mask: 0x3f,
+        };
+        for law in LAWS {
+            let mut ramp = NoteRamp::new(from, Some(law), Routes::NATIVE);
+            ramp.retarget(to, Some(law), Routes::NATIVE, 48_000.0);
+            for _ in 0..77 {
+                ramp.tick();
+            }
+            // A route on its way as well: every weight field is in use.
+            ramp.route(
+                Routes {
+                    pan: false,
+                    volume: true,
+                },
+                240,
+            );
+            for _ in 0..31 {
+                ramp.tick();
+            }
+            let carried = Carried {
+                id: u64::from(crate::FIRST_NOTE_INSTANCE_ID) + 5,
+                key: 69,
+                channel: 14,
+                serial: (1 << 40) + 3,
+                ramp,
+            };
+            let mut copy = Carried::decode(carried.encode()).unwrap();
+            assert_eq!(
+                (copy.id, copy.key, copy.channel, copy.serial),
+                (carried.id, carried.key, carried.channel, carried.serial)
+            );
+            assert_eq!(copy.encode(), carried.encode());
+            // The copy goes on exactly as the original would have.
+            let mut original = ramp;
+            for frame in 0..300 {
+                let (a, b) = (original.tick_split(), copy.ramp.tick_split());
+                assert_eq!(a.0, b.0, "{law:?} frame {frame}");
+                assert_eq!(a.1, b.1, "{law:?} frame {frame}");
+            }
+            assert_eq!(original.target(), copy.ramp.target());
+            assert!(!copy.ramp.active());
+
+            let words = ramp.encode();
+            let broken = |index: usize, value: u32| {
+                let mut words = words;
+                words[index] = value;
+                NoteRamp::decode(words).err()
+            };
+            // A pan gain, a control value, a step and a weight that are not
+            // numbers; more frames gone than there are; a ramp longer than a
+            // ramp may be; an unknown law; an unknown route; a mask bit that
+            // names no control; a weight above all of the property.
+            assert_eq!(broken(1, f32::NAN.to_bits()), Some(ProtocolError::Event));
+            assert_eq!(
+                broken(PAN_WORDS + 1, (f64::INFINITY.to_bits() >> 32) as u32),
+                Some(ProtocolError::Event)
+            );
+            assert_eq!(
+                broken(PAN_WORDS + 29, (f64::NAN.to_bits() >> 32) as u32),
+                Some(ProtocolError::Event)
+            );
+            let tail = PAN_WORDS + 42;
+            assert_eq!(
+                broken(tail + 2, words[tail + 3] + 1),
+                Some(ProtocolError::Event)
+            );
+            assert_eq!(broken(tail + 3, 1_000_000), Some(ProtocolError::Event));
+            assert_eq!(broken(tail + 4, 9), Some(ProtocolError::Configuration));
+            assert_eq!(broken(tail + 5, 4), Some(ProtocolError::Event));
+            assert_eq!(broken(tail, 0x80), Some(ProtocolError::Event));
+            assert_eq!(
+                broken(tail + 6, 1.5_f32.to_bits()),
+                Some(ProtocolError::Event)
+            );
+            assert_eq!(
+                broken(tail + 8, f32::NAN.to_bits()),
+                Some(ProtocolError::Event)
+            );
+            assert_eq!(broken(tail + 10, 1_000_000), Some(ProtocolError::Event));
+        }
+        let mut words = Carried::EMPTY.encode();
+        words[2] = 128;
+        assert!(Carried::decode(words).is_err());
+        words[2] = 0;
+        words[3] = 16;
+        assert!(Carried::decode(words).is_err());
+
+        let mut stage = ChannelStage::new(48_000.0);
+        stage.tick(7, (0.4, 0.9));
+        stage.tick(9, (0.7, 0.2));
+        let mut copy = ChannelStage::decode(stage.encode(), 48_000.0).unwrap();
+        assert_eq!(copy.encode(), stage.encode());
+        for _ in 0..300 {
+            assert_eq!(stage.tick(9, (0.7, 0.2)), copy.tick(9, (0.7, 0.2)));
+        }
+        let mut words = stage.encode();
+        words[0] = f32::INFINITY.to_bits();
+        assert!(ChannelStage::decode(words, 48_000.0).is_err());
+        let mut words = stage.encode();
+        words[5] = 2;
+        assert!(ChannelStage::decode(words, 48_000.0).is_err());
+    }
 
     const LAWS: [ProjectPanLaw; 4] = [
         ProjectPanLaw::Balance,

@@ -25,8 +25,17 @@ pub(super) struct Published {
     masks: [AtomicU32; 16],
     channels: AtomicU32,
     invalid_channel: AtomicBool,
+    /// The plugin failed while processing and is bypassed or silent. The
+    /// owner reads this before it saves state without taking the plugin back.
+    failed: AtomicBool,
 }
 impl Published {
+    pub fn fail(&self, failed: bool) {
+        self.failed.store(failed, Ordering::Release);
+    }
+    pub fn failed(&self) -> bool {
+        self.failed.load(Ordering::Acquire)
+    }
     pub fn publish(&self, instances: bool, masks: [u32; 16]) {
         for (stored, mask) in self.masks.iter().zip(masks) {
             stored.store(mask, Ordering::Release);

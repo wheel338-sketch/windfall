@@ -1,8 +1,14 @@
-//! Explicit version-ten words. These offsets, not Rust object layouts, are the ABI.
+//! Explicit version-eleven words. These offsets, not Rust object layouts, are the ABI.
+//!
+//! Version eleven adds what a helper needs to take a sounding note over from
+//! the helper it replaces: the ramps handed in with a block, the request to
+//! fade out before leaving, and the ramps reported back while it does. It
+//! also lets a plugin without note instances own its notes by id, so the
+//! channel can apply their pan and volume. A version-ten peer is refused.
 
 use crate::{HostEvent, Transport};
 
-pub const VERSION: u32 = 10;
+pub const VERSION: u32 = 11;
 pub const DEFAULT_BLOCK: usize = 256;
 pub const MAGIC: u32 = u32::from_le_bytes(*b"WFBR");
 pub const SLOT_COUNT: usize = 4;
@@ -25,11 +31,27 @@ pub const NOTES: usize = AUX_OUTPUT + MAX_BLOCK * 2 * crate::MAX_PORTS as usize;
 pub const NOTE_KEYS: usize = 16 * 128;
 pub const NOTE_SNAPSHOT_WORDS: usize = 25;
 pub const INSTANCES: usize = NOTES + NOTE_KEYS;
-pub const LAW_EVENTS: usize = INSTANCES + crate::MAX_NOTE_INSTANCES * NOTE_SNAPSHOT_WORDS;
+/// One area for both directions: the host hands ramps in with a block, and
+/// the helper reports the ramps it holds with its reply to the same block.
+pub const RAMP_STAGE: usize = INSTANCES + crate::MAX_NOTE_INSTANCES * NOTE_SNAPSHOT_WORDS;
+pub const RAMP_NOTES: usize = RAMP_STAGE + crate::project_expression::STAGE_WORDS;
+pub const LAW_EVENTS: usize =
+    RAMP_NOTES + crate::MAX_NOTE_INSTANCES * crate::project_expression::CARRIED_WORDS;
 pub const PARAMETERS: usize = LAW_EVENTS + MAX_BLOCK * 2;
 pub const PROJECT_LAW: usize = 56;
 pub const PROJECT_LAW_COUNT: usize = 57;
 pub const INSTANCE_COUNT: usize = 54;
+/// Ramps handed in with this block; [`STAGE_PRESENT`] says a stage comes too.
+pub const HANDED_COUNT: usize = 58;
+/// Bit 0: the owner wants the plugin and the output is to fade out.
+pub const DEPART: usize = 59;
+/// The frame of this block from which [`DEPART`] holds; 0 when it held before.
+pub const DEPART_AT: usize = 60;
+/// Ramps reported with this reply; [`STAGE_PRESENT`] says a stage comes too.
+pub const REPORT_COUNT: usize = 61;
+/// Bit 0: the output has faded out for the requested departure.
+pub const REPORT_FLAGS: usize = 62;
+pub const STAGE_PRESENT: u32 = 1 << 31;
 pub const OUTPUT_COUNT: usize = 55;
 pub const EVENTS: usize = PARAMETERS + PARAM_CAPACITY * 3;
 pub const EVENT_WORDS: usize = 8;
@@ -513,12 +535,12 @@ mod tests {
         assert_eq!(SLOT_WORDS * 4 % 64, 0);
     }
     #[test]
-    fn earlier_mapping_versions_never_downgrade_the_v10_project_expression_contract() {
+    fn earlier_mapping_versions_never_downgrade_the_v11_ramp_handover_contract() {
         let mut header = config().header().unwrap();
-        assert_eq!(header[1], 10);
+        assert_eq!(header[1], 11);
         assert_eq!(header[OWNER_COMPLETIONS], 0);
         assert_eq!(header[TIMELINE_EPOCH], 1);
-        for version in 1..10 {
+        for version in 1..11 {
             header[1] = version;
             assert_eq!(
                 Config::from_header(&header, REGION_BYTES),
@@ -604,6 +626,16 @@ mod tests {
             (CONTROL_START, 2),
             (CONTROL_END, 2),
             (NATIVE_DROPS, 1),
+            (SIDECHAIN_PORT, 1),
+            (INSTANCE_COUNT, 1),
+            (OUTPUT_COUNT, 1),
+            (PROJECT_LAW, 1),
+            (PROJECT_LAW_COUNT, 1),
+            (HANDED_COUNT, 1),
+            (DEPART, 1),
+            (DEPART_AT, 1),
+            (REPORT_COUNT, 1),
+            (REPORT_FLAGS, 1),
         ];
         let mut used = [false; META_WORDS];
         for (start, count) in ranges {

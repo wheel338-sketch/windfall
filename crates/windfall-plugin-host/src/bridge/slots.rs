@@ -210,6 +210,8 @@ impl Region {
     }
     pub fn submit(&self, sequence: u64, block: &InputBlock) -> bool {
         if block.instance_count > crate::MAX_NOTE_INSTANCES
+            || block.handed_count > crate::MAX_NOTE_INSTANCES
+            || block.depart_at as usize >= self.config.block
             || block.instances[..block.instance_count]
                 .iter()
                 .any(|note| !note.valid())
@@ -257,6 +259,32 @@ impl Region {
         self.put(slot, FLAGS, u32::from(!block.controls_complete));
         self.put(slot, NOTE_CHANNEL, 0);
         self.put(slot, INSTANCE_COUNT, block.instance_count as u32);
+        self.put(
+            slot,
+            HANDED_COUNT,
+            block.handed_count as u32
+                | if block.handed_stage.is_some() {
+                    STAGE_PRESENT
+                } else {
+                    0
+                },
+        );
+        self.put(slot, DEPART, u32::from(block.depart));
+        self.put(slot, DEPART_AT, block.depart_at);
+        if let Some(stage) = &block.handed_stage {
+            for (word, value) in stage.encode().into_iter().enumerate() {
+                self.put(slot, RAMP_STAGE + word, value);
+            }
+        }
+        for (index, note) in block.handed[..block.handed_count].iter().enumerate() {
+            for (word, value) in note.encode().into_iter().enumerate() {
+                self.put(
+                    slot,
+                    RAMP_NOTES + index * crate::project_expression::CARRIED_WORDS + word,
+                    value,
+                );
+            }
+        }
         self.put(slot, PROJECT_LAW, block.project_law);
         self.put(slot, PROJECT_LAW_COUNT, block.law_event_count as u32);
         for (index, (time, law)) in block.law_events[..block.law_event_count].iter().enumerate() {
@@ -419,6 +447,43 @@ impl Region {
             block.instances[index] = note;
         }
         block.instance_count = instances;
+        let handed = self.get(slot, HANDED_COUNT);
+        let handed_count = (handed & !STAGE_PRESENT) as usize;
+        let depart = self.get(slot, DEPART);
+        block.depart_at = self.get(slot, DEPART_AT);
+        if handed_count > crate::MAX_NOTE_INSTANCES
+            || depart > 1
+            || block.depart_at as usize >= frames
+        {
+            return Err(ProtocolError::Layout);
+        }
+        block.depart = depart == 1;
+        block.handed_stage = if handed & STAGE_PRESENT != 0 {
+            Some(crate::project_expression::ChannelStage::decode(
+                std::array::from_fn(|word| self.get(slot, RAMP_STAGE + word)),
+                self.config.sample_rate as f32,
+            )?)
+        } else {
+            None
+        };
+        for index in 0..handed_count {
+            let note = crate::project_expression::Carried::decode(std::array::from_fn(|word| {
+                self.get(
+                    slot,
+                    RAMP_NOTES + index * crate::project_expression::CARRIED_WORDS + word,
+                )
+            }))?;
+            // A ramp is handed in for a note of this block, by its id here.
+            if !(u64::from(crate::FIRST_NOTE_INSTANCE_ID)..=i32::MAX as u64).contains(&note.id)
+                || block.handed[..index]
+                    .iter()
+                    .any(|other| other.id == note.id)
+            {
+                return Err(ProtocolError::Event);
+            }
+            block.handed[index] = note;
+        }
+        block.handed_count = handed_count;
         for index in 0..params {
             block.parameters[index] = Parameter::decode(std::array::from_fn(|word| {
                 self.get(slot, PARAMETERS + index * 3 + word)
@@ -464,6 +529,31 @@ impl Region {
                 OUTPUT + MAX_BLOCK + index,
                 output.right[index].to_bits(),
             );
+        }
+        self.put(
+            slot,
+            REPORT_COUNT,
+            output.report_count as u32
+                | if output.report_stage.is_some() {
+                    STAGE_PRESENT
+                } else {
+                    0
+                },
+        );
+        self.put(slot, REPORT_FLAGS, u32::from(output.departed));
+        if let Some(stage) = &output.report_stage {
+            for (word, value) in stage.encode().into_iter().enumerate() {
+                self.put(slot, RAMP_STAGE + word, value);
+            }
+        }
+        for (index, note) in output.report[..output.report_count].iter().enumerate() {
+            for (word, value) in note.encode().into_iter().enumerate() {
+                self.put(
+                    slot,
+                    RAMP_NOTES + index * crate::project_expression::CARRIED_WORDS + word,
+                    value,
+                );
+            }
         }
         self.put(slot, OUTPUT_COUNT, output.output_count as u32);
         for bus in 0..output.output_count.min(crate::MAX_PORTS as usize) {
@@ -550,6 +640,31 @@ impl Region {
                 output.auxiliary.buses[bus][frame] = value;
             }
         }
+        let report = self.get(slot, REPORT_COUNT);
+        let report_count = (report & !STAGE_PRESENT) as usize;
+        let flags = self.get(slot, REPORT_FLAGS);
+        if report_count > crate::MAX_NOTE_INSTANCES || flags > 1 {
+            return Err(ProtocolError::Layout);
+        }
+        output.report_stage = if report & STAGE_PRESENT != 0 {
+            Some(crate::project_expression::ChannelStage::decode(
+                std::array::from_fn(|word| self.get(slot, RAMP_STAGE + word)),
+                self.config.sample_rate as f32,
+            )?)
+        } else {
+            None
+        };
+        for index in 0..report_count {
+            output.report[index] =
+                crate::project_expression::Carried::decode(std::array::from_fn(|word| {
+                    self.get(
+                        slot,
+                        RAMP_NOTES + index * crate::project_expression::CARRIED_WORDS + word,
+                    )
+                }))?;
+        }
+        output.report_count = report_count;
+        output.departed = flags == 1;
         // Even a malformed peer changing metadata during copy cannot make a
         // stale sequence or owner acceptable. All payload accesses remain atomic.
         if self.read_identity(slot, REPLY_IDENTITY)? != self.config.identity
@@ -762,6 +877,14 @@ pub struct InputBlock {
     pub notes: [f32; NOTE_KEYS],
     pub instances: Box<[NoteSnapshot]>,
     pub instance_count: usize,
+    /// Ramps a replaced helper left for notes that start in this block, by
+    /// their native id here, and the channel stage it left with them.
+    pub handed: Box<[crate::project_expression::Carried]>,
+    pub handed_count: usize,
+    pub handed_stage: Option<crate::project_expression::ChannelStage>,
+    /// The owner wants the plugin: fade out from frame `depart_at` on.
+    pub depart: bool,
+    pub depart_at: u32,
     pub parameters: Box<[Parameter]>,
     pub parameter_count: usize,
     pub events: Box<[HostEvent]>,
@@ -785,6 +908,12 @@ impl InputBlock {
             notes: [0.0; NOTE_KEYS],
             instances: vec![NoteSnapshot::EMPTY; crate::MAX_NOTE_INSTANCES].into_boxed_slice(),
             instance_count: 0,
+            handed: vec![crate::project_expression::Carried::EMPTY; crate::MAX_NOTE_INSTANCES]
+                .into_boxed_slice(),
+            handed_count: 0,
+            handed_stage: None,
+            depart: false,
+            depart_at: 0,
             parameters: vec![Parameter { id: 0, value: 0.0 }; PARAM_CAPACITY].into_boxed_slice(),
             parameter_count: 0,
             events: vec![HostEvent::AllNotesOff { time: 0 }; EVENT_CAPACITY].into_boxed_slice(),
@@ -803,6 +932,13 @@ pub struct OutputBlock {
     pub epoch: u64,
     pub processed_generation: u64,
     pub native_drops: u32,
+    /// While a departure is requested: every sounding note's ramp as it is
+    /// after this block, by native id, with the channel stage.
+    pub report: Box<[crate::project_expression::Carried]>,
+    pub report_count: usize,
+    pub report_stage: Option<crate::project_expression::ChannelStage>,
+    /// The output has faded out for the requested departure.
+    pub departed: bool,
     pub left: [f32; MAX_BLOCK],
     pub right: [f32; MAX_BLOCK],
 }
@@ -814,6 +950,11 @@ impl OutputBlock {
             epoch: 1,
             processed_generation: 0,
             native_drops: 0,
+            report: vec![crate::project_expression::Carried::EMPTY; crate::MAX_NOTE_INSTANCES]
+                .into_boxed_slice(),
+            report_count: 0,
+            report_stage: None,
+            departed: false,
             left: [0.0; MAX_BLOCK],
             right: [0.0; MAX_BLOCK],
         }
@@ -842,7 +983,7 @@ mod tests {
         .unwrap()
     }
     #[test]
-    fn v10_law_timeline_and_full_expression_snapshot_roundtrip_and_validate_channels() {
+    fn law_timeline_and_full_expression_snapshot_roundtrip_and_validate_channels() {
         let region = region();
         let mut input = InputBlock::new();
         input.project_law = 2;
@@ -889,6 +1030,87 @@ mod tests {
         assert!(!region.submit(1, &input));
     }
     #[test]
+    fn handed_ramps_the_departure_request_and_the_report_roundtrip_and_are_validated() {
+        use crate::project_expression::{Carried, ChannelStage, NoteRamp, Routes};
+        let region = region();
+        let expression = crate::PluginNoteExpression {
+            values: [0.25, 0.125, -0.5, 0.3, 0.4, 0.7, 0.9],
+            mask: 0x7f,
+        };
+        let law = Some(windfall_dsp::ProjectPanLaw::ConstantPower);
+        let mut ramp = NoteRamp::new(expression, law, Routes::NATIVE);
+        let mut moved = expression;
+        moved.values[1] = 0.9;
+        ramp.retarget(moved, law, Routes::NATIVE, 48_000.0);
+        for _ in 0..40 {
+            ramp.tick();
+        }
+        let carried = Carried {
+            id: u64::from(crate::FIRST_NOTE_INSTANCE_ID),
+            key: 69,
+            channel: 3,
+            serial: 12,
+            ramp,
+        };
+        let mut stage = ChannelStage::new(48_000.0);
+        stage.tick(12, (0.5, 0.75));
+
+        let mut input = InputBlock::new();
+        input.handed[0] = carried;
+        input.handed_count = 1;
+        input.handed_stage = Some(stage);
+        input.depart = true;
+        input.depart_at = 17;
+        assert!(region.submit(0, &input));
+        let mut decoded = InputBlock::new();
+        let (slot, sequence) = region.take_input(&mut decoded).unwrap().unwrap();
+        assert_eq!(decoded.handed_count, 1);
+        assert_eq!(decoded.handed[0].encode(), carried.encode());
+        assert_eq!(decoded.handed_stage.unwrap().encode(), stage.encode());
+        assert_eq!((decoded.depart, decoded.depart_at), (true, 17));
+
+        // The reply reports through the same words of the slot.
+        let mut output = OutputBlock::silent();
+        let mut later = carried;
+        later.ramp.tick();
+        output.report[0] = later;
+        output.report_count = 1;
+        output.report_stage = Some(stage);
+        output.departed = true;
+        region.complete(slot, sequence, &output, OUTPUT_OK);
+        let mut received = OutputBlock::silent();
+        assert_eq!(region.receive(0, 1, &mut received), Ok(true));
+        assert_eq!(received.report_count, 1);
+        assert_eq!(received.report[0].encode(), later.encode());
+        assert_eq!(received.report_stage.unwrap().encode(), stage.encode());
+        assert!(received.departed);
+
+        // A block without any of it says so, and stale words are not read.
+        let plain = InputBlock::new();
+        assert!(region.submit(1, &plain));
+        let (slot, sequence) = region.take_input(&mut decoded).unwrap().unwrap();
+        assert_eq!(decoded.handed_count, 0);
+        assert!(decoded.handed_stage.is_none());
+        assert_eq!((decoded.depart, decoded.depart_at), (false, 0));
+        region.complete(slot, sequence, &OutputBlock::silent(), OUTPUT_OK);
+        assert_eq!(region.receive(1, 1, &mut received), Ok(true));
+        assert_eq!(received.report_count, 0);
+        assert!(received.report_stage.is_none());
+        assert!(!received.departed);
+
+        // Refused before it is written: a time past the block. Refused when
+        // read: a ramp for something that is not a note of this helper.
+        input.depart_at = 64;
+        assert!(!region.submit(2, &input));
+        input.depart_at = 0;
+        input.handed[0].id = 0;
+        assert!(region.submit(2, &input));
+        assert_eq!(
+            region.take_input(&mut decoded).err(),
+            Some(ProtocolError::Event)
+        );
+    }
+    #[test]
     fn native_owner_completion_fails_before_counter_wrap() {
         let region = region();
         region.storage.words()[OWNER_COMPLETIONS].store((u32::MAX - 1).to_le(), Ordering::Relaxed);
@@ -903,9 +1125,11 @@ mod tests {
         assert_eq!(TIMELINE_EPOCH * 4, 112);
         assert_eq!(OWNER_COMPLETIONS * 4, 108);
         assert_eq!((TRANSPORT, EPOCH, REPLY_IDENTITY), (16, 30, 32));
+        // Version eleven: each slot gained the ramp hand-over area, a stage
+        // and one carried note per note instance (278,528 bytes).
         assert_eq!(
             (HEADER_WORDS * 4, SLOT_WORDS * 4, REGION_BYTES),
-            (256, 602_432, 2_409_984)
+            (256, 880_960, 3_524_096)
         );
         let before: Vec<_> = region
             .storage

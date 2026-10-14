@@ -1533,8 +1533,17 @@ fn n4_production_vst3_instrument_session_routes_through_current_desktop_helper()
     n4_role(true, true);
 }
 
+/// This fixture sets its gain to 0.375 whenever it is deactivated. Until
+/// 2026-10-13 a state capture deactivated a VST3 plugin, and the test asserted
+/// that the edit made by that deactivation won over the document's 0.625. A
+/// capture now reads state from the running plugin, so that a save while
+/// music plays leaves the audio alone: the plugin is never deactivated for
+/// it, its deactivation edit never happens, and the document's value is both
+/// what the capture returns and what the plugin goes on to play. A plugin
+/// that is deactivated for a restart still has its edit honoured; that is
+/// `native_vst3_dirty_restart_and_deactivation_edits_wait_for_recording...`.
 #[test]
-fn n4_native_deactivation_edit_supersedes_unprocessed_document_intent() {
+fn n4_ordinary_capture_never_deactivates_so_the_document_intent_stands() {
     let rig = Rig::new();
     let (manager, path) = n4_manager(&rig, true);
     let id = manager
@@ -1569,8 +1578,8 @@ fn n4_native_deactivation_edit_supersedes_unprocessed_document_intent() {
             .find(|param| param.id == 7)
             .unwrap()
             .value,
-        0.375,
-        "newer native deactivation edit must win over retained 0.625 intent"
+        0.625,
+        "an ordinary capture must not deactivate the plugin, so nothing edits its gain"
     );
     assert_eq!(manager.runtime.selected_token(target), Some(token));
     assert!(!manager.runtime.bridge_status()[0].2.failed);
@@ -1586,7 +1595,7 @@ fn n4_native_deactivation_edit_supersedes_unprocessed_document_intent() {
             0
         );
     }
-    assert!(left.iter().all(|value| (*value - 0.1875).abs() < 1e-6));
+    assert!(left.iter().all(|value| (*value - 0.3125).abs() < 1e-6));
     let again = manager.runtime.capture(project.clone()).unwrap();
     assert_eq!(
         again
@@ -1597,7 +1606,7 @@ fn n4_native_deactivation_edit_supersedes_unprocessed_document_intent() {
             .find(|param| param.id == 7)
             .unwrap()
             .value,
-        0.375
+        0.625
     );
     assert_eq!(manager.runtime.bridge_status()[0].2.process_id, pid);
     assert_eq!(

@@ -86,9 +86,15 @@ fn refusing_native_deactivation_never_proves_inactive_state() {
     let processor = instance.activate(48_000.0, 64).unwrap();
     let mut processor = instance.deactivate(processor).unwrap_err().returned;
     assert!(instance.is_active(), "setActive(false) was refused");
+    // This asserted that state cannot be saved while the plugin is active.
+    // Since 2026-10-13 a save reads state from the running plugin, so that
+    // saving while music plays never takes the plugin from the audio. A
+    // refused deactivation still proves nothing about an inactive state:
+    // what needs one, loading, stays refused.
+    let active = instance.save_state().expect("state is read while active");
     assert!(
-        instance.save_state().is_err(),
-        "active capture must remain forbidden"
+        instance.load_state(&active).is_err(),
+        "loading into an active plugin must remain forbidden"
     );
     processor.set_param(0, 7, 0.25);
     let mut left = [1.0; 64];
@@ -126,7 +132,8 @@ fn refusing_native_processing_stop_returns_the_running_processor() {
             .contains("setProcessing(false) refused")
     );
     assert!(instance.is_active());
-    assert!(instance.save_state().is_err());
+    // State is read while the plugin stays active (see the test above).
+    assert!(instance.save_state().is_ok());
     let mut processor = refused.returned;
     assert!(processor.set_param(0, 7, 0.25));
     left.fill(1.0);
@@ -186,7 +193,8 @@ fn lifecycle_gain_offsets_transport_state_and_restart() {
     instance.load_state(&state).unwrap();
     assert_eq!(instance.param_value(7), Some(0.25));
     let mut processor = instance.activate(48_000.0, 32).unwrap();
-    assert!(instance.save_state().is_err());
+    // Saving reads state from the active plugin; loading into it is refused.
+    assert!(instance.save_state().is_ok());
     assert!(instance.load_state(&state).is_err());
     assert_eq!(processor.latency_samples(), 17);
     assert_eq!(processor.tail_samples(), Some(64));

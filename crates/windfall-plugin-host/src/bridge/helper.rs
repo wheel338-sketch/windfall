@@ -297,6 +297,9 @@ impl Native {
             .ok_or_else(|| error("native processor unavailable"))?;
         self.expression_ramps
             .set_law(crate::project_expression::decode_law(input.project_law).map_err(error)?);
+        self.expression_ramps
+            .hand(&input.handed[..input.handed_count], input.handed_stage);
+        let instances = processor.supports_note_instances();
         processor.set_transport(input.transport);
         processor.set_sidechain_input(input.sidechain_input);
         let mut admitted = true;
@@ -343,15 +346,30 @@ impl Native {
         if discontinuity || needs_parameters || self.notes_uncertain {
             let masks = [0x7f; 16];
             for note in &input.instances[..input.instance_count] {
-                if !processor.supports_note_instances() {
-                    return Err(error("instance snapshot for key-only native plugin"));
-                }
                 let mut events = [HostEvent::AllNotesOff { time: 0 }; 8];
                 let count = note.events(&masks, &mut events);
                 for event in &events[..count] {
                     if self.expression_ramps.observe(*event) {
                         continue;
                     }
+                    // A plugin without note instances is played by key and
+                    // channel; the bank owns the note for the channel stage.
+                    let event = match *event {
+                        HostEvent::NoteOnInstance {
+                            time,
+                            key,
+                            channel,
+                            velocity,
+                            ..
+                        } if !instances => HostEvent::NoteOn {
+                            time,
+                            key,
+                            channel,
+                            velocity,
+                        },
+                        event => event,
+                    };
+                    let event = &event;
                     let accepted = processor.push_recovery_event(*event);
                     admitted &= accepted;
                     if !accepted {
@@ -368,7 +386,11 @@ impl Native {
         let mut law_at = 0;
         let mut no_drop = true;
         let mut good_audio = true;
+        let depart_at = input.depart_at as usize;
         while at < self.region.config.block {
+            if at == depart_at {
+                self.expression_ramps.set_departing(input.depart);
+            }
             while law_at < input.law_event_count && input.law_events[law_at].0 as usize == at {
                 self.expression_ramps.set_law(
                     crate::project_expression::decode_law(input.law_events[law_at].1)
@@ -385,6 +407,29 @@ impl Native {
                 }
                 match event {
                     HostEvent::NoteOff { key, channel, .. } => {
+                        processor.release_note_on_channel(key, channel)
+                    }
+                    // A plugin without note instances is played by key and
+                    // channel; the bank owns the note for the channel stage.
+                    HostEvent::NoteOnInstance {
+                        time,
+                        key,
+                        channel,
+                        velocity,
+                        ..
+                    } if !instances => {
+                        let accepted = processor.push_event(HostEvent::NoteOn {
+                            time,
+                            key,
+                            channel,
+                            velocity,
+                        });
+                        admitted &= accepted;
+                        if !accepted {
+                            output.native_drops = output.native_drops.saturating_add(1);
+                        }
+                    }
+                    HostEvent::NoteOffInstance { key, channel, .. } if !instances => {
                         processor.release_note_on_channel(key, channel)
                     }
                     HostEvent::NoteOffInstance {
@@ -418,6 +463,9 @@ impl Native {
             };
             if law_at < input.law_event_count {
                 end = end.min(input.law_events[law_at].0 as usize);
+            }
+            if depart_at > at {
+                end = end.min(depart_at);
             }
             let ramping = self.expression_ramps.active();
             admitted &= self.expression_ramps.frame(processor);
@@ -471,6 +519,18 @@ impl Native {
         }
         if processor.latency_samples() as usize != self.region.config.native_latency {
             return Err(error("native latency changed during bridge processing"));
+        }
+        // While the owner wants the plugin, every block says where each
+        // note's ramp stands, so the helper that takes over can go on from
+        // the last output that was played.
+        if input.depart {
+            output.report_count = self.expression_ramps.report(&mut output.report);
+            output.report_stage = Some(*self.expression_ramps.stage());
+            output.departed = self.expression_ramps.departed();
+        } else {
+            output.report_count = 0;
+            output.report_stage = None;
+            output.departed = false;
         }
         output.epoch = input.epoch;
         output.processed_generation = 0;
@@ -564,8 +624,12 @@ impl Native {
         }
         // Capture runs on the same native owner between nonempty audio blocks.
         // It cannot call a live/speculative instance in the desktop process.
-        if self.instance.descriptor().format == PluginFormat::Clap {
-            // Accepted CLAP semantics keep the active instance and notes intact.
+        if matches!(
+            self.instance.descriptor().format,
+            PluginFormat::Clap | PluginFormat::Vst3
+        ) {
+            // A capture keeps the active instance and its notes intact: a
+            // save while music plays must not interrupt the plugin.
             // Unprocessed intent accompanies opaque state; it is not DSP readback.
             self.instance.idle(&mut |_| {});
             let state = captured_state(self.instance.save_state().map_err(error)?)?;

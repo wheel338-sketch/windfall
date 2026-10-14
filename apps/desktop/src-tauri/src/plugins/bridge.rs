@@ -54,7 +54,50 @@ impl Metadata {
     }
 }
 
+/// What the owner and the audio side of one bridged unit say to each other
+/// about a replacement: the owner asks the unit to leave, the unit says when
+/// its output has faded out, and counts its blocks so a stopped stream is
+/// not waited for.
+#[derive(Default)]
+pub(super) struct Departure {
+    requested: AtomicBool,
+    departed: AtomicBool,
+    blocks: AtomicU64,
+}
+impl Departure {
+    /// Asks the unit to fade out and waits, for as long as audio keeps
+    /// running and at most `longest`, until it has. True when it did.
+    pub fn leave(&self, longest: Duration) -> bool {
+        self.departed.store(false, Ordering::Release);
+        self.requested.store(true, Ordering::Release);
+        let deadline = std::time::Instant::now() + longest;
+        let mut seen = (
+            self.blocks.load(Ordering::Acquire),
+            std::time::Instant::now(),
+        );
+        loop {
+            if self.departed.load(Ordering::Acquire) {
+                return true;
+            }
+            let now = std::time::Instant::now();
+            let blocks = self.blocks.load(Ordering::Acquire);
+            if blocks != seen.0 {
+                seen = (blocks, now);
+            }
+            // No block for a while: the stream is stopped and nothing sounds.
+            if now >= deadline || now.duration_since(seen.1) > Duration::from_millis(40) {
+                return false;
+            }
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    }
+    /// Withdraws the request: the unit fades back in and plays on.
+    pub fn stay(&self) {
+        self.requested.store(false, Ordering::Release);
+    }
+}
 pub(super) struct Record {
+    pub departure: Arc<Departure>,
     pub editor_open: bool,
     pub editor_parent: Option<usize>,
     pub note_capabilities: Arc<super::note_capabilities::Published>,
@@ -315,6 +358,16 @@ pub(super) struct Audio {
     offline: bool,
     render_error: RenderError,
     last_frontier: (u64, u64),
+    departure: Arc<Departure>,
+    /// The sounding notes of this plugin target, shared with whichever unit
+    /// replaces this one after the plugin changes what it can do.
+    carry: Option<Arc<Mutex<windfall_plugin_host::project_expression::Carry>>>,
+    /// No audio has run here yet, so a replayed note may take up the ramp
+    /// the replaced unit left for it.
+    fresh: bool,
+    leaving: bool,
+    /// Frames played since the owner asked this unit to leave.
+    leaving_frames: usize,
 }
 pub(super) fn launch(
     options: Launch,
@@ -351,7 +404,9 @@ pub(super) fn launch(
     let note_capabilities = Arc::new(super::note_capabilities::Published::default());
     let caps = process.native_note_capabilities();
     note_capabilities.publish(caps.0, caps.1);
+    let departure = Arc::new(Departure::default());
     let record = Record {
+        departure: departure.clone(),
         editor_open: false,
         editor_parent: None,
         note_capabilities: note_capabilities.clone(),
@@ -385,6 +440,11 @@ pub(super) fn launch(
         offline,
         render_error,
         last_frontier: (epoch, desired),
+        departure,
+        carry: None,
+        fresh: true,
+        leaving: false,
+        leaving_frames: 0,
     };
     Ok((record, audio))
 }
@@ -493,29 +553,36 @@ impl HostedEffect for Audio {
         self.process_sidechain(left, right, None);
     }
     fn process_sidechain(&mut self, left: &mut [f32], right: &mut [f32], key: Option<&[[f32; 2]]>) {
-        if self.offline {
-            if let Err(error) = self.process.process_offline_sidechain(
-                left,
-                right,
-                key,
-                std::time::Instant::now() + Duration::from_secs(2),
-                &AtomicBool::new(false),
-            ) {
-                *self
-                    .render_error
-                    .lock()
-                    .unwrap_or_else(|error| error.into_inner()) =
-                    Some(format!("Isolated plugin render failed: {error:?}"));
-                // The owner maintenance pass reaps this helper off realtime.
-                self.process.signals().failed.store(true, Ordering::Release);
+        // The owner wants this plugin replaced. While notes sound the helper
+        // fades its output out first and holds their ramps where they are.
+        let wanted = self.departure.requested.load(Ordering::Acquire);
+        let sounding = self.process.voices() > 0;
+        self.process.request_departure(wanted && sounding);
+        self.fresh = false;
+        self.render(left, right, key);
+        if wanted {
+            self.leaving = true;
+            self.store_carry();
+            self.departure
+                .departed
+                .store(!sounding || self.process.departed(), Ordering::Release);
+            // A replacement that never took over must not leave this unit
+            // silent: after two seconds it plays on.
+            self.leaving_frames = self.leaving_frames.saturating_add(left.len());
+            if self.leaving_frames > 2 * self.process.sample_rate() as usize {
+                self.departure.stay();
             }
-        } else {
-            self.process.process_sidechain(left, right, key);
+        } else if self.leaving {
+            // It stays after all: nothing it left may be taken up later.
+            self.leaving = false;
+            self.leaving_frames = 0;
+            if let Some(carry) = &self.carry
+                && let Ok(mut carry) = carry.try_lock()
+            {
+                carry.clear();
+            }
         }
-        let caps = self.process.native_note_capabilities();
-        self.note_capabilities.publish(caps.0, caps.1);
-        self.publish(false);
-        self.acknowledge();
+        self.departure.blocks.fetch_add(1, Ordering::AcqRel);
     }
     fn set_param(&mut self, id: u32, value: f32) {
         if !value.is_finite() {
@@ -547,6 +614,66 @@ impl HostedEffect for Audio {
     }
 }
 impl Audio {
+    /// Leaves the sounding notes where a replacement can find them: each
+    /// ramp as the helper held it after the last output that was played,
+    /// under the engine's identity for the note.
+    fn store_carry(&mut self) {
+        let (report, stage) = self.process.departure_report();
+        let (Some(stage), Some(carry)) = (stage, &self.carry) else {
+            return;
+        };
+        if let Ok(mut carry) = carry.try_lock() {
+            carry.store(
+                stage,
+                report.iter().filter_map(|entry| {
+                    self.notes
+                        .iter()
+                        .find(|owner| u64::from(owner.note.id) == entry.id && entry.id != 0)
+                        .map(|owner| windfall_plugin_host::project_expression::Carried {
+                            id: owner.engine.0,
+                            ..*entry
+                        })
+                }),
+            );
+        }
+    }
+    /// One carry per plugin target, set on a control thread before audio.
+    pub(super) fn share_carry(
+        &mut self,
+        carry: Arc<Mutex<windfall_plugin_host::project_expression::Carry>>,
+    ) {
+        self.carry = Some(carry);
+    }
+    fn render(&mut self, left: &mut [f32], right: &mut [f32], key: Option<&[[f32; 2]]>) {
+        if self.offline {
+            if let Err(error) = self.process.process_offline_sidechain(
+                left,
+                right,
+                key,
+                std::time::Instant::now() + Duration::from_secs(2),
+                &AtomicBool::new(false),
+            ) {
+                *self
+                    .render_error
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner()) =
+                    Some(format!("Isolated plugin render failed: {error:?}"));
+                // The owner maintenance pass reaps this helper off realtime.
+                self.process.signals().failed.store(true, Ordering::Release);
+            }
+        } else {
+            self.process.process_sidechain(left, right, key);
+        }
+        let caps = self.process.native_note_capabilities();
+        self.note_capabilities.publish(caps.0, caps.1);
+        self.publish(false);
+        self.acknowledge();
+    }
+    fn owns(&self, id: windfall_dsp::NoteInstanceId) -> bool {
+        self.notes
+            .iter()
+            .any(|owner| owner.engine == id && owner.note.id != 0)
+    }
     fn end_note(&mut self, id: windfall_dsp::NoteInstanceId) {
         if let Some(slot) = self
             .notes
@@ -626,16 +753,16 @@ impl HostedInstrument for Audio {
         self.note_capabilities
             .observe_channel(expression.color_group.unwrap_or(0));
         let expression = expression.clamped();
-        if !self.process.supports_note_instances() {
-            self.process.note_on_channel(
-                key.min(127),
-                expression.color_group.unwrap_or(0),
-                velocity,
-            );
-            self.publish(false);
-            return;
-        }
         if id.0 == 0 || !velocity.is_finite() {
+            // A note nobody can name again is played by key and channel.
+            if !self.process.supports_note_instances() && velocity.is_finite() {
+                self.process.note_on_channel(
+                    key.min(127),
+                    expression.color_group.unwrap_or(0),
+                    velocity,
+                );
+                self.publish(false);
+            }
             return;
         }
         self.end_note(id);
@@ -688,20 +815,40 @@ impl HostedInstrument for Audio {
         };
         note.expression = Some(self.notes[slot].mapped(self.expression_map));
         self.notes[slot].note = note;
-        self.process.note_on_instance(note);
+        // The same note in the unit that replaced its plugin: its ramp goes
+        // on in the new helper from where the old one stopped.
+        let carried = if self.fresh {
+            self.carry
+                .as_ref()
+                .and_then(|carry| carry.try_lock().ok())
+                .and_then(|carry| {
+                    carry
+                        .find(id.0, note.key, note.channel)
+                        .map(|found| (found, carry.stage()))
+                })
+        } else {
+            None
+        };
+        match carried {
+            Some((found, stage)) => {
+                self.process
+                    .note_on_instance_carried(note, found.serial, found.ramp, stage)
+            }
+            None => self.process.note_on_instance(note),
+        };
         self.publish(false);
     }
     fn note_off_instance(&mut self, id: windfall_dsp::NoteInstanceId, key: u8) {
-        if self.process.supports_note_instances() {
+        if self.owns(id) {
             self.end_note(id);
-        } else {
+        } else if !self.process.supports_note_instances() {
             self.note_off(key);
         }
     }
     fn note_off_on_channel(&mut self, id: windfall_dsp::NoteInstanceId, key: u8, channel: u8) {
-        if self.process.supports_note_instances() {
+        if self.owns(id) {
             self.end_note(id);
-        } else {
+        } else if !self.process.supports_note_instances() {
             self.process.note_off_channel(key, channel);
             self.publish(false);
         }
@@ -782,6 +929,10 @@ impl HostedInstrument for Audio {
         self.process.voices()
     }
 }
+
+#[cfg(all(test, windows))]
+#[path = "bridge_route_tests.rs"]
+mod route_tests;
 
 #[cfg(all(test, windows))]
 mod tests {
@@ -1258,6 +1409,11 @@ mod tests {
             selection: None,
             token: 1,
             tail: 0,
+            departure: Arc::default(),
+            carry: None,
+            fresh: true,
+            leaving: false,
+            leaving_frames: 0,
             offline: false,
             render_error: Arc::new(Mutex::new(None)),
             last_frontier: (1, 1),
@@ -1461,10 +1617,10 @@ mod tests {
         let captured = record.control.last_valid_state().unwrap();
         assert_eq!(captured.processed_generation, proof.2);
         assert!(captured.processed_generation < desired);
-        assert_eq!(
-            captured.reconciled_generation,
-            if vst3 { desired } else { 0 }
-        );
+        // A capture no longer deactivates a VST3 plugin, so it reconciles
+        // nothing into it: the pending note stays unacknowledged for both.
+        let _ = vst3;
+        assert_eq!(captured.reconciled_generation, 0);
         assert!(!state.is_empty());
         drop(audio);
         assert!(record.control.terminate().reaped);

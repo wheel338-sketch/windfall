@@ -77,6 +77,41 @@ impl NotePan {
     pub fn settled(&self) -> bool {
         self.elapsed >= self.duration
     }
+    /// The whole ramp as explicit words, for a process that takes the note
+    /// over mid-ramp. The layout is part of the plugin bridge protocol.
+    pub fn state(&self) -> [u32; Self::STATE_WORDS] {
+        [
+            self.position.to_bits(),
+            self.from.0.to_bits(),
+            self.from.1.to_bits(),
+            self.target.0.to_bits(),
+            self.target.1.to_bits(),
+            self.step.0.to_bits(),
+            self.step.1.to_bits(),
+            self.elapsed,
+            self.duration,
+        ]
+    }
+    pub const STATE_WORDS: usize = 9;
+    /// A ramp from [`NotePan::state`]. `None` unless every value is finite,
+    /// the position is in range and the ramp is no longer than `longest`.
+    pub fn from_state(words: [u32; Self::STATE_WORDS], longest: u32) -> Option<Self> {
+        let value = |index: usize| f32::from_bits(words[index]);
+        let pan = Self {
+            position: value(0),
+            from: (value(1), value(2)),
+            target: (value(3), value(4)),
+            step: (value(5), value(6)),
+            elapsed: words[7],
+            duration: words[8],
+        };
+        let finite = (0..7).all(|index| value(index).is_finite());
+        (finite
+            && (-1.0..=1.0).contains(&pan.position)
+            && pan.elapsed <= pan.duration
+            && pan.duration <= longest)
+            .then_some(pan)
+    }
     #[inline]
     pub fn tick(&mut self) -> (f32, f32) {
         if self.elapsed >= self.duration {

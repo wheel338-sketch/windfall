@@ -18,7 +18,9 @@ fn threaded_native_vst3_deactivation_refusal_returns_same_worker_pipeline() {
         .unwrap();
     let refused = instance.deactivate(processor).unwrap_err();
     assert!(instance.is_active());
-    assert!(instance.save_state().is_err());
+    // State is read while the plugin stays active, so a save while music
+    // plays never needs the deactivation this plugin refuses.
+    assert!(instance.save_state().is_ok());
     let mut processor = refused.returned;
     processor.set_realtime(false);
     assert_eq!(processor.latency_samples(), 145);

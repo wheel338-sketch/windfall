@@ -415,22 +415,19 @@ fn unprocessed_capture_intent_is_separate_from_native_dsp_acknowledgement() {
         assert_eq!(captured.processed_generation, 0);
         assert_eq!(audio.health().acknowledged_generation, 0);
         assert_eq!(captured.parameters[0].value, 0.75);
-        assert_eq!(
-            captured.reconciled_generation,
-            if format == "clap" { 0 } else { 2 }
-        );
+        // Neither format is deactivated for a capture any more, so neither
+        // reconciles the pending value into the plugin: it stays intent.
+        assert_eq!(captured.reconciled_generation, 0, "{format}");
         let host = PluginHost::windfall();
         let module = host.load(&fixture(format)).unwrap();
         let mut restored = module.create(&id).unwrap();
         restored
             .load_state(&PluginState::from_bytes(captured.state.clone()))
             .unwrap();
-        // CLAP opaque state remains actual native state; the pending value is
-        // a separate restore companion. VST3 reconciles while inactive.
-        assert_eq!(
-            restored.param_value(7).unwrap(),
-            if format == "clap" { 0.5 } else { 0.75 }
-        );
+        // Opaque state remains actual native state; the pending value is a
+        // separate restore companion (asserted above), for VST3 as for CLAP
+        // since a capture stopped deactivating the plugin.
+        assert_eq!(restored.param_value(7).unwrap(), 0.5, "{format}");
         let malformed = [ParameterSpec {
             id: 123,
             ..pending[0]
@@ -519,7 +516,7 @@ fn auth_impostor_client_process() {
     let endpoint = std::env::var("WINDFALL_TEST_AUTH_ENDPOINT").unwrap();
     if let Ok(version) = std::env::var("WINDFALL_TEST_OLD_HELLO") {
         let version: u32 = version.parse().unwrap();
-        assert!(matches!(version, 1..=3));
+        assert!(matches!(version, 1..=4));
         let mut bootstrap = [0u8; 56];
         std::io::stdin().read_exact(&mut bootstrap).unwrap();
         assert_eq!(&bootstrap[..4], b"WFAP");
@@ -1547,7 +1544,8 @@ fn vst3_capture_does_not_relabel_dsp_proof_after_a_reset_without_processing() {
 fn previous_authenticated_helper_hellos_are_closed_before_any_load_metadata() {
     use std::process::{Command, Stdio};
     use windfall_plugin_host::bridge::auth;
-    for version in [1, 2, 3] {
+    // Hello4 is the mapping-ABI-ten helper, before ramps were handed over.
+    for version in [1, 2, 3, 4] {
         let key = auth::Key::generate().unwrap();
         let listener = std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
         listener.set_nonblocking(true).unwrap();
