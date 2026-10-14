@@ -150,7 +150,8 @@ fn proposals_are_refused_while_recording_and_once_stale() {
         .store(false, std::sync::atomic::Ordering::Release);
     let result = ok(&call(&rig, &host, "create_pattern", json!({})));
     let id = result["proposalId"].as_str().unwrap().to_owned();
-    // An unrelated edit by the user makes it stale.
+    // An unrelated edit by the user makes it stale, and the window is told.
+    rig.events.take();
     rig.session
         .dispatch(
             Command::AddPattern {
@@ -160,6 +161,15 @@ fn proposals_are_refused_while_recording_and_once_stale() {
         )
         .unwrap();
     assert!(rig.session.mcp_panel().proposals[0].stale);
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    let mut told = false;
+    while !told && std::time::Instant::now() < deadline {
+        told = rig.events.take().iter().any(|event| {
+            matches!(event, Event::McpPanel(panel) if panel.proposals.first().is_some_and(|proposal| proposal.stale))
+        });
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert!(told, "the panel is sent again once the proposal is stale");
     let before = rig.session.document_snapshot().project;
     let error = rig.session.mcp_approve(&id).unwrap_err();
     assert!(error.contains("stale"), "{error}");

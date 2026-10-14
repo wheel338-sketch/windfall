@@ -175,6 +175,14 @@ impl Approvals {
         self.state().entries.iter().cloned().collect()
     }
 
+    /// Whether a proposal waits for the user.
+    pub fn waiting(&self) -> bool {
+        self.state()
+            .entries
+            .iter()
+            .any(|entry| entry.status == Status::Pending)
+    }
+
     pub fn get(&self, id: &str) -> Option<Entry> {
         self.state()
             .entries

@@ -597,7 +597,11 @@ impl Session {
     }
 
     fn emit(&self, event: Event) {
+        let changed = matches!(event, Event::ProjectPatch(_) | Event::ProjectLoaded(_));
         self.inner.events.emit(event);
+        if changed {
+            self.mcp_project_changed();
+        }
     }
 }
 

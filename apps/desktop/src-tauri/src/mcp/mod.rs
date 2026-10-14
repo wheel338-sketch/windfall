@@ -30,6 +30,8 @@ pub struct Service {
     pub(crate) render: Mutex<Option<Arc<AtomicBool>>>,
     /// Why the server is not listening although it is turned on.
     pub(crate) error: Mutex<Option<String>>,
+    /// Set while a panel refresh after a project change is on its way.
+    pub(crate) refreshing: AtomicBool,
 }
 
 impl Default for Service {
@@ -42,6 +44,7 @@ impl Default for Service {
             focus: Mutex::new(Focus::default()),
             render: Mutex::new(None),
             error: Mutex::new(None),
+            refreshing: AtomicBool::new(false),
         }
     }
 }

@@ -292,6 +292,30 @@ impl Session {
         self.emit(Event::McpPanel(panel));
     }
 
+    /// The project changed, so a waiting proposal may have gone stale, which
+    /// the panel must show. Changes are published with the state locked,
+    /// and the panel reads the state, so it is sent from another thread once
+    /// the lock is free; a burst of edits sends it once.
+    pub(super) fn mcp_project_changed(&self) {
+        let service = &self.inner.mcp;
+        if !service.server.approvals().waiting() || service.refreshing.swap(true, Ordering::AcqRel)
+        {
+            return;
+        }
+        let weak = self.downgrade();
+        let spawned = std::thread::Builder::new()
+            .name("windfall-mcp-panel".into())
+            .spawn(move || {
+                if let Some(session) = weak.upgrade() {
+                    session.inner.mcp.refreshing.store(false, Ordering::Release);
+                    session.mcp_announce();
+                }
+            });
+        if spawned.is_err() {
+            service.refreshing.store(false, Ordering::Release);
+        }
+    }
+
     /// The user applies a proposal: one undo step, through the checked
     /// proposal path.
     pub fn mcp_approve(&self, id: &str) -> Result<McpPanel, String> {

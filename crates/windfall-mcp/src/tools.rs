@@ -716,11 +716,21 @@ pub static TOOLS: &[Tool] = &[
         name: "render_and_measure",
         title: "Listen: render and measure",
         kind: Kind::Listen,
-        description: "Renders offline, without playing, and measures: integrated loudness (LUFS), loudness range, true and sample peak, clipping, RMS over time, stereo correlation, energy per octave band, detected tempo and key. Also keeps the render as a WAV file in a Windfall folder and returns its path. region: \"song\" (the default), {\"from\", \"to\"} song positions, or {\"patternId\", \"loops\"}. soloTrackId renders one mixer track alone. At most 120 seconds.",
+        description: "Renders offline, without playing, and measures: integrated loudness (LUFS), loudness range, true and sample peak, clipping, RMS over time, stereo correlation, energy per octave band, detected tempo and key. Also keeps the render as a WAV file in a Windfall folder and returns its path. region: left out for the song, {\"from\", \"to\"} song positions, or {\"patternId\", \"loops\"}. soloTrackId renders one mixer track alone. At most 120 seconds.",
         schema: || {
             object(
                 json!({
-                    "region": {"description": "\"song\", {\"from\": position, \"to\": position}, or {\"patternId\": id, \"loops\": 1-16}."},
+                    "region": {
+                        "type": "object",
+                        "description": "Leave out for the whole song. {\"from\", \"to\"} renders a stretch of the song, {\"patternId\", \"loops\"} a pattern.",
+                        "properties": {
+                            "from": position("Start of the stretch of the song."),
+                            "to": position("End of the stretch of the song."),
+                            "patternId": id("The pattern to render instead of the song."),
+                            "loops": {"type": "integer", "minimum": 1, "maximum": 16, "description": "Times the pattern plays; 1 when left out."},
+                        },
+                        "additionalProperties": false,
+                    },
                     "soloTrackId": id("Render only this mixer track, as its solo button does."),
                     "maxSeconds": {"type": "number", "minimum": 1, "maximum": MAX_RENDER_SECONDS, "description": "Refuse regions longer than this; 60 when left out."},
                 }),

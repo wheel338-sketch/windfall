@@ -466,6 +466,38 @@ fn server_discover_lists_both_eras() {
 }
 
 #[test]
+fn modern_cacheable_results_say_how_long_to_keep_them() {
+    let (server, host) = setup();
+    for (method, params, ttl) in [
+        ("tools/list", json!({}), protocol::LIST_TTL_MS),
+        ("resources/list", json!({}), protocol::LIST_TTL_MS),
+        ("resources/templates/list", json!({}), protocol::LIST_TTL_MS),
+        ("resources/read", json!({"uri": protocol::SUMMARY_URI}), 0),
+        ("server/discover", json!({}), 0),
+    ] {
+        let body = request(&server, &host, 1, method, params).body.unwrap();
+        assert_eq!(body["result"]["ttlMs"], ttl, "{method}");
+        assert_eq!(body["result"]["cacheScope"], "private", "{method}");
+    }
+    // Other results are not cacheable, and legacy results never say so.
+    let body = request(&server, &host, 1, "ping", json!({})).body.unwrap();
+    assert!(body["result"].get("ttlMs").is_none());
+    let message = json!({"jsonrpc": "2.0", "id": 2, "method": "tools/list"});
+    let out = server.handle(
+        &host,
+        Incoming {
+            message: &message,
+            version_header: Some(LEGACY[0]),
+            session: None,
+        },
+    );
+    let body = out.body.unwrap();
+    assert!(body["result"]["tools"].is_array());
+    assert!(body["result"].get("ttlMs").is_none());
+    assert!(body["result"].get("cacheScope").is_none());
+}
+
+#[test]
 fn tools_list_gives_every_tool_an_object_schema() {
     let (server, host) = setup();
     let body = request(&server, &host, 1, "tools/list", json!({}))

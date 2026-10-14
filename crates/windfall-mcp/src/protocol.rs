@@ -53,6 +53,22 @@ const MAX_SESSIONS: usize = 64;
 /// Requests a client may have running at once.
 const MAX_RUNNING: usize = 16;
 
+/// How long a modern client may keep a list of what Windfall serves: the
+/// tools and resources are fixed while the app runs.
+pub const LIST_TTL_MS: u64 = 300_000;
+
+/// The cache hints the 2026-07-28 revision requires on the results of its
+/// cacheable methods: how long the result stays fresh, and that it is this
+/// user's own. The summary changes with every edit, so a read is stale at
+/// once; so is discovery, which answers before a client picks an era.
+fn cache_ttl(method: &str) -> Option<u64> {
+    match method {
+        "tools/list" | "resources/list" | "resources/templates/list" => Some(LIST_TTL_MS),
+        "resources/read" | "server/discover" => Some(0),
+        _ => None,
+    }
+}
+
 /// The name used for a client that gives none.
 pub const UNNAMED_AGENT: &str = "AI agent";
 
@@ -367,6 +383,10 @@ impl Server {
             Ok(mut value) => {
                 if era == Era::Modern {
                     value["resultType"] = json!("complete");
+                    if let Some(ttl) = cache_ttl(method) {
+                        value["ttlMs"] = json!(ttl);
+                        value["cacheScope"] = json!("private");
+                    }
                     match value.get_mut("_meta").and_then(Value::as_object_mut) {
                         Some(meta) => {
                             meta.insert(META_SERVER.into(), self.server_info());
