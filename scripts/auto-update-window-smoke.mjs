@@ -136,7 +136,9 @@ async function prepare() {
   await mkdir(keys, { recursive:true })
   const cli = join(repository, "apps/desktop/node_modules/@tauri-apps/cli/tauri.js")
   const signer = (...args) => {
-    const result = spawnSync(process.execPath, [cli, "signer", ...args], { encoding:"utf8", windowsHide:true, env:{ ...process.env, CI:"true", TAURI_SIGNING_PRIVATE_KEY:"", TAURI_SIGNING_PRIVATE_KEY_PASSWORD:"" } })
+    const env = { ...process.env, CI:"true" }
+    for (const name of ["TAURI_SIGNING_PRIVATE_KEY", "TAURI_SIGNING_PRIVATE_KEY_PATH", "TAURI_SIGNING_PRIVATE_KEY_PASSWORD"]) delete env[name]
+    const result = spawnSync(process.execPath, [cli, "signer", ...args], { encoding:"utf8", windowsHide:true, env })
     if (result.status !== 0) throw new Error(`tauri signer ${args[0]} failed: ${result.stderr}`)
   }
   signer("generate", "--ci", "--password", "", "--write-keys", join(keys, "other.key"))
@@ -322,11 +324,9 @@ try {
   check("the update replaced the installed executable in place", await sha256(exe) !== report.installedSha256 && regValue(UNINSTALL_KEY, "InstallLocation")?.replace(/"/g, "") === installDir, regValue(UNINSTALL_KEY, "InstallLocation"))
   const after = await updated.invoke("engine_status")
   check("the relaunched app is still on the software sink with the test profile", after.host === "Software" && await exists(join(config, "webview")), after)
-  check("the relaunched app finds nothing newer", await (async () => {
-    await updated.menu("Help", "Check for updates")
-    await delay(4000)
-    return !(await updated.notice())
-  })())
+  await updated.menu("Help", "Check for updates")
+  const current = await until(() => updated.evaluate('[...document.querySelectorAll("[data-sonner-toast]")].map((t) => t.innerText).find((t) => t.includes("You are up to date.")) ?? null'), "the up-to-date message", 30000)
+  check("the relaunched app finds nothing newer", !(await updated.notice()), current)
   updated.close()
   powershell(`$p = Get-Process -Id ${relaunch.pid}; [void]$p.CloseMainWindow()`)
   await until(() => !alive(relaunch.pid), `the ${newVersion} app to quit`, 30000)
