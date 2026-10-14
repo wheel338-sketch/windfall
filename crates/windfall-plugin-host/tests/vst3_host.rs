@@ -20,7 +20,9 @@ fn independent_vst3_no_editor_class_keeps_explicit_refusal() {
     assert!(!instance.has_editor());
     assert_eq!(
         instance.open_editor(&EditorOptions::default()),
-        Err(if cfg!(windows) {
+        // Windows and Linux (X11) host VST3 editors, so a plugin without
+        // an editor view is refused as having none.
+        Err(if cfg!(any(windows, target_os = "linux")) {
             EditorError::NoEditor
         } else {
             EditorError::UnsupportedPlatform
@@ -184,6 +186,10 @@ fn lifecycle_gain_offsets_transport_state_and_restart() {
         assert_eq!((info.width, info.height), (320, 200));
         assert!(info.window.is_some());
         instance.close_editor();
+    } else if cfg!(target_os = "linux") {
+        // The fixture draws an editor on Windows only; the X11 host asks
+        // for a view and is given none.
+        assert_eq!(opened, Err(EditorError::NoEditor));
     } else {
         assert_eq!(opened, Err(EditorError::UnsupportedPlatform));
     }

@@ -531,10 +531,10 @@ fn sequenced_and_live_note_session_publications_and_media_render_match_mounted_c
     let checked = Path::new(env!("CARGO_MANIFEST_DIR")).join(CHECKED);
     if checked.exists() {
         let old: Value = serde_json::from_slice(&fs::read(checked).unwrap()).unwrap();
-        assert_eq!(
+        super::native_capture::assert_matches(
             comparable(old),
             comparable(capture),
-            "native media capture drift requires review"
+            "native media capture drift requires review",
         );
     } else {
         assert!(

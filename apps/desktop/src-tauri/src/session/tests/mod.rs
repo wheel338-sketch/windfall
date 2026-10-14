@@ -35,6 +35,7 @@ mod mixer_preset_native;
 mod mixer_presets_qa;
 #[path = "../mixer_render_qa.rs"]
 mod mixer_render_qa;
+mod native_capture;
 mod nonlinear_performance;
 mod p2_convolver;
 mod pattern_movement;

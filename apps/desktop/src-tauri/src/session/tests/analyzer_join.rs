@@ -427,10 +427,10 @@ fn native_window_join_capture_and_checked_fixture_agree() {
     let checked = Path::new(env!("CARGO_MANIFEST_DIR")).join(CHECKED);
     if checked.exists() {
         let old: Value = serde_json::from_slice(&fs::read(checked).unwrap()).unwrap();
-        assert_eq!(
+        crate::session::tests::native_capture::assert_matches(
             comparable(old),
             comparable(captured),
-            "native capture changed: review and recapture, never silently accept drift"
+            "native capture changed: review and recapture, never silently accept drift",
         );
     } else {
         assert!(

@@ -67,10 +67,11 @@ for name in "${selected[@]}"; do
     native-bins) step native-bins cargo build -p windfall-desktop -p windfall-plugin -p windfall-plugin-host --bins --lib ;;
     test-workspace) step test-workspace cargo test --workspace --no-fail-fast -- --test-threads=1 ;;
     # The cases ignored only because they need the fixture library built by
-    # hand; the workspace run above leaves them out.
+    # hand; the workspace run above leaves them out. (The desktop crate's
+    # native plugin tests, plugins::capture_ack_tests and friends, are
+    # compiled on Windows only.)
     test-fixtures-ignored)
       step test-fixtures-ignored-host cargo test -p windfall-plugin-host --lib --no-fail-fast -- --ignored --test-threads=1 bridge::helper clap::instance::state_tests
-      step test-fixtures-ignored-desktop cargo test -p windfall-desktop --lib --no-fail-fast -- --ignored --test-threads=1 plugins::capture_ack_tests
       ;;
     ui-install) step ui-install pnpm --dir apps/desktop install --frozen-lockfile ;;
     typecheck) step typecheck pnpm --dir apps/desktop typecheck ;;
