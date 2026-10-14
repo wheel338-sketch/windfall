@@ -94,8 +94,8 @@ pub fn measure(samples: &[f32], sample_rate: u32) -> Measurements {
     let loudness = windfall_dsp::mastering::measure(stereo, rate);
     let clipped = stereo.iter().filter(|s| s.abs() >= 1.0).count() as u64;
     let (mut left, mut right, mut cross, mut total) = (0.0f64, 0.0f64, 0.0f64, 0.0f64);
-    for frame in stereo.chunks_exact(2) {
-        let (l, r) = (f64::from(frame[0]), f64::from(frame[1]));
+    for [l, r] in stereo.as_chunks::<2>().0 {
+        let (l, r) = (f64::from(*l), f64::from(*r));
         left += l * l;
         right += r * r;
         cross += l * r;
@@ -107,8 +107,10 @@ pub fn measure(samples: &[f32], sample_rate: u32) -> Measurements {
         0.0
     };
     let mono: Vec<f32> = stereo
-        .chunks_exact(2)
-        .map(|frame| 0.5 * (frame[0] + frame[1]))
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|[l, r]| 0.5 * (l + r))
         .collect();
     let tempo =
         windfall_stretch::estimate_tempo(&AudioBuffer::from_interleaved(rate, 1, mono.clone()))
