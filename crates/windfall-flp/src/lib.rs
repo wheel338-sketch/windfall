@@ -66,4 +66,4 @@ pub mod paths;
 pub mod report;
 pub mod units;
 pub use convert::{Conversion, ConvertOptions, PluginPlace, PluginPlaceholder, convert, import};
-pub use report::{ImportReport, Outcome, ReportSection};
+pub use report::{ImportReport, OmittedControls, Outcome, ReportSection};

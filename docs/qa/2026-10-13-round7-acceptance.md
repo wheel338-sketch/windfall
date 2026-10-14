@@ -260,3 +260,99 @@ Commands after these changes: `cargo test --offline -p windfall-plugin-host --no
 126 / 0 / 0 (`s3-plugins4`, includes the nine software capture opt-ins);
 `cargo clippy --offline --workspace --all-targets -- -D warnings` clean
 (`s3-clippy3`).
+
+After step 3 the whole workspace was run once as an early regression check,
+on `c928a1be`: `cargo test --offline --workspace --no-fail-fast -- --test-threads=1`
+4850 / 0 / 40 over 187 result blocks, 1,068 s
+(`target/round7-final-g-workspace1.log`). The final gate run is further down.
+
+### Step 2, frontend part (commits `d9ef6f4a`, `a61f7dcd`)
+
+Done on the frontend, without any Rust change:
+
+- **History labels (item 3, frontend half).** `historyLabel(key, values)`
+  is what a label is kept as: its catalog key, which is its English text,
+  or `windfall-label:{key, values}` when it has values. Nothing is
+  translated when the edit is made. `historyLabelText(label)` makes the words
+  where the history is shown (`features/history/history-list.tsx::groupRuns`),
+  so the panel follows the language whichever language an edit was made in.
+  It also covers what the backend writes: the 183 static labels of
+  `crates/windfall-project/src/lower.rs` now have English and Spanish
+  entries (`messages/history-labels.ts`), a coded `windfall-message:` label
+  is decoded, and the two labels the backend makes from a setting name
+  (`Change {name}`, `Change script {name}`) are recognised, with the setting
+  name translated when it is a catalog entry. A label that is none of these
+  (an older version, a typed name, a broken envelope) is shown as it is.
+  Sixteen files of label writers moved from `t("…")` to `historyLabel("…")`,
+  the simulator's included.
+- **Text kept in stores (item 4).** `errorSource(error)` is what a rejection
+  is kept as (the backend text: a code with parameters, or English that is a
+  catalog key); `errorMessage(error)` is its words in the interface language
+  for text shown now and discarded with the language boundary. Fourteen files
+  that keep an error in a store, or translate it when shown, keep the source,
+  and their display sites call `localizeBackendText` (audio logger, backup
+  job, library search, current source, input monitor, waveform meter,
+  recording). Before this, `errorMessage` returned the untranslated source
+  and about 120 places showed it raw, so a backend error in an inline alert
+  was English in a Spanish interface even where a catalog entry existed, and
+  a coded message would have been shown as JSON. That was not in the
+  hand-off.
+- **Titles fixed at registration (item 5).** A kept title can hold the way
+  to make a value instead of the value (`() => item.label.toLowerCase()`).
+  `dynamicMessage` makes it in the language shown, through `inLanguage`,
+  which also gives the registry its English title when the app starts in
+  Spanish. The eight piano-roll title families (colours, articulations,
+  portamento presets, lengths, tools, snaps, lanes) and the playlist marker
+  titles use it.
+- **Guard.** `source-guard.ts` takes `historyLabel` for a catalog-key call
+  (its key is checked) and still reports a label written without one;
+  fixture test added. No invariant was added.
+
+Tests added: `lib/i18n/history-labels.test.ts` (5: every backend label
+literal has an entry in both languages, by reading `lower.rs`; keeping;
+following a switch; unknown text; grouping by the words shown),
+`lib/i18n/kept-values.test.ts` (3: English registry title when registered
+in Spanish; `inLanguage` nests and restores; more than 40 piano-roll titles
+right in Spanish and in English after switching both ways).
+
+Expectations changed, because they asserted the old storage: the history
+label of a step fill is kept as key and value (`steps.test.ts`, and the
+`labels()` helpers of the rack and playlist tests read the history as it is
+shown); `mock.test.ts` asserts the retained envelope through `errorSource`
+and its words through `errorMessage`.
+
+Commands: full frontend suite on these changes, first run 6,502 / 4 over 536
+files, the four being the expectations above
+(`target/round7-final-s2-frontend1.log`); after updating them the affected
+folders 93 files, 987 / 0 (`s2-focused1`), `typecheck` and `lint` clean
+(`s2-typecheck5`, `s2-lint2`). `d9ef6f4a` went in with a type error in one
+test because a pipeline hid the typecheck result; `a61f7dcd` fixes it.
+
+### Step 4: `fmt-flp-import`
+
+Checked against the README entry of 2026-10-13:
+
+- Exact, approximate and omitted counts: the review shows them per category
+  (`import-dialog.tsx`), and since the builder's `24117f6a` an omitted
+  control is counted as omitted and not as approximate.
+- The pinned list: `open_list::decoded_fields_without_a_stand_in_control_are_exactly_the_recorded_list`
+  passes (233 families, 33 device names).
+- `docs/flp/coverage.md` says the same as the README.
+- **Mismatch found and fixed:** the review named omitted fields only as
+  lines of a category, mixed with the approximated ones and cut at 200 lines
+  per category ("N additional details omitted"), so in a project with many
+  devices an omitted field could go unnamed. `ImportReport` now carries
+  `omitted_controls` (device, how many times it is used, field names, in
+  layout order; at most 256 devices, with a count beyond that), filled where
+  the native lines are filed, and the review shows it as a section "Omitted
+  controls", one line per device, with the sentence that the original state
+  is kept. Bindings regenerated (627 files, one new: `OmittedControls.ts`),
+  simulator rebuilt (7,448,818 bytes, current).
+
+Tests: `report::tests::omitted_controls_are_listed_by_device_whatever_the_line_limit`
+(300 uses of one device overflow the category, the list stays whole; merge by
+device; the 256-device bound); the builder's fixture test now also asserts
+the list for Fruity Soft Clipper (`postgain`) and that it equals the dropped
+lines; `import-dialog.test.tsx` "names the omitted controls of each device
+in the review, and says nothing when none are". FLP suite 209 / 0
+(`s4-flp2`); review tests 7 / 0 (`s4-ui3`).

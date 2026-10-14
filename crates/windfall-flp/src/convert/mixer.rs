@@ -373,7 +373,13 @@ impl Builder<'_> {
     ) {
         let section = ReportSection::Effects;
         let plugin = &slot.plugin;
-        for text in super::native::reports(&plugin.internal_name, &plugin.state) {
+        let lines = super::native::reports(&plugin.internal_name, &plugin.state);
+        let omitted: Vec<_> = lines
+            .iter()
+            .filter_map(|text| super::native::omitted_field(&plugin.internal_name, text))
+            .collect();
+        self.report.omit(&plugin.internal_name, &omitted);
+        for text in lines {
             self.report
                 .say(section, super::native::outcome(&text), text);
         }

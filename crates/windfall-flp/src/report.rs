@@ -144,6 +144,23 @@ pub struct ReportLine {
     pub text: String,
 }
 
+/// The controls of one device that were read from the project and left out,
+/// because the Windfall device that stands in for it has no matching control.
+/// The device's original state is kept with the project.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct OmittedControls {
+    /// The device as the project names it, such as "Fruity Limiter".
+    pub device: String,
+    /// How many of this device the project uses.
+    pub instances: u32,
+    /// The names of the omitted fields, in the order of the device's layout.
+    pub fields: Vec<String>,
+}
+
+/// Devices a report lists in [`ImportReport::omitted_controls`] at most.
+pub const MAX_OMITTED_DEVICES: usize = 256;
+
 /// What an import did.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -163,6 +180,14 @@ pub struct ImportReport {
     /// What went wrong while the file was being read: a cut-off file, a
     /// part that did not add up.
     pub read_problems: Vec<String>,
+    /// Every omitted control by device, in the order the devices came up.
+    /// Unlike the lines of a category this list is not cut short per
+    /// category: it is what the review shows as left out.
+    #[serde(default)]
+    pub omitted_controls: Vec<OmittedControls>,
+    /// Devices with omitted controls beyond [`MAX_OMITTED_DEVICES`].
+    #[serde(default)]
+    pub more_omitted_devices: u32,
 }
 
 impl ImportReport {
@@ -176,6 +201,36 @@ impl ImportReport {
                 .collect(),
             unknown_event_ids: Vec::new(),
             read_problems: Vec::new(),
+            omitted_controls: Vec::new(),
+            more_omitted_devices: 0,
+        }
+    }
+
+    /// Notes that one use of `device` has these decoded fields left out.
+    pub(crate) fn omit(&mut self, device: &str, fields: &[&str]) {
+        if fields.is_empty() {
+            return;
+        }
+        let device = device.trim();
+        if let Some(known) = self
+            .omitted_controls
+            .iter_mut()
+            .find(|known| known.device == device)
+        {
+            known.instances = known.instances.saturating_add(1);
+            for field in fields {
+                if !known.fields.iter().any(|known| known == field) {
+                    known.fields.push((*field).to_owned());
+                }
+            }
+        } else if self.omitted_controls.len() < MAX_OMITTED_DEVICES {
+            self.omitted_controls.push(OmittedControls {
+                device: device.to_owned(),
+                instances: 1,
+                fields: fields.iter().map(|field| (*field).to_owned()).collect(),
+            });
+        } else {
+            self.more_omitted_devices = self.more_omitted_devices.saturating_add(1);
         }
     }
 
@@ -299,6 +354,45 @@ impl Worst {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn omitted_controls_are_listed_by_device_whatever_the_line_limit() {
+        let mut report = ImportReport::new(None, 96);
+        // Three hundred uses of one device fill the category far past its
+        // line limit; the list of what was left out is not cut with it.
+        for index in 0..300 {
+            report.omit("Fruity Limiter", &["ceiling", "knee"]);
+            report.say(
+                ReportSection::Effects,
+                Outcome::Dropped,
+                format!("Fruity Limiter {index}.ceiling: omitted"),
+            );
+        }
+        report.omit("  Pitcher ", &["speed"]);
+        report.omit("Pitcher", &["speed", "formant"]);
+        report.omit("Nothing left out", &[]);
+        assert!(report.category(ReportSection::Effects).more_lines > 0);
+        assert_eq!(
+            report.omitted_controls,
+            [
+                OmittedControls {
+                    device: "Fruity Limiter".into(),
+                    instances: 300,
+                    fields: vec!["ceiling".into(), "knee".into()],
+                },
+                OmittedControls {
+                    device: "Pitcher".into(),
+                    instances: 2,
+                    fields: vec!["speed".into(), "formant".into()],
+                },
+            ]
+        );
+        for device in 0..MAX_OMITTED_DEVICES + 3 {
+            report.omit(&format!("Device {device}"), &["x"]);
+        }
+        assert_eq!(report.omitted_controls.len(), MAX_OMITTED_DEVICES);
+        assert_eq!(report.more_omitted_devices, 5);
+    }
 
     #[test]
     fn a_new_report_has_every_section_and_is_clean() {

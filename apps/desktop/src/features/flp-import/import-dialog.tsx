@@ -82,6 +82,29 @@ function Review({ preview }: { preview: FlpImportPreview }) {
             </CollapsibleContent>
           </Collapsible>
         ))}
+      {preview.report.omittedControls.length > 0 && (
+        <section aria-label={t("Omitted controls")} className="flex flex-col gap-2">
+          <p className="font-medium">{t("Omitted controls")}</p>
+          <p>
+            {t("These settings were read from the FL project, but the Windfall device that stands in has no matching control. They are left out, and each device's original state is kept with the project.")}
+          </p>
+          <ul className="flex flex-col gap-1 pl-4">
+            {preview.report.omittedControls.map((device) => (
+              <li key={device.device} className="wrap-anywhere">
+                <span className="font-medium">{device.device}</span>
+                {device.instances > 1 ? ` × ${device.instances}` : ""}
+                {": "}
+                {device.fields.join(", ")}
+              </li>
+            ))}
+            {preview.report.moreOmittedDevices > 0 && (
+              <li>
+                {message("{count} more devices have omitted controls.", { count: preview.report.moreOmittedDevices })}
+              </li>
+            )}
+          </ul>
+        </section>
+      )}
       <Collapsible>
         <CollapsibleTrigger render={<Button variant="outline" />}>
           {t("Diagnostics and missing samples (")}

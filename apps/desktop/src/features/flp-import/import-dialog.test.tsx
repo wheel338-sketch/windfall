@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react"
+import { act, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import { PromptHost } from "@/features/layout/prompt-host"
@@ -75,6 +75,39 @@ it("reviews original bytes without replacement, then opens an unsaved checked pr
   await userEvent.click(screen.getByRole("button", { name: "Unknown synth" }))
   expect(screen.getByText("4 original state bytes retained.")).toBeVisible()
 })
+it("names the omitted controls of each device in the review, and says nothing when none are", async () => {
+  // The fixture project uses no device with an omitted control.
+  await choose()
+  expect(screen.queryByRole("region", { name: "Omitted controls" })).toBeNull()
+  // The same review with what the importer reports for two limiters and a
+  // pitch corrector, and one device beyond what a report lists.
+  const preview = backend.flpPreview.bind(backend)
+  const reported = vi.spyOn(backend, "flpPreview").mockImplementation(async (path, options) => {
+    const result = await preview(path, options)
+    return {
+      ...result,
+      report: {
+        ...result.report,
+        omittedControls: [
+          { device: "Fruity Limiter", instances: 2, fields: ["ceiling", "knee"] },
+          { device: "Pitcher", instances: 1, fields: ["speed"] },
+        ],
+        moreOmittedDevices: 1,
+      },
+    }
+  })
+  await userEvent.click(screen.getByRole("button", { name: "Review again" }))
+  const omitted = await screen.findByRole("region", { name: "Omitted controls" })
+  const items = within(omitted).getAllByRole("listitem")
+  expect(items.map((item) => item.textContent)).toEqual([
+    "Fruity Limiter × 2: ceiling, knee",
+    "Pitcher: speed",
+    "1 more device has omitted controls.",
+  ])
+  expect(omitted).toHaveTextContent("original state is kept with the project")
+  reported.mockRestore()
+})
+
 it("cancels a review and an FL picker without changing the active document", async () => {
   const before = await backend.documentSnapshot()
   vi.mocked(backend.pickFlpFile).mockResolvedValueOnce(null)

@@ -376,6 +376,7 @@ export type { NoteUpdate } from "./NoteUpdate";
 export type { Notebook } from "./Notebook";
 export type { NotebookPage } from "./NotebookPage";
 export type { NumberVoiceParams } from "./NumberVoiceParams";
+export type { OmittedControls } from "./OmittedControls";
 export type { OneKnobParams } from "./OneKnobParams";
 export type { OperatorWave } from "./OperatorWave";
 export type { OscillatorParams } from "./OscillatorParams";

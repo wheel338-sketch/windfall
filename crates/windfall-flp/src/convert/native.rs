@@ -1189,6 +1189,18 @@ pub(super) fn unmapped(device: &str, field: &str) -> Unmapped {
 pub(super) const OMITTED: &str =
     "omitted: decoded public field with no corresponding stand-in control (state retained).";
 
+/// The field an omitted line of [`reports`] is about, for the list of
+/// omitted controls the review shows by device.
+pub(super) fn omitted_field<'a>(name: &str, line: &'a str) -> Option<&'a str> {
+    if !line.ends_with(OMITTED) {
+        return None;
+    }
+    line.strip_prefix(name)?
+        .strip_prefix('.')?
+        .split('=')
+        .next()
+}
+
 /// The review outcome of one line of [`reports`]: an omitted control is not
 /// in the Windfall project; everything else is there in some form.
 pub(super) fn outcome(line: &str) -> crate::report::Outcome {

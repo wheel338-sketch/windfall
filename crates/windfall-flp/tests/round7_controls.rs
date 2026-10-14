@@ -421,6 +421,26 @@ fn a_decoded_control_without_a_stand_in_control_is_filed_as_omitted_and_the_rest
     assert!(translated.text.contains("ceilingDb"));
     // The original state is kept whole either way.
     assert_eq!(reopened(&c).retained_plugins[0].state, state);
+    // The review's list of what was left out names the device and the field,
+    // and nothing that was carried.
+    assert_eq!(c.report.omitted_controls.len(), 1);
+    let listed = &c.report.omitted_controls[0];
+    assert_eq!(
+        (
+            listed.device.as_str(),
+            listed.instances,
+            listed.fields.as_slice()
+        ),
+        ("Fruity Soft Clipper", 1, &["postgain".to_owned()][..])
+    );
+    assert_eq!(c.report.more_omitted_devices, 0);
+    // Every dropped line of the category is in the list, and no more.
+    let dropped = effects
+        .lines
+        .iter()
+        .filter(|line| line.outcome == Outcome::Dropped && line.text.ends_with("(state retained)."))
+        .count();
+    assert_eq!(dropped, listed.fields.len());
 
     let c = effect("Fruity Blood Overdrive", &[0_u8; 36]);
     let effects = c

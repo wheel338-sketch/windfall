@@ -164,7 +164,13 @@ impl Builder<'_> {
             }
             let translated = synth::translate(channel);
             if let Some(plugin) = &channel.plugin {
-                for text in super::native::reports(&plugin.internal_name, &plugin.state) {
+                let lines = super::native::reports(&plugin.internal_name, &plugin.state);
+                let omitted: Vec<_> = lines
+                    .iter()
+                    .filter_map(|text| super::native::omitted_field(&plugin.internal_name, text))
+                    .collect();
+                self.report.omit(&plugin.internal_name, &omitted);
+                for text in lines {
                     self.report
                         .say(ReportSection::Channels, super::native::outcome(&text), text);
                 }

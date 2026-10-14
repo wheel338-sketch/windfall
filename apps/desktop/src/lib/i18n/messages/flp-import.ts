@@ -10,6 +10,9 @@ export const flpImportEn = {
   "FL Studio folder": "FL Studio folder",
   "FL Studio user data folder": "FL Studio user data folder",
   "FL project": "FL project",
+  "Omitted controls": "Omitted controls",
+  "These settings were read from the FL project, but the Windfall device that stands in has no matching control. They are left out, and each device's original state is kept with the project.": "These settings were read from the FL project, but the Windfall device that stands in has no matching control. They are left out, and each device's original state is kept with the project.",
+  "{count} more devices have omitted controls.": { one: "{count} more device has omitted controls.", other: "{count} more devices have omitted controls." },
   "FL project imported": "FL project imported",
   "Import report": "Import report",
   "Imported sounds": "Imported sounds",
@@ -84,4 +87,7 @@ export const flpImportEs = {
   "retained plugin states": "estados de plugin conservados",
   "unknown version": "versión desconocida",
   "{name} · FL Studio": "{name} · FL Studio",
+  "Omitted controls": "Controles omitidos",
+  "These settings were read from the FL project, but the Windfall device that stands in has no matching control. They are left out, and each device's original state is kept with the project.": "Estos ajustes se han leído del proyecto de FL, pero el dispositivo de Windfall que lo sustituye no tiene un control equivalente. Se omiten, y el estado original de cada dispositivo se conserva con el proyecto.",
+  "{count} more devices have omitted controls.": { one: "{count} dispositivo más tiene controles omitidos.", other: "{count} dispositivos más tienen controles omitidos." },
 } satisfies Record<keyof typeof flpImportEn, Message>

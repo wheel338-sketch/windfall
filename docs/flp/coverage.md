@@ -422,6 +422,12 @@ work on the stand-ins, not on the importer. Each line below is filed in the
 review under "dropped" and ends "omitted: decoded public field with no
 corresponding stand-in control (state retained)."
 
+The review also shows them by device. A category keeps at most 200 lines, so
+in a project with many devices the lines alone could cut omitted fields
+short; `ImportReport::omitted_controls` lists every device with its omitted
+field names and how many times the project uses it, and the review shows that
+list under "Omitted controls" (`features/flp-import/import-dialog.tsx`).
+
 233 control families on 33 devices. A family written `name.#` or
 `bank_#_e/name` stands for each index of that control (every vocoder band, the 12
 pitcher keys, the 8 delay-bank units). `fruit kick` and `fruity kick` are two
