@@ -28,6 +28,7 @@ import { kitDemoEn, kitDemoEs } from "./kit-demo"
 import { layoutEn, layoutEs } from "./layout"
 import { libEn, libEs } from "./lib"
 import { loopsEn, loopsEs } from "./loops"
+import { mcpEn, mcpEs } from "./mcp"
 import { mixerEn, mixerEs } from "./mixer"
 import { modularEn, modularEs } from "./modular"
 import { paramsEn, paramsEs } from "./params"
@@ -85,6 +86,7 @@ export const areaEn = {
   ...layoutEn,
   ...libEn,
   ...loopsEn,
+  ...mcpEn,
   ...mixerEn,
   ...modularEn,
   ...paramsEn,
@@ -142,6 +144,7 @@ export const areaEs = {
   ...layoutEs,
   ...libEs,
   ...loopsEs,
+  ...mcpEs,
   ...mixerEs,
   ...modularEs,
   ...paramsEs,

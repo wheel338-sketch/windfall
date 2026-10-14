@@ -25,6 +25,7 @@ mod import_formats;
 mod import_recording;
 mod library;
 mod mastering_qa;
+mod mcp;
 mod message_families;
 mod midi;
 mod midi_hardware;

@@ -35,6 +35,7 @@ import { formatSampleRate } from "@/lib/time"
 import { cn } from "@/lib/utils"
 import { MidiHardwareSettingsSection } from "./midi-hardware"
 import { PhoneRemoteSettings } from "./phone-remote"
+import { McpSettingsSection } from "./mcp-settings"
 import { nextKeymapPreset } from "./keymap-preset-step"
 import { UpdatesSection } from "@/features/updates/section"
 import { LanguageSection } from "./language"
@@ -371,6 +372,7 @@ export function SettingsDialog() {
         <LanguageBoundary>
           <StemSeparationSettings />
           <PhoneRemoteSettings />
+          <McpSettingsSection />
         </LanguageBoundary>
         <AppearanceSection />
         <LanguageSection />

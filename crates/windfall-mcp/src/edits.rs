@@ -580,7 +580,7 @@ pub fn update_notes(call: &Call<'_>, snapshot: &Snapshot, args: &Args) -> Result
     let (pattern, channel) = pattern_and_channel(project, args)?;
     let grid = summary::pattern_grid(project, pattern);
     let notes = lane_notes(pattern, channel.id);
-    let mut expected = Vec::new();
+    let mut expected: Vec<Note> = Vec::new();
     let mut updates = Vec::new();
     let mut draft = Draft::new("Edit notes");
     for (index, value) in args::list(args, "updates", MAX_NOTES)?.iter().enumerate() {
@@ -604,7 +604,7 @@ pub fn update_notes(call: &Call<'_>, snapshot: &Snapshot, args: &Args) -> Result
             .iter()
             .find(|note| note.id.0 == id)
             .ok_or_else(|| at(format!("there is no note {id} in this pattern and channel")))?;
-        if expected.iter().any(|known: &Note| known.id == note.id) {
+        if expected.iter().any(|known| known.id == note.id) {
             return Err(at(format!("note {id} is updated twice")));
         }
         let mut key = args::optional_value(update, "pitch")

@@ -43,8 +43,9 @@ fn config_dir(given: Option<PathBuf>) -> Option<PathBuf> {
     Some(base.join(IDENTIFIER))
 }
 
-struct Tcp {
-    file: PathBuf,
+/// Reaches the app over TCP with the port and token of its `mcp.json`.
+pub(crate) struct Tcp {
+    pub(crate) file: PathBuf,
 }
 
 impl Link for Tcp {
