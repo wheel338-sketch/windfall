@@ -339,7 +339,13 @@ fn publish_new_directory(stage: &Path, destination: &Path) -> Result<(), String>
                 ) -> i32;
             }
             if unsafe { renameat2(-100, from.as_ptr(), -100, to.as_ptr(), 1) } != 0 {
-                return Err(std::io::Error::last_os_error().to_string());
+                let error = std::io::Error::last_os_error();
+                // EINVAL, ENOSYS, EOPNOTSUPP: the filesystem cannot rename
+                // without replacing (FAT/exFAT, 9p, CIFS, older NFS).
+                if matches!(error.raw_os_error(), Some(22 | 38 | 95)) {
+                    return publish_entry_by_entry(stage, destination);
+                }
+                return Err(error.to_string());
             }
         }
         #[cfg(target_os = "macos")]
@@ -348,7 +354,13 @@ fn publish_new_directory(stage: &Path, destination: &Path) -> Result<(), String>
                 fn renamex_np(from: *const c_char, to: *const c_char, flags: u32) -> i32;
             }
             if unsafe { renamex_np(from.as_ptr(), to.as_ptr(), 4) } != 0 {
-                return Err(std::io::Error::last_os_error().to_string());
+                let error = std::io::Error::last_os_error();
+                // EINVAL, ENOTSUP: the volume cannot rename exclusively
+                // (FAT/exFAT, SMB).
+                if matches!(error.raw_os_error(), Some(22 | 45)) {
+                    return publish_entry_by_entry(stage, destination);
+                }
+                return Err(error.to_string());
             }
         }
         Ok(())
@@ -358,6 +370,25 @@ fn publish_new_directory(stage: &Path, destination: &Path) -> Result<(), String>
         // Windows MoveFileEx without REPLACE_EXISTING refuses existing targets.
         fs::rename(stage, destination).map_err(|e| e.to_string())
     }
+}
+/// Publication where the filesystem has no rename that refuses an existing
+/// target: the destination folder is created exclusively (so an existing
+/// one is still never overwritten), the staged entries are moved into it,
+/// and the empty stage is removed.
+#[cfg_attr(not(any(target_os = "linux", target_os = "macos")), allow(dead_code))]
+fn publish_entry_by_entry(stage: &Path, destination: &Path) -> Result<(), String> {
+    fs::create_dir(destination).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::AlreadyExists {
+            "Plugin export destination was created concurrently".to_owned()
+        } else {
+            error.to_string()
+        }
+    })?;
+    for entry in fs::read_dir(stage).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        fs::rename(entry.path(), destination.join(entry.file_name())).map_err(|e| e.to_string())?;
+    }
+    fs::remove_dir(stage).map_err(|e| e.to_string())
 }
 fn write(path: &Path, bytes: &[u8]) -> Result<(), String> {
     let mut file = fs::OpenOptions::new()
@@ -520,6 +551,40 @@ pub fn resolve_runtime(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn publishing_entry_by_entry_moves_the_stage_and_never_overwrites() {
+        let root = std::env::temp_dir().join(format!("windfall-publish-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let stage = root.join("stage");
+        std::fs::create_dir_all(stage.join("Windfall.vst3/Contents")).unwrap();
+        std::fs::write(stage.join("Windfall.clap"), b"clap").unwrap();
+        std::fs::write(stage.join("Windfall.vst3/Contents/plugin"), b"vst3").unwrap();
+        let destination = root.join("export");
+        super::publish_entry_by_entry(&stage, &destination).unwrap();
+        assert_eq!(
+            std::fs::read(destination.join("Windfall.clap")).unwrap(),
+            b"clap"
+        );
+        assert_eq!(
+            std::fs::read(destination.join("Windfall.vst3/Contents/plugin")).unwrap(),
+            b"vst3"
+        );
+        assert!(!stage.exists());
+
+        let second = root.join("second");
+        std::fs::create_dir(&second).unwrap();
+        std::fs::write(second.join("Windfall.clap"), b"new").unwrap();
+        let error = super::publish_entry_by_entry(&second, &destination).unwrap_err();
+        assert!(error.contains("created concurrently"), "{error}");
+        assert_eq!(
+            std::fs::read(destination.join("Windfall.clap")).unwrap(),
+            b"clap"
+        );
+        assert!(second.join("Windfall.clap").exists());
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
     use super::*;
     #[test]
     fn every_package_layout_contains_loadable_state_and_factory_metadata() {

@@ -335,14 +335,30 @@ async function launch(label) {
   const visible = (selector, text, exact = false) => `[...document.querySelectorAll(${JSON.stringify(selector)})].find((e) => (${text === undefined ? "true" : exact ? `e.textContent.trim() === ${JSON.stringify(text)}` : `e.textContent.trim().startsWith(${JSON.stringify(text)})`}) && e.getClientRects().length > 0 && getComputedStyle(e).visibility !== "hidden")`
   // The centre of the element, once it is the topmost thing there: a click
   // a person makes lands on what they see.
+  // It must also have stopped moving (two reads 50 ms apart agree): lists
+  // that open then position themselves are clicked where they settle. And
+  // when bringing it into view scrolled anything, the click waits two
+  // frames: WebKitGTK scrolls asynchronously, and input arriving at once is
+  // routed by the old scroll position (a person never clicks that fast).
   const point = async (selector, text, exact) => {
-    let last = null
+    let last = null, previous = null
     return until(async () => {
       last = await evaluate(`(() => {
         const element = ${visible(selector, text, exact)}
-        if (!element || element.disabled || element.getAttribute("aria-disabled") === "true") return { missing:true }
-        element.scrollIntoView({ block:"nearest", inline:"nearest" })
+        if (!element || element.disabled || element.getAttribute("aria-disabled") === "true") {
+          const all = [...document.querySelectorAll(${JSON.stringify(selector)})]
+          return { missing:true, matching:all.length, disabled:element ? true : undefined,
+            menus:[...document.querySelectorAll('[role="menu"]')].map((m) => { const r = m.getBoundingClientRect(); return { items:m.querySelectorAll('[role="menuitem"]').length, top:Math.round(r.top), bottom:Math.round(r.bottom), height:Math.round(r.height), scrollHeight:m.scrollHeight, first:m.querySelector('[role="menuitem"]')?.textContent.trim() } }),
+            expanded:[...document.querySelectorAll('[aria-expanded="true"]')].map((e) => e.getAttribute("aria-label") || e.textContent.trim().slice(0, 30)) }
+        }
+        // An item of a long menu or list is brought to the middle, clear of
+        // the scroll arrows such a menu shows at its edges.
+        // Menus and lists animate open; aim once nothing moving holds it.
+        if (document.getAnimations().some((a) => a.playState === "running" && a.effect?.target?.contains?.(element))) return { animating:true }
+        const before = element.getBoundingClientRect()
+        element.scrollIntoView({ block:element.closest('[role="menu"], [role="listbox"]') ? "center" : "nearest", inline:"nearest" })
         const r = element.getBoundingClientRect()
+        if (Math.abs(before.x - r.x) > 0.5 || Math.abs(before.y - r.y) > 0.5) return { scrolled:true }
         if (!r.width || !r.height) return { missing:true }
         const x = r.x + r.width / 2, y = r.y + r.height / 2
         const top = document.elementFromPoint(x, y)
@@ -353,7 +369,18 @@ async function launch(label) {
           target:{ top:r.top, bottom:r.bottom, left:r.left, right:r.right },
           cover:top && { top:box.top, bottom:box.bottom, offsetHeight:top.offsetHeight, clientHeight:top.clientHeight, scrollWidth:top.scrollWidth, clientWidth:top.clientWidth } }
       })()`)
-      return last.covered || last.missing ? null : last
+      if (last.scrolled) {
+        previous = null
+        await evaluate("new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() => done(true))))")
+        await delay(150)
+        return null
+      }
+      if (last.animating) { previous = null; await delay(30); return null }
+      if (last.covered || last.missing) { previous = null; return null }
+      const settled = previous && Math.abs(previous.x - last.x) < 0.5 && Math.abs(previous.y - last.y) < 0.5
+      previous = last
+      if (!settled) { await delay(50); return null }
+      return last
     }, `visible ${selector} ${text ?? ""}`).catch((error) => { throw new Error(`${error.message} (${JSON.stringify(last)})`) })
   }
   const click = async (selector, text, options = {}) => mouse(await point(selector, text, options.exact), options)
@@ -364,6 +391,19 @@ async function launch(label) {
     await click('[role="menubar"] [role="menuitem"]', title, { exact:true })
     for (const item of items) await click('[role="menu"] [role="menuitem"]', item)
   }
+  // Chooses an option of the open list, clicking it again (as a person would)
+  // when the list is still open a moment later; repeats are kept as records.
+  const choose = async (text) => {
+    for (let attempt = 1; ; attempt++) {
+      await click('[role="option"]', text, { exact:true })
+      const done = await until(() => evaluate(`[...document.querySelectorAll('[role="listbox"]')].every((e) => e.getClientRects().length === 0)`), "the list to close", 1500).catch(() => false)
+      if (done) {
+        if (attempt > 1) report.checks.push({ name:`the option ${text} was taken (it took ${attempt} clicks)`, pass:true, detail:{ attempts:attempt } })
+        return
+      }
+      if (attempt === 3) throw new Error(`The option ${text} was not taken in three clicks`)
+    }
+  }
   const crashed = () => evaluate(`[...document.querySelectorAll('[role="alert"]')].map((e) => e.textContent.trim()).filter((text) => /crashed|could not start/i.test(text))`)
   const quit = async () => {
     const started = performance.now()
@@ -372,7 +412,7 @@ async function launch(label) {
   }
   const kill = () => transport.kill()
   const screenshot = () => transport.screenshot?.() ?? transport.cdp?.("Page.captureScreenshot", { format:"png" }).then((shot) => shot.data)
-  return { session, child, transport, screenshot, evaluate, until, invoke, owned, project, dispatch, point, mouse, click, key, shown, texts, closed, menu, crashed, quit, kill }
+  return { session, child, transport, screenshot, choose, evaluate, until, invoke, owned, project, dispatch, point, mouse, click, key, shown, texts, closed, menu, crashed, quit, kill }
 }
 
 // Answers the operating system's file dialog titled `title` with `path`.
@@ -587,8 +627,7 @@ try {
   const melodyNotes = () => project().then((p) => p.patterns.find((pattern) => pattern.id === melody).lanes.find((lane) => lane.channel === synth.id)?.notes ?? [])
   const pick = async (label, option) => {
     await click(`[role="combobox"][aria-label="${label}"]`)
-    await click('[role="option"]', option, { exact:true })
-    await closed('[role="listbox"]')
+    await app.choose(option)
   }
   // One probe note with no snap tells how many ticks a pixel is; it is undone.
   await pick("Snap", "None")
@@ -599,6 +638,9 @@ try {
   await key("z", "KeyZ", 2)
   await until(async () => (await melodyNotes()).length === 0, "Ctrl+Z to remove the probe note")
   await pick("Snap", "Beat")
+  // Snap is one choice shared with the playlist; what each view shows of it.
+  const snapShown = () => evaluate(`({ pianoRoll: [...document.querySelectorAll('[role="combobox"][aria-label="Snap"]')].filter((e) => e.getClientRects().length).map((e) => e.textContent.trim()), playlist: [...document.querySelectorAll('[aria-label^="Snap: "]')].map((e) => e.getAttribute("aria-label")) })`)
+  soft("the snap shown after choosing Beat in the piano roll", true, await snapShown())
   const tune = [[0, 60], [1, 64], [2, 67], [3, 65], [5, 64], [6, 62], [7, 59]]
   check("every key of the melody is in view in the note grid", tune.every(([, pitch]) => rowY(pitch) > grid.y + 2 && rowY(pitch) < grid.y + grid.height - 2), { grid, c5, semitone })
   for (const [beat, pitch] of tune) await mouse({ x:grid.x + (beat * PPQ + PPQ / 4) / ticksPerPixel, y:rowY(pitch) })
@@ -608,8 +650,11 @@ try {
   check("the melody's notes are on the beats and keys they were drawn at", JSON.stringify(sorted.map((note) => [note.start / PPQ, note.key])) === JSON.stringify(tune), sorted.map((note) => [note.start, note.length, note.key]))
   const melodyLength = Math.max(...sorted.map((note) => note.start + note.length))
 
+  soft("the snap shown after drawing the melody", true, await snapShown())
+
   // The arrangement: both patterns over four bars on the playlist.
   await click('[role="tab"]', "Playlist", { exact:true })
+  soft("the snap shown on opening the playlist", true, await snapShown())
   const timeline = await until(() => evaluate(`(() => { const g = document.querySelector('[aria-label="Song timeline"]'); if (!g || !g.getClientRects().length) return null; const r = g.getBoundingClientRect(); return { x:r.x, y:r.y, width:r.width, height:r.height } })()`), "the song timeline")
   for (let i = 0; i < 4 && !(await texts('[aria-label^="Snap: "]'))[0]?.startsWith("Bar"); i++) await click("button", "Coarser", { exact:true })
   check("the playlist snaps to bars", (await evaluate(`document.querySelector('[aria-label^="Snap: "]').getAttribute("aria-label")`)) === "Snap: Bar", null)
@@ -644,7 +689,30 @@ try {
   // Effects from the strips' Add effect menus.
   const stripOf = async (trackId) => { const p = await project(); const track = p.mixer.tracks.find((item) => item.id === trackId); return `[aria-label=${JSON.stringify(`${track.name}, track ${p.mixer.tracks.indexOf(track)}`)}]` }
   const addEffect = async (trackId, name, type) => {
-    await click(`${await stripOf(trackId)} [data-slot="track-add-effect"]`)
+    // As with the language list: a menu that did not open is clicked again,
+    // and how often that took is kept with the report.
+    const trigger = `${await stripOf(trackId)} [data-slot="track-add-effect"]`
+    for (let attempt = 1; ; attempt++) {
+      // The last menu (a closing one included) gone first, as a person
+      // waits for it; then the menu counts as open when its own button says so.
+      await closed('[role="menu"]')
+      await click(trigger)
+      const opened = await until(() => evaluate(`document.querySelector(${JSON.stringify(trigger)})?.getAttribute("aria-expanded") === "true" && [...document.querySelectorAll('[role="menu"] [role="menuitem"]')].some((e) => e.getClientRects().length > 0)`), "the effect menu", 1500).catch(() => false)
+      if (opened) {
+        if (attempt > 1) soft(`the Add effect menu of track ${trackId} opened (it took ${attempt} clicks)`, true, { attempts:attempt })
+        const state = () => evaluate(`({ focus: document.activeElement && (document.activeElement.getAttribute("aria-label") || document.activeElement.tagName + "." + document.activeElement.className.toString().slice(0, 60)), menus: document.querySelectorAll('[role="menu"]').length, expanded: [...document.querySelectorAll('[aria-expanded="true"]')].map((e) => e.getAttribute("aria-label") || e.textContent.trim().slice(0, 30)) })`)
+        const atOpen = await state()
+        await delay(500)
+        const later = await state()
+        soft(`the Add effect menu of track ${trackId} stays open`, later.menus > 0, { atOpen, later })
+        if (later.menus === 0) {
+          const shot = await app.screenshot?.().catch(() => null)
+          if (shot) await writeFile(resolve(folder, `effect-menu-${trackId}.png`), Buffer.from(shot, "base64"))
+        }
+        break
+      }
+      if (attempt === 3) throw new Error(`The Add effect menu of track ${trackId} did not open in three clicks`)
+    }
     await click('[role="menu"] [role="menuitem"]', name, { exact:true })
     return until(async () => (await project()).mixer.tracks.find((track) => track.id === trackId).effects.find((effect) => effect.params.type === type), `${name} on track ${trackId}`)
   }
@@ -735,8 +803,7 @@ try {
       if (opened) break
       if (attempt === 4) throw new Error("The language list did not open")
     }
-    await click('[role="option"]', name, { exact:true })
-    await closed('[role="listbox"]')
+    await app.choose(name)
   }
   await chooseLanguage("Español", ["Options", "Settings…"], "Interface language")
   await until(async () => (await evaluate("document.documentElement.lang")) === "es", "Spanish")
@@ -806,7 +873,7 @@ try {
   if (fixture) {
     const pluginFolder = resolve(folder, "plugins"), exportFolder = resolve(folder, "plugin-export")
     await mkdir(pluginFolder, { recursive:true })
-    await mkdir(exportFolder, { recursive:true })
+    // The export makes its destination itself and refuses one that exists.
     await copyFile(fixture, resolve(pluginFolder, "windfall-test-plugins.clap"))
     await second.invoke("export_plugin_bundle", { destination:exportFolder, runtime:"" })
     const exportedFiles = (await readdir(exportFolder, { recursive:true })).map(String)
@@ -830,6 +897,10 @@ try {
     const wav3 = decodeWav(await readFile(resolve(folder, "Song QA with plugin.wav")))
     report.pluginRender = { frames:wav3.frames, peak:wav3.peak, rms:wav3.rms, nonFinite:wav3.nonFinite }
     check("the song exported through the hosted plugin is audible and finite", wav3.rms > 0.005 && wav3.nonFinite === 0 && wav3.frames === wav.frames, report.pluginRender)
+    // The plugin changed the project: saved from the File menu, so closing
+    // the window does not stop at the save prompt.
+    await second.menu("File", "Save")
+    await second.until(async () => !(await second.owned()).snapshot.dirty, "the project to be saved with the plugin", 20000)
   }
   check("no panel crashed in the second session", (await second.crashed()).length === 0, await second.crashed())
   await second.quit()
