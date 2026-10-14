@@ -160,3 +160,18 @@ or when it needs an asset the project does not have (a trained model).
   an identifier. History labels saved by older versions as plain text are shown
   as saved. Review of the Spanish by a native-speaking producer is an external
   check.
+
+## Decision — 2026-10-14
+
+- `wf-languages` closed by the user's priority call ("the different languages
+  are not that important"). Accepted as it stands at `2c20df2d`: the interface
+  is routed through English and Spanish catalogs with a whole-app source guard,
+  instrument and effect labels and most backend messages are translated, and
+  the language switches at run time. Known remaining English in a Spanish
+  window, kept as follow-up work rather than parity work: about 100 analysis
+  and stem-separation error sentences and the "unavailable" reason, the MIDI
+  reader's message when a damaged file is opened as a score, and the piano-roll/playlist hints and other texts
+  the round-nine audit listed. A stronger guard and fixes for those (`98edd35e`)
+  broke four mounted tests and were reverted rather than repaired; that commit and
+  the unfinished backend half (in `git stash` as "r9-languages unfinished
+  backend codes") are kept for later.

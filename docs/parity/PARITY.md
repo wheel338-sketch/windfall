@@ -6,7 +6,7 @@
 > Notes may mention FL names for the same purpose. They are Image-Line's names and are never used as Windfall
 > names. `TBD` in the Windfall column means the Windfall name has not been chosen yet.
 
-As of 2026-10-13. Sources:
+As of 2026-10-14. Sources:
 
 - <https://www.image-line.com/fl-studio/compare-editions>
 - <https://www.image-line.com/fl-studio-learning/fl-studio-online-manual/>
@@ -14,13 +14,13 @@ As of 2026-10-13. Sources:
 
 ## Summary
 
-**341 of 342 rows accounted for (99.7%).** A row is accounted for when it is done or won't do.
+**342 of 342 rows accounted for (100.0%).** A row is accounted for when it is done or won't do.
 
 | Status | Rows |
 | --- | --- |
 | Todo | 0 |
-| In progress | 1 |
-| Done | 336 |
+| In progress | 0 |
+| Done | 337 |
 | Won't do | 5 |
 
 | Area | Rows | Todo | In progress | Done | Won't do |
@@ -32,7 +32,7 @@ As of 2026-10-13. Sources:
 | Visual and video | 7 | 0 | 0 | 7 | 0 |
 | Audio editors | 3 | 0 | 0 | 3 | 0 |
 | File formats and plugin hosting | 36 | 0 | 0 | 33 | 3 |
-| Workflow, MIDI and settings | 39 | 0 | 1 | 38 | 0 |
+| Workflow, MIDI and settings | 39 | 0 | 0 | 39 | 0 |
 
 | Phase | Rows | Todo | In progress | Done | Won't do |
 | --- | --- | --- | --- | --- | --- |
@@ -43,7 +43,7 @@ As of 2026-10-13. Sources:
 | 4. Plugins and files | 13 | 0 | 0 | 12 | 1 |
 | 5. The long tail | 129 | 0 | 0 | 129 | 0 |
 | 6. Extras | 24 | 0 | 0 | 22 | 2 |
-| 7. Release | 3 | 0 | 1 | 2 | 0 |
+| 7. Release | 3 | 0 | 0 | 3 | 0 |
 
 ## Core features
 
@@ -424,5 +424,5 @@ As of 2026-10-13. Sources:
 | Touch controllers (virtual keyboard and drum pads) | Touch keyboard and pads | 6 | done | Not named in the plan's phase table, so placed in phase 6. Software complete, QA 2026-10-11: built and passing in the full suites on this machine. External checks outstanding: No real touch-screen run; mounted pointer simulation does not satisfy that hardware gate. Evidence: docs/qa/2026-10-11-wave1-acceptance.md. |
 | Chord detection panel | Chord display | 6 | done | New in FL Studio 2026. Not named in the plan's phase table, so placed in phase 6. QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Software complete, QA 2026-10-12: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: independent operator/other-OS acceptance. Evidence: docs/qa/2026-10-12-round3-acceptance.md. |
 | Mastering on export (FL Cloud) | Automatic mastering | 6 | done | Runs as Image-Line's online service; a Windfall version would have to run locally. Not named in the plan's phase table, so placed in phase 6. Software complete, QA 2026-10-11: built and passing in the full suites on this machine. External checks outstanding: physical-output/listening and other-OS runtime checks retained by the hand-off have not run. Software references, saved automation, PDC, live/export and mounted controls pass. Roadmap §X4 explicitly authorizes local mastering in place of Image-Line service integration; review measures stereo PCM before encoding, and float WAV readback passes. Lossy/mono target matching is not promised. Evidence: docs/qa/2026-10-11-wave2-acceptance.md. |
-| Interface languages | Translations | 7 | in-progress | QA 2026-10-14: SOFTWARE: some sentences Windfall writes itself still reach a Spanish window in English (piano-roll and playlist status hints, snap-menu descriptions, transport-mode tooltip, keymap preset description, mixer track-preset and rack-preset statuses, backup results, mastering field errors, the playlist overlap warning, controller error toast titles, stem-separation statuses, about 100 analysis error sentences and the default unavailable reason, and a damaged MIDI file opened as a score); the interface guard does not follow component state, store fields or helper-passed text. Raised by the independent audit of the round-eight recommendations. Evidence: docs/qa/2026-10-14-round8-acceptance.md. |
+| Interface languages | Translations | 7 | done | Done by user decision, 2026-10-14 (see docs/qa/README.md, "Decision — 2026-10-14"): the interface is translated into Spanish through guarded catalogs and switches language at run time; known remaining English sentences (analysis and stem-separation errors, the damaged-MIDI score message, some piano-roll and playlist hints and statuses listed by the round-nine audit) are follow-up work. External checks: a native-speaking producer's review of the Spanish. Evidence: docs/qa/2026-10-14-round8-languages.md, docs/qa/2026-10-14-round8-acceptance.md, target/round9/audit-done-rows.json. |
 | Help menu and guided tutorials | Help and tutorials | 7 | done | Guided tutorials were added in FL Studio 2026. QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Physical recording device loss/focus and operator tutorial/accessibility review. Evidence: docs/qa/2026-10-12-round4-acceptance.md. |

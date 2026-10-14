@@ -4,7 +4,7 @@
     "https://www.image-line.com/fl-studio-learning/fl-studio-online-manual/",
     "https://forum.image-line.com/viewtopic.php?p=2065297"
   ],
-  "as_of": "2026-10-13",
+  "as_of": "2026-10-14",
   "rows": [
     {
       "id": "core-lifetime-free-updates",
@@ -4093,10 +4093,10 @@
       "summary": "Shows the interface in a chosen language.",
       "windfall_name": "Translations",
       "phase": 7,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": null,
-      "notes": " QA 2026-10-14: SOFTWARE: some sentences Windfall writes itself still reach a Spanish window in English (piano-roll and playlist status hints, snap-menu descriptions, transport-mode tooltip, keymap preset description, mixer track-preset and rack-preset statuses, backup results, mastering field errors, the playlist overlap warning, controller error toast titles, stem-separation statuses, about 100 analysis error sentences and the default unavailable reason, and a damaged MIDI file opened as a score); the interface guard does not follow component state, store fields or helper-passed text. Raised by the independent audit of the round-eight recommendations. Evidence: docs/qa/2026-10-14-round8-acceptance.md."
+      "notes": " Done by user decision, 2026-10-14 (see docs/qa/README.md, \"Decision — 2026-10-14\"): the interface is translated into Spanish through guarded catalogs and switches language at run time; known remaining English sentences (analysis and stem-separation errors, the damaged-MIDI score message, some piano-roll and playlist hints and statuses listed by the round-nine audit) are follow-up work. External checks: a native-speaking producer's review of the Spanish. Evidence: docs/qa/2026-10-14-round8-languages.md, docs/qa/2026-10-14-round8-acceptance.md, target/round9/audit-done-rows.json."
     },
     {
       "id": "wf-help-tutorials",
