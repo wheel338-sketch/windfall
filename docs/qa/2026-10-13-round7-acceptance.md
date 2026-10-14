@@ -96,3 +96,89 @@ Commands for this step, on the merged tree with the additions above:
 | `pnpm --dir apps/desktop typecheck` | pass, 23 s | `round7-final-s1-typecheck.log` |
 | `pnpm --dir apps/desktop lint` | pass, 36 s | `round7-final-s1-lint.log` |
 | `pnpm --dir apps/desktop test --maxWorkers=4 --reporter=default --reporter=json --outputFile=../../target/round7-final-s1-frontend-results.json` | 534 files, 6,497 passed, 0 failed, 0 skipped, 562 s | `round7-final-s1-frontend.log` |
+
+### Step 3: `wf-project-settings` (commit `08c25553`, more below)
+
+**Bridge protocol version eleven.** `crates/windfall-plugin-host/src/bridge/protocol.rs`
+is now version 11 and the helper handshake is Hello5 (`auth.rs`). A
+version-ten helper is refused at authentication with "requires Hello5 /
+mapping ABI11"; `previous_authenticated_helper_hellos_are_closed_before_any_load_metadata`
+now also sends Hello4, and `earlier_mapping_versions_never_downgrade_the_v11_ramp_handover_contract`
+refuses headers 1 to 10. Each slot gained one area used in both directions
+(a channel stage of 6 words and one carried note of 68 words per note
+instance) and five header words: ramps handed in with a block, the departure
+request and its frame, the ramps reported with a reply, and "faded out". The
+pinned layout sizes moved from 602,432 to 880,960 bytes per slot and from
+2,409,984 to 3,524,096 per region, with the reason in the test.
+
+**3.1 Ramp carried across a replaced helper.** `NoteRamp`, `ChannelStage` and
+`Carried` have an explicit wire form with validation (`project_expression.rs`,
+`NotePan::state` in `windfall-dsp`). When the owner asks a bridged unit to
+leave (`bridge::Departure`, used by `Runtime::bridge_audio` when the helper
+it replaces reported a capability change), the unit tells its helper from
+that frame on; the bank in the helper fades the channel stage out over 5 ms,
+holds every note ramp where it is and reports ramps and stage with each
+reply. The unit keeps the report of the last output that was *played* and
+writes it to the per-target carry under the engine identity of the note. The
+replacement unit hands the carried ramp in with the block that starts the
+replayed note; its helper continues the ramp, moves the routes to its own
+capabilities over the fade, takes the stage over and fades in. "Departed" is
+only said once the block that ended faded has been played to its last frame.
+A departure nobody follows up expires after two seconds, and a withdrawn one
+clears the carry.
+
+**3.2 Bridged plugin without note instances.** The unit now owns such notes
+by id; the helper plays them by key and channel and its bank owns them for
+the channel stage, so their pan and volume are applied after the plugin as in
+process. `instance snapshot for key-only native plugin` is no longer an
+error.
+
+**Capture leaves the audio alone (first addition from the orchestrator).**
+What triggered the 5 ms fade: any hand-back of a sounding instrument to its
+owner. For CLAP an ordinary capture never handed anything back (state was
+read while active). For VST3 every capture deactivated the plugin, in process
+and in the helper, so a save while music played was an audible gap before
+round seven and a faded gap after it. The new test showed it:
+`a_state_capture_during_a_sounding_note_leaves_the_audio_untouched` differed
+from frame 576 for VST3 (`target/round7-final-s3-capture2.log`). Fix: VST3
+state is read from the running plugin (`vst3/instance.rs::save_state` no
+longer refuses while active; loading while active is still refused), the
+in-process capture and the capture in the helper take the active path for
+VST3 as for CLAP, and only a plugin that asked to be restarted is taken back,
+where its unit is replaced anyway. A failed VST3 plugin is still refused by a
+capture; the audio side now publishes the failure for that. Audio Unit
+capture is unchanged (macOS only, cannot be run here).
+
+This reverses an earlier rule that tests had pinned ("active capture must
+remain forbidden"). Expectations rewritten, each with a comment saying what
+it asserted before and why it changed:
+
+| Test | Was | Is |
+|---|---|---|
+| `vst3_host::refusing_native_deactivation_never_proves_inactive_state` | saving while active refused | saving reads active state; loading while active refused |
+| `vst3_host::refusing_native_processing_stop_returns_the_running_processor`, `lifecycle_gain_offsets_transport_state_and_restart`, `wrapper_options::threaded_native_vst3_deactivation_refusal_returns_same_worker_pipeline` | `save_state().is_err()` while active | `is_ok()` |
+| `bridge::unprocessed_capture_intent_is_separate_from_native_dsp_acknowledgement`, `plugins::bridge::tests::native_vst3_capture_keeps_settled_gain_without_acknowledging_pending_note` | VST3 capture reconciled pending intent into the plugin by deactivating it | pending intent stays a companion of the state for VST3 as for CLAP |
+| `ownership_tests::runtime_repair_capture_reconciles_absent_controls_and_keeps_timeout_intent`, `vst3_capture_without_a_callback_reads_state_and_never_deactivates_the_processor` (renamed from `vst3_no_callback_refuses_capture_…`) | a capture without an audio callback was refused "block boundary" | it succeeds, carries the pending control, and the processor stays active |
+| `ownership_tests::capture_refusal_returns_the_exact_active_adapter_…`, `runtime_repair_capture_refusal_retains_pending_controls_…` | an ordinary capture was refused by a plugin that refuses deactivation | the ordinary capture succeeds; the refusal is exercised through a restart capture (`restart_capture`), the path that still takes the plugin back |
+| `ownership_tests::recovery_failure_stays_dry_and_can_be_retired_on_its_owner` | reactivation failed after a capture | the same failure through a hand-over and return (`take_back_and_restore`) |
+| `session::tests::plugins::n4_ordinary_capture_never_deactivates_so_the_document_intent_stands` (renamed from `n4_native_deactivation_edit_supersedes_…`) | the edit a fixture makes on deactivation won over the document value | no deactivation happens, so the document value stands (0.625, output 0.3125); the deactivation edit is still honoured on a restart (`native_vst3_dirty_restart_and_deactivation_edits_…`, passing) |
+
+Measured so far (helper processes are real, `WINDFALL_DESKTOP_BRIDGE_HELPER`):
+
+| Test | What it measures | Result |
+|---|---|---|
+| `project_expression::tests::a_ramp_mid_flight_crosses_the_bridge_exactly_and_bad_words_are_refused` | ramp, carried note and stage through their wire form, four laws, a route change in flight; 300 further frames of copy against original; eleven kinds of bad words | bit-identical; all refused |
+| `bridge::slots::tests::handed_ramps_the_departure_request_and_the_report_roundtrip_and_are_validated` | the new words through a slot in both directions, stale words not read, refusals | pass |
+| `plugins::bridge::route_tests::bridged_vst3_capability_loss_and_return_mid_note_keeps_the_ramp_and_never_clicks` | six directions (volume, pan, both; lost and returned), four laws, live and offline, two helpers each plus two neutral ones: every frame of ramp, fade-out, silence and fade-in against the model; largest step against the click bound; gain before and after; one voice, none stuck; no allocation in `process`, `set_note_expression` or the replayed `note_on_instance` | 24 migrations: worst 4.8e-7; step at most 82% of the bound (0.00150 against 0.00501); gain before equals the frozen value to 5 decimals; live and offline identical |
+| `…::bridged_clap_note_instance_loss_and_return_mid_note_keeps_the_ramp_and_never_clicks` | the same for CLAP losing and regaining note instances | 8 migrations: worst 1.9e-7; step at most 70% of the bound (0.01156 against 0.01657); identical |
+| `…::a_bridged_plugin_without_note_instances_gets_the_channel_stage_like_in_process` | the MIDI-only CLAP twin through a helper against the in-process owner: four laws, live and offline, law change, per-note move, note gain, a newer note and its end | identical samples (worst 0.0) |
+| `…::leaving_waits_for_the_fade_while_audio_runs_and_gives_up_when_it_does_not` | the wait of the owner: returns false within 500 ms without audio and the unit plays on; returns true once the faded output was played | pass |
+| `plugins::runtime::route_tests::a_state_capture_during_a_sounding_note_leaves_the_audio_untouched` | in process, VST3 and CLAP: 4,096 frames with a pan ramp in flight, state captured from another thread from frame 512, against the same without a capture | identical samples |
+| `plugins::bridge::route_tests::a_bridged_state_capture_during_a_sounding_note_leaves_the_audio_untouched` | the same through a helper, live and offline | identical samples |
+
+Commands: `cargo test --offline -p windfall-plugin-host --no-fail-fast -- --test-threads=1`
+296 / 0 / 7 over 20 result blocks (`s3-host5`); `cargo test --offline -p windfall-desktop --lib plugins:: -- --test-threads=1 --include-ignored`
+106 of 107 passed, the one failure being the deactivation-edit test rewritten
+above (`s3-plugins3`); `… --lib session::tests::plugin` 41 / 0 (`s3-session1`);
+`cargo clippy --offline --workspace --all-targets -- -D warnings` clean
+(`s3-clippy1`).
