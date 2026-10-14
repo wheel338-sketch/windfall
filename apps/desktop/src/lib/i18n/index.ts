@@ -14,6 +14,20 @@ function load(): Language {
   catch { return "en" }
 }
 export const useLanguageStore = create(() => ({ language: load() }))
+let reading: Language | null = null
+/** The language text is made in now: the interface language, unless something is being read in another. */
+function currentLanguage(): Language { return reading ?? useLanguageStore.getState().language }
+/**
+ * Runs `read` with every message it makes in `language`. A kept title holds
+ * the way to make a word instead of the word, and this makes it again in the
+ * language the title is shown in, or in English for the registry.
+ */
+export function inLanguage<T>(language: Language, read: () => T): T {
+  const before = reading
+  reading = language
+  try { return read() }
+  finally { reading = before }
+}
 export function setLanguage(language: Language) {
   useLanguageStore.setState({ language })
   document.documentElement.lang = language
@@ -21,7 +35,7 @@ export function setLanguage(language: Language) {
 }
 /** One listener per window, released with its shell. Storage rehydration never echoes a write. */
 export function connectLanguage(): () => void {
-  document.documentElement.lang = useLanguageStore.getState().language
+  document.documentElement.lang = currentLanguage()
   const receive = (event: StorageEvent) => {
     if (event.key !== LANGUAGE_STORAGE_KEY && event.key !== null) return
     const language = load()
@@ -31,17 +45,17 @@ export function connectLanguage(): () => void {
   window.addEventListener("storage", receive)
   return () => window.removeEventListener("storage", receive)
 }
-export function formatNumber(value: number, options?: Intl.NumberFormatOptions, language = useLanguageStore.getState().language): string {
+export function formatNumber(value: number, options?: Intl.NumberFormatOptions, language = currentLanguage()): string {
   return new Intl.NumberFormat(locales[language], options).format(value)
 }
-export function formatDate(value: Date | number, options?: Intl.DateTimeFormatOptions, language = useLanguageStore.getState().language): string {
+export function formatDate(value: Date | number, options?: Intl.DateTimeFormatOptions, language = currentLanguage()): string {
   return new Intl.DateTimeFormat(locales[language], options).format(value)
 }
 /** A number inside a sentence: the locale's decimal mark, with no grouping and no rounding. */
-export function plainNumber(value: number, language = useLanguageStore.getState().language): string {
+export function plainNumber(value: number, language = currentLanguage()): string {
   return Number.isFinite(value) ? formatNumber(value, { useGrouping: false, maximumFractionDigits: 20 }, language) : String(value)
 }
-export function message(key: MessageKey, values: Record<string, string | number> = {}, language = useLanguageStore.getState().language): string {
+export function message(key: MessageKey, values: Record<string, string | number> = {}, language = currentLanguage()): string {
   const entry = catalogs[language][key]
   const count = typeof values.count === "number" && Number.isFinite(values.count) ? values.count : 0
   const template = typeof entry === "string" ? entry : entry[new Intl.PluralRules(locales[language]).select(count) === "one" ? "one" : "other"]
@@ -51,7 +65,7 @@ export function message(key: MessageKey, values: Record<string, string | number>
   })
 }
 /** Transitional display adapter for registry/toolbar labels. Never use on project/user text. */
-export function translatedText(value: string, language = useLanguageStore.getState().language): string {
+export function translatedText(value: string, language = currentLanguage()): string {
   return Object.hasOwn(en, value) ? message(value as MessageKey, {}, language) : value
 }
 export function useTranslation() {
@@ -62,7 +76,7 @@ export function useActionTitle(id: string, fallback: string): string {
   const language = useLanguageStore((state) => state.language)
   return actionTitle(id, fallback, language)
 }
-export function actionTitle(id: string, fallback: string, language = useLanguageStore.getState().language): string {
+export function actionTitle(id: string, fallback: string, language = currentLanguage()): string {
   const dynamic = dynamicActionMessage(id)
   if (dynamic) return dynamicMessage(dynamic, language)
   const key = actionMessages[id]
@@ -70,14 +84,17 @@ export function actionTitle(id: string, fallback: string, language = useLanguage
 }
 
 /** English compatibility title plus bounded registry-owned translation metadata. */
-export function dynamicTitle(key: MessageKey, values: Record<string, string | number>, translate?: DynamicActionMessage["translate"]) {
+export function dynamicTitle(key: MessageKey, values: DynamicActionMessage["values"], translate?: DynamicActionMessage["translate"]) {
   const titleMessage: DynamicActionMessage = translate ? { key, values, translate } : { key, values }
   return { title: dynamicMessage(titleMessage, "en"), titleMessage }
 }
 
 /** A kept message in the language it is shown in, with the values it marks translated too. */
-export function dynamicMessage(source: DynamicActionMessage, language = useLanguageStore.getState().language): string {
-  const values = { ...source.values }
+export function dynamicMessage(source: DynamicActionMessage, language = currentLanguage()): string {
+  const values: Record<string, string | number> = {}
+  // A value kept as a way to make it is made now, in the language shown.
+  for (const [name, value] of Object.entries(source.values))
+    values[name] = typeof value === "function" ? inLanguage(language, value) : value
   for (const [name, form] of Object.entries(source.translate ?? {})) {
     const value = values[name]
     if (typeof value !== "string") continue
@@ -97,7 +114,7 @@ export function localizeBackendText(text: string): string {
     ["Update check failed; retry when online. ", "Update check failed; retry when online. {detail}"],
   ] as const
   for (const [prefix,key] of prefixes) if (text.startsWith(prefix)) return message(key,{detail:text.slice(prefix.length)})
-  const language = useLanguageStore.getState().language
+  const language = currentLanguage()
   return language === "en" || alreadyLocalized(text, language) ? text : message("Native diagnostic: {detail}", { detail: text })
 }
 
@@ -124,10 +141,60 @@ function alreadyLocalized(text: string, language: Language): boolean {
   return known.fixed.has(text) || known.patterns.some((pattern) => pattern.test(text))
 }
 
+const HISTORY_LABEL_PREFIX = "windfall-label:"
+
+/**
+ * A history label as it is kept: the catalog key, with its values when it
+ * has any, and never a translation. The history is read long after the edit
+ * was made and possibly in another language; [`historyLabelText`] makes the
+ * words then. A label without values is its English text, which is its key,
+ * so the history of a project stays readable to anything that shows it raw.
+ */
+export function historyLabel(key: MessageKey, values: Record<string, string | number> = {}): string {
+  return Object.keys(values).length === 0 ? key : `${HISTORY_LABEL_PREFIX}${JSON.stringify({ key, values })}`
+}
+
+/**
+ * The words of a history label in the language it is shown in. A label the
+ * frontend kept carries its key and values; a label the backend wrote is
+ * its English text, which is a catalog key, or a coded message, or one of
+ * the two it makes from a setting's name. Anything else, such as a label
+ * from an older version or a name somebody typed, is shown as it is.
+ */
+export function historyLabelText(label: string, language = currentLanguage()): string {
+  if (label.startsWith(HISTORY_LABEL_PREFIX)) {
+    try {
+      const kept: unknown = JSON.parse(label.slice(HISTORY_LABEL_PREFIX.length))
+      if (kept && typeof kept === "object" && "key" in kept && typeof kept.key === "string" && Object.hasOwn(en, kept.key) &&
+        "values" in kept && kept.values && typeof kept.values === "object" && !Array.isArray(kept.values)) {
+        const entry = catalogs[language][kept.key as MessageKey]
+        const values = kept.values as Record<string, unknown>
+        const count = typeof values.count === "number" && Number.isFinite(values.count) ? values.count : 0
+        const template = typeof entry === "string" ? entry : entry[new Intl.PluralRules(locales[language]).select(count) === "one" ? "one" : "other"]
+        // Numbers inside a label are written plainly, as the labels made before this were.
+        return template.replace(/\{(\w+)\}/g, (placeholder, name: string) => {
+          const value = values[name]
+          return typeof value === "number" && Number.isFinite(value) ? plainNumber(value, language) : typeof value === "string" ? value : placeholder
+        })
+      }
+    } catch { /* Shown as it is. */ }
+    return label
+  }
+  const native = nativeMessage(label, language)
+  if (native !== null) return native
+  if (Object.hasOwn(en, label)) return message(label as MessageKey, {}, language)
+  // The backend names an edit of one setting after the setting.
+  const script = /^Change script (.+)$/.exec(label)
+  if (script) return message("Change script {name}", { name: translatedText(script[1], language) }, language)
+  const setting = /^Change (.+)$/.exec(label)
+  if (setting) return message("Change {name}", { name: translatedText(setting[1], language) }, language)
+  return label
+}
+
 const NATIVE_MESSAGE_PREFIX = "windfall-message:"
 
 /** Decode only the reserved native envelope, leaving authored text untouched. */
-export function nativeMessage(text: string, language = useLanguageStore.getState().language): string | null {
+export function nativeMessage(text: string, language = currentLanguage()): string | null {
   if (!text.startsWith(NATIVE_MESSAGE_PREFIX)) return null
   try {
     const value: unknown = JSON.parse(text.slice(NATIVE_MESSAGE_PREFIX.length))

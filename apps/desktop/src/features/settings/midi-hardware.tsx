@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { backend, errorMessage } from "@/lib/ipc"
+import { backend, errorSource } from "@/lib/ipc"
 import { useProjectGeneration, useProjectStore } from "@/lib/store"
 import { releaseHardwareKeys } from "@/features/piano-roll/chords/held-keys"
 
@@ -144,7 +144,7 @@ export function MidiHardwareSettingsSection() {
         }
       } catch (failure) {
         if (ticket === epoch.current && request === operation.current)
-          setError(errorMessage(failure))
+          setError(errorSource(failure))
       } finally {
         loading = false
       }
@@ -174,7 +174,7 @@ export function MidiHardwareSettingsSection() {
         setState(result)
       }
     } catch (failure) {
-      if (ticket === epoch.current) setError(errorMessage(failure))
+      if (ticket === epoch.current) setError(errorSource(failure))
     } finally {
       working.current = false
       setBusy(false)
@@ -199,7 +199,7 @@ export function MidiHardwareSettingsSection() {
     try {
       const next = await backend.controllerSettingsSet({ ...controllers.settings, ...change })
       if (ticket === epoch.current) setControllers(next)
-    } catch (failure) { if (ticket === epoch.current) setError(errorMessage(failure)) }
+    } catch (failure) { if (ticket === epoch.current) setError(errorSource(failure)) }
     finally { working.current = false; setBusy(false) }
   }
   const disabled = busy || !state || backend.kind !== "tauri"
@@ -364,7 +364,7 @@ export function MidiHardwareSettingsSection() {
             void backend
               .midiHardwarePanic()
               .then(releaseHardwareKeys)
-              .catch((failure: unknown) => setError(errorMessage(failure)))
+              .catch((failure: unknown) => setError(errorSource(failure)))
           }}
         >{t("Panic MIDI")}</Button>
       </div>

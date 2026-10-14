@@ -7,7 +7,7 @@ import type {
 } from "@/bindings"
 import { registry, type Action } from "@/lib/actions"
 import { dispatch, useProjectStore } from "@/lib/store/project"
-import { translatedText as t, dynamicTitle } from "@/lib/i18n"
+import { dynamicTitle, historyLabel } from "@/lib/i18n"
 
 async function setAudioClipStretch(stretch: ClipStretch): Promise<void> {
   const updates: AudioClipUpdate[] = []
@@ -39,7 +39,7 @@ async function muteEmptyPlaylistTracks(): Promise<void> {
   if (commands.length > 0) {
     await dispatch({
       type: "batch",
-      label: t("Mute empty playlist tracks"),
+      label: historyLabel("Mute empty playlist tracks"),
       commands,
     })
   }
@@ -57,7 +57,7 @@ async function unsoloPlaylistTracks(): Promise<void> {
   if (commands.length > 0) {
     await dispatch({
       type: "batch",
-      label: t("Unsolo playlist tracks"),
+      label: historyLabel("Unsolo playlist tracks"),
       commands,
     })
   }

@@ -9,7 +9,7 @@ import type {
 import { sourceSample } from "@/lib/channel-source"
 import { TEST_DIALOGS } from "@/test/harness"
 
-import { errorMessage } from "./backend"
+import { errorMessage, errorSource } from "./backend"
 import { createMockBackend } from "./mock"
 import { demoProject } from "./sim/project"
 
@@ -20,10 +20,15 @@ function create() {
 describe("mock backend: document", () => {
   it("preserves reserved native messages through string and Error refusals", () => {
     const source = 'windfall-message:{"code":"midi.import.markersNotImported","params":{"count":2}}'
-    expect(errorMessage(source)).toBe(source)
-    expect(errorMessage(new Error(source))).toBe(source)
+    // What is kept is the source: the code and its parameters, unchanged.
+    expect(errorSource(source)).toBe(source)
+    expect(errorSource(new Error(source))).toBe(source)
     const malformed = "windfall-message:{"
-    expect(errorMessage(malformed)).toBe(malformed)
+    expect(errorSource(malformed)).toBe(malformed)
+    // What is shown now is its words in the interface language.
+    expect(errorMessage(source)).toBe("2 markers not imported")
+    expect(errorMessage(new Error(source))).toBe("2 markers not imported")
+    expect(errorMessage(malformed)).toBe("The native message could not be decoded.")
   })
 
   it("starts with the demo project, clean and unsaved", async () => {

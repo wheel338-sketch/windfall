@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react"
 import { create } from "zustand"
 import type { MixerWaveform, TrackId } from "@/bindings"
-import { backend, errorMessage } from "@/lib/ipc"
+import { backend, errorSource } from "@/lib/ipc"
 import { subscribeRealtime } from "@/lib/store/realtime"
 import { useProjectStore } from "@/lib/store/project"
 import { onProjectReplaced } from "@/lib/store/replaced"
@@ -45,7 +45,7 @@ export function watchMixerWaveforms(): () => void {
           await backend.mixerWaveformTracks(ids, guard.generation, snapshot.revision)
           if (!disposed && done === version) useWaveformUi.setState({ error: "" })
         } catch (error) {
-          if (!disposed && done === version) useWaveformUi.setState({ error: errorMessage(error) })
+          if (!disposed && done === version) useWaveformUi.setState({ error: errorSource(error) })
         }
       }
     })().finally(() => { running = false; if (!disposed && drained !== version) sync() })

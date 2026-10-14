@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import type { Command, Note, Project } from "@/bindings"
 import { SimDocument } from "@/lib/ipc/sim/document"
 import { demoProject } from "@/lib/ipc/sim/project"
+import { historyLabel, historyLabelText } from "@/lib/i18n"
 
 import { fitPitch, LEFT_WIDTH, MAX_STEP_PITCH, MIN_STEP_PITCH } from "./layout"
 import {
@@ -126,7 +127,8 @@ describe("fill", () => {
     const command = fillCommand(1, 7, [inside, outside], 16, 4)
     expect(command).toEqual({
       type: "batch",
-      label: "Fill every 4 steps",
+      // Kept as its key and value; the history makes the words when shown.
+      label: historyLabel("Fill every {every} steps", { every: 4 }),
       commands: [
         { type: "removeNotes", pattern: 1, channel: 7, notes: [inside.id] },
         {
@@ -157,7 +159,7 @@ describe("fill", () => {
       (item) => item.channel === hat
     )
     expect(row(litSteps(after?.notes, 16))).toBe("x.......x.......")
-    expect(applied.label).toBe("Fill every 8 steps")
+    expect(historyLabelText(applied.label)).toBe("Fill every 8 steps")
   })
 })
 

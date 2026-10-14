@@ -75,7 +75,7 @@ export const TIMELINE_ACTIONS: Action[] = [
   },
   ...(["named", "loop", "skip", "pause"] as const).map((type): Action => ({
     id: `playlist.add${type}Marker`,
-    ...dynamicTitle("Add {type} timeline marker…", { type: t(type) }),
+    ...dynamicTitle("Add {type} timeline marker…", { type: () => t(type) }),
     section: "Playlist",
     keywords: "timeline navigation label",
     enabled: inPlaylist,

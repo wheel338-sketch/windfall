@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import type { PluginTarget } from "@/bindings"
 import { localizeBackendText, useLanguageStore } from "@/lib/i18n"
-import { backend, errorMessage } from "@/lib/ipc"
+import { backend, errorSource } from "@/lib/ipc"
 import type { PluginNoteCapabilities } from "@/lib/ipc/backend"
 import { useProjectStore } from "@/lib/store/project"
 import { getProjectGeneration } from "@/lib/store/replaced"
@@ -30,7 +30,7 @@ export function useNativeNoteCapabilities(target: PluginTarget | undefined): { c
           setResult((result) => ({ channel, generation, capabilities, changed: changed || (result.channel === channel && result.generation === generation && result.changed) }))
         }
       } catch (error) {
-        if (live && generation === getProjectGeneration()) setResult({ channel, generation, error: errorMessage(error) })
+        if (live && generation === getProjectGeneration()) setResult({ channel, generation, error: errorSource(error) })
       } finally { pending = false }
     }
     void refresh()

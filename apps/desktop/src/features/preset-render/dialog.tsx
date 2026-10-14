@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Field, FieldGroup, FieldLabel, FieldDescription } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { backend, errorMessage } from "@/lib/ipc"
+import { backend, errorSource } from "@/lib/ipc"
 import { localizeBackendText, message, useTranslation } from "@/lib/i18n"
 import { onProjectReplaced, getProjectGeneration } from "@/lib/store/replaced"
 import { onHistoryNavigation, receivePatch, useProjectStore } from "@/lib/store/project"
@@ -53,7 +53,7 @@ export function openPresetRender(input: Omit<PresetRenderInput, "options">,
       usePresetRenderDialog.setState({ target: { ...target, ticket } })
     }).catch((error: unknown) => {
       if (usePresetRenderDialog.getState().target === target)
-        usePresetRenderDialog.setState({ target: { ...target, error: errorMessage(error) } })
+        usePresetRenderDialog.setState({ target: { ...target, error: errorSource(error) } })
     })
   })
 }
@@ -96,7 +96,7 @@ function RenderForm({ target }: { target: Target }) {
       } else target.finish(null)
     } catch (error: unknown) {
       if (usePresetRenderDialog.getState().target === target) {
-        setError(errorMessage(error))
+        setError(errorSource(error))
         // A failed job consumes its lease. Reopen to capture a fresh project.
         setBusy(false)
       }

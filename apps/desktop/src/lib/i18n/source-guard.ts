@@ -25,6 +25,8 @@ const displayCalls: Readonly<Record<string, readonly number[] | "all">> = {
 const translationExports = new Set([
   "t", "message", "i18nMessage", "localizedMessage", "translatedText", "dynamicTitle",
   "localizeBackendText", "nativeMessage", "actionTitle", "useActionTitle",
+  // A history label kept as its key, and the words made from a kept label.
+  "historyLabel", "historyLabelText",
 ])
 // These controls translate canonical catalog keys themselves, and subscribe to
 // the locale. The scanner still verifies every literal key at that boundary.
@@ -535,7 +537,7 @@ export function localizationViolations(
       if (name === "setAttribute" && node.arguments[0] && ts.isStringLiteralLike(node.arguments[0]) &&
         displayProperties.has(node.arguments[0].text) && node.arguments[1]) visible(node.arguments[1], "imperative display attribute")
       const translated = translationName(node.expression)
-      if (translated && !["actionTitle", "useActionTitle", "nativeMessage", "localizeBackendText"].includes(translated)) {
+      if (translated && !["actionTitle", "useActionTitle", "nativeMessage", "localizeBackendText", "historyLabelText"].includes(translated)) {
         const keys = (key: ts.Node) => {
           if (ts.isStringLiteralLike(key) && !hasKey(key.text) && !invariantReason(key.text))
             fail(key, key.text, "translation key missing from a shipped catalog")
@@ -543,7 +545,7 @@ export function localizationViolations(
         }
         if (node.arguments[0]) keys(node.arguments[0])
       }
-      if (translated && ["message", "dynamicTitle", "i18nMessage", "localizedMessage"].includes(translated)) {
+      if (translated && ["message", "dynamicTitle", "i18nMessage", "localizedMessage", "historyLabel"].includes(translated)) {
         const values = node.arguments[1]
         if (values && ts.isObjectLiteralExpression(values))
           for (const property of values.properties) if (ts.isPropertyAssignment(property))

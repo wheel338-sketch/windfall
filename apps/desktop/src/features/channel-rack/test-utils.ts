@@ -17,7 +17,7 @@ import { registerChannelRackActions } from "./actions"
 import { clearSampleInfo } from "./inspector/sample-info"
 import { useRackStore } from "./rack-store"
 import { litSteps } from "./steps"
-import { message, translatedText as t } from "@/lib/i18n"
+import { message, translatedText as t, historyLabelText } from "@/lib/i18n"
 
 /** The test app with the rack's actions registered and its own state reset. */
 export async function startRack(options: { project?: Project } = {}) {
@@ -36,7 +36,8 @@ export async function startRack(options: { project?: Project } = {}) {
 
 export const project = () => useProjectStore.getState().project
 export const history = () => useProjectStore.getState().history
-export const labels = () => history().entries.map((entry) => entry.label)
+/** The history as it is read: a label is kept as a key and made into words when shown. */
+export const labels = () => history().entries.map((entry) => historyLabelText(entry.label))
 
 export function channel(name: string): Channel {
   const found = project().channels.find((item) => item.name === name)

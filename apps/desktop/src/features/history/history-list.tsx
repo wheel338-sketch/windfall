@@ -9,7 +9,7 @@ import { useHistory } from "@/lib/store/selectors"
 import { cn } from "@/lib/utils"
 
 import { matchingRuns } from "./history-filter"
-import { message, translatedText as t, plainNumber } from "@/lib/i18n"
+import { message, translatedText as t, plainNumber, historyLabelText } from "@/lib/i18n"
 
 type StepState = "done" | "current" | "undone"
 
@@ -25,8 +25,10 @@ export function groupRuns(entries: HistoryEntry[]): HistoryRun[] {
   const runs: HistoryRun[] = []
   entries.forEach((entry, index) => {
     const previous = runs.at(-1)
-    if (previous?.label === entry.label) previous.last = index + 1
-    else runs.push({ label: entry.label, first: index + 1, last: index + 1 })
+    // A label is kept as a key and made into words here, in the language shown.
+    const label = historyLabelText(entry.label)
+    if (previous?.label === label) previous.last = index + 1
+    else runs.push({ label, first: index + 1, last: index + 1 })
   })
   return runs
 }

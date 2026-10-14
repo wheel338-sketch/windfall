@@ -15,7 +15,7 @@ import { nextRecordingOffsetScale } from "./recording-offset-scale"
 import { nextMonitorGainScale } from "./monitor-gain-scale"
 import { nextMonitorBufferScale } from "./monitor-buffer-scale"
 import { nextRecordingSource } from "./record-source-step"
-import { translatedText as t, message, plainNumber } from "@/lib/i18n"
+import { translatedText as t, message, plainNumber, localizeBackendText } from "@/lib/i18n"
 
 export const DEFAULT_RECORDING: MixerRecording = { input: null, armed: false, monitor: false, monitorGain: 0.5, monitorBufferMs: 20, offsetMs: 0, mode: "input" }
 export function RecordArm({ track }: { track: TrackId }) {
@@ -128,7 +128,7 @@ export function MixerRecordingPanel({ track }: { track: TrackId }) {
           </Field>
         </FieldGroup>
         {heard && <div role="status" className="mt-2 text-xs text-muted-foreground">{heard.alignment.inputSampleRate}{" "}{t("Hz input ·")}{" "}{heard.monitor.bufferedMs.toFixed(1)}{" "}{t("ms buffered ·")}{" "}{heard.alignment.driftPpm.toFixed(1)}{" "}{t("ppm drift")}<br />{heard.monitor.droppedFrames}{" "}{t("dropped ·")}{" "}{heard.monitor.starvedFrames}{" "}{t("starved frames")}</div>}
-        {monitorError && <p role="alert" className="mt-2 text-destructive">{monitorError}</p>}
+        {monitorError && <p role="alert" className="mt-2 text-destructive">{localizeBackendText(monitorError)}</p>}
         {error && <p role="alert" className="mt-2 text-destructive">{error}</p>}
       </PopoverContent>
     </Popover>

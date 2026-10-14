@@ -9,7 +9,7 @@ import { useMixerUi, selectedMixerTracks } from "./mixer-ui"
 import { outputChoices } from "./routing"
 import { useWaveformUi } from "./waveform-meter"
 import { openMixerRender, renderableMixerTracks } from "@/features/export/mixer-render"
-import { translatedText as t, message } from "@/lib/i18n"
+import { translatedText as t, message, localizeBackendText } from "@/lib/i18n"
 
 export function MixerToolbar({ filter, onFilterChange }: {
   filter: string
@@ -53,8 +53,8 @@ export function MixerToolbar({ filter, onFilterChange }: {
       <SelectTrigger size="sm" className="w-32" aria-label={t("Mixer size layout")}><SelectValue /></SelectTrigger>
       <SelectContent><SelectGroup>{MIXER_LAYOUTS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent>
     </Select>
-    <Button size="sm" variant="outline" aria-pressed={meterMode === "waveform"} title={waveformError || t("Switch between peak levels and stereo waveform history")} onClick={() => useUiStore.getState().setMixerMeterMode(meterMode === "level" ? "waveform" : "level")}>{meterMode === "waveform" ? t("Waveforms") : t("Levels")}</Button>
-    {waveformError && <span role="status" className="max-w-40 truncate text-xs text-destructive" title={waveformError}>{t("Waveform feed unavailable")}</span>}
+    <Button size="sm" variant="outline" aria-pressed={meterMode === "waveform"} title={waveformError ? localizeBackendText(waveformError) : t("Switch between peak levels and stereo waveform history")} onClick={() => useUiStore.getState().setMixerMeterMode(meterMode === "level" ? "waveform" : "level")}>{meterMode === "waveform" ? t("Waveforms") : t("Levels")}</Button>
+    {waveformError && <span role="status" className="max-w-40 truncate text-xs text-destructive" title={localizeBackendText(waveformError)}>{t("Waveform feed unavailable")}</span>}
     <Button size="sm" variant="ghost" onClick={selectAll}>{t("Select inserts")}</Button>
     <Button size="sm" variant="ghost" disabled={!selected.length} onClick={() => { useUiStore.getState().selectTrack(null); useMixerUi.setState({ selected: [], anchor: null }) }}>{t("Clear")}</Button>
     <Button size="sm" variant="outline" disabled={!renderableMixerTracks(selected).length} onClick={() => openMixerRender(selected)}>{t("Render selected…")}</Button>

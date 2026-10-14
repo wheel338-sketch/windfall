@@ -7,11 +7,11 @@ import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet 
 import { Input } from "@/components/ui/input"
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/ui/empty"
 import { openProjectPath } from "@/lib/flows/project"
-import { backend, errorMessage } from "@/lib/ipc"
+import { backend, errorSource } from "@/lib/ipc"
 import { useProjectStore } from "@/lib/store/project"
 import { getProjectGeneration, useProjectGeneration } from "@/lib/store/replaced"
 import { EMPTY_BACKUP, rememberBackup, useBackupConfig, useBackupJob, type FolderBackupConfig } from "./store"
-import { translatedText as t } from "@/lib/i18n"
+import { translatedText as t, localizeBackendText } from "@/lib/i18n"
 
 export function FolderBackupPanel() {
   const path = useProjectStore((state) => state.path)
@@ -27,7 +27,7 @@ export function FolderBackupPanel() {
     void Promise.resolve().then(async () => {
       const rows = config.folder ? await backend.backupVersions(config.folder) : []
       if (live) setRows(rows)
-    }).catch((error: unknown) => { if (live) useBackupJob.setState({ error: errorMessage(error) }) })
+    }).catch((error: unknown) => { if (live) useBackupJob.setState({ error: errorSource(error) }) })
     return () => { live = false }
   }, [config.folder, generation, job.result])
   async function choose() {
@@ -39,12 +39,12 @@ export function FolderBackupPanel() {
       if (localGeneration !== getProjectGeneration()) return
       setRows(versions); configure({ ...config, folder, head: versions.at(-1)?.id ?? null, afterSave: false })
       useBackupJob.setState({ error: null, result: null })
-    } catch (error) { useBackupJob.setState({ error: errorMessage(error) }) }
+    } catch (error) { useBackupJob.setState({ error: errorSource(error) }) }
   }
   async function refresh() {
     if (!config.folder) return
     try { const rows = await backend.backupVersions(config.folder); setRows(rows); configure({ ...config, head: rows.at(-1)?.id ?? null }); useBackupJob.setState({ error: null }) }
-    catch (error) { useBackupJob.setState({ error: errorMessage(error) }) }
+    catch (error) { useBackupJob.setState({ error: errorSource(error) }) }
   }
   async function save() {
     if (!config.folder || job.busy) return
@@ -56,7 +56,7 @@ export function FolderBackupPanel() {
       const row = await backend.backupSave(config.folder, config.head, config.keep, catalog.generation)
       if (localGeneration === getProjectGeneration()) configure({ ...config, head: row.id })
       useBackupJob.setState({ result: "Portable backup created and checksum recorded." })
-    } catch (error) { useBackupJob.setState({ error: errorMessage(error) }) }
+    } catch (error) { useBackupJob.setState({ error: errorSource(error) }) }
     finally { useBackupJob.setState({ busy: false }) }
   }
   async function restore(row: BackupVersion) {
@@ -68,7 +68,7 @@ export function FolderBackupPanel() {
       const restored = await backend.backupRestore(config.folder, row.id, target)
       useBackupJob.setState({ result: `Verified backup restored to ${restored}` })
       await openProjectPath(restored)
-    } catch (error) { useBackupJob.setState({ error: errorMessage(error) }) }
+    } catch (error) { useBackupJob.setState({ error: errorSource(error) }) }
     finally { useBackupJob.setState({ busy: false }) }
   }
   const native = backend.kind === "tauri"
@@ -79,10 +79,10 @@ export function FolderBackupPanel() {
       <Field><FieldLabel htmlFor="backup-keep">{t("Versions to retain")}</FieldLabel><Input id="backup-keep" type="number" min={1} max={1000} value={config.keep} disabled={job.busy} onChange={(event) => { const keep = Number(event.target.value); if (Number.isInteger(keep) && keep >= 1 && keep <= 1000) configure({ ...config, keep }) }} /></Field>
       <Field orientation="horizontal"><Checkbox id="backup-after-save" checked={config.afterSave} disabled={!native || !path || !config.folder || job.busy} onCheckedChange={(checked) => configure({ ...config, afterSave: checked === true })} /><FieldLabel htmlFor="backup-after-save">{t("Back up this project after Save")}</FieldLabel></Field>
       {!path && <FieldDescription>{t("Save the project once before enabling automatic backup. Manual backup also works for an unsaved project.")}</FieldDescription>}
-      <div className="flex flex-wrap gap-2"><Button disabled={!native || !config.folder || job.busy} onClick={() => void save()}>{t("Back up now")}</Button><Button variant="outline" disabled={!config.folder || job.busy} onClick={() => void refresh()}>{t("Refresh history")}</Button><Button variant="outline" disabled={!job.busy} onClick={() => void backend.backupCancel().catch((error: unknown) => useBackupJob.setState({ error: errorMessage(error) }))}>{t("Cancel backup")}</Button></div>
+      <div className="flex flex-wrap gap-2"><Button disabled={!native || !config.folder || job.busy} onClick={() => void save()}>{t("Back up now")}</Button><Button variant="outline" disabled={!config.folder || job.busy} onClick={() => void refresh()}>{t("Refresh history")}</Button><Button variant="outline" disabled={!job.busy} onClick={() => void backend.backupCancel().catch((error: unknown) => useBackupJob.setState({ error: errorSource(error) }))}>{t("Cancel backup")}</Button></div>
     </FieldGroup></FieldSet>
     {!native && <Alert><AlertDescription>{t("Folder backups require the Windfall desktop app.")}</AlertDescription></Alert>}
-    {job.error && <Alert variant="destructive"><AlertDescription>{job.error}</AlertDescription></Alert>}
+    {job.error && <Alert variant="destructive"><AlertDescription>{localizeBackendText(job.error)}</AlertDescription></Alert>}
     {job.result && <p role="status">{job.result}</p>}
     {!rows.length ? <Empty><EmptyHeader><EmptyTitle>{t("No backup versions")}</EmptyTitle><EmptyDescription>{t("Choose a folder and create a portable backup.")}</EmptyDescription></EmptyHeader></Empty> : <ul className="flex flex-col gap-3">{rows.slice().reverse().map((row) => <li key={row.id} className="flex flex-col gap-1"><span>{new Date(row.createdMs).toLocaleString()} · {row.bytes.toLocaleString()}{" "}{t("bytes ·")}{" "}{row.id.slice(0, 8)}</span><span className="break-all text-muted-foreground">SHA-256 {row.checksum}</span><Button variant="outline" disabled={job.busy} onClick={() => void restore(row)}>{t("Restore")}{" "}{row.id.slice(0, 8)}</Button></li>)}</ul>}
   </div>

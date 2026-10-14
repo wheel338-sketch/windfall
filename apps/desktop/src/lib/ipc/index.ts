@@ -1,7 +1,7 @@
 import type { Backend } from "./backend"
 import { createTauriBackend } from "./tauri"
 
-export { errorMessage } from "./backend"
+export { errorMessage, errorSource } from "./backend"
 export type { Backend, StoredAudioSettings, Unsubscribe } from "./backend"
 
 function isTauri(): boolean {

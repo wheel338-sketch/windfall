@@ -33,7 +33,7 @@ import { nextDialogMonitorScale } from "./dialog-monitor-scale"
 import { nextDialogOffsetScale } from "./dialog-offset-scale"
 import { nextDialogStartScale } from "./dialog-start-scale"
 import { refreshRecording, useRecordingStore } from "./recording-store"
-import { translatedText, message, plainNumber } from "@/lib/i18n"
+import { translatedText, message, plainNumber, localizeBackendText } from "@/lib/i18n"
 function Choice({
   label,
   value,
@@ -381,7 +381,7 @@ export function RecordingDialog() {
         </ul>}
         {(s.error || s.state.error) && (
           <p role="alert" className="text-destructive">
-            {s.error || s.state.error}
+            {localizeBackendText(s.error || s.state.error || "")}
           </p>
         )}
         <div className="flex gap-2">

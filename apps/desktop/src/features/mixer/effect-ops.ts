@@ -19,7 +19,7 @@ import { clamp } from "@/lib/units"
 import { effectEnableUpdates } from "./effect-enable"
 import { useEffectsUi } from "./effects-ui"
 import { selectedMixerTracks } from "./mixer-ui"
-import { message, translatedText as t } from "@/lib/i18n"
+import { message, translatedText as t, historyLabel } from "@/lib/i18n"
 
 /*
  * Everything the mixer does to effects, in one place. The slots on a
@@ -197,7 +197,7 @@ async function setSelectedEffectsEnabled(enabled: boolean): Promise<void> {
   if (updates.length === 0) return
   await dispatch({
     type: "batch",
-    label: enabled ? t("Enable mixer effects") : t("Bypass mixer effects"),
+    label: enabled ? historyLabel("Enable mixer effects") : historyLabel("Bypass mixer effects"),
     commands: updates.map(({ track, effect }) => ({
       type: "updateEffect",
       track,

@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { backend, errorMessage } from "@/lib/ipc"
+import { backend, errorSource } from "@/lib/ipc"
 import { useProjectStore } from "@/lib/store/project"
 import { useTransportStore } from "@/lib/store/transport"
 import { nativeUpdateApi, type UpdateApi, type UpdateChannel, type UpdateInfo, type UpdateProgress } from "./native"
@@ -40,10 +40,10 @@ export function UpdatesSection({ api = nativeUpdateApi }: { api?: UpdateApi }) {
     try { await action() }
     catch (failure) {
       if (request === generation.current) {
-        setError(errorMessage(failure))
+        setError(errorSource(failure))
         if (shutdown.current !== null) {
           try { await api.cancel(shutdown.current) }
-          catch (rollback) { setError(errorMessage(rollback)) }
+          catch (rollback) { setError(errorSource(rollback)) }
           shutdown.current = null; setUnsaved(null)
         }
         setPhase(candidate ? progress?.verified ? "verified" : "available" : "idle")

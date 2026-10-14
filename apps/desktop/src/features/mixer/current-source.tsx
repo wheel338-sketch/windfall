@@ -1,11 +1,11 @@
 import { create } from "zustand"
 import { useProjectStore } from "@/lib/store/project"
 import { useUiStore } from "@/lib/store/ui"
-import { backend, errorMessage } from "@/lib/ipc"
+import { backend, errorSource } from "@/lib/ipc"
 import { onProjectReplaced } from "@/lib/store/replaced"
 import { Button } from "@/components/ui/button"
 import { dispatch } from "@/lib/store/project"
-import { translatedText as t } from "@/lib/i18n"
+import { translatedText as t, localizeBackendText } from "@/lib/i18n"
 
 export const useCurrentSource = create<{ track: number | null; error: string }>(() => ({ track: null, error: "" }))
 
@@ -34,7 +34,7 @@ export function watchCurrentSource(): () => void {
           await backend.currentMixerTarget(target, guard.generation, snapshot.revision)
           if (!disposed && done === version) useCurrentSource.setState({ track: target, error: "" })
         } catch (error) {
-          if (!disposed && done === version) useCurrentSource.setState({ track: null, error: errorMessage(error) })
+          if (!disposed && done === version) useCurrentSource.setState({ track: null, error: errorSource(error) })
         }
       }
     })().finally(() => { running = false; if (!disposed && drained !== version) sync() })
@@ -63,6 +63,6 @@ export function CurrentSourcePanel() {
     <p>{t("Following:")}{" "}<span className="text-foreground">{name ?? t("No source")}</span></p>
     <p className="mt-1">{t("Select Master or an insert to change the source. Current keeps its own effects and meters; its processed copy stays outside the song output.")}</p>
     {backend.kind === "mock" && <p className="mt-1">{t("Native audio processing is available in the desktop app.")}</p>}
-    {error && <p role="alert" className="mt-1 text-destructive">{error}</p>}
+    {error && <p role="alert" className="mt-1 text-destructive">{localizeBackendText(error)}</p>}
   </div>
 }

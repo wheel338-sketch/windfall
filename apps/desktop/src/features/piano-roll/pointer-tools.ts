@@ -1,7 +1,7 @@
 import type { ChannelId, Command, Note, NoteCurvePoint, NoteExpressionCurve, NoteId, PatternId } from "@/bindings"
 import { curveShape } from "@/lib/automation/curve"
 import { onProjectReplaced } from "@/lib/store/replaced"
-import { translatedText as t } from "@/lib/i18n"
+import { historyLabel } from "@/lib/i18n"
 
 // The current note model has no mute bit. Silence is a real velocity edit;
 // retain the previous value while this project is open for reversible toggles.
@@ -67,5 +67,5 @@ export function sliceNoteCommand(
     type: "addNotesWithCurves", ...target, notes: [right],
     curves: sourceCurves.map((curve) => ({ noteIndex: 0, parameter: curve.parameter, points: cropCurve(curve.points, fraction, 1) })),
   } : { type: "addNotes", ...target, notes: [right] })
-  return { type: "batch", label: t("Slice note"), commands }
+  return { type: "batch", label: historyLabel("Slice note"), commands }
 }

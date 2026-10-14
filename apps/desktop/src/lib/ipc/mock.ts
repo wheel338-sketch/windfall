@@ -64,7 +64,7 @@ import {
   type PlaylistMock,
   type PlaylistMockOptions,
 } from "./sim/playlist"
-import { translatedText as t, message as i18nMessage, plainNumber } from "@/lib/i18n"
+import { translatedText as t, message as i18nMessage, plainNumber, historyLabel } from "@/lib/i18n"
 
 /** Stand-ins for the native file dialogs. Each resolves to null on cancel. */
 export type MockDialogs = {
@@ -1271,7 +1271,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         const { name, sampleId, addSample } = sampleCommands(filePath)
         return dispatchNow({
           type: "batch",
-          label: t("Add channel"),
+          label: historyLabel("Add channel"),
           commands: [
             addSample,
             { type: "addChannel", name, sample: sampleId, index },
@@ -1284,7 +1284,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         const { sampleId, addSample } = sampleCommands(filePath)
         return dispatchNow({
           type: "batch",
-          label: t("Change channel sample"),
+          label: historyLabel("Change channel sample"),
           commands: [
             addSample,
             { type: "setChannelSample", id: channel, sample: sampleId },
@@ -1303,7 +1303,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
           sampleId === project.nextId ? project.nextId + 1 : project.nextId
         return dispatchNow({
           type: "batch",
-          label: t("Add audio clip"),
+          label: historyLabel("Add audio clip"),
           commands: [
             addSample,
             ...audioClipCommands(
@@ -1331,7 +1331,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         }
         return dispatchNow({
           type: "batch",
-          label: t("Add audio clip"),
+          label: historyLabel("Add audio clip"),
           commands: audioClipCommands(
             sample,
             durationSecs,
@@ -1405,7 +1405,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         }
         return dispatchNow({
           type: "batch",
-          label: t("Bounce selected clips"),
+          label: historyLabel("Bounce selected clips"),
           commands: [
             addSample,
             ...commands,
@@ -1431,7 +1431,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         const track = project.nextId + 1
         return dispatchNow({
           type: "batch",
-          label: t("Create automation clip"),
+          label: historyLabel("Create automation clip"),
           commands: [
             { type: "addAutomation", target },
             { type: "addPlaylistTrack" },

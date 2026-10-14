@@ -28,7 +28,7 @@ import { clamp } from "@/lib/units"
 
 import { useRackStore } from "./rack-store"
 import { clampPatternLength, fillCommand, shiftCommand } from "./steps"
-import { translatedText as t, message } from "@/lib/i18n"
+import { translatedText as t, message, historyLabel } from "@/lib/i18n"
 
 /*
  * Everything the rack does to a channel, in one place. Rows, menus, the
@@ -166,7 +166,7 @@ export async function toggleSolo(id: ChannelId): Promise<void> {
   await dispatch(
     commands.length === 1
       ? commands[0]
-      : { type: "batch", label: t("Solo channel"), commands }
+      : { type: "batch", label: historyLabel("Solo channel"), commands }
   )
 }
 
@@ -179,7 +179,7 @@ export async function unmuteAllChannels(): Promise<void> {
       patch: { muted: false },
     }))
   if (commands.length === 0) return
-  await dispatch({ type: "batch", label: t("Unmute channels"), commands })
+  await dispatch({ type: "batch", label: historyLabel("Unmute channels"), commands })
 }
 
 export async function unsoloAllChannels(): Promise<void> {
@@ -191,7 +191,7 @@ export async function unsoloAllChannels(): Promise<void> {
       patch: { solo: false },
     }))
   if (commands.length === 0) return
-  await dispatch({ type: "batch", label: t("Unsolo channels"), commands })
+  await dispatch({ type: "batch", label: historyLabel("Unsolo channels"), commands })
 }
 
 /** Returns every channel's volume and pan to unity as a single undo step. */
@@ -205,7 +205,7 @@ export async function resetChannelLevels(): Promise<void> {
     commands.push({ type: "updateChannel", id: channel.id, patch })
   }
   if (commands.length === 0) return
-  await dispatch({ type: "batch", label: t("Reset channel levels"), commands })
+  await dispatch({ type: "batch", label: historyLabel("Reset channel levels"), commands })
 }
 
 export async function setChannelColor(

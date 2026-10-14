@@ -1,7 +1,7 @@
 import type { Clip, ClipContent, ClipStretch, Command } from "@/bindings"
 import { MAX_SONG_TICKS } from "@/lib/units"
 import { playbackSpeed } from "./geometry"
-import { translatedText as t } from "@/lib/i18n"
+import { translatedText as t, historyLabel } from "@/lib/i18n"
 export type AudioClip = Clip & {
   content: Extract<ClipContent, { type: "audio" }>
 }
@@ -38,7 +38,7 @@ export function processingCommand(
   })
   return {
     type: "batch",
-    label: t("Process audio clips"),
+    label: historyLabel("Process audio clips"),
     commands: [
       { type: "updateClips", updates: timing },
       {

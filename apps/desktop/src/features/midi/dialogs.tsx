@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/field"
 import { Choice } from "@/features/export/choice"
 import { projectName } from "@/lib/flows/project"
-import { backend, errorMessage } from "@/lib/ipc"
+import { backend, errorSource } from "@/lib/ipc"
 import { receivePatch, useProjectStore } from "@/lib/store/project"
 import { selectedPatternId } from "@/lib/store/selectors"
 import { useTransportStore } from "@/lib/store/transport"
@@ -105,7 +105,7 @@ function ImportForm({ done, busy }: FormProps) {
       setPreview(result)
     } catch (failure) {
       if (mounted.current && current === request.current)
-        setError(errorMessage(failure))
+        setError(errorSource(failure))
     } finally {
       if (mounted.current && current === request.current) setReading(false)
     }
@@ -127,7 +127,7 @@ function ImportForm({ done, busy }: FormProps) {
       setPath(file)
       await review(file, options)
     } catch (failure) {
-      if (mounted.current) setError(errorMessage(failure))
+      if (mounted.current) setError(errorSource(failure))
     }
   }
 
@@ -146,7 +146,7 @@ function ImportForm({ done, busy }: FormProps) {
       useUiStore.getState().showCenterTab("playlist")
       done()
     } catch (failure) {
-      setError(errorMessage(failure))
+      setError(errorSource(failure))
     } finally {
       busy(false)
       if (mounted.current) setImporting(false)
@@ -282,7 +282,7 @@ function ExportForm({ done, busy }: FormProps) {
       toast.success(t("Exported MIDI"), { description: fileName(saved) })
       done()
     } catch (failure) {
-      setError(errorMessage(failure))
+      setError(errorSource(failure))
     } finally {
       setWorking(false)
       busy(false)

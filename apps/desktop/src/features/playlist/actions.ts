@@ -1,4 +1,4 @@
-import { dynamicTitle, translatedText as t } from "@/lib/i18n"
+import { dynamicTitle, translatedText as t, historyLabel } from "@/lib/i18n"
 import type { PatternId, PlaylistTrack } from "@/bindings"
 import {
   invalidateActionsOn,
@@ -390,7 +390,7 @@ const ACTIONS: Action[] = [
       if (clips.length === 0) return
       await dispatch({
         type: "batch",
-        label: t("Make unique"),
+        label: historyLabel("Make unique"),
         commands: clips.map((clip) => ({ type: "makeUnique", clip })),
       })
     },

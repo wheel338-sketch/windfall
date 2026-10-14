@@ -1,7 +1,7 @@
 import { create } from "zustand"
 import { toast } from "sonner"
 import type { RecordingInput, RecordingState } from "@/bindings"
-import { backend, errorMessage } from "@/lib/ipc"
+import { backend, errorSource } from "@/lib/ipc"
 import { receivePatch } from "@/lib/store/project"
 import { getProjectGeneration } from "@/lib/store/replaced"
 import { translatedText } from "@/lib/i18n"
@@ -43,7 +43,7 @@ async function work(action: () => Promise<void>) {
   try {
     await action()
   } catch (error) {
-    useRecordingStore.setState({ error: translatedText(errorMessage(error)) })
+    useRecordingStore.setState({ error: errorSource(error) })
   } finally {
     useRecordingStore.setState({ busy: false })
     await refreshRecording()
@@ -53,7 +53,7 @@ export async function refreshRecording() {
   try {
     useRecordingStore.setState({ state: await backend.recordingState() })
   } catch (error) {
-    useRecordingStore.setState({ error: translatedText(errorMessage(error)) })
+    useRecordingStore.setState({ error: errorSource(error) })
   }
 }
 export async function openRecording() {

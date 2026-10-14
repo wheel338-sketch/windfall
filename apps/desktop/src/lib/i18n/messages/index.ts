@@ -20,6 +20,7 @@ import { eventEditorEn, eventEditorEs } from "./event-editor"
 import { exportEn, exportEs } from "./export"
 import { flpImportEn, flpImportEs } from "./flp-import"
 import { historyEn, historyEs } from "./history"
+import { historyLabelsEn, historyLabelsEs } from "./history-labels"
 import { internalControllersEn, internalControllersEs } from "./internal-controllers"
 import { kitDemoEn, kitDemoEs } from "./kit-demo"
 import { layoutEn, layoutEs } from "./layout"
@@ -74,6 +75,7 @@ export const areaEn = {
   ...exportEn,
   ...flpImportEn,
   ...historyEn,
+  ...historyLabelsEn,
   ...internalControllersEn,
   ...kitDemoEn,
   ...layoutEn,
@@ -128,6 +130,7 @@ export const areaEs = {
   ...exportEs,
   ...flpImportEs,
   ...historyEs,
+  ...historyLabelsEs,
   ...internalControllersEs,
   ...kitDemoEs,
   ...layoutEs,

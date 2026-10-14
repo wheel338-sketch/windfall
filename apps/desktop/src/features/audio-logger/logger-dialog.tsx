@@ -32,7 +32,7 @@ import {
   useAudioLoggerStore,
 } from "./logger-store"
 import { sourceKey, type AudioLoggerSourceStatus } from "./types"
-import { translatedText as t, message, plainNumber } from "@/lib/i18n"
+import { translatedText as t, message, plainNumber, localizeBackendText } from "@/lib/i18n"
 
 /** How often the open dialog asks how much each history holds. */
 const POLL_MS = 1000
@@ -126,7 +126,7 @@ function SourceRow({
       </div>
       {status.error && (
         <p role="alert" className="text-xs text-destructive">
-          {status.error}
+          {localizeBackendText(status.error)}
         </p>
       )}
     </li>
@@ -195,7 +195,7 @@ export function AudioLoggerDialog() {
         </DialogHeader>
         {(s.error || state?.error) && (
           <Alert variant="destructive">
-            <AlertDescription>{s.error || state?.error}</AlertDescription>
+            <AlertDescription>{localizeBackendText(s.error || state?.error || "")}</AlertDescription>
           </Alert>
         )}
         {settings && state && (

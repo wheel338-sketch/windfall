@@ -1,6 +1,6 @@
 import { create } from "zustand"
 import type { InputMonitorState } from "@/bindings"
-import { backend, errorMessage } from "@/lib/ipc"
+import { backend, errorSource } from "@/lib/ipc"
 
 export const useInputMonitorStore = create(() => ({
   busy: false,
@@ -18,7 +18,7 @@ export async function refreshInputMonitors() {
   if (refreshing || useInputMonitorStore.getState().busy) return
   refreshing = true
   try { receive(await backend.inputMonitorState()) }
-  catch (error) { useInputMonitorStore.setState({ error: errorMessage(error) }) }
+  catch (error) { useInputMonitorStore.setState({ error: errorSource(error) }) }
   finally { refreshing = false }
 }
 export async function toggleInputMonitors() {
@@ -27,8 +27,8 @@ export async function toggleInputMonitors() {
   try {
     receive(await (useInputMonitorStore.getState().state.active ? backend.inputMonitorStop() : backend.inputMonitorStart()))
   } catch (error) {
-    useInputMonitorStore.setState({ error: errorMessage(error) })
-    receive(await backend.inputMonitorState().catch(() => ({ active: false, sampleRate: 0, tracks: [], error: errorMessage(error) })))
-    useInputMonitorStore.setState({ error: errorMessage(error) })
+    useInputMonitorStore.setState({ error: errorSource(error) })
+    receive(await backend.inputMonitorState().catch(() => ({ active: false, sampleRate: 0, tracks: [], error: errorSource(error) })))
+    useInputMonitorStore.setState({ error: errorSource(error) })
   } finally { useInputMonitorStore.setState({ busy: false }) }
 }

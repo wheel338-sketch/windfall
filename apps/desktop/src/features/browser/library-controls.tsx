@@ -21,7 +21,7 @@ import {
 import { Spinner } from "@/components/ui/spinner"
 import { Toggle } from "@/components/ui/toggle"
 import { attempt } from "@/lib/errors"
-import { backend, errorMessage } from "@/lib/ipc"
+import { backend, errorSource } from "@/lib/ipc"
 
 import {
   refreshLibrary,
@@ -29,7 +29,7 @@ import {
   useLibraryStore,
 } from "./library-store"
 import { useBrowserStore } from "./store"
-import { translatedText } from "@/lib/i18n"
+import { translatedText, localizeBackendText } from "@/lib/i18n"
 
 /** Debounced requests and bounded polling. Late replies cannot replace a newer query or roots. */
 export function LibraryControls() {
@@ -63,7 +63,7 @@ export function LibraryControls() {
         if (current && epoch === useLibraryStore.getState().epoch)
           useLibraryStore.setState({
             pending: false,
-            error: errorMessage(error),
+            error: errorSource(error),
             results: null,
           })
       }
@@ -172,7 +172,7 @@ export function LibraryControls() {
       )}
       {error && (
         <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{localizeBackendText(error)}</AlertDescription>
         </Alert>
       )}
       {(results?.issues ?? []).map((issue) => (
@@ -204,7 +204,7 @@ function MetadataEditor({ path }: { path: string }) {
         setError(null)
       },
       (error) => {
-        if (current) setError(errorMessage(error))
+        if (current) setError(errorSource(error))
       }
     )
     return () => {
@@ -227,7 +227,7 @@ function MetadataEditor({ path }: { path: string }) {
       setTags(saved.tags.join(", "))
       setSavedTags(saved.tags)
     } catch (error) {
-      setError(errorMessage(error))
+      setError(errorSource(error))
     } finally {
       setSaving(false)
     }
@@ -288,7 +288,7 @@ function MetadataEditor({ path }: { path: string }) {
       </div>
       {error && (
         <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{localizeBackendText(error)}</AlertDescription>
         </Alert>
       )}
     </div>

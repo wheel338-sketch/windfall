@@ -65,11 +65,13 @@ export const actionMessages: Record<string, MessageKey> = {
 /**
  * A kept message. `translate` names the values that are catalog keys
  * themselves, such as a built-in effect's name, so they are translated when
- * the message is shown; "lower" also puts them in lower case.
+ * the message is shown; "lower" also puts them in lower case. A value that
+ * is itself made of translated text is kept as a function that makes it, so
+ * it too is made in the language the message is shown in.
  */
 export type DynamicActionMessage = {
   key: MessageKey
-  values: Record<string, string | number>
+  values: Record<string, string | number | (() => string)>
   translate?: Readonly<Record<string, "plain" | "lower">>
 }
 const dynamic = new Map<string, { owner: object; message: DynamicActionMessage }>()

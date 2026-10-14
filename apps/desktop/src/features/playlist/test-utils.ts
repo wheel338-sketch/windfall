@@ -1,3 +1,4 @@
+import { historyLabelText } from "@/lib/i18n"
 import type { Project } from "@/bindings"
 import {
   clampViewport,
@@ -175,7 +176,8 @@ export function startSession() {
 export const project = () => useProjectStore.getState().project
 export const tracks = () => project().playlist.tracks
 export const history = () => useProjectStore.getState().history
-export const labels = () => history().entries.map((entry) => entry.label)
+/** The history as it is read: a label is kept as a key and made into words when shown. */
+export const labels = () => history().entries.map((entry) => historyLabelText(entry.label))
 export const ui = () => usePlaylistStore.getState()
 export const selection = () => [...ui().selection].sort((a, b) => a - b)
 

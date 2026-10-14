@@ -1,7 +1,7 @@
 import { create } from "zustand"
 import { toast } from "sonner"
 import type { RecordingInput } from "@/bindings"
-import { backend, errorMessage } from "@/lib/ipc"
+import { backend, errorSource } from "@/lib/ipc"
 import { receivePatch } from "@/lib/store/project"
 import { usePlaylistStore } from "@/features/playlist/store"
 import type {
@@ -30,7 +30,7 @@ async function work(action: () => Promise<void>) {
   try {
     await action()
   } catch (error) {
-    useAudioLoggerStore.setState({ error: errorMessage(error) })
+    useAudioLoggerStore.setState({ error: errorSource(error) })
   } finally {
     useAudioLoggerStore.setState({ busy: false })
   }
@@ -41,7 +41,7 @@ export async function refreshAudioLogger() {
   try {
     useAudioLoggerStore.setState({ state: await backend.audioLoggerState() })
   } catch (error) {
-    useAudioLoggerStore.setState({ error: errorMessage(error) })
+    useAudioLoggerStore.setState({ error: errorSource(error) })
   }
 }
 

@@ -1,6 +1,6 @@
 import type { ChannelId, Command, NoteInit, Project, ScoreLogState } from "@/bindings"
 import { PPQ } from "@/lib/units"
-import { translatedText as t } from "@/lib/i18n"
+import { translatedText as t, historyLabel } from "@/lib/i18n"
 
 const SPAN = 30 * 60 * 1000
 const LIMIT = 16_384
@@ -72,7 +72,7 @@ export function createBrowserScoreLog(storage: Pick<Storage, "getItem" | "setIte
         lanes.set(note.channel, lane)
       }
       if (!lanes.size) throw new Error(t("No logged channels remain in the project."))
-      return { type: "batch", label: t("Dump note log"), commands: [...lanes].map(([channel, notes]) => ({ type: "addNotes", pattern, channel, notes })) }
+      return { type: "batch", label: historyLabel("Dump note log"), commands: [...lanes].map(([channel, notes]) => ({ type: "addNotes", pattern, channel, notes })) }
     },
   }
 }

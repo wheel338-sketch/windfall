@@ -41,7 +41,7 @@ import type { PanelId } from "@/lib/store/ui"
 import type { ProjectFilesBackend } from "./files"
 import type { MixerPresetLibraryBackend } from "./mixer-presets"
 import type { RemoteContentBackend } from "./remote-content"
-import { translatedText as t } from "@/lib/i18n"
+import { localizeBackendText, translatedText as t } from "@/lib/i18n"
 
 export type PluginNoteCapabilities = { projectPanLaw: boolean; instances: boolean; nativePan: boolean[]; nativeVolume: boolean[]; observedChannels?: number[]; refusal?: string | null }
 export type Unsubscribe = () => void
@@ -519,15 +519,29 @@ function rejectionText(error: unknown): string {
 }
 
 /**
+ * What a backend call rejected with, as it is kept: the text the backend
+ * sent, not yet in any language. A store, or anything shown again after
+ * the language may have changed, keeps this and passes it to
+ * `localizeBackendText` when it is shown.
+ *
  * Turns whatever a backend call rejected with into a readable message. The
  * document words a refused command as a phrase, such as "channel 7 does not
  * exist", so the message is given its capital here.
  */
-export function errorMessage(error: unknown): string {
+export function errorSource(error: unknown): string {
   const text = rejectionText(error)
   // Reserved native envelopes are protocol data. Retain the exact code and
   // parameters so consumers can translate them when they render, including
   // after a language change. Capitalization applies only to legacy prose.
   if (text.startsWith("windfall-message:")) return text
   return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
+/**
+ * What a backend call rejected with, in the interface language, to show now.
+ * Text held in component state under the language boundary is discarded
+ * when the language changes; anything kept longer keeps [`errorSource`].
+ */
+export function errorMessage(error: unknown): string {
+  return localizeBackendText(errorSource(error))
 }

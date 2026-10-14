@@ -69,6 +69,18 @@ describe("whole application localization admission", () => {
     // An unbound tag name must not impersonate a trusted app control.
     expect(texts).toContain("Cutoff")
   })
+  it("takes a kept history label for a catalog key and still reports a label written without one", () => {
+    expect(localizationViolations("fixture.ts", `
+      import { historyLabel, historyLabelText } from "@/lib/i18n";
+      const command = { type: "batch", label: historyLabel("Settings"), commands: [] };
+      const run = { label: historyLabelText(entry.label) };
+    `, hasKey)).toEqual([])
+    expect(localizationViolations("fixture.ts", 'import { historyLabel } from "@/lib/i18n"; const command = { label: historyLabel("missing.fixture.key") }', hasKey))
+      .toEqual([expect.objectContaining({ text: "missing.fixture.key" })])
+    expect(localizationViolations("fixture.ts", 'const command = { type: "batch", label: "Not routed anywhere" }', hasKey))
+      .toEqual([expect.objectContaining({ text: "Not routed anywhere" })])
+  })
+
   it("recognizes translated control imports by their defining module, including aliases", () => {
     expect(applicationLocalizationViolations({
       "features/params/param-control.tsx": `

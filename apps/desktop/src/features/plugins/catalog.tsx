@@ -10,7 +10,7 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
-import { backend, errorMessage } from "@/lib/ipc"
+import { backend, errorSource } from "@/lib/ipc"
 import { insertPlugin, startPluginDrag } from "./insert"
 import { applyPresetFile } from "@/features/project-files/actions"
 
@@ -46,13 +46,13 @@ export function PluginCatalog({ tiles = false, track, searchLabel = t("Search pl
   const [images, setImages] = useState(readImages)
   useEffect(() => {
     let cancelled = false
-    void Promise.all([backend.pluginDatabase(), backend.presetLibrary()]).then(([catalog, presets]) => { if (!cancelled) { setView(catalog); setPresets(presets) } }).catch((error: unknown) => { if (!cancelled) setError(errorMessage(error)) })
+    void Promise.all([backend.pluginDatabase(), backend.presetLibrary()]).then(([catalog, presets]) => { if (!cancelled) { setView(catalog); setPresets(presets) } }).catch((error: unknown) => { if (!cancelled) setError(errorSource(error)) })
     return () => { cancelled = true }
   }, [])
   async function work(task: () => Promise<unknown>) {
     if (pending.current) return
     pending.current = true; setBusy(true); setError(null)
-    try { await task() } catch (error) { setError(errorMessage(error)) } finally { pending.current = false; setBusy(false) }
+    try { await task() } catch (error) { setError(errorSource(error)) } finally { pending.current = false; setBusy(false) }
   }
   const records = view?.records.filter((record) => (!favorites || record.favorite) && `${record.name} ${record.vendor} ${record.category} ${record.format} ${t(record.status)}`.toLowerCase().includes(search.toLowerCase())) ?? []
   return <div className="flex min-h-0 flex-col gap-3 p-2">

@@ -1,7 +1,7 @@
 import { toast } from "sonner"
 import { createElement } from "react"
 
-import { errorMessage } from "@/lib/ipc/backend"
+import { errorSource } from "@/lib/ipc/backend"
 import { localizeBackendText, nativeMessage, translatedText } from "@/lib/i18n"
 import { LocalizedDiagnostic, LocalizedLabel } from "@/lib/i18n/diagnostic"
 import type { DynamicActionMessage } from "@/lib/i18n/action-messages"
@@ -11,7 +11,7 @@ import type { DynamicActionMessage } from "@/lib/i18n/action-messages"
  * here, so nothing fails silently.
  */
 export function reportError(error: unknown, what?: string | DynamicActionMessage) {
-  const source = errorMessage(error)
+  const source = errorSource(error)
   if (nativeMessage(source) !== null || typeof what === "object") {
     const diagnostic = createElement(LocalizedDiagnostic, { source })
     if (what) toast.error(createElement(LocalizedLabel, { source: what }), { description: diagnostic })

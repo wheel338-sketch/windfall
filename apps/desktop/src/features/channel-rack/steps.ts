@@ -15,7 +15,7 @@ import {
 } from "@/lib/units"
 import { meterSegments, musicalPosition } from "@/lib/timeline"
 import { ticksPerBar, ticksPerBeat } from "@/lib/time"
-import { message, plainNumber, translatedText as t } from "@/lib/i18n"
+import { message, plainNumber, historyLabel } from "@/lib/i18n"
 
 /*
  * The step sequencer and the piano roll edit the same notes. These helpers
@@ -121,7 +121,7 @@ export function fillCommand(
   })
   return {
     type: "batch",
-    label: message("Fill every {every} steps", { every: plainNumber(every) }),
+    label: historyLabel("Fill every {every} steps", { every }),
     commands,
   }
 }
@@ -159,7 +159,7 @@ export function shiftCommand(
   if (inside.length === 0 || lengthSteps < 2) return null
   return {
     type: "batch",
-    label: by < 0 ? t("Shift steps left") : t("Shift steps right"),
+    label: by < 0 ? historyLabel("Shift steps left") : historyLabel("Shift steps right"),
     commands: [
       {
         type: "updateNotes",

@@ -14,7 +14,7 @@ import { effectName } from "./effect-ops"
 import { useMixerUi, selectedMixerTracks, visualMixerOrder, selectMixerTrack } from "./mixer-ui"
 import { resetAllPeaks } from "./peaks"
 import { feedersOf } from "./routing"
-import { message, plainNumber, translatedText as t } from "@/lib/i18n"
+import { message, plainNumber, translatedText as t, historyLabel } from "@/lib/i18n"
 
 /*
  * Everything the mixer does to the project, in one place. The strips and
@@ -233,7 +233,7 @@ export async function resetLevels(): Promise<void> {
     commands.push({ type: "updateMixerTrack", id: track.id, patch })
   }
   if (commands.length === 0) return
-  await dispatch({ type: "batch", label: t("Reset mixer levels"), commands })
+  await dispatch({ type: "batch", label: historyLabel("Reset mixer levels"), commands })
 }
 
 export function unsoloAll() {

@@ -12,7 +12,7 @@ import type {
 import { MASTER_TRACK } from "@/lib/units"
 
 import type { Backend, Unsubscribe } from "../backend"
-import { translatedText as t, message, plainNumber } from "@/lib/i18n"
+import { translatedText as t, message, plainNumber, historyLabel } from "@/lib/i18n"
 
 export type PlaylistMockOptions = {
   /**
@@ -277,7 +277,7 @@ export function createPlaylistMock(
         })
         return host.dispatch({
           type: "batch",
-          label: recipes.length === 1 ? t("Consolidate track") : t("Consolidate tracks"),
+          label: recipes.length === 1 ? historyLabel("Consolidate track") : historyLabel("Consolidate tracks"),
           commands,
         })
       })

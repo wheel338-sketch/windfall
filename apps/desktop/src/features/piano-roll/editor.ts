@@ -81,7 +81,7 @@ import { placeStamp, type Stamp, type StampPlacement } from "./stamps"
 import type { Tool } from "./store"
 import { sliceNoteCommand, toggledVelocity } from "./pointer-tools"
 import { createDrumStroke, visitDrumCell, type DrumStroke } from "./drum-paint"
-import { message, translatedText as t } from "@/lib/i18n"
+import { message, translatedText as t, historyLabel } from "@/lib/i18n"
 
 /** A pointer position in CSS pixels inside the grid, with the modifiers held. */
 export type PointerInput = {
@@ -880,7 +880,7 @@ export class Editor {
           notes: adds,
         })
         if (commands.length) this.commitDrag(withExtension(
-          { type: "batch", label: t("Paint drum steps"), commands },
+          { type: "batch", label: historyLabel("Paint drum steps"), commands },
           "Paint drum steps",
           ctx.pattern,
           endOfInits(adds)

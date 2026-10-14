@@ -1,4 +1,4 @@
-import { translatedText as t } from "@/lib/i18n"
+import { historyLabel } from "@/lib/i18n"
 import { dispatch } from "@/lib/store/project"
 
 import { buildTrackRows } from "./track-rows"
@@ -13,7 +13,7 @@ export async function toggleGroupMute(group: number): Promise<void> {
   const muted = header.members.some((track) => !track.muted)
   await dispatch({
     type: "batch",
-    label: muted ? t(t("Mute playlist track group")) : t(t("Unmute playlist track group")),
+    label: muted ? historyLabel("Mute playlist track group") : historyLabel("Unmute playlist track group"),
     commands: header.members.map((track) => ({
       type: "updatePlaylistTrack",
       id: track.id,
@@ -31,7 +31,7 @@ export async function toggleGroupSolo(group: number): Promise<void> {
   const solo = header.members.some((track) => !track.solo)
   await dispatch({
     type: "batch",
-    label: solo ? t(t("Solo playlist track group")) : t(t("Unsolo playlist track group")),
+    label: solo ? historyLabel("Solo playlist track group") : historyLabel("Unsolo playlist track group"),
     commands: header.members.map((track) => ({
       type: "updatePlaylistTrack",
       id: track.id,

@@ -110,7 +110,7 @@ import {
 import { usePlaylistStore } from "./store"
 import { snapTicks } from "./snap"
 import type { GridSurface } from "./surface"
-import { translatedText as t } from "@/lib/i18n"
+import { translatedText as t, historyLabel } from "@/lib/i18n"
 
 /** A pointer event, already placed inside the grid. */
 export type PointerInput = {
@@ -1457,7 +1457,7 @@ export class PlaylistSession {
         this.gesture = { kind: "committing" }
         await dispatch({
           type: "batch",
-          label: plural(clips.length, t("Slice clip")),
+          label: plural(clips.length, historyLabel("Slice clip")),
           commands: [
             { type: "updateClips", updates },
             { type: "addClips", clips },
@@ -1598,7 +1598,7 @@ export class PlaylistSession {
         } else if (gesture.grouped) {
           await dispatch({
             type: "batch",
-            label: plural(gesture.clips.length, t("Move clip")),
+            label: plural(gesture.clips.length, historyLabel("Move clip")),
             commands: [{ type: "updateClips", updates: gesture.updates! }],
           })
         } else {
