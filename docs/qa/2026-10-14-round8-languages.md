@@ -247,4 +247,73 @@ take {}", the automation names "{} track volume" / "{} track pan", and
 
 ## Gates
 
-(Filled in by the final gate run.)
+All ran one at a time through `target/round8/gates.sh` on the source of
+`1d69b88b`, without affinity or priority settings. Rust counts are passed /
+failed / ignored. Logs are `target/round8-gate-<step>.log`.
+
+| Gate | Command | Result |
+|---|---|---|
+| Fixture and native binaries | `cargo build --offline --manifest-path crates/windfall-plugin-host/test-plugins/Cargo.toml --target-dir target`; `cargo build --offline -p windfall-desktop -p windfall-plugin -p windfall-plugin-host --bins --lib` | built |
+| Format | `cargo fmt --all --check` | pass |
+| Strict lint | `cargo clippy --workspace --all-targets -- -D warnings` | pass, no diagnostics |
+| Rust workspace, gate run | `cargo test --workspace --no-fail-fast -- --test-threads=1` | 4,860 / 6 / 40 over 187 blocks, 988 s. The six were the native-helper editor tests (`n4_production_*` ×4, `*_owned_fixture_as_rack_node_*` ×2): the native step had just rebuilt the desktop helper, whose editor refusal is now `pluginHost.editor.noEditor`; they assert "no editor" through `english` now (`r4`: 6 / 0 / 0) |
+| Rust workspace, confirmation | same, after that change, with format and lint again (`gate2-fmt`, `gate2-clippy`) | 4,866 / 0 / 40 over 187 blocks, exit 0, 858 s (`round8-gate2-workspace.log`); format and lint clean |
+| Bindings | `bash scripts/gen-bindings.sh target/round8/final-bindings`; `node scripts/check-bindings.mjs target/round8/final-bindings`; `node --test scripts/check-bindings.test.mjs` | 627 files; all current; tests pass |
+| Simulator | `bash scripts/build-sim.sh`; `node scripts/check-sim.mjs` | 7,545,501 bytes; current (rebuilt after the lint fixes in `windfall-project` / `windfall-flp`, committed with `90cc7e58`) |
+| Frontend typecheck, lint | `pnpm --dir apps/desktop typecheck`; `… lint` | pass; pass |
+| Frontend suite | `pnpm --dir apps/desktop test --maxWorkers=4 --reporter=default --reporter=json --outputFile=../../target/round8-gate-frontend-results.json` | 537 files, 6,518 passed, 0 failed, 0 skipped, 511 s |
+| Production frontend | `pnpm --dir apps/desktop build` | pass |
+| Parity consistency | `node scripts/parity.mjs --check` | 342 rows: 334 done, 3 in progress, 5 won't do; tracker unchanged |
+| Release and resource scripts | `node --test scripts/release/release.test.mjs scripts/release/workflow.test.mjs` | 69 / 0, 121 s |
+| Apple host | `cargo check --offline --target aarch64-apple-darwin -p windfall-plugin-host --all-targets` | pass, no diagnostics |
+| Apple desktop and export | `bash target/round5/macos-check.sh` | pass, no diagnostics |
+| Linux host and common | `bash target/round5/linux-check.sh -p windfall-plugin-host -p windfall-core -p windfall-dsp -p windfall-project -p windfall-ipc -p windfall-stretch` | pass, no diagnostics |
+| Linux broad integration | `bash target/round5/linux-desktop-check-only.sh` | pass, no diagnostics |
+| Tauri debug build | `pnpm --dir apps/desktop tauri build --debug --no-bundle` | built |
+| Analyzer window | `node scripts/analyzer-window-smoke.mjs target/debug/windfall-desktop.exe target/round8-analyzer-window/report.json 9271` | 18 checks, all pass, software-memory-sink |
+| Sample window | `node scripts/sample-workflow-window-smoke.mjs … target/round8-sample-window/report.json 9272` | 65 checks, all pass |
+| Notebook window | `node scripts/notebook-isolation-window-smoke.mjs … target/round8-notebook-window/report.json 9273` | 35 checks, all pass |
+| Video window | `node scripts/video-player-window-smoke.mjs … target/round8-video-window/report.json 9274` | 35 checks, all pass |
+| Language window | `node scripts/language-switch-window-smoke.mjs … target/round8-language-window/report.json 9275` | 16 checks (two new), all pass |
+| Factory content | `cargo run --offline -p windfall-factory -- verify content/factory` | content matches the generator |
+
+Not run: the release CPU budgets (E1, P2, instruments, threading). No audio
+processing changed: the DSP and engine edits are to how errors are worded
+(`Display` impls and refusals), and the audio callback paths are untouched.
+No real audio device, MIDI device or ignored hardware test was used; every
+window report names the software memory sink. The cross-target checks type
+check the changed crates for macOS and Linux; nothing was run there.
+
+## Still open
+
+- Some internal error kinds still reach a message as their Rust name inside
+  a `detail` value, around words that are translated: the SoundFont and
+  zone-table import errors (`InvalidRiff`, `MissingChunk(…)`), speech
+  rendering, the analyzer and capture refusals, project preparation's
+  "refused" fallback, the bridge protocol (`Configuration`). These are
+  diagnostics for a bug report rather than sentences; giving each variant a
+  code is a follow-up. The memory refusal and the plugin target, which a
+  user meets, were fixed this round.
+- What the operating system or a library says (I/O errors, decoder and
+  serde reasons, a plugin's own text) stays verbatim inside a translated
+  sentence, by design.
+- The exported plugin (`windfall-plugin`) has no catalog of its own; its
+  panel shows English, rendered from the same catalog through
+  `windfall_core::english`.
+- History labels saved by older versions as plain English show through the
+  old path (`Change {name}` with the name looked up); new ones are coded.
+- The Spanish was written here and checked against the catalog's existing
+  terms; it has had no review by a native speaker.
+
+## Where this stops
+
+Commits on `feat/parity-100` after `1ddb997a` (a docs-only commit on top of `0f8a682c`, already there when this round began): `cf10190a`, `4f16d4a5`,
+`3afc3b1f`, `533c84b7`, `fcbc0254`, `dff9c7f0`, `8eba2772`,
+`1d69b88b`, `90cc7e58` and the closing commit that holds this record.
+Nothing is pushed. No build or test process is left running. The branch
+`opus/r8-rows` (hand-off `docs/qa/2026-10-14-r8-rows.md`) was not touched
+and is not merged.
+
+| Row | Evidence run here | Still open | Recommendation |
+|---|---|---|---|
+| `wf-languages` — shows the interface in a chosen language (English, Spanish) | No text the user is shown is built in English in Rust any more: 0 of the 690 sentences counted at `0f8a682c` (165 desktop, 525 core) are left in the backlog; 73 remain, each recorded with its reason (67 nobody is shown, 6 default names the user renames). All 2,121 fixed sentences made into errors have Spanish, held by a new guard test. 860 registered codes; every `ui_message` and `notice!` names a registered code and gives its parameters; every language has every code. Rust tests decode one error of each family to its code and values; UI tests render each family in Spanish; history labels from setting names are coded; playlist plurals come from plural entries. In the real window while Spanish: a menu, a dialog, an instrument editor, the history, a desktop refusal, a project file refused for its tempo (word for word, said once) and an FL import review line, both files chosen in the OS file dialog. Full suites, cross-target checks and five window smokes in the gate table. | EXTERNAL-ONLY: review of the Spanish by a native speaker. SCOPE: internal error kinds named in a diagnostic `detail` (list above); OS and library causes verbatim by design; the exported plugin's panel in English. | `done` |
