@@ -121,7 +121,8 @@ impl Builder<'_> {
                 }
             }
             if let Some(v) = p.stretch_formant.filter(|v| v.is_finite() && *v != 0.0) {
-                self.report.say(ReportSection::Channels,Outcome::Dropped,format!("Channel {} stretch formant {v} semitones decoded with DawVert (word-.5)*24; stand-in spectral stretch has a boolean formant-preservation control rather than a formant offset.",source.iid));
+                self.report.say(ReportSection::Channels,Outcome::Dropped,format!("Channel {} stretch formant {v} semitones decoded with DawVert (word-.5)*24; omitted: the stand-in's spectral stretch has a boolean formant-preservation control rather than a formant offset.",source.iid));
+                self.report.omit("Channel time stretch", &["formant"]);
             }
         }
     }
@@ -469,6 +470,7 @@ impl Builder<'_> {
                 .unwrap();
                 outcome = Outcome::Approximated;
                 self.report.say(section,outcome,format!("Channel {} arpeggiator direction/range/gate mapped; time uses DawVert's integer fourth-power fit and nearest Windfall division (PyFLP's float reading is disputed).",channel.iid));
+                let mut omitted = Vec::new();
                 for (unsupported, value) in [
                     ("chord", params.arp_chord.filter(|v| *v != u32::MAX)),
                     ("repeat", params.arp_repeat.filter(|v| *v > 1)),
@@ -479,12 +481,14 @@ impl Builder<'_> {
                             section,
                             Outcome::Dropped,
                             format!(
-                                "Channel {} arpeggiator {unsupported}={value} has no equivalent.",
+                                "Channel {} arpeggiator {unsupported}={value}: omitted, the channel arpeggiator has no equivalent.",
                                 channel.iid
                             ),
                         );
+                        omitted.push(unsupported);
                     }
                 }
+                self.report.omit("Channel arpeggiator", &omitted);
                 if direction == 4 {
                     self.report.say(
                         section,
@@ -499,12 +503,16 @@ impl Builder<'_> {
             } else if params.gate.is_some_and(|g| [450, 1446].contains(&g)) {
                 self.report.say(section,Outcome::Approximated,format!("Channel {} gate={} mapped at its public musical endpoint (450=0:03 source ticks,1446=4:00 quarter notes); full_porta bypasses gate when portamento is active.",channel.iid,params.gate.unwrap()));
             }
-            for (flag, name) in [(2, "ping-pong"), (4, "fat mode")] {
+            let mut omitted = Vec::new();
+            for (flag, name, field) in [(2, "ping-pong", "ping_pong"), (4, "fat mode", "fat_mode")]
+            {
                 if params.delay_flags.is_some_and(|v| v & flag != 0) {
-                    self.report.say(section,Outcome::Dropped,format!("Channel {} note echo {name} is not expressible by Windfall's note echo.",channel.iid));
+                    self.report.say(section,Outcome::Dropped,format!("Channel {} note echo {name}: omitted, Windfall's note echo has no such control.",channel.iid));
                     outcome = Outcome::Approximated;
+                    omitted.push(field);
                 }
             }
+            self.report.omit("Channel note echo", &omitted);
         }
         if let Some(echo) = channel.echo.filter(|e| e.feedback != 0 && e.repeats != 0) {
             settings.echo.enabled = true;
@@ -525,12 +533,16 @@ impl Builder<'_> {
                     section,
                     Outcome::Dropped,
                     format!(
-                        "Channel {} echo pan={} has no independent echo-pan control.",
+                        "Channel {} echo pan={}: omitted, Windfall's note echo has no independent echo-pan control.",
                         channel.iid, echo.pan
                     ),
                 );
+                self.report.omit("Channel note echo", &["pan"]);
             }
         }
+        // One use of each device per channel in the review's list.
+        let mut envelope_omitted = Vec::new();
+        let mut lfo_omitted = Vec::new();
         for (index, env) in channel.envelopes.iter().enumerate() {
             let target = match index {
                 0 => "pan",
@@ -565,26 +577,32 @@ impl Builder<'_> {
                 self.report.say(section,outcome,format!("Channel {} {target} ADSR and depth mapped with documented source range and DawVert envelope time fit.",channel.iid));
             }
             if env.enabled {
-                for (name, value) in [
-                    ("predelay", env.predelay.saturating_sub(100)),
-                    ("hold", env.hold.saturating_sub(100)),
+                for (name, field, value) in [
+                    ("predelay", "predelay", env.predelay.saturating_sub(100)),
+                    ("hold", "hold", env.hold.saturating_sub(100)),
                     (
                         "attack tension",
+                        "attack_tension",
                         env.attack_tension.unwrap_or(0).unsigned_abs(),
                     ),
                     (
                         "decay tension",
+                        "decay_tension",
                         env.decay_tension.unwrap_or(0).unsigned_abs(),
                     ),
                     (
                         "release tension",
+                        "release_tension",
                         env.release_tension.unwrap_or(0).unsigned_abs(),
                     ),
-                    ("tempo sync", env.flags & 1),
+                    ("tempo sync", "tempo_sync", env.flags & 1),
                 ] {
                     if value != 0 {
                         outcome = Outcome::Approximated;
-                        self.report.say(section,Outcome::Dropped,format!("Channel {} {target} envelope {name}={value} has no corresponding ADSR feature.",channel.iid));
+                        self.report.say(section,Outcome::Dropped,format!("Channel {} {target} envelope {name}={value}: omitted, the channel envelope has no corresponding ADSR feature.",channel.iid));
+                        if !envelope_omitted.contains(&field) {
+                            envelope_omitted.push(field);
+                        }
                     }
                 }
             }
@@ -617,21 +635,31 @@ impl Builder<'_> {
                 } else {
                     self.report.say(section,Outcome::Dropped,format!("SCOPE: Channel {} {target} LFO speed {:?}: PyFLP LFO.speed and DawVert channel.py establish range 200..65536 and 32950=sixteen steps, but no nonlinear period curve; mi_flp.py's LFO conversion is commented out, LMMS only reads raw data. Interior periods cannot be inferred; archived.",channel.iid,env.lfo_speed));
                 }
-                for (name, value) in [
+                for (name, field, value) in [
                     (
+                        "predelay",
                         "predelay",
                         env.lfo_predelay.unwrap_or(100).saturating_sub(100),
                     ),
-                    ("attack", env.lfo_attack.unwrap_or(100).saturating_sub(100)),
-                    ("tempo sync", env.flags & 2),
+                    (
+                        "attack",
+                        "attack",
+                        env.lfo_attack.unwrap_or(100).saturating_sub(100),
+                    ),
+                    ("tempo sync", "tempo_sync", env.flags & 2),
                 ] {
                     if value != 0 {
-                        self.report.say(section,Outcome::Dropped,format!("Channel {} {target} LFO {name}={value} is not expressible by the stand-in.",channel.iid));
+                        self.report.say(section,Outcome::Dropped,format!("Channel {} {target} LFO {name}={value}: omitted, the channel LFO has no control that takes it.",channel.iid));
+                        if !lfo_omitted.contains(&field) {
+                            lfo_omitted.push(field);
+                        }
                     }
                 }
                 outcome = Outcome::Approximated;
             }
         }
+        self.report.omit("Channel envelope", &envelope_omitted);
+        self.report.omit("Channel LFO", &lfo_omitted);
         if self
             .apply(
                 section,

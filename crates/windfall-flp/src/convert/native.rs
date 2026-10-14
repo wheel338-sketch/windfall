@@ -370,6 +370,15 @@ pub(super) fn instrument(name: &str, state: &[u8]) -> Option<InstrumentParams> {
             );
         }
     }
+    if name.trim().eq_ignore_ascii_case("BassDrum")
+        && let Some(drop) = bassdrum_drop(&l, state)
+        && let Some(i) = kind
+            .descriptors()
+            .iter()
+            .position(|p| p.id == "pitchDropSemitones")
+    {
+        params.set(i, drop);
+    }
     if matches!(
         name.trim().to_ascii_lowercase().as_str(),
         "fruit kick" | "fruity kick"
@@ -387,6 +396,61 @@ pub(super) fn instrument(name: &str, state: &[u8]) -> Option<InstrumentParams> {
         }
     }
     Some(params.sanitized())
+}
+
+/// BassDrum's sweep runs from `peak` down to `base`, both read in hertz
+/// like `base` itself: the stand-in's drop is 12 log2(peak / base)
+/// semitones, within its 0..60. Nothing is set unless both are positive.
+fn bassdrum_drop(l: &Layout, state: &[u8]) -> Option<f32> {
+    let bytes = l.payload(state)?;
+    let read = |name: &str| l.fields.iter().find(|f| f.name == name)?.read(bytes);
+    let (base, peak) = (read("base")?, read("peak")?);
+    (base > 0.0 && peak > 0.0).then(|| (12.0 * (peak / base).log2()).clamp(0.0, 60.0) as f32)
+}
+
+/// The pitch classes of the stand-in's scales above their root, C = bit 0,
+/// in the order of its `scale` choice (`PitchScale` in windfall-dsp).
+const PITCH_SCALES: [u16; 4] = [0x0fff, 0x0ab5, 0x05ad, 0x0295];
+
+/// Pitcher's twelve enabled keys, C first, as the pitch classes they allow.
+fn pitcher_keys(l: &Layout, state: &[u8]) -> Option<u16> {
+    let bytes = l.payload(state)?;
+    let mut keys = 0_u16;
+    for key in 0..12 {
+        let on = l
+            .fields
+            .iter()
+            .find(|f| f.name == format!("key_on.{key}"))?
+            .read(bytes)?;
+        if on != 0.0 {
+            keys |= 1 << key;
+        }
+    }
+    Some(keys)
+}
+
+/// The stand-in's root and scale with exactly these pitch classes: all
+/// twelve are the chromatic scale; otherwise the first scale, then the
+/// lowest root, that matches. None when no scale does.
+fn pitcher_scale(keys: u16) -> Option<(u8, usize)> {
+    if keys == 0x0fff {
+        return Some((0, 0));
+    }
+    for (scale, mask) in PITCH_SCALES.iter().enumerate().skip(1) {
+        for root in 0..12_u8 {
+            let rotated = (0..12).fold(0_u16, |rotated, step| {
+                if mask & (1 << step) != 0 {
+                    rotated | 1 << ((step + u16::from(root)) % 12)
+                } else {
+                    rotated
+                }
+            });
+            if rotated == keys {
+                return Some((root, scale));
+            }
+        }
+    }
+    None
 }
 
 fn effect_layout(name: &str, size: usize) -> Option<(EffectKind, Layout)> {
@@ -522,6 +586,11 @@ fn effect_layout(name: &str, size: usize) -> Option<(EffectKind, Layout)> {
             ] {
                 l.map(s, t, 0.0, max, Some(n));
             }
+            // "Wet Only" (0..1024, number 11): above half the stand-in plays
+            // wet only (mix 1, which it documents as wet only); below, its
+            // even mix of 0.5 stays, as before this field was read.
+            l.map("wetonly", "mix", 0.0, 1024.0, Some(11));
+            l.formula("wetonly", |v| if v > 512.0 { 1.0 } else { 0.5 });
             (EffectKind::Chorus, l)
         }
         "fruity flanger" => {
@@ -928,6 +997,10 @@ fn effect_layout(name: &str, size: usize) -> Option<(EffectKind, Layout)> {
             }
             l.map("mode", "mode", 0.0, 2.0, None);
             l.formula("mode", |v| v);
+            // A switch without a public range: any value but zero is on.
+            // The synced cycle is set from the fitted rate below.
+            l.map("mod_tempo_sync", "sync", 0.0, f64::from(u32::MAX), None);
+            l.formula("mod_tempo_sync", |v| if v != 0.0 { 1.0 } else { 0.0 });
             (EffectKind::VintageChorus, l)
         }
         "vintage phaser" => {
@@ -941,9 +1014,16 @@ fn effect_layout(name: &str, size: usize) -> Option<(EffectKind, Layout)> {
                 ("mod_speed", "rateHz", 245760.0),
                 ("mod_phase_lr", "stereoPhase", 6000.0),
                 ("levels_mix", "mix", 100.0),
+                // The dataset's range for the feedback color, fitted like
+                // the sweep's minimum and maximum to the stand-in's range.
+                ("color_freq", "colorHz", 650000.0),
             ] {
                 l.map(s, t, 0.0, max, None);
             }
+            // A switch without a public range: any value but zero is on.
+            // The synced cycle is set from the fitted rate below.
+            l.map("mod_tempo", "sync", 0.0, f64::from(u32::MAX), None);
+            l.formula("mod_tempo", |v| if v != 0.0 { 1.0 } else { 0.0 });
             (EffectKind::VintagePhaser, l)
         }
         "fruity multiband compressor" => {
@@ -992,6 +1072,24 @@ fn effect_layout(name: &str, size: usize) -> Option<(EffectKind, Layout)> {
             l.formula("pitch", |v| v / 100.0);
             l.map("formant", "formantSemitones", -1200.0, 1200.0, None);
             l.formula("formant", |v| v / 100.0);
+            // The unfinished public definition gives `wet` no range. It is
+            // read as 0..10000, the range the public dataset gives the mix
+            // of Frequency Shifter and the amount of Spreader, effects of
+            // the same generation, and clamped to the stand-in's 0..1. Any
+            // value is admitted, so a larger one cannot void the layout.
+            l.map("wet", "mix", f64::from(i32::MIN), f64::from(i32::MAX), None);
+            l.formula("wet", |v| (v / 10000.0).clamp(0.0, 1.0));
+            // A formant correction switch: on (any value but zero) keeps the
+            // voice's formants while it is shifted, which is what the
+            // stand-in's Voice mode does; off plays its full-mix mode.
+            l.map(
+                "formant_correction",
+                "mode",
+                f64::from(i32::MIN),
+                f64::from(i32::MAX),
+                None,
+            );
+            l.formula("formant_correction", |v| if v != 0.0 { 1.0 } else { 0.0 });
             for (offset, name) in [
                 (70, "display_speed"),
                 (73, "display_on"),
@@ -1096,6 +1194,74 @@ pub(super) fn effect(name: &str, state: &[u8], tempo: f64) -> Option<Translated>
             (f64::from(word(5).unwrap_or(0)) / 192.0 * 60000.0 / tempo) as f32,
         );
     }
+    if name == "pitcher"
+        && let Some((root, scale)) = pitcher_keys(&l, state).and_then(pitcher_scale)
+    {
+        set("root", f32::from(root));
+        set("scale", scale as f32);
+    }
+    if name == "fruity stereo shaper" && state.len() >= 24 {
+        // Signed -4096..4096 in the public dataset, with no unit or side:
+        // a positive delay holds the right side back, a negative one the
+        // left, by |delay| / 4096 of the stand-in's 50 ms.
+        let delay = f64::from(word(5).unwrap_or(0)).clamp(-4096.0, 4096.0);
+        let ms = (delay.abs() / 4096.0 * 50.0) as f32;
+        set("leftDelayMs", if delay < 0.0 { ms } else { 0.0 });
+        set("rightDelayMs", if delay > 0.0 { ms } else { 0.0 });
+    }
+    let mut links: Vec<ParamLink> = l
+        .fields
+        .iter()
+        .filter_map(|f| f.link(kind.descriptors()))
+        .collect();
+    if name == "fruity panomatic" && state.len() >= 24 {
+        // "LFO Target", 0..2 in the public dataset, which names none of the
+        // three values. The stand-in has two depths, pan and volume, and
+        // these are the three ways one amount can drive them: 0 pan (as
+        // the amount was read before), 1 volume, 2 both.
+        let target = word(3).unwrap_or(0);
+        let amount = kind
+            .descriptors()
+            .iter()
+            .position(|p| p.id == "depth")
+            .and_then(|i| params.get(i))
+            .unwrap_or(0.0);
+        let mut set = |id: &str, v: f32| {
+            if let Some(i) = kind.descriptors().iter().position(|p| p.id == id) {
+                params.set(i, v);
+            }
+        };
+        match target {
+            1 => {
+                set("depth", 0.0);
+                set("volumeDepth", amount);
+                // Automation of the amount moves the volume depth instead.
+                for link in links.iter_mut().filter(|link| link.fl_param == 4) {
+                    link.id = "volumeDepth";
+                }
+            }
+            2 => set("volumeDepth", amount),
+            _ => set("volumeDepth", 0.0),
+        }
+    }
+    if matches!(name.as_str(), "vintage chorus" | "vintage phaser") {
+        // Synced, the fitted rate becomes the cycle that plays it at the
+        // import tempo: tempo / 60 / rate beats, within the stand-in's
+        // 1/8 to 16.
+        let value = |id: &str| {
+            kind.descriptors()
+                .iter()
+                .position(|p| p.id == id)
+                .and_then(|i| params.get(i))
+        };
+        if value("sync").is_some_and(|sync| sync != 0.0) {
+            let rate = f64::from(value("rateHz").unwrap_or(0.0)).max(1e-6);
+            let beats = (tempo / 60.0 / rate).clamp(0.125, 16.0) as f32;
+            if let Some(i) = kind.descriptors().iter().position(|p| p.id == "cycleBeats") {
+                params.set(i, beats);
+            }
+        }
+    }
     if name == "fruity waveshaper" {
         waveshaper_curve(&mut params, state);
     }
@@ -1104,11 +1270,7 @@ pub(super) fn effect(name: &str, state: &[u8], tempo: f64) -> Option<Translated>
         notes: vec![
             "public native state translated; range-only controls use a disclosed linear fit to stand-in ranges, not acoustic equivalence; original blob retained",
         ],
-        links: l
-            .fields
-            .iter()
-            .filter_map(|f| f.link(kind.descriptors()))
-            .collect(),
+        links,
     })
 }
 
@@ -1180,6 +1342,18 @@ pub(super) fn unmapped(device: &str, field: &str) -> Unmapped {
             Elsewhere("when set, delay_time is taken in steps at the import tempo")
         }
         ("tuner", "reactivity" | "bass") => Display,
+        ("fruity stereo shaper", "delay") => Elsewhere(
+            "a positive delay holds the right side back and a negative one the left, by |delay| / 4096 of the stand-in's 50 ms",
+        ),
+        ("fruity panomatic", "lfo_target") => {
+            Elsewhere("0 sends the LFO amount to the pan depth, 1 to the volume depth, 2 to both")
+        }
+        ("bassdrum", "peak") => {
+            Elsewhere("with base it gives pitchDropSemitones = 12 log2(peak / base)")
+        }
+        ("pitcher", field) if field.starts_with("key_on.") => Elsewhere(
+            "the twelve enabled keys set root and scale when they form one of the stand-in's scales",
+        ),
         _ => Open,
     }
 }
@@ -1188,6 +1362,80 @@ pub(super) fn unmapped(device: &str, field: &str) -> Unmapped {
 /// control. Lines that end with it are filed as dropped, not approximated.
 pub(super) const OMITTED: &str =
     "omitted: decoded public field with no corresponding stand-in control (state retained).";
+
+/// Described fields outside the native layout table that the stand-in has
+/// no control for, by the device the review lists them under (in lower
+/// case). The converter files each one it decodes as omitted, and the test
+/// at the end of this file pins them with the table's fields.
+pub(super) const OMITTED_ELSEWHERE: &[(&str, &[&str])] = &[
+    (
+        "simsynth",
+        &[
+            "osc1_warm",
+            "osc2_warm",
+            "osc3_warm",
+            "lfo_trackamp",
+            "chorus_on",
+        ],
+    ),
+    (
+        "3x osc",
+        &[
+            "osc1_ofs",
+            "osc1_detune",
+            "osc2_ofs",
+            "osc2_detune",
+            "osc3_ofs",
+            "osc3_detune",
+            "phase_rand",
+            "osc1_invert",
+            "osc2_invert",
+            "osc3_invert",
+            "osc3_am",
+        ],
+    ),
+    (
+        "channel envelope",
+        &[
+            "predelay",
+            "hold",
+            "attack_tension",
+            "decay_tension",
+            "release_tension",
+            "tempo_sync",
+        ],
+    ),
+    (
+        "fruity reeverb 2",
+        &[
+            "bass",
+            "cross",
+            "stereo",
+            "mod_speed",
+            "tempo_predelay",
+            "mid_side",
+        ],
+    ),
+    ("fruity reeverb", &["color"]),
+    ("fruity delay 2", &["input_pan"]),
+    (
+        "fruity parametric eq 2",
+        &[
+            "1_order", "2_order", "3_order", "4_order", "5_order", "6_order", "7_order",
+        ],
+    ),
+    ("channel lfo", &["predelay", "attack", "tempo_sync"]),
+    ("channel arpeggiator", &["chord", "repeat", "slide"]),
+    ("channel note echo", &["ping_pong", "fat_mode", "pan"]),
+    ("channel time stretch", &["formant"]),
+];
+
+/// Whether `field` of `device` is in [`OMITTED_ELSEWHERE`].
+pub(super) fn omitted_elsewhere(device: &str, field: &str) -> bool {
+    OMITTED_ELSEWHERE
+        .iter()
+        .any(|(known, fields)| known.eq_ignore_ascii_case(device.trim()) && fields.contains(&field))
+}
 
 /// The field an omitted line of [`reports`] is about, for the list of
 /// omitted controls the review shows by device.
@@ -1228,7 +1476,81 @@ pub(super) fn reports(name: &str, state: &[u8]) -> Vec<String> {
         }
         for (i,field) in "osc1_on osc1_o1 osc1_o2 osc1_warm osc2_on osc2_o1 osc2_o2 osc2_warm osc3_on osc3_o1 osc3_o2 osc3_warm lfo_on lfo_retrigger svf_on unk_6 lfo_trackamp unk_7 chorus_on unk_8".split_whitespace().enumerate(){
             let raw=state.get(436+i*4..440+i*4).and_then(|b|b.try_into().ok()).map(u32::from_le_bytes);
-            lines.push(format!("{name}.{field}={raw:?}: public flag at {}; oscillator/LFO/filter enable, octave layers and LFO retrigger mapped; warmth, trackamp and chorus are reported per channel; unknown words remain opaque.",436+i*4));
+            // The three oscillator synth has no warmth (detuned copy),
+            // amplitude tracking or chorus of its own.
+            lines.push(if omitted_elsewhere(&key, field) {
+                format!("{name}.{field}={raw:?}: {OMITTED}")
+            } else {
+                format!("{name}.{field}={raw:?}: public flag at {}; oscillator/LFO/filter enable, octave layers and LFO retrigger mapped; unknown words remain opaque.",436+i*4)
+            });
+        }
+        return lines;
+    }
+    // Devices the effect translation reads by number (`effects`): the
+    // words and bytes of the public layout that it does not carry.
+    let elsewhere: &[(usize, bool, &str)] = match key.as_str() {
+        "fruity reeverb 2" => &[
+            (8, false, "bass"),
+            (9, false, "cross"),
+            (10, false, "stereo"),
+            (14, false, "mod_speed"),
+            (64, true, "tempo_predelay"),
+            (65, true, "mid_side"),
+        ],
+        "fruity reeverb" => &[(6, false, "color")],
+        "fruity delay 2" => &[(0, false, "input_pan")],
+        "fruity parametric eq 2" => &[
+            (29, false, "1_order"),
+            (30, false, "2_order"),
+            (31, false, "3_order"),
+            (32, false, "4_order"),
+            (33, false, "5_order"),
+            (34, false, "6_order"),
+            (35, false, "7_order"),
+        ],
+        _ => &[],
+    };
+    if !elsewhere.is_empty() {
+        let numbers = crate::plugin::Numbers(state);
+        return elsewhere
+            .iter()
+            .filter_map(|&(at, byte, field)| {
+                let v = if byte {
+                    i64::from(numbers.byte(at)?)
+                } else {
+                    i64::from(numbers.get(at)?)
+                };
+                Some(format!("{name}.{field}={v}: {OMITTED}"))
+            })
+            .collect();
+    }
+    if key == "3x osc" {
+        // DawVert fl_studio.ddef `3x_osc`: per oscillator pan, shape,
+        // coarse, fine, offset, stereo detune and (not the third) mix
+        // level, then phase_rand, three invert bytes and osc3_am. Shape,
+        // tuning, pan and the mix levels are carried (see `synth`); these
+        // have no control on the subtractive synth that stands in.
+        let numbers = crate::plugin::Numbers(state);
+        let mut lines = Vec::new();
+        for osc in 0..3 {
+            for (offset, field) in [(4, "ofs"), (5, "detune")] {
+                if let Some(v) = numbers.get(1 + osc * 7 + offset) {
+                    lines.push(format!("{name}.osc{}_{field}={v}: {OMITTED}", osc + 1));
+                }
+            }
+        }
+        if let Some(v) = numbers.get(21) {
+            lines.push(format!("{name}.phase_rand={v}: {OMITTED}"));
+        }
+        for (offset, field) in [
+            (88, "osc1_invert"),
+            (89, "osc2_invert"),
+            (90, "osc3_invert"),
+            (91, "osc3_am"),
+        ] {
+            if let Some(v) = numbers.byte(offset) {
+                lines.push(format!("{name}.{field}={v}: {OMITTED}"));
+            }
         }
         return lines;
     }
@@ -1346,6 +1668,30 @@ pub(super) fn reports(name: &str, state: &[u8]) -> Vec<String> {
         }
         reports.push(format!("{name}: the public definition names no playing bank, band frequencies, feedback or wet level. Bank 1 plays; the other seven are kept as selectable banks; band edges are Windfall's own (40 Hz to 16 kHz, equal ratios); feedback and mix stay at the stand-in defaults."));
     }
+    if key == "pitcher"
+        && let Some(keys) = pitcher_keys(&l, state)
+    {
+        let names = [
+            "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+        ];
+        let listed = (0..12)
+            .filter(|key| keys & (1 << key) != 0)
+            .map(|key| names[key])
+            .collect::<Vec<_>>()
+            .join(" ");
+        reports.push(match pitcher_scale(keys) {
+            Some((root, scale)) => format!(
+                "{name}: enabled keys [{listed}] -> root={} scale={} (the stand-in's {} scale on {}).",
+                root,
+                scale,
+                ["chromatic", "major", "minor", "pentatonic"][scale],
+                names[usize::from(root)]
+            ),
+            None => format!(
+                "{name}: enabled keys [{listed}] form none of the stand-in's scales (chromatic, major, minor, pentatonic on any root); it corrects to the chromatic scale and the original state is kept."
+            ),
+        });
+    }
     if key == "fruity free filter" {
         reports.push(format!("{name}: DawVert dataset numbers/ranges and universal converter disagree on frequency/type ranges; explicit dataset numbering is retained, but converter type/700 and freq/1024 ranges supply the seven named responses and Hz. The converter's negative index at type=0 is treated as lowpass safe fallback; source range disagreement is an approximation, not established acoustic parity."));
     }
@@ -1408,6 +1754,10 @@ fn dynamic_layout(name: &str, state: &[u8]) -> Option<(EffectKind, Layout)> {
             return None;
         }
         let mut l = Layout::words("version num_bands filter reserved");
+        // The source's band count, which may be up to 128, played with as
+        // many bands as the stand-in has: 16 to 32.
+        l.map("num_bands", "bandCount", 0.0, 128.0, None);
+        l.formula("num_bands", |v| v.clamp(16.0, 32.0));
         l.fields.push(Field {
             offset: 16,
             scalar: Scalar::Byte,

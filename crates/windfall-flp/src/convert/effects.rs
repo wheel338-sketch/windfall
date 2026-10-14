@@ -518,10 +518,19 @@ fn reverb_2(numbers: Numbers<'_>) -> Translated {
     if let (Some(dry), Some(wet)) = (value(11), value(13)) {
         params.mix = mix_of(dry / 128.0, wet / 128.0);
     }
+    // The public dataset gives the pre-delay 0..384 and the modulation
+    // depth 0..2048 and no unit: both are fitted linearly to the stand-in's
+    // 0..250 ms and 0..1.
+    if let Some(pre_delay) = value(3) {
+        params.pre_delay_ms = (pre_delay / 384.0 * 250.0).clamp(0.0, 250.0) as f32;
+    }
+    if let Some(depth) = value(15) {
+        params.modulation = (depth / 2_048.0).clamp(0.0, 1.0) as f32;
+    }
     Translated {
         params: EffectParams::Reverb(params.sanitized()),
         notes: vec![
-            "it is another reverb, so it will not sound the same: size, decay, diffusion, cuts and mix were carried over, and its pre-delay, bass and modulation were not",
+            "it is another reverb, so it will not sound the same: size, decay, diffusion, cuts, pre-delay (0..384 fitted to 0..250 ms), modulation depth (0..2048 fitted to 0..1) and mix were carried over",
         ],
         links: vec![
             ParamLink {
@@ -596,10 +605,15 @@ fn reverb_1(numbers: Numbers<'_>) -> Translated {
     if let (Some(dry), Some(wet)) = (knob(9), knob(10)) {
         params.mix = mix_of(dry, wet);
     }
+    // The public dataset gives the pre-delay 0..250 and DawVert carries it
+    // over as it is: it is taken in milliseconds, the stand-in's own range.
+    if let Some(pre_delay) = numbers.get(3) {
+        params.pre_delay_ms = f64::from(pre_delay).clamp(0.0, 250.0) as f32;
+    }
     Translated {
         params: EffectParams::Reverb(params.sanitized()),
         notes: vec![
-            "it is another reverb, so it will not sound the same: size, decay, diffusion, cuts and mix were carried over, and its pre-delay and colour were not",
+            "it is another reverb, so it will not sound the same: size, decay, diffusion, cuts, pre-delay and mix were carried over",
         ],
         links: Vec::new(),
     }
@@ -653,8 +667,16 @@ fn squared_over_128(raw: f64) -> f64 {
 
 fn delay_2(numbers: Numbers<'_>, tempo_bpm: f64) -> Translated {
     let mut params = DelayParams::default();
-    let mut notes = vec!["its input pan, stereo offset and feedback cut were not carried over"];
+    let mut notes = vec![
+        "its stereo offset (-512..512) and feedback cut (0..128) were fitted linearly to the stand-in's -50..50 ms and 500..20000 Hz high cut; the public sources give neither a unit",
+    ];
     let value = |index: usize| numbers.get(index).map(f64::from);
+    if let Some(offset) = value(5) {
+        params.stereo_offset_ms = (offset / 512.0 * 50.0).clamp(-50.0, 50.0) as f32;
+    }
+    if let Some(cut) = value(7) {
+        params.high_cut_hz = (500.0 + 19_500.0 * (cut / 128.0).clamp(0.0, 1.0)) as f32;
+    }
     if let (Some(input), Some(dry)) = (value(1), value(2)) {
         params.mix = mix_of(dry / 128.0, input / 160.0);
     }
@@ -687,8 +709,13 @@ fn delay_2(numbers: Numbers<'_>, tempo_bpm: f64) -> Translated {
 
 fn delay_1(numbers: Numbers<'_>, tempo_bpm: f64) -> Translated {
     let mut params = DelayParams::default();
-    let mut notes = vec!["its cutoff and its own tempo were not carried over"];
+    let mut notes = vec![
+        "its cutoff (0..1024) was fitted linearly to the stand-in's 500..20000 Hz high cut; the public sources give it no unit",
+    ];
     let knob = |index: usize| numbers.get(index).map(|raw| f64::from(raw) / 1_024.0);
+    if let Some(cutoff) = knob(3) {
+        params.high_cut_hz = (500.0 + 19_500.0 * cutoff.clamp(0.0, 1.0)) as f32;
+    }
     if let Some(input) = knob(1) {
         // The dry signal always passes at full level.
         params.mix = mix_of(1.0, input);
@@ -696,10 +723,22 @@ fn delay_1(numbers: Numbers<'_>, tempo_bpm: f64) -> Translated {
     if let Some(feedback) = knob(2) {
         params.feedback = feedback.powi(2) as f32;
     }
-    if let Some(steps) = numbers.get(5)
-        && !set_delay_steps(&mut params, f64::from(steps), tempo_bpm)
-    {
-        notes.push(FREE_TIME);
+    // DawVert: with its tempo knob up the steps are counted at its own
+    // tempo, 60 + 220 * knob BPM, and do not follow the project's.
+    let own_tempo = knob(4).filter(|tempo| *tempo != 0.0);
+    if let Some(steps) = numbers.get(5) {
+        match own_tempo {
+            Some(tempo) => {
+                params.sync = false;
+                params.time_ms =
+                    (f64::from(steps) / 4.0 * 60_000.0 / (60.0 + 220.0 * tempo)) as f32;
+                notes.push("its steps are counted at its own tempo, 60 + 220 * knob BPM, and set in milliseconds");
+            }
+            None if !set_delay_steps(&mut params, f64::from(steps), tempo_bpm) => {
+                notes.push(FREE_TIME)
+            }
+            None => {}
+        }
     }
     match numbers.get(6) {
         Some(2) => params.mode = DelayMode::PingPong,

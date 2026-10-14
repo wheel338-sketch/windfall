@@ -179,9 +179,8 @@ fn simsynth(state: &[u8]) -> Translated {
         // each mixed half and half with what is already there.
         osc.octave_up = word(i * 4 + 1).is_some_and(|v| v != 0);
         osc.two_octaves_up = word(i * 4 + 2).is_some_and(|v| v != 0);
-        if word(i * 4 + 3).is_some_and(|v| v != 0) {
-            notes.push("oscillator warm/unison");
-        }
+        // Warmth has no control here: the review lists osc*_warm as
+        // omitted (`native::reports`).
     }
     // DawVert simsynth_time(v) = (2*v)^3 / 2 seconds.
     if let Some(v) = value(35) {
@@ -230,11 +229,8 @@ fn simsynth(state: &[u8]) -> Translated {
         params.band_mix = 0.0;
     }
     notes.push("osc1/2/3_pw set the pulse width of a square by DawVert's rule, share high = .5 - asin((pw - .5) * 2) / pi, and are carried unheard on other shapes; osc_o1/o2 switch the octave and two-octave layers; svf_high and svf_band are taken 0..1 as the level of that filter output (the public sources give them no rule)");
-    for (index, name) in [(16, "lfo_trackamp"), (18, "chorus_on")] {
-        if word(index).is_some_and(|v| v != 0) {
-            notes.push(name);
-        }
-    }
+    // lfo_trackamp and chorus_on have no control here either; the review
+    // lists them as omitted (`native::reports`).
     if state
         .as_chunks::<8>()
         .0
@@ -271,7 +267,6 @@ fn three_osc(numbers: Numbers<'_>, channel: &Channel) -> Translated {
         "it is another synth, so it will not sound the same: the shape, tuning, level and pan of the three oscillators were carried over",
     ];
     let mut odd_shape = false;
-    let mut detuned = false;
     // Oscillators 1 and 2 have seven numbers each, after the version, and
     // oscillator 3 has six: it has no mix level of its own.
     for (index, oscillator) in params.oscillators.iter_mut().enumerate() {
@@ -290,7 +285,9 @@ fn three_osc(numbers: Numbers<'_>, channel: &Channel) -> Translated {
         if let Some(fine) = field(3) {
             oscillator.fine_cents = fine as f32;
         }
-        detuned |= field(5).is_some_and(|detune| detune != 0);
+        // Offset, stereo detune, inversion, phase randomness and osc3_am
+        // have no control on this synth: the review lists them as omitted
+        // (`native::reports`).
     }
     // Two knobs share the level among three oscillators: the first takes
     // its share for oscillator 2 from oscillator 1, and the second takes
@@ -307,12 +304,6 @@ fn three_osc(numbers: Numbers<'_>, channel: &Channel) -> Translated {
     }
     if odd_shape {
         notes.push("an oscillator shape Windfall does not have plays as a saw");
-    }
-    if detuned {
-        notes.push("the stereo detune of its oscillators was not carried over");
-    }
-    if numbers.byte(91).is_some_and(|on| on != 0) {
-        notes.push("oscillator 3 no longer modulates the level of the others");
     }
 
     match channel
@@ -452,10 +443,25 @@ mod tests {
         assert_eq!(params.oscillators[1].waveform, Waveform::WhiteNoise);
         assert_eq!(params.oscillators[2].waveform, Waveform::Saw);
         assert!(notes.iter().any(|note| note.contains("plays as a saw")));
+        // Oscillator 3's amplitude modulation used to be a note of this
+        // approximated line. Since round eight it is filed as an omitted
+        // control in the review instead, with the stand-in's other missing
+        // controls, so it is counted and listed as omitted.
         assert!(
-            notes
+            !notes
                 .iter()
                 .any(|note| note.contains("oscillator 3 no longer modulates"))
+        );
+        let state = state(
+            [(0, 4, 0, 0), (0, 5, 0, 0), (0, 6, 0, 0)],
+            (64, 32),
+            [0, 0, 0, 1],
+        );
+        assert!(
+            super::super::native::reports("3x Osc", &state)
+                .iter()
+                .any(|line| line.starts_with("3x Osc.osc3_am=1:")
+                    && line.ends_with(super::super::native::OMITTED))
         );
     }
 
