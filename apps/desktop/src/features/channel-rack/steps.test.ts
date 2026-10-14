@@ -159,7 +159,7 @@ describe("fill", () => {
       (item) => item.channel === hat
     )
     expect(row(litSteps(after?.notes, 16))).toBe("x.......x.......")
-    expect(historyLabelText(applied.label)).toBe("Fill every 8 steps")
+    expect(historyLabelText(applied.label ?? "")).toBe("Fill every 8 steps")
   })
 })
 
