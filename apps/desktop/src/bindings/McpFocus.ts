@@ -2,4 +2,7 @@
 import type { ChannelId } from "./ChannelId";
 import type { TrackId } from "./TrackId";
 
+/**
+ * What the user is looking at, reported while the server is on.
+ */
 export type McpFocus = { channel: ChannelId | null, track: TrackId | null, view: string | null, };

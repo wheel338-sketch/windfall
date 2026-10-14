@@ -52,10 +52,6 @@ pub fn optional_id(args: &Args, key: &str) -> Result<Option<u32>, String> {
         .transpose()
 }
 
-pub fn number(args: &Args, key: &str) -> Result<f64, String> {
-    optional_number(args, key)?.ok_or_else(|| format!("argument {key} is required"))
-}
-
 pub fn optional_number(args: &Args, key: &str) -> Result<Option<f64>, String> {
     present(args, key)
         .map(|value| {
