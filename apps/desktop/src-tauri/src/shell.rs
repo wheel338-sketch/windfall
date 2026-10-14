@@ -18,6 +18,16 @@ use crate::settings::{SETTINGS_FILE, SettingsStore};
 /// way down, so automated runs make no sound. Meters still move.
 pub const SILENT_ENV: &str = "WINDFALL_SILENT";
 
+/// Set to `1` to run the audio engine against a memory sink instead of a
+/// device: no output or input is opened and no MIDI hardware is started.
+/// Honoured by release builds too, so the shipped app can be driven by
+/// automated checks on a machine someone is using.
+pub const SOFTWARE_AUDIO_ENV: &str = "WINDFALL_SOFTWARE_AUDIO";
+
+/// An absolute folder to keep settings, plugin lists and layouts in instead
+/// of the user's own, for automated checks of any build.
+pub const CONFIG_DIR_ENV: &str = "WINDFALL_CONFIG_DIR";
+
 /// The factory content in the source tree, for running without a bundle.
 pub(crate) const DEV_FACTORY_DIR: &str =
     concat!(env!("CARGO_MANIFEST_DIR"), "/../../../content/factory");
@@ -53,12 +63,7 @@ impl EventSink for WindowEvents {
 /// Opens the audio engine with the remembered settings, starts a session on
 /// the default project, and starts the threads that serve it.
 pub fn start(app: &AppHandle) -> Result<Session, Box<dyn Error>> {
-    let config_dir = app.path().app_config_dir()?;
-    #[cfg(debug_assertions)]
-    let config_dir = match std::env::var("WINDFALL_CONFIG_DIR") {
-        Ok(path) => crate::paths::absolute(&path).map_err(std::io::Error::other)?,
-        Err(_) => config_dir,
-    };
+    let config_dir = config_dir(app)?;
     let settings = SettingsStore::load(config_dir.join(SETTINGS_FILE));
 
     // Returns once the device is open or has refused. That is quick for a
@@ -66,14 +71,8 @@ pub fn start(app: &AppHandle) -> Result<Session, Box<dyn Error>> {
     // devices are listed first only if the remembered request names a
     // sample rate or a buffer size to check against them.
     let opening = Instant::now();
-    #[cfg(debug_assertions)]
-    let software_audio = std::env::var("WINDFALL_SOFTWARE_AUDIO").is_ok_and(|value| value == "1");
-    #[cfg(not(debug_assertions))]
-    let software_audio = false;
-    #[cfg(debug_assertions)]
+    let software_audio = std::env::var(SOFTWARE_AUDIO_ENV).is_ok_and(|value| value == "1");
     let software_engine = software_audio.then(|| Engine::software(&settings.settings().audio));
-    #[cfg(not(debug_assertions))]
-    let software_engine: Option<Engine> = None;
     let engine =
         Arc::new(software_engine.unwrap_or_else(|| {
             Engine::start(&openable(&settings.settings().audio, Engine::devices))
@@ -84,7 +83,6 @@ pub fn start(app: &AppHandle) -> Result<Session, Box<dyn Error>> {
         controller.set_output_gain(0.0);
         log::info!("{SILENT_ENV} is set: the audio output is turned all the way down");
     }
-    #[cfg(debug_assertions)]
     if !std::env::var(SILENT_ENV).is_ok_and(|value| value == "1")
         && let Ok(value) = std::env::var("WINDFALL_OUTPUT_GAIN")
     {
@@ -139,6 +137,15 @@ pub fn start(app: &AppHandle) -> Result<Session, Box<dyn Error>> {
     session.spawn_autosave(AUTOSAVE_INTERVAL)?;
     session.spawn_audio_logger()?;
     Ok(session)
+}
+
+/// The folder for settings and other per-user files: the system's config
+/// folder for the app, unless [`CONFIG_DIR_ENV`] names another.
+pub(crate) fn config_dir(app: &AppHandle) -> Result<PathBuf, Box<dyn Error>> {
+    match std::env::var(CONFIG_DIR_ENV) {
+        Ok(path) => Ok(crate::paths::absolute(&path).map_err(std::io::Error::other)?),
+        Err(_) => Ok(app.path().app_config_dir()?),
+    }
 }
 
 /// Where the factory content is: the source tree while developing, and the

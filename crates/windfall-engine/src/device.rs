@@ -87,10 +87,10 @@ enum Request {
 }
 
 impl Engine {
-    /// Development memory sink. Runs the actual callback processor against a
-    /// wall clock without enumerating/opening any output or input device.
-    /// This is UI/software evidence only, never a hardware deadline result.
-    #[cfg(debug_assertions)]
+    /// Memory sink for automated checks. Runs the actual callback processor
+    /// against a wall clock without enumerating/opening any output or input
+    /// device. This is UI/software evidence only, never a hardware deadline
+    /// result.
     pub fn software(settings: &AudioSettings) -> Engine {
         let (mut processor, controller) = crate::Processor::new(48_000);
         let status = Arc::new(Mutex::new(EngineStatus {

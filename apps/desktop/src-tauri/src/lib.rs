@@ -57,7 +57,7 @@ pub fn run() {
             app.manage(updates::Updates::default());
             app.manage(window_calls::WindowCalls::default());
             app.manage(panel_layout::PanelLayouts::load(
-                app.path().app_config_dir()?.join("panel-layouts.json"),
+                shell::config_dir(app.handle())?.join("panel-layouts.json"),
             ));
             let session = shell::start(app.handle())?;
             app.manage(session);
