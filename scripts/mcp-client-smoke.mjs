@@ -359,6 +359,11 @@ try {
   check("nothing changed before the user decided", JSON.stringify(await projectNow()) === JSON.stringify(before), null)
   await app.until(() => app.evaluate(`Boolean(document.querySelector(${JSON.stringify(card(proposal1.label))}))`), "the proposal in the approval panel")
   report.panelText = await app.evaluate(`document.querySelector(${JSON.stringify(PANEL)}).innerText`)
+  // How the panel sits in the window, kept for a person to look at.
+  const shot = await app.cdp("Page.captureScreenshot", { format:"png" })
+  await writeFile(resolve(folder, "approval-panel.png"), Buffer.from(shot.data, "base64"))
+  report.panelBox = await app.evaluate(`(() => { const r = document.querySelector(${JSON.stringify(PANEL)}).getBoundingClientRect(); return { x:r.x, y:r.y, width:r.width, height:r.height, windowWidth:innerWidth, windowHeight:innerHeight } })()`)
+  check("the panel lies inside the window", report.panelBox.x >= 0 && report.panelBox.y >= 0 && report.panelBox.x + report.panelBox.width <= report.panelBox.windowWidth && report.panelBox.y + report.panelBox.height <= report.panelBox.windowHeight, report.panelBox)
   check("the panel shows the agent's explanation and what changes", report.panelText.includes("A one-bar pattern for the bass line.") && /Patterns: \d+ → \d+/.test(report.panelText), report.panelText)
   await app.click(`${card(proposal1.label)} button`, "Apply")
   const patternId = proposal1.created.patterns[0]

@@ -44,17 +44,28 @@ server.
 Claude Desktop starts a command and talks to it over standard input and
 output. The Windfall executable does that when it is started with
 `--mcp-stdio`: it opens no window, finds the running Windfall and relays the
-messages to it. Add this to `claude_desktop_config.json` (on Windows
+messages to it.
+
+The Windows installer puts Windfall in your own user folder, so the
+executable is
+
+```text
+C:\Users\<you>\AppData\Local\Windfall\windfall-desktop.exe
+```
+
+(`%LOCALAPPDATA%\Windfall\windfall-desktop.exe`). The settings page shows
+the exact path on your computer, already filled into the snippets below.
+
+Add this to `claude_desktop_config.json` (on Windows
 `%APPDATA%\Claude\claude_desktop_config.json`, on macOS
-`~/Library/Application Support/Claude/claude_desktop_config.json`), with the
-path of your Windfall executable as the settings page shows it, and restart
-Claude Desktop:
+`~/Library/Application Support/Claude/claude_desktop_config.json`), with your
+own user name, and restart Claude Desktop:
 
 ```json
 {
   "mcpServers": {
     "windfall": {
-      "command": "C:\\Users\\you\\AppData\\Local\\Windfall\\windfall-desktop.exe",
+      "command": "C:\\Users\\<you>\\AppData\\Local\\Windfall\\windfall-desktop.exe",
       "args": ["--mcp-stdio"]
     }
   }
@@ -62,17 +73,25 @@ Claude Desktop:
 ```
 
 On macOS the command is the executable inside the app bundle, for example
-`/Applications/Windfall.app/Contents/MacOS/windfall-desktop`.
+`/Applications/Windfall.app/Contents/MacOS/windfall-desktop`. Release 1.0.1
+ships for Windows only, and this path has not been checked.
+
+The bridge reads the port and token from `mcp.json` in Windfall's settings
+folder (`%APPDATA%\org.windfall.Windfall` on Windows). If you start Windfall
+with another settings folder (`WINDFALL_CONFIG_DIR`), give the bridge the
+same one: add `"--config-dir", "<folder>"` after `"--mcp-stdio"`, or set the
+same `WINDFALL_CONFIG_DIR` in the server's `env`.
 
 If Windfall is not running or the server is off, the bridge exits at once
-with a message saying so, which the client shows in its log.
+with code 1 and one line on its standard error saying why, which the client
+shows in its log.
 
 ### Claude Code
 
 Through the stdio bridge:
 
 ```sh
-claude mcp add --transport stdio windfall -- "C:\Users\you\AppData\Local\Windfall\windfall-desktop.exe" --mcp-stdio
+claude mcp add --transport stdio windfall -- "C:\Users\<you>\AppData\Local\Windfall\windfall-desktop.exe" --mcp-stdio
 ```
 
 Or over HTTP, with the token from the settings page:
@@ -89,6 +108,29 @@ Any MCP client that supports the Streamable HTTP transport can use
 `http://127.0.0.1:<port>/mcp` with the header `Authorization: Bearer <token>`.
 Windfall serves protocol revision `2026-07-28` and the earlier
 `initialize`-based revisions `2025-11-25`, `2025-06-18` and `2025-03-26`.
+Answers are plain JSON, without server-sent events.
+
+### What was checked
+
+Both transports were checked against the running app with the official
+[MCP Inspector](https://github.com/modelcontextprotocol/inspector) 2.11.0
+command-line client, in both protocol eras (`--protocol-era legacy`,
+`modern` and `auto`). These are the exact forms used, with the default port:
+
+```sh
+# Streamable HTTP, with the token from the settings page
+npx @modelcontextprotocol/inspector@2.11.0 --cli http://127.0.0.1:47133/mcp --transport http --header "Authorization: Bearer <token>" --method tools/list
+
+# stdio, through the bridge
+npx @modelcontextprotocol/inspector@2.11.0 --cli --method tools/list --transport stdio -- "C:\Users\<you>\AppData\Local\Windfall\windfall-desktop.exe" --mcp-stdio
+```
+
+`scripts/mcp-client-smoke.mjs` repeats the whole exchange (reading, edits
+approved in the panel, undo, stale and rejected proposals, a render, the
+refusals), and `docs/qa/2026-10-14-mcp.md` records the results. Claude
+Desktop and Claude Code themselves were not run against it; the settings
+above follow their documented formats. An agent appears in Windfall under the
+name its client gives (the Inspector calls itself `inspector-cli`).
 
 ## Approving what an agent proposes
 
@@ -172,8 +214,9 @@ pitches are note names such as `C4` (middle C) or MIDI numbers.
   that address as their host and carry no web page's origin, which stops a
   web page from reaching it through DNS rebinding.
 - **A token.** Every HTTP request must carry the installation's bearer token.
-  It is kept in `mcp.json` in Windfall's settings folder, readable by you
-  only, and shown only on the settings page.
+  It is kept in `mcp.json` in Windfall's per-user settings folder (on Unix
+  readable by you only; on Windows with that folder's own rights), and shown
+  only on the settings page.
 - **Bounded.** Requests are limited in size and time, connections in number
   and rate, and renders to 120 seconds.
 - **Approved edits only.** An agent's edits are the same checked, undoable
