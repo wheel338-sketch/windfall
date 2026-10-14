@@ -182,7 +182,9 @@ function screenshot(path) {
 
 const started = performance.now()
 const child = spawn(executable, [], {
-  env:{ ...process.env, WINDFALL_SOFTWARE_AUDIO:"1", WINDFALL_CONFIG_DIR:config, WINDFALL_SILENT:"1", RUST_BACKTRACE:"1" },
+  // The webview's own storage goes in the profile too (XDG folders on Linux).
+  env:{ ...process.env, WINDFALL_SOFTWARE_AUDIO:"1", WINDFALL_CONFIG_DIR:config, WINDFALL_SILENT:"1", RUST_BACKTRACE:"1",
+    ...(process.platform === "linux" ? { XDG_DATA_HOME:resolve(config, "xdg-data"), XDG_CACHE_HOME:resolve(config, "xdg-cache") } : {}) },
   stdio:["ignore", "pipe", "pipe"],
 })
 let logs = ""

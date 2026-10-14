@@ -400,6 +400,7 @@ export function PianoRollToolbar({ channelId, readoutRef }: ToolbarProps) {
       <div
         role="toolbar"
         aria-label={t("Piano roll")}
+        data-scroll-strip
         className="flex h-9 shrink-0 items-center gap-3 overflow-x-auto overflow-y-hidden border-b bg-chassis/40 px-1.5 whitespace-nowrap"
       >
         <ChannelPicker channelId={channelId} />

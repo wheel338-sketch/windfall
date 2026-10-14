@@ -385,6 +385,7 @@ export function RackToolbar() {
       <div
         role="toolbar"
         aria-label={t("Channel rack")}
+        data-scroll-strip
         className="flex h-9 shrink-0 items-center gap-4 overflow-x-auto overflow-y-hidden border-b bg-chassis/40 px-1.5 whitespace-nowrap"
       >
         <AddChannelMenu />

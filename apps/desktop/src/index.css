@@ -228,6 +228,15 @@
     scrollbar-color: color-mix(in oklch, var(--foreground) 22%, transparent)
       transparent;
   }
+  /* WebKitGTK (Linux) gives an overflowing horizontal strip an overlay
+     scrollbar that is not drawn until hovered but takes every click in the
+     strip's bottom 22 pixels: in a 36-pixel toolbar, most of each control.
+     There the toolbar strips scroll by wheel and touchpad, without one. The
+     style must be in force when the strip is laid out (main.tsx marks the
+     engine before the first render). */
+  :root[data-webview="webkitgtk"] [data-scroll-strip] {
+    scrollbar-width: none;
+  }
 }
 
 /* Keyboard focus for a surface whose own outline its children would cover,

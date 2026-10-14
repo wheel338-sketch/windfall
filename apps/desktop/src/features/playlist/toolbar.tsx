@@ -376,6 +376,7 @@ export function PlaylistToolbar({ metrics }: { metrics: GridMetrics }) {
       <div
         role="toolbar"
         aria-label={t("Playlist")}
+        data-scroll-strip
         className="flex h-9 shrink-0 items-center gap-2 overflow-x-auto overflow-y-hidden border-b bg-chassis/40 px-1.5 whitespace-nowrap"
       >
         <IconAction

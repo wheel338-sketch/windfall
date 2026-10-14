@@ -56,7 +56,11 @@ const soft = (name, pass, detail) => { report.checks.push({ name, pass:Boolean(p
 
 // --- One launch of the app, attached through WebView2's DevTools on
 // Windows, through WebDriver (tauri-driver and WebKitWebDriver) on Linux. ---
-const appEnv = () => ({ ...process.env, WINDFALL_SOFTWARE_AUDIO:"1", WINDFALL_CONFIG_DIR:config, WINDFALL_SILENT:"1" })
+// On Linux the webview keeps its storage (the UI's remembered layout among
+// it) under the XDG folders, so those go in the profile too, as WebView2's
+// folder does on Windows.
+const appEnv = () => ({ ...process.env, WINDFALL_SOFTWARE_AUDIO:"1", WINDFALL_CONFIG_DIR:config, WINDFALL_SILENT:"1",
+  ...(linux ? { XDG_DATA_HOME:resolve(config, "xdg-data"), XDG_CACHE_HOME:resolve(config, "xdg-cache") } : {}) })
 
 // The transport gives the shared steps four things: evaluate an expression
 // in the page (awaiting a promise, returning a JSON value), a mouse gesture,
@@ -169,7 +173,10 @@ async function webdriverTransport(session) {
   await rm(exitFile, { force:true })
   const quoted = (text) => `'${text.replace(/'/g, "'\\''")}'`
   await writeFile(wrapper, `#!/bin/sh\n${quoted(executable)} "$@"\necho $? > ${quoted(exitFile)}\n`, { mode:0o755 })
-  const driver = spawn("tauri-driver", ["--port", String(port), "--native-port", String(port + 1)], { env:appEnv(), stdio:["ignore", "pipe", "pipe"] })
+  // Its own process group: WebKitWebDriver and the app inherit the output
+  // pipes, so stopping the session means stopping all three.
+  const driver = spawn("tauri-driver", ["--port", String(port), "--native-port", String(port + 1)], { env:appEnv(), stdio:["ignore", "pipe", "pipe"], detached:true })
+  const stopAll = () => { try { process.kill(-driver.pid, "SIGKILL") } catch { /* already gone */ } }
   driver.stdout.on("data", (data) => { session.logs = (session.logs + data).slice(-32768) })
   driver.stderr.on("data", (data) => { session.logs = (session.logs + data).slice(-32768) })
   let driverError
@@ -211,7 +218,7 @@ async function webdriverTransport(session) {
   try {
     await starting()
   } catch (error) {
-    driver.kill("SIGKILL")
+    stopAll()
     throw new Error(`${error.message}\n--- driver and app output ---\n${session.logs.slice(-6000)}`)
   }
   await wd("POST", `${sessionPath}/timeouts`, { script:120000 })
@@ -235,7 +242,7 @@ async function webdriverTransport(session) {
       const code = await exited()
       if (code !== null || Date.now() > hookDeadline) {
         await wd("DELETE", sessionPath).catch(() => {})
-        driver.kill("SIGKILL")
+        stopAll()
         throw new Error(`${code !== null ? `The app exited with ${code}` : "The page did not answer within 60 s"}: ${error.message}\n--- driver and app output ---\n${session.logs.slice(-6000)}`)
       }
     }
@@ -264,7 +271,7 @@ async function webdriverTransport(session) {
   }
   const finish = async () => {
     await wd("DELETE", sessionPath).catch(() => {})
-    driver.kill()
+    stopAll()
   }
   // Closes the window as the user does: the window manager's close request
   // (_NET_CLOSE_WINDOW, then WM_DELETE_WINDOW), as the title bar's button.
@@ -280,7 +287,11 @@ async function webdriverTransport(session) {
     if (code === null) throw new Error("The app did not exit within 20 s of closing its window")
     return code
   }
-  const kill = () => { void drain().finally(finish) }
+  const kill = async () => {
+    await Promise.race([drain(), delay(10000)])
+    await Promise.race([wd("DELETE", sessionPath).catch(() => {}), delay(10000)])
+    stopAll()
+  }
   return { child:driver, evaluate, mouse, key, close, kill, drain, screenshot:() => wd("GET", `${sessionPath}/screenshot`) }
 }
 
@@ -300,6 +311,13 @@ async function launch(label) {
     throw new Error(`Timed out waiting for ${what}`)
   }
   await until(() => evaluate('typeof window.__TAURI_INTERNALS__?.invoke === "function" && Boolean(document.querySelector("[data-channel-button]"))'), "the main window with its channel rack", 60000)
+    .catch(async (error) => {
+      const page = await evaluate('({ url: location.href, ready: document.readyState, tauri: typeof window.__TAURI_INTERNALS__?.invoke, text: document.body?.innerText.slice(0, 1500) })').catch((e) => String(e))
+      const shot = await transport.screenshot?.().catch(() => null)
+      if (shot) await writeFile(resolve(folder, `${session.label.replace(/\W+/g, "-")}-start.png`), Buffer.from(shot, "base64"))
+      await transport.kill()
+      throw new Error(`${error.message}: ${JSON.stringify(page)}`)
+    })
   session.startupMs = Math.round(performance.now() - started)
 
   const invoke = (command, args = {}) => evaluate(`(async () => {
@@ -328,7 +346,12 @@ async function launch(label) {
         if (!r.width || !r.height) return { missing:true }
         const x = r.x + r.width / 2, y = r.y + r.height / 2
         const top = document.elementFromPoint(x, y)
-        return element.contains(top) ? { x, y } : { covered:top ? top.outerHTML.slice(0, 200) : "nothing", x, y }
+        if (element.contains(top)) return { x, y }
+        const box = top?.getBoundingClientRect()
+        return { covered:top ? top.outerHTML.slice(0, 200) : "nothing", x, y,
+          stack:document.elementsFromPoint(x, y).slice(0, 5).map((e) => e.tagName + (e.getAttribute("role") ? "[" + e.getAttribute("role") + "]" : "") + (e.getAttribute("aria-label") ? "(" + e.getAttribute("aria-label") + ")" : "")),
+          target:{ top:r.top, bottom:r.bottom, left:r.left, right:r.right },
+          cover:top && { top:box.top, bottom:box.bottom, offsetHeight:top.offsetHeight, clientHeight:top.clientHeight, scrollWidth:top.scrollWidth, clientWidth:top.clientWidth } }
       })()`)
       return last.covered || last.missing ? null : last
     }, `visible ${selector} ${text ?? ""}`).catch((error) => { throw new Error(`${error.message} (${JSON.stringify(last)})`) })
@@ -348,7 +371,8 @@ async function launch(label) {
     session.quitMs = Math.round(performance.now() - started)
   }
   const kill = () => transport.kill()
-  return { session, child, transport, evaluate, until, invoke, owned, project, dispatch, point, mouse, click, key, shown, texts, closed, menu, crashed, quit, kill }
+  const screenshot = () => transport.screenshot?.() ?? transport.cdp?.("Page.captureScreenshot", { format:"png" }).then((shot) => shot.data)
+  return { session, child, transport, screenshot, evaluate, until, invoke, owned, project, dispatch, point, mouse, click, key, shown, texts, closed, menu, crashed, quit, kill }
 }
 
 // Answers the operating system's file dialog titled `title` with `path`.
@@ -819,12 +843,16 @@ try {
 } catch (error) {
   report.error = String(error.stack ?? error)
   report.windowText = await app?.evaluate("document.body.innerText").catch(() => null)
+  const shot = await app?.screenshot().catch(() => null)
+  if (shot) { await writeFile(resolve(folder, "failure.png"), Buffer.from(shot, "base64")); report.failureScreenshot = resolve(folder, "failure.png") }
   process.exitCode = 1
 } finally {
-  app?.kill()
+  await app?.kill()
   report.console = report.sessions.flatMap((session) => session.console.map((entry) => ({ session:session.label, ...entry })))
   report.finished = new Date().toISOString()
   await mkdir(folder, { recursive:true })
   await writeFile(output, `${JSON.stringify(report, (key, value) => key === "data" ? undefined : value, 2)}\n`)
   console.log(`${report.passed ? "PASS" : "FAIL"}: ${output} (${report.checks.length} checks)`)
+  // Nothing of the app's may keep this process waiting once it has reported.
+  process.exit(process.exitCode ?? 0)
 }

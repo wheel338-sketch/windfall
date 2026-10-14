@@ -13,8 +13,13 @@
 # Each smoke has a hard timeout (4 and 15 minutes); a timeout is exit 124.
 # 2. The .deb, installed with apt so its declared dependencies come in: the
 #    same two smokes against /usr/bin/windfall-desktop.
+#
+# Optional second argument: the runs to do, of appimage-mcp appimage-song
+# deb-mcp deb-song (all by default).
 set -uo pipefail
 artifacts="${1:?artifacts folder}"
+only="${2:-appimage-mcp appimage-song deb-mcp deb-song}"
+wanted() { [[ " $only " == *" $1 "* ]]; }
 scripts="$(cd "$(dirname "$0")/.." && pwd)"
 out="$artifacts/smoke"
 rm -rf "$out"; mkdir -p "$out"
@@ -51,12 +56,15 @@ run_as_tester() {
 chmod -R a+rwX "$out"
 
 smoke() {
-  local label="$1" exe="$2"
+  local label="$1" exe="$2" s
+  if wanted "$label-mcp"; then
   note "== $label: MCP launch smoke ($exe)"
   run_as_tester timeout --kill-after=15 240 node "$scripts/xplat/mcp-launch-smoke.mjs" "$exe" "$out/$label-mcp/report.json" > "$out/$label-mcp.log" 2>&1
-  local s=$?
+  s=$?
   tail -25 "$out/$label-mcp.log" | tee -a "$summary"
   note "   exit $s"; [ $s -eq 0 ] || status=1
+  fi
+  wanted "$label-song" || return 0
   note "== $label: song workflow smoke (WebDriver)"
   run_as_tester timeout --kill-after=15 900 node "$scripts/song-workflow-window-smoke.mjs" "$exe" "$out/$label-song/report.json" 4444 > "$out/$label-song.log" 2>&1
   s=$?
