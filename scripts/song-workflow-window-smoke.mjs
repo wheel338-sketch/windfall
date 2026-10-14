@@ -1,4 +1,7 @@
-// Node 22+, Windows WebView2, a built app (release or debug). No packages.
+// Node 22+, a built app (release or debug). No packages. On Windows the
+// window is driven through WebView2's DevTools; on Linux through WebDriver,
+// which needs tauri-driver, WebKitWebDriver, xdotool and wmctrl on the PATH,
+// a window manager on the X display, and an X display (Xvfb will do).
 //
 // Makes a short song in the real desktop window the way a user does, on the
 // software audio sink (no device is opened, nothing is heard), in a profile
@@ -25,11 +28,12 @@
 // Checks that need a command rather than a gesture say so in their name
 // ("by command"); everything else is a click, a key or a file picker.
 import { spawn, spawnSync } from "node:child_process"
-import { mkdir, readFile, rm, writeFile, stat } from "node:fs/promises"
+import { copyFile, mkdir, readdir, readFile, rm, writeFile, stat } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
 
-const executable = resolve(process.argv[2] ?? "target/release/windfall-desktop.exe")
+const linux = process.platform === "linux"
+const executable = resolve(process.argv[2] ?? (linux ? "target/release/windfall-desktop" : "target/release/windfall-desktop.exe"))
 const output = resolve(process.argv[3] ?? "target/song-window/report.json")
 const port = Number(process.argv[4] ?? 9281)
 if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error("Use a TCP port from 1024 to 65535")
@@ -50,20 +54,23 @@ const check = (name, pass, detail) => {
 // Recorded and failing the run, without stopping it.
 const soft = (name, pass, detail) => { report.checks.push({ name, pass:Boolean(pass), detail }) }
 
-// --- One launch of the app, attached through WebView2's DevTools. ---
-async function launch(label) {
+// --- One launch of the app, attached through WebView2's DevTools on
+// Windows, through WebDriver (tauri-driver and WebKitWebDriver) on Linux. ---
+const appEnv = () => ({ ...process.env, WINDFALL_SOFTWARE_AUDIO:"1", WINDFALL_CONFIG_DIR:config, WINDFALL_SILENT:"1" })
+
+// The transport gives the shared steps four things: evaluate an expression
+// in the page (awaiting a promise, returning a JSON value), a mouse gesture,
+// a key press, and closing the window as the user does.
+async function devtoolsTransport(session) {
   try {
     await fetch(`http://127.0.0.1:${port}/json/version`, { signal:AbortSignal.timeout(500) })
     throw new Error(`DevTools port ${port} is already in use`)
   } catch (error) {
     if (error.message.includes("already in use")) throw error
   }
-  const session = { label, logs:"", console:[] }
-  report.sessions.push(session)
-  const started = performance.now()
   const child = spawn(executable, [], {
     windowsHide:true,
-    env:{ ...process.env, WINDFALL_SOFTWARE_AUDIO:"1", WINDFALL_CONFIG_DIR:config, WINDFALL_SILENT:"1",
+    env:{ ...appEnv(),
       WEBVIEW2_USER_DATA_FOLDER:resolve(config, "webview"),
       WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:`--remote-debugging-address=127.0.0.1 --remote-debugging-port=${port}` },
     stdio:["ignore", "pipe", "pipe"],
@@ -125,6 +132,133 @@ async function launch(label) {
     if (result.exceptionDetails) throw new Error(JSON.stringify(result.exceptionDetails))
     return result.result.value
   }
+  const mouse = async (p, { clickCount = 1, button = "left", modifiers = 0 } = {}) => {
+    await cdp("Input.dispatchMouseEvent", { type:"mouseMoved", x:p.x, y:p.y, modifiers })
+    for (let n = 1; n <= clickCount; n++) {
+      await cdp("Input.dispatchMouseEvent", { type:"mousePressed", x:p.x, y:p.y, button, buttons:button === "left" ? 1 : 2, clickCount:n, modifiers })
+      await cdp("Input.dispatchMouseEvent", { type:"mouseReleased", x:p.x, y:p.y, button, buttons:0, clickCount:n, modifiers })
+    }
+  }
+  const keyCodes = { a:65, z:90, y:89, s:83, n:78, Enter:13, Escape:27, Tab:9, End:35, " ":32 }
+  const key = async (value, code = value, modifiers = 0) => {
+    const windowsVirtualKeyCode = keyCodes[value] ?? 0
+    await cdp("Input.dispatchKeyEvent", { type:"rawKeyDown", key:value, code, modifiers, windowsVirtualKeyCode })
+    await cdp("Input.dispatchKeyEvent", { type:"keyUp", key:value, code, modifiers, windowsVirtualKeyCode })
+  }
+  // Closes the window as the user does (WM_CLOSE to the main window).
+  const close = async () => {
+    spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `$p = Get-Process -Id ${child.pid}; [void]$p.CloseMainWindow()`], { windowsHide:true })
+    const deadline = Date.now() + 20000
+    while (child.exitCode === null && Date.now() < deadline) await delay(50)
+    socket.close()
+    if (child.exitCode === null) { child.kill(); throw new Error("The app did not exit within 20 s of closing its window") }
+    return child.exitCode
+  }
+  const kill = () => { try { socket.close() } catch {} ; if (child.exitCode === null) child.kill() }
+  return { child, evaluate, mouse, key, close, kill }
+}
+
+// WebKitGTK has no DevTools protocol to attach to; tauri-driver starts the
+// app under WebKitWebDriver. The app is started through a small wrapper that
+// records its exit status, since the driver, not this script, is its parent.
+// The webview's console is hooked once the page answers, so messages from
+// before that moment are not captured.
+async function webdriverTransport(session) {
+  const exitFile = resolve(folder, `${session.label.replace(/\W+/g, "-")}.exit`)
+  const wrapper = resolve(folder, `${session.label.replace(/\W+/g, "-")}.sh`)
+  await rm(exitFile, { force:true })
+  const quoted = (text) => `'${text.replace(/'/g, "'\\''")}'`
+  await writeFile(wrapper, `#!/bin/sh\n${quoted(executable)} "$@"\necho $? > ${quoted(exitFile)}\n`, { mode:0o755 })
+  const driver = spawn("tauri-driver", ["--port", String(port), "--native-port", String(port + 1)], { env:appEnv(), stdio:["ignore", "pipe", "pipe"] })
+  driver.stdout.on("data", (data) => { session.logs = (session.logs + data).slice(-32768) })
+  driver.stderr.on("data", (data) => { session.logs = (session.logs + data).slice(-32768) })
+  let driverError
+  driver.on("error", (error) => { driverError = error })
+  const base = `http://127.0.0.1:${port}`
+  const wd = async (method, path, body) => {
+    const response = await fetch(`${base}${path}`, { method, headers:{ "Content-Type":"application/json" }, body:body === undefined ? undefined : JSON.stringify(body), signal:AbortSignal.timeout(120000) })
+    const json = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(`WebDriver ${method} ${path}: ${response.status} ${JSON.stringify(json.value ?? json).slice(0, 2000)}`)
+    return json.value
+  }
+  const ready = Date.now() + 20000
+  for (;;) {
+    if (driverError) throw driverError
+    try { await wd("GET", "/status"); break } catch (error) { if (Date.now() > ready) throw error }
+    await delay(100)
+  }
+  const created = await wd("POST", "/session", { capabilities:{ alwaysMatch:{ "tauri:options":{ application:wrapper } } } })
+  const sessionPath = `/session/${created.sessionId}`
+  await wd("POST", `${sessionPath}/timeouts`, { script:120000 })
+  const evaluate = async (expression) => {
+    const value = await wd("POST", `${sessionPath}/execute/async`, {
+      script:`const done = arguments[arguments.length - 1]; Promise.resolve().then(() => (${expression})).then((value) => done({ value: value === undefined ? null : value }), (error) => done({ error: String(error && error.stack || error) }))`,
+      args:[],
+    })
+    if (value?.error) throw new Error(value.error)
+    return value?.value
+  }
+  const hook = `(() => { if (window.__smokeConsole) return true; window.__smokeConsole = [];
+    const push = (type, args) => window.__smokeConsole.push({ type, text: args.map((a) => a && a.stack || (typeof a === "object" ? JSON.stringify(a) : String(a))).join(" ").slice(0, 4000) });
+    for (const type of ["error", "warn", "assert"]) { const original = console[type].bind(console); console[type] = (...args) => { if (type !== "assert" || !args[0]) push(type === "warn" ? "warning" : type, type === "assert" ? args.slice(1) : args); original(...args) } }
+    window.addEventListener("error", (event) => push("exception", [event.error || event.message]));
+    window.addEventListener("unhandledrejection", (event) => push("exception", [event.reason]));
+    return true })()`
+  const hookDeadline = Date.now() + 60000
+  for (;;) {
+    try { await evaluate(hook); break } catch (error) { if (Date.now() > hookDeadline) throw error }
+    await delay(200)
+  }
+  const drain = async () => {
+    try { session.console.push(...(await evaluate("window.__smokeConsole ? window.__smokeConsole.splice(0) : []"))) } catch { /* the page is gone */ }
+  }
+  const buttons = { left:0, middle:1, right:2 }
+  const modifierKeys = (modifiers) => [[1, ""], [2, ""], [4, ""], [8, ""]].filter(([bit]) => modifiers & bit).map(([, key]) => key)
+  const mouse = async (p, { clickCount = 1, button = "left", modifiers = 0 } = {}) => {
+    const held = modifierKeys(modifiers)
+    if (held.length) await wd("POST", `${sessionPath}/actions`, { actions:[{ type:"key", id:"keyboard", actions:held.map((value) => ({ type:"keyDown", value })) }] })
+    const pointer = [{ type:"pointerMove", duration:0, x:Math.round(p.x), y:Math.round(p.y), origin:"viewport" }]
+    for (let n = 0; n < clickCount; n++) pointer.push({ type:"pointerDown", button:buttons[button] }, { type:"pointerUp", button:buttons[button] })
+    await wd("POST", `${sessionPath}/actions`, { actions:[{ type:"pointer", id:"mouse", parameters:{ pointerType:"mouse" }, actions:pointer }] })
+    if (held.length) await wd("POST", `${sessionPath}/actions`, { actions:[{ type:"key", id:"keyboard", actions:held.map((value) => ({ type:"keyUp", value })) }] })
+  }
+  const special = { Enter:"", Escape:"", Tab:"", End:"", " ":" " }
+  const key = async (value, code = value, modifiers = 0) => {
+    const held = modifierKeys(modifiers)
+    const typed = special[value] ?? value
+    await wd("POST", `${sessionPath}/actions`, { actions:[{ type:"key", id:"keyboard", actions:[
+      ...held.map((value) => ({ type:"keyDown", value })), { type:"keyDown", value:typed }, { type:"keyUp", value:typed }, ...[...held].reverse().map((value) => ({ type:"keyUp", value })),
+    ] }] })
+  }
+  const exited = async () => { try { return Number((await readFile(exitFile, "utf8")).trim()) } catch { return null } }
+  const finish = async () => {
+    await wd("DELETE", sessionPath).catch(() => {})
+    driver.kill()
+  }
+  // Closes the window as the user does: the window manager's close request
+  // (_NET_CLOSE_WINDOW, then WM_DELETE_WINDOW), as the title bar's button.
+  const close = async () => {
+    await drain()
+    const windows = spawnSync("wmctrl", ["-l", "-p"], { encoding:"utf8" }).stdout.trim().split("\n").filter((line) => /Windfall/.test(line))
+    if (!windows.length) throw new Error("No Windfall window for the window manager to close")
+    for (const line of windows) spawnSync("wmctrl", ["-i", "-c", line.split(/\s+/)[0]])
+    const deadline = Date.now() + 20000
+    let code = null
+    while ((code = await exited()) === null && Date.now() < deadline) await delay(100)
+    await finish()
+    if (code === null) throw new Error("The app did not exit within 20 s of closing its window")
+    return code
+  }
+  const kill = () => { void drain().finally(finish) }
+  return { child:driver, evaluate, mouse, key, close, kill, drain, screenshot:() => wd("GET", `${sessionPath}/screenshot`) }
+}
+
+async function launch(label) {
+  const session = { label, logs:"", console:[] }
+  report.sessions.push(session)
+  const started = performance.now()
+  const transport = linux ? await webdriverTransport(session) : await devtoolsTransport(session)
+  const { child, evaluate, mouse, key } = transport
   const until = async (predicate, what, timeout = 15000) => {
     const deadline = Date.now() + timeout
     while (Date.now() < deadline) {
@@ -168,20 +302,7 @@ async function launch(label) {
       return last.covered || last.missing ? null : last
     }, `visible ${selector} ${text ?? ""}`).catch((error) => { throw new Error(`${error.message} (${JSON.stringify(last)})`) })
   }
-  const mouse = async (p, { clickCount = 1, button = "left", modifiers = 0 } = {}) => {
-    await cdp("Input.dispatchMouseEvent", { type:"mouseMoved", x:p.x, y:p.y, modifiers })
-    for (let n = 1; n <= clickCount; n++) {
-      await cdp("Input.dispatchMouseEvent", { type:"mousePressed", x:p.x, y:p.y, button, buttons:button === "left" ? 1 : 2, clickCount:n, modifiers })
-      await cdp("Input.dispatchMouseEvent", { type:"mouseReleased", x:p.x, y:p.y, button, buttons:0, clickCount:n, modifiers })
-    }
-  }
   const click = async (selector, text, options = {}) => mouse(await point(selector, text, options.exact), options)
-  const keyCodes = { a:65, z:90, y:89, s:83, n:78, Enter:13, Escape:27, Tab:9, End:35, " ":32 }
-  const key = async (value, code = value, modifiers = 0) => {
-    const windowsVirtualKeyCode = keyCodes[value] ?? 0
-    await cdp("Input.dispatchKeyEvent", { type:"rawKeyDown", key:value, code, modifiers, windowsVirtualKeyCode })
-    await cdp("Input.dispatchKeyEvent", { type:"keyUp", key:value, code, modifiers, windowsVirtualKeyCode })
-  }
   const shown = (text) => evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`)
   const texts = (selector) => evaluate(`[...document.querySelectorAll(${JSON.stringify(selector)})].filter((e) => e.getClientRects().length > 0).map((e) => e.textContent.trim())`)
   const closed = (selector) => until(() => evaluate(`[...document.querySelectorAll(${JSON.stringify(selector)})].every((e) => e.getClientRects().length === 0)`), `${selector} to close`)
@@ -190,25 +311,21 @@ async function launch(label) {
     for (const item of items) await click('[role="menu"] [role="menuitem"]', item)
   }
   const crashed = () => evaluate(`[...document.querySelectorAll('[role="alert"]')].map((e) => e.textContent.trim()).filter((text) => /crashed|could not start/i.test(text))`)
-  // Closes the window as the user does (WM_CLOSE to the main window).
   const quit = async () => {
     const started = performance.now()
-    spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `$p = Get-Process -Id ${child.pid}; [void]$p.CloseMainWindow()`], { windowsHide:true })
-    const deadline = Date.now() + 20000
-    while (child.exitCode === null && Date.now() < deadline) await delay(50)
-    socket.close()
+    session.exitCode = await transport.close()
     session.quitMs = Math.round(performance.now() - started)
-    session.exitCode = child.exitCode
-    if (child.exitCode === null) { child.kill(); throw new Error("The app did not exit within 20 s of closing its window") }
   }
-  const kill = () => { try { socket.close() } catch {} ; if (child.exitCode === null) child.kill() }
-  return { session, child, cdp, evaluate, until, invoke, owned, project, dispatch, point, mouse, click, key, shown, texts, closed, menu, crashed, quit, kill }
+  const kill = () => transport.kill()
+  return { session, child, transport, evaluate, until, invoke, owned, project, dispatch, point, mouse, click, key, shown, texts, closed, menu, crashed, quit, kill }
 }
 
-// Answers the operating system's file dialog titled `title` with `path`:
-// the real dialog (class #32770), its file name box given the path with
-// WM_SETTEXT, and its default button pressed with WM_COMMAND IDOK.
-const picker = (title, path) => new Promise((resolve, reject) => {
+// Answers the operating system's file dialog titled `title` with `path`.
+const picker = (title, path) => linux ? gtkPicker(title, path) : windowsPicker(title, path)
+
+// Windows: the real dialog (class #32770), its file name box given the path
+// with WM_SETTEXT, and its default button pressed with WM_COMMAND IDOK.
+const windowsPicker = (title, path) => new Promise((resolve, reject) => {
   const quote = (text) => `'${text.replace(/'/g, "''")}'`
   const script = `
     Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
@@ -238,6 +355,27 @@ const picker = (title, path) => new Promise((resolve, reject) => {
   choosing.on("error", reject)
   choosing.on("exit", (code) => code === 0 ? resolve() : reject(new Error(`The file dialog titled ${title} could not be answered (${code})`)))
 })
+
+// Linux: GTK's own file chooser, found by its title with xdotool, given
+// the whole path by typing it (Ctrl+L first opens the location field of an
+// Open dialog; a Save dialog's name field takes a path) and Enter, as a
+// person can. The keys are real X input events (XTEST).
+async function gtkPicker(title, path) {
+  const find = () => spawnSync("xdotool", ["search", "--onlyvisible", "--name", `^${title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`], { encoding:"utf8" }).stdout.trim().split("\n").filter(Boolean)
+  let dialog
+  for (let i = 0; i < 75 && !dialog; i++) { dialog = find().at(-1); if (!dialog) await delay(200) }
+  if (!dialog) throw new Error(`The file dialog titled ${title} did not open`)
+  spawnSync("xdotool", ["windowactivate", "--sync", dialog])
+  await delay(700)
+  const xdo = (...args) => spawnSync("xdotool", args, { encoding:"utf8" })
+  if (/^Open/.test(title)) { xdo("key", "--clearmodifiers", "ctrl+l"); await delay(300) }
+  xdo("key", "--clearmodifiers", "ctrl+a")
+  xdo("type", "--delay", "15", path)
+  await delay(300)
+  xdo("key", "--clearmodifiers", "Return")
+  for (let i = 0; i < 40 && find().length; i++) await delay(100)
+  if (find().length) throw new Error(`The file dialog titled ${title} could not be answered`)
+}
 
 // --- The WAV, decoded here rather than trusted from the app. ---
 function decodeWav(buffer) {
@@ -605,6 +743,39 @@ try {
   const wav2 = decodeWav(await readFile(exportAgainPath))
   report.reexport = { frames:wav2.frames, peak:wav2.peak, rms:wav2.rms }
   check("exporting the reopened song gives the same audio, sample for sample", wav2.frames === wav.frames && wav2.data.equals(wav.data), { first:wav.frames, second:wav2.frames })
+  // The plugin host and the installed plugin runtime, when the owned test
+  // plugins are given (SMOKE_PLUGIN_FIXTURE, their library built for this
+  // platform). By command: the plugin manager's folder and export choosers
+  // are not driven here.
+  const fixture = process.env.SMOKE_PLUGIN_FIXTURE
+  if (fixture) {
+    const pluginFolder = resolve(folder, "plugins"), exportFolder = resolve(folder, "plugin-export")
+    await mkdir(pluginFolder, { recursive:true })
+    await mkdir(exportFolder, { recursive:true })
+    await copyFile(fixture, resolve(pluginFolder, "windfall-test-plugins.clap"))
+    await second.invoke("export_plugin_bundle", { destination:exportFolder, runtime:"" })
+    const exportedFiles = (await readdir(exportFolder, { recursive:true })).map(String)
+    report.pluginExport = exportedFiles
+    check("by command: the song exports as a plugin with the installed plugin runtime and helper", exportedFiles.some((name) => /\.clap$/.test(name)) && exportedFiles.some((name) => /windfall-plugin-audio/.test(name)), exportedFiles)
+    await second.invoke("plugins_add_folder", { folder:pluginFolder })
+    await second.invoke("plugins_scan", { retry:null })
+    const scanned = await second.until(async () => { const state = await second.invoke("plugins_state"); return !state.scanning && state.entries.some((entry) => entry.id === "org.windfall.test.gain") ? state : null }, "the owned plugins in the scan", 90000)
+      .catch(async (error) => { throw new Error(`${error.message}: ${JSON.stringify(await second.invoke("plugins_state")).slice(0, 3000)}`) })
+    const gain = scanned.entries.find((entry) => entry.id === "org.windfall.test.gain")
+    report.pluginScan = { entries:scanned.entries.length, blocked:scanned.blocked.length, gain }
+    check("by command: the plugin scan finds the owned CLAP gain plugin, usable", gain?.format === "clap" && gain.usable, report.pluginScan)
+    const kickTrack = back.channels.find((channel) => channel.id === kit[0].id).mixerTrack
+    await second.invoke("plugins_add", { path:gain.path, id:gain.id, track:kickTrack })
+    const binding = await second.until(async () => (await second.project()).plugins?.find((item) => item.id === gain.id && item.target.type === "effect"), "the plugin on the kick's mixer track", 30000)
+    await delay(1000)
+    const hosted = await second.invoke("plugins_state")
+    report.pluginHost = { binding:{ ...binding, state:undefined }, instances:hosted.instances }
+    check("by command: the CLAP plugin is hosted on the kick's track without an error", hosted.instances.length === 0, report.pluginHost)
+    await exportSong(second, resolve(folder, "Song QA with plugin.wav"))
+    const wav3 = decodeWav(await readFile(resolve(folder, "Song QA with plugin.wav")))
+    report.pluginRender = { frames:wav3.frames, peak:wav3.peak, rms:wav3.rms, nonFinite:wav3.nonFinite }
+    check("the song exported through the hosted plugin is audible and finite", wav3.rms > 0.005 && wav3.nonFinite === 0 && wav3.frames === wav.frames, report.pluginRender)
+  }
   check("no panel crashed in the second session", (await second.crashed()).length === 0, await second.crashed())
   await second.quit()
   check("the second session quits cleanly", second.session.exitCode === 0, second.session.exitCode)

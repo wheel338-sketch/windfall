@@ -7,7 +7,8 @@
 #   scripts/linux/xplat.sh gates [STEP...] scripts/xplat/gates.sh in the build image
 #   scripts/linux/xplat.sh bundle          unsigned .deb and AppImage
 #   scripts/linux/xplat.sh export          bundles and logs to target/xplat/linux
-#   scripts/linux/xplat.sh smoke           the installed app, in the runtime image
+#   scripts/linux/xplat.sh smoke           the AppImage and the installed .deb, in the runtime image
+#   scripts/linux/xplat.sh pristine        the packages in plain Ubuntu 22.04 and 24.04
 #   scripts/linux/xplat.sh shell           a build shell
 #
 # Volumes: windfall-src (the copied source), windfall-target (Cargo's target
@@ -18,7 +19,9 @@ set -euo pipefail
 export MSYS_NO_PATHCONV=1
 here="$(cd "$(dirname "$0")" && pwd)"
 repo="$(cd "$here/../.." && pwd)"
-if command -v cygpath >/dev/null; then host_repo="$(cygpath -w "$repo")"; else host_repo="$repo"; fi
+# Docker Desktop on Windows takes Windows paths for bind mounts and contexts.
+host() { if command -v cygpath >/dev/null; then cygpath -w "$1"; else echo "$1"; fi; }
+host_repo="$(host "$repo")"
 cpus="${XPLAT_CPUS:-12}"
 memory="${XPLAT_MEMORY:-13g}"
 jobs="${XPLAT_JOBS:-8}"
@@ -34,8 +37,8 @@ command="${1:-}"
 shift || true
 case "$command" in
   images)
-    docker build -f "$here/Dockerfile" --target build -t "$build_image" "$here"
-    docker build -f "$here/Dockerfile" --target runtime -t "$runtime_image" "$here"
+    docker build -f "$(host "$here/Dockerfile")" --target build -t "$build_image" "$(host "$here")"
+    docker build -f "$(host "$here/Dockerfile")" --target runtime -t "$runtime_image" "$(host "$here")"
     ;;
   sync)
     # Working-tree files, not a commit, so uncommitted fixes are tested too.
@@ -72,15 +75,25 @@ case "$command" in
     # A fresh runtime container: no toolchain, nothing from the build volume
     # except the packages and the smoke scripts.
     out="$repo/target/xplat/linux"
-    host_out="$out"; command -v cygpath >/dev/null && host_out="$(cygpath -w "$out")"
-    host_scripts="$repo/scripts"; command -v cygpath >/dev/null && host_scripts="$(cygpath -w "$host_scripts")"
+    host_out="$(host "$out")"; host_scripts="$(host "$repo/scripts")"
     docker run --rm --init --cpus "$cpus" --memory "$memory" --shm-size 1g \
       -v "$host_out:/artifacts" -v "$host_scripts:/scripts:ro" \
       "$runtime_image" bash /scripts/linux/smoke.sh /artifacts "$@"
+    ;;
+  pristine)
+    # Plain Ubuntu images, oldest and newest LTS: only what apt brings in.
+    out="$repo/target/xplat/linux"
+    host_out="$(host "$out")"; host_scripts="$(host "$repo/scripts")"
+    status=0
+    for release in 22.04 24.04; do
+      docker run --rm --cpus "$cpus" --memory "$memory" -v "$host_out:/artifacts" -v "$host_scripts:/scripts:ro" \
+        "ubuntu:$release" bash /scripts/linux/pristine.sh /artifacts || status=1
+    done
+    exit $status
     ;;
   shell)
     docker run --rm -it --init --cpus "$cpus" --memory "$memory" "${volumes[@]}" -w /src "$build_image" bash
     ;;
   *)
-    sed -n '2,17p' "$0"; exit 2 ;;
+    sed -n '2,18p' "$0"; exit 2 ;;
 esac

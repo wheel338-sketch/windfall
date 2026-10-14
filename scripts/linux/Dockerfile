@@ -24,6 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl wget git rsync file xz-utils build-essential pkg-config \
       libssl-dev libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
       librsvg2-dev libxdo-dev libasound2-dev libdbus-1-dev libsoup-3.0-dev \
+      libx11-dev libx11-xcb-dev libxcb1-dev libxrandr-dev \
       libjavascriptcoregtk-4.1-dev patchelf desktop-file-utils fuse libfuse2 \
       xvfb xauth dbus-x11 webkit2gtk-driver xdotool \
     && rm -rf /var/lib/apt/lists/*
@@ -49,7 +50,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PATH=/opt/node/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl xz-utils xvfb xauth dbus-x11 webkit2gtk-driver xdotool \
-      x11-utils imagemagick alsa-utils file \
+      wmctrl openbox x11-utils imagemagick file \
     && rm -rf /var/lib/apt/lists/*
 RUN mkdir -p /opt/node \
     && curl -fsSL https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz \

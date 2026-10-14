@@ -287,7 +287,7 @@ impl Window {
                                     };
                                     density = super::scaling::physical_monitor_scale(
                                         (*crtc).width,
-                                        mm as u64,
+                                        mm,
                                     );
                                 }
                                 XRRFreeCrtcInfo(crtc);
@@ -301,12 +301,11 @@ impl Window {
             // Xft.dpi is the user's global override. Otherwise moving the editor
             // across RandR outputs updates the physical monitor density.
             let resource = XResourceManagerString(self.display);
-            if !resource.is_null() {
-                if let Some(scale) =
+            if !resource.is_null()
+                && let Some(scale) =
                     super::scaling::xft_scale(&CStr::from_ptr(resource).to_string_lossy())
-                {
-                    return scale;
-                }
+            {
+                return scale;
             }
             density
                 .filter(|scale| scale.is_finite() && *scale > 0.0)

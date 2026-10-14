@@ -7,8 +7,8 @@
 #
 #   scripts/xplat/gates.sh LOG_FOLDER [STEP...]
 #
-# Steps: fmt ui-install typecheck lint vitest frontend-build clippy fixtures
-#        native-bins test-workspace test-fixtures-ignored
+# Steps: fmt ui-install typecheck lint vitest frontend-build plugin-runtime clippy
+#        fixtures native-bins test-workspace test-fixtures-ignored
 # The UI is built first: the desktop crate embeds apps/desktop/dist.
 # With no steps, all run. Each step writes LOG_FOLDER/STEP.log ending in an
 # `EXIT:` line; LOG_FOLDER/summary.log lists every step and the test totals.
@@ -55,7 +55,7 @@ step() {
   return 0
 }
 
-all=(fmt ui-install typecheck lint vitest frontend-build clippy fixtures native-bins test-workspace test-fixtures-ignored)
+all=(fmt ui-install typecheck lint vitest frontend-build plugin-runtime clippy fixtures native-bins test-workspace test-fixtures-ignored)
 selected=("$@")
 [ ${#selected[@]} -eq 0 ] && selected=("${all[@]}")
 
@@ -77,6 +77,10 @@ for name in "${selected[@]}"; do
     lint) step lint pnpm --dir apps/desktop lint ;;
     vitest) step vitest pnpm --dir apps/desktop exec vitest run --maxWorkers=4 ;;
     frontend-build) step frontend-build pnpm --dir apps/desktop build ;;
+    # The desktop crate's build script checks that every bundled resource
+    # exists, target/release/plugin-runtime among them; a fresh checkout has
+    # to build it first, as `tauri build` does before bundling.
+    plugin-runtime) step plugin-runtime node scripts/build-plugin-runtime.mjs ;;
     *) echo "unknown step $name" >&2; exit 2 ;;
   esac
 done
