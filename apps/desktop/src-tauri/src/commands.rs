@@ -126,10 +126,6 @@ async fn soundfont_load(
     blocking(move || session.soundfont_load(channel, expected, path, bank, program)).await
 }
 #[tauri::command]
-#[expect(
-    clippy::too_many_arguments,
-    reason = "Named Tauri wire arguments plus authenticated window context"
-)]
 async fn soundfont_add_channel(
     session: State<'_, Session>,
     path: String,
