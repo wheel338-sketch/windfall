@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import { create } from "zustand"
 
 import type { SoundFontPreset } from "@/bindings"
@@ -38,7 +38,7 @@ export function addChannelFromSoundFont(path: string) {
 
 /** Asks which General MIDI instrument the new channel plays, from the SoundFont chosen in Settings. */
 export async function addGeneralMidiChannel() {
-  let path: string | null = null
+  let path: string | null
   try { path = (await backend.defaultSoundfont?.()) ?? null } catch { path = null }
   useSoundFontChannelDialog.getState().open({ path, generalMidi: true })
 }
@@ -49,15 +49,14 @@ export function SoundFontChannelDialogHost() {
   const [presets, setPresets] = useState<SoundFontPreset[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const ticket = useRef(0)
   const path = request?.path ?? null
   useEffect(() => {
-    const mine = ++ticket.current
     if (!path || !backend.soundfontPresets) return
+    let current = true
     void backend.soundfontPresets(path)
-      .then((found) => { if (mine === ticket.current) { setPresets(found); setError(null) } })
-      .catch((failure: unknown) => { if (mine === ticket.current) { setPresets([]); setError(errorMessage(failure)) } })
-    return () => { ticket.current++ }
+      .then((found) => { if (current) { setPresets(found); setError(null) } })
+      .catch((failure: unknown) => { if (current) { setPresets([]); setError(errorMessage(failure)) } })
+    return () => { current = false }
   }, [path])
   const name = path ? path.split(/[\\/]/).pop() ?? path : ""
   return <Dialog open={request !== null} onOpenChange={(next) => { if (!next) { close(); setPresets([]); setError(null) } }}>

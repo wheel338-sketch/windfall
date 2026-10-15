@@ -230,7 +230,6 @@ pub const UI_MESSAGE_CODES: &[&str] = &[
     "recording.armedNeedsInput",
     "recording.offsetTooLarge",
     "sampleBanks.manifestInvalid",
-    "soundFonts.notSoundFont",
     "soundFonts.openFailed",
     "soundFonts.readFailed",
     "soundFonts.tooLarge",
@@ -890,6 +889,7 @@ pub const UI_MESSAGE_CODES: &[&str] = &[
     "plugin.panel.queued",
     "plugin.panel.hostFirst",
     "pluginExport.runtimeCopyDiffers",
+    "soundFonts.notSoundFont",
 ];
 
 /// The parameters each code is shown with, in the order of
@@ -1120,7 +1120,6 @@ pub const UI_MESSAGE_PARAMS: &[(&str, &[&str])] = &[
     ("recording.armedNeedsInput", &["track"]),
     ("recording.offsetTooLarge", &["track"]),
     ("sampleBanks.manifestInvalid", &["error"]),
-    ("soundFonts.notSoundFont", &["file"]),
     ("soundFonts.openFailed", &["error"]),
     ("soundFonts.readFailed", &["error"]),
     ("soundFonts.tooLarge", &["limit"]),
@@ -1874,6 +1873,7 @@ pub const UI_MESSAGE_PARAMS: &[(&str, &[&str])] = &[
     ("plugin.panel.queued", &[]),
     ("plugin.panel.hostFirst", &[]),
     ("pluginExport.runtimeCopyDiffers", &["path"]),
+    ("soundFonts.notSoundFont", &["file"]),
 ];
 
 /// The parameters `code` is shown with, or `None` for an unregistered code.
@@ -2157,10 +2157,11 @@ mod tests {
             (860, "flp.native.pitcherScale"),
             (866, "plugin.panel.hostFirst"),
             (867, "pluginExport.runtimeCopyDiffers"),
+            (868, "soundFonts.notSoundFont"),
         ] {
             assert_eq!(UI_MESSAGE_CODES[index], code);
         }
-        assert_eq!(UI_MESSAGE_CODES.len(), 868);
+        assert_eq!(UI_MESSAGE_CODES.len(), 869);
     }
 
     #[test]

@@ -64,6 +64,7 @@ describe("the menu bar", () => {
       "plugins.picker",
       "channel.add",
       "channel.addInstrument.subtractiveSynth",
+      "channel.addGeneralMidi",
       "channel.addFromFile",
       "pattern.add",
       "mixer.addTrack",
