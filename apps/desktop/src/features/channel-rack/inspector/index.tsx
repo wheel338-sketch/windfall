@@ -1,4 +1,5 @@
-import { translatedText as t, useLanguageStore } from "@/lib/i18n"
+import { message, translatedText as t, useLanguageStore } from "@/lib/i18n"
+import { useCallback, useState, useSyncExternalStore } from "react"
 import { Cancel01Icon, Edit02Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
@@ -29,6 +30,65 @@ import { SamplerProcessingSection } from "./processing-section"
 import { TimingSection } from "./timing-section"
 import { ModularRackSection } from "@/features/modular/editor"
 
+/** At fewer sections than this the settings are short enough without a bar. */
+const NAV_MIN_SECTIONS = 4
+
+const sectionsIn = (scroller: HTMLElement) => [
+  ...scroller.querySelectorAll<HTMLElement>("[data-inspector-section]"),
+]
+const sectionName = (section: HTMLElement) =>
+  section.dataset.inspectorSection ?? ""
+
+/**
+ * A row of the sections in the settings below, to jump to one instead of
+ * scrolling through all of them. It follows the sections there are: they
+ * come and go with the channel's kind and its settings.
+ */
+function SectionNav({ scroller }: { scroller: HTMLElement | null }) {
+  useLanguageStore((state) => state.language)
+  const subscribe = useCallback(
+    (changed: () => void) => {
+      if (!scroller) return () => {}
+      const observer = new MutationObserver(changed)
+      observer.observe(scroller, {
+        childList: true,
+        subtree: true,
+        attributeFilter: ["data-inspector-section"],
+      })
+      return () => observer.disconnect()
+    },
+    [scroller]
+  )
+  // One string, so a look that finds the same sections changes nothing.
+  const listed = useSyncExternalStore(subscribe, () =>
+    scroller ? sectionsIn(scroller).map(sectionName).join("\n") : ""
+  )
+  const names = listed === "" ? [] : listed.split("\n")
+
+  if (names.length < NAV_MIN_SECTIONS) return null
+  return (
+    <nav
+      aria-label={t("Channel settings sections")}
+      className="flex shrink-0 gap-1 overflow-x-auto border-b px-2 py-1 [scrollbar-width:thin]"
+    >
+      {names.map((name, index) => (
+        <button
+          key={`${index}:${name}`}
+          type="button"
+          aria-label={message("Go to {section}", { section: name })}
+          onClick={() => {
+            const target = scroller && sectionsIn(scroller)[index]
+            target?.scrollIntoView?.({ block: "start", behavior: "smooth" })
+          }}
+          className="shrink-0 rounded-sm px-1.5 py-0.5 text-[0.6875rem] whitespace-nowrap text-muted-foreground outline-none hover:bg-foreground/5 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {name}
+        </button>
+      ))}
+    </nav>
+  )
+}
+
 /**
  * The settings of the selected channel, docked beside the rack: a sampler's
  * sample, pitch, level and envelope, or an instrument's own panel, then a
@@ -45,6 +105,8 @@ export function ChannelInspector() {
   const scope = useShortcutScope("rackInspector", { keeps: INSPECTOR_KEEPS })
   // One knob drag in the voice tools is one undo step.
   const voiceGesture = useGesture()
+  // The scrolling settings, for the section bar to look through.
+  const [scroller, setScroller] = useState<HTMLDivElement | null>(null)
 
   return (
     <ContextActions items={INSPECTOR_MENU}>
@@ -87,9 +149,14 @@ export function ChannelInspector() {
             <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
           </ActionButton>
         </header>
+        {channel && <SectionNav scroller={scroller} />}
         {channel ? (
           // Keyed by channel so a drag in flight never lands on another one.
-          <div key={channel.id} className="min-h-0 flex-1 overflow-y-auto">
+          <div
+            key={channel.id}
+            ref={setScroller}
+            className="min-h-0 flex-1 overflow-y-auto"
+          >
             {isSamplerChannel(channel) ? (
               <>
                 <SampleSection channel={channel} />

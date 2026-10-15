@@ -128,6 +128,35 @@ describe("selected clip audio editor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Reverse selection" }))
     await waitFor(() => expect(refused).toHaveBeenLastCalledWith(expect.objectContaining({ token: 8 })))
   })
+  it("follows its edit to the derived clip when the playlist drops the replaced clip before the reply", async () => {
+    const opened = vi.spyOn(backend, "audioEditorOpen").mockResolvedValueOnce(preview)
+    const result = await backend.addAudioClipFromFile(
+      "/factory/Loops/Drum loop 128.wav",
+      { start: 0 }
+    )
+    const derived = result.created.at(-1)!
+    opened.mockResolvedValue({ ...preview, token: 8, clip: derived })
+    let resolve!: (value: typeof result) => void
+    vi.spyOn(backend, "audioEditorApply").mockImplementation(
+      () =>
+        new Promise((done) => {
+          resolve = done
+        })
+    )
+    act(() => usePlaylistStore.getState().select([preview.clip]))
+    await open()
+    fireEvent.click(screen.getByRole("button", { name: "Fade out selection" }))
+    // The replacement arrives first, and the playlist forgets the removed clip.
+    act(() => usePlaylistStore.getState().clearSelection())
+    await act(async () => resolve(result))
+    await waitFor(() => expect(opened).toHaveBeenLastCalledWith(derived))
+    expect(usePlaylistStore.getState().selection).toEqual(new Set([derived]))
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Fade out selection" })).toBeEnabled()
+    )
+    expect(screen.queryByText("Project or source changed. Reopen the editor.")).toBeNull()
+    expect(screen.queryByText("The project changed. Close and reopen the audio editor.")).toBeNull()
+  })
   it("explicitly refuses browser file operations and preserves document/history", async () => {
     const before = useProjectStore.getState()
     render(<AudioEditorButton clip={42} />)
@@ -270,5 +299,25 @@ describe("selected clip audio editor", () => {
     fireEvent.pointerMove(waveform, { pointerId: 1, clientX: 100 })
     fireEvent.pointerUp(waveform, { pointerId: 1, clientX: 100 })
     expect(onSelection).toHaveBeenLastCalledWith({ start: 100, end: 900 })
+  })
+  it("reads the range as time and labels the waveform's time and the spectrogram's frequency", async () => {
+    vi.spyOn(backend, "audioEditorOpen").mockResolvedValue(preview)
+    await open()
+    fireEvent.change(screen.getByLabelText("Start frame (included)"), { target: { value: "250" } })
+    expect(screen.getByText("0:00.250 from the clip start")).toBeInTheDocument()
+    expect(screen.getByText("0:01.000 from the clip start")).toBeInTheDocument()
+    // A one-second clip is marked every 0.2 s.
+    expect(screen.getByText("0:00.4")).toBeInTheDocument()
+    render(
+      <Waveform
+        preview={{ ...preview, sampleRate: 48000, spectral: Array(128 * 64).fill(0.5) }}
+        selection={{ start: 0, end: 1000 }}
+        onSelection={() => {}}
+        disabled={false}
+        spectral
+      />
+    )
+    for (const label of ["24 kHz", "18 kHz", "12 kHz", "6 kHz", "0 Hz"])
+      expect(screen.getByText(label)).toBeInTheDocument()
   })
 })

@@ -25,7 +25,7 @@ import {
   type AnalysisReview,
   type AnalysisTask,
 } from "./types"
-import { translatedText as t, message, dynamicTitle } from "@/lib/i18n"
+import { translatedText as t, message, dynamicTitle, localizeBackendText } from "@/lib/i18n"
 
 /** UI identity only. Native capture/recheck remains the installation authority. */
 export function captureAnalysisClip(id: number) {
@@ -123,6 +123,11 @@ function selectedClip() {
   return id === undefined ? null : captureAnalysisClip(id)
 }
 
+/** Why the native side refuses, in the language shown; it may arrive coded. */
+function capabilityReason(reason: string | null, fallback: string): string {
+  return reason ? localizeBackendText(reason) : fallback
+}
+
 function reason(command: AnalysisCommand): string | undefined {
   const context = panel
   if (!context) return t("Open Analysis for an audio clip")
@@ -143,14 +148,14 @@ function reason(command: AnalysisCommand): string | undefined {
   if (recording()) return t("Finish recording before analysis preparation")
   if (!context.capability) return t("Checking native availability")
   if (!context.capability.native)
-    return context.capability.reason ?? t("Analysis requires the desktop app")
+    return capabilityReason(context.capability.reason, t("Analysis requires the desktop app"))
   if (command === "chooseModel") return undefined
   if (command === "importModel")
     return context.localPath && context.manifest
       ? undefined
       : t("Choose a local file and enter its pinned manifest")
   if (!context.capability.available)
-    return context.capability.reason ?? t("No inference algorithm is available")
+    return capabilityReason(context.capability.reason, t("No inference algorithm is available"))
   const model = context.capability.models[context.modelIndex]
   const builtin = context.capability.classicalDereverb && isDereverb(context.task ?? "audio") &&
     (context.modelIndex === -1 || context.capability.models.length === 0)
@@ -164,7 +169,7 @@ function reason(command: AnalysisCommand): string | undefined {
     const mismatch = !builtin && model ? taskProblem(context.task ?? "audio", model) : undefined
     if (mismatch) return mismatch
     if (context.task === "stemSeparation" && context.capability.stemSeparation === false)
-      return context.capability.reason ?? t("Choose an installed ONNX Runtime library in Settings")
+      return capabilityReason(context.capability.reason, t("Choose an installed ONNX Runtime library in Settings"))
     if (!builtin && model && context.capability.classicalDereverb && !context.capability.stemSeparation && model.provenance.adapterId !== BUILTIN_DEREVERB_ID)
       return t("Pack registered; the ONNX Runtime separation adapter is not installed")
     if (!validRange(context.start, context.end))

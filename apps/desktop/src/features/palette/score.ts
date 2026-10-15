@@ -99,6 +99,26 @@ export function scoreAction(
 }
 
 /**
+ * The share of a search's words, 0 to 1, that start a word of the title or
+ * the keywords. For a search nothing matches in full, so the palette can
+ * still point at the nearest actions. Words under three letters are left
+ * out: they start too many.
+ */
+export function shareOfWords(
+  title: string,
+  keywords: string,
+  search: string
+): number {
+  const queryWords = words(folded(search)).filter((word) => word.length >= 3)
+  if (queryWords.length === 0) return 0
+  const among = [...words(plain(title)), ...words(folded(keywords))]
+  const found = queryWords.filter((word) =>
+    among.some((candidate) => candidate.startsWith(word))
+  )
+  return found.length / queryWords.length
+}
+
+/**
  * Whether the letters of `query` appear in `text` in order. Returns 0 when
  * they do not, and otherwise how tightly they sit together, up to 1.
  */

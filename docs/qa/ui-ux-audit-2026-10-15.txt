@@ -1,0 +1,243 @@
+WINDFALL HUMAN UI AUDIT — 2026-10-15
+
+Method and scope
+The installed Windows desktop app was operated through the computer-use skill
+(@oai/sky): visible controls, pointer clicks/drags, keyboard shortcuts, native file
+dialogs, screenshots, and accessibility observations. No source-code-driven app
+edits, backend API calls, or scripted project construction were used to make the
+song. Window approximately 1440 x 900, interface scale 100%, dark theme.
+This is a broad manual workflow audit, not an exhaustive certification of every
+instrument, effect, codec, external integration, or hardware configuration.
+
+Artifacts
+target/Human UI Song.windfall — eight-bar, 120 BPM project.
+target/Human UI Song Final.wav — final WAV export.
+target/Human UI Song.wav — earlier export before later arrangement/audio edits.
+The song contains kick, clap, eighth-note hats, a Compact synth phrase, Delay,
+independently tempo-fitted Afterglow audio, a tail fade, repeated audio clips,
+and synth volume automation. Notebook text was entered and explicitly committed.
+
+Exercised
+- Launch installed app, default project and factory library navigation.
+- Step buttons, channel context menus, fill every 4/every 2 steps, channel selection.
+- Add instrument, sampler settings inspection, synth settings inspection.
+- Piano-roll snap picker, draw notes, resize notes, note preview/velocity display.
+- Place pattern clips, audio insertion, tempo detection and fit, song playback.
+- Mixer fader adjustment, effect insertion, effect enlargement, delay mix adjustment.
+- Automation creation and point editing; Ctrl+D audio clip duplication.
+- Audio-editor range selection, tail fade, spectrum view, processing-panel inspection.
+- Undo of inserted loop and accidentally erased audio clip.
+- Save As, Save, WAV export, reopen project; arrangement/audio/automation persisted.
+- All browser tabs: Library, Project, Plugins, Files, Backups, Loops, Cloud backup.
+- Starter-loop insertion and undo; plugin manager and scan; settings inspection.
+- Recording setup inspection; touch keyboard and channel pads actually triggered.
+- Notebook editing, loss of uncommitted draft on reopen, separate notebook save.
+- Command palette searches, View submenus, Help/getting-started navigation.
+
+Not fully exercised
+Actual microphone capture, external MIDI/controller hardware, third-party CLAP/
+VST3 playback, ONNX/model-dependent analysis, stem separation, remote control,
+MCP integration, external cloud sync, update installation, every export codec,
+archive/FLP/MIDI interchange, every built-in instrument/effect, script execution,
+every advanced arrangement or piano-roll operation, language/theme variations,
+and detached-window or alternate-display-size behavior. Playback was verified
+visually with playheads/meters; this audit does not certify subjective audio quality.
+
+PROBLEMS — observations and user impact only; no prescribed solutions
+
+01. Notebook drafts disappear despite an apparently successful project save.
+    Enter a notebook title/body, close Notebook, press Ctrl+S, reopen the project:
+    the notebook returns to an empty page. A separate Save notebook button exists
+    below the visible bottom of the panel. The page says "Plain text saved with
+    the song"; typing does not mark the project dirty, and closing the panel did
+    not warn about the draft. Once the separate button was discovered and clicked,
+    the project became dirty. This is a hidden commit step, not a confirmed file
+    serialization failure. Priority: high, because real notes were lost in use.
+
+02. A normal audio edit leaves its open editor stale.
+    Open an audio clip's Audio editor, drag a range at its tail, apply Fade out
+    selection, then continue looking through the editor. The underlying clip gets
+    a derived source named Afterglow (FadeOut), while the dialog still shows the
+    previous source. Lower down it says "Project or source changed. Reopen the
+    editor" and note-detection controls are disabled. Continuing an editing session
+    now requires leaving/reopening and finding the clip again. Priority: high.
+
+03. Step-fill history exposes raw localization serialization.
+    Use Fill every 4 steps or Fill every 2 steps, then Browser > Project > Edit
+    history. The row literally displays windfall-label:{"key":"Fill every
+    {every} steps","values":{"every":4}} (or 2), rather than a normal action
+    name. The payload wraps through several lines in the narrow browser.
+
+04. Analysis and stem settings expose nested internal error payloads.
+    Open selected clip > Analysis, or inspect Settings > Stem separation without
+    ONNX Runtime configured. Status starts "analysis:unavailable: windfall-message:"
+    and contains nested JSON/escaped windfall-message data. The useful missing-
+    runtime explanation is buried in implementation text.
+
+05. The piano-roll toolbar extends beyond the window.
+    With Browser and Mixer visible at the normal window size, one long toolbar
+    stretches past the right edge. Scale/chord/riff/highlight/waveform/note-tool
+    controls exist beyond what is initially visible. The horizontal toolbar scroll
+    area is very small and easy to overlook. This obstructed finding melodic tools.
+
+06. The piano-roll default snap is surprising for first note entry.
+    On first opening the new synth's piano roll, Snap was Bar. A user trying to
+    put several notes in the first bar has to discover and change this before
+    drawing the phrase. No previous piano-roll grid choice had been made in this
+    test session. This is usability feedback, not a claim that Bar is invalid.
+
+07. Resizing on the beat grid unexpectedly extended the pattern.
+    A newly drawn short note was resized with Beat snap from its right edge toward
+    the next beat. Its resulting duration was about one-and-a-quarter beats; later
+    notes inherited that length, and the last note crossed the bar. The pattern
+    became two bars. Shortening the last note back inside the bar did not shrink
+    the pattern back to one bar. It was difficult to see the duration/length side
+    effect while composing. Investigate exact drag/snap semantics before changing.
+
+08. Audio clip controls consume most of the arrangement workspace.
+    With the default mixer open, selecting/adding an audio clip exposes several
+    rows of gain, pan, pitch, fades, routing, processing, and preset arithmetic.
+    The remaining playlist showed only about one or two tracks. The previously
+    placed pattern track scrolled out of view while working on the new audio clip.
+
+09. Undo leaves an empty audio inspector and a misleading empty timeline view.
+    Insert Pulse Grid from Browser > Loops, then Ctrl+Z. The inserted audio/track
+    goes away, but the large inspector remains with "Select an audio clip to edit
+    it". The timeline stays scrolled around the removed track, hiding the existing
+    song above. It initially looks as if the arrangement is gone.
+
+10. Reopening closed clip settings is hard to discover.
+    Close the audio inspector with its small x. Clicking or double-clicking an
+    existing audio clip did not reopen it. View > Playlist's visible submenu did
+    not expose an obvious inspector entry. It was eventually recovered by searching
+    the command palette for the exact phrase "Audio clip settings".
+
+11. Right-click behavior differs sharply across editing surfaces.
+    Channel-name right-click opens a long action menu. Trying to find audio editing
+    actions by right-clicking the playlist clip erased it instead; Undo restored
+    it. The bottom hint does mention right-click deletion, but the behavior was
+    still an accidental edit during ordinary exploration. This is a discoverability
+    problem; no particular alternate interaction is prescribed.
+
+12. Adding an effect initially hides almost all its actual controls.
+    Add Delay to Compact synth in the mixer. The right inspector opens with
+    sidechain, presets, EQ, input, hardware output, and latency sections above the
+    effect. Only the Delay header and a sliver of its controls fit below them.
+    Scrolling over the upper inspector did not reach the controls. Enlarging the
+    effects view helped, but the same metadata still occupied most of its height.
+
+13. Instrument and effect menus are difficult to survey.
+    Add channel and +Effect are very long scrolling flat menus. Many instrument
+    names give little indication of their sound or role. Looking for a familiar
+    instrument/effect requires moving through many entries without an inline
+    search or descriptions in those menus. The separate plugin browser was found
+    later, but was not apparent in the initial Add-channel workflow.
+
+14. Mixer names become unreadable even with very few tracks.
+    In Adaptive layout the five/six tracks in this song were abbreviated to
+    "1 K...", "2 C...", "3 H...", etc.; channel chips were abbreviated too.
+    There was considerable unused mixer space before the effects inspector opened.
+    Distinguishing similarly named tracks while mixing required extra inspection.
+
+15. Plugin-manager destination uses a number inconsistent with the mixer.
+    With Compact synth selected (visible mixer track 5), Plugin manager said effects
+    would go to "mixer track 29". The user-facing track number/name and the dialog's
+    destination do not line up, making the target uncertain.
+
+16. Plugin discovery presents overlapping search/list concepts.
+    Plugin manager shows Search plugins and "No plugins found" above a separate
+    Search plugin database field and populated built-in cards. Browser > Plugins
+    uses the latter card catalog. It takes effort to understand which list/search
+    finds installed external plugins versus built-in sounds/effects.
+
+17. Browsing plugin cards gives much of the space to category editing.
+    Each built-in card visibly includes an editable "Category for [plugin]" field.
+    In the narrow browser this allows only a few cards to fit at a time, while the
+    task is choosing an instrument/effect. The cards provide little sound guidance.
+
+18. Selecting a library sound can push the selected row out of sight.
+    Select Factory > Loops > House > Afterglow.wav. The preview area expands with
+    a path, tagging form, metadata, waveform, and add buttons, shrinking the tree
+    enough that Afterglow's selected row dropped below its visible bottom. This
+    made it harder to retain position while browsing nearby sounds.
+
+19. The library includes non-musical support files in its main sound tree.
+    Factory browsing visibly shows manifest.json, LICENSE.md, README.md and an
+    assets/GeneralUser-GS-LICENSE.txt entry next to playable sounds. Several are
+    disabled, but consume space and distract from finding musical content.
+
+20. Two loop entry points behave differently without clear continuity.
+    Library > Factory > Loops > House > Afterglow.wav previews raw audio at its
+    source duration and Add to playlist does not fit it to 120 BPM. Browser > Loops
+    also lists Afterglow with source BPM/key and says Insert resynthesizes at the
+    project tempo. The same named content is encountered in two workflows with
+    different tempo/key handling, which was not obvious during the first import.
+
+21. New-project Backups displays a folder error rather than a useful empty state.
+    After saving this new song, Browser > Backups displayed "Could not list backups"
+    and a missing-folder path. The long path ran outside the narrow panel. Other
+    backup controls use a separate Cloud backup tab, adding uncertainty about which
+    backup system applies to the newly saved song.
+
+22. Settings opens partway down an exceptionally long form.
+    First Options > Settings in this session displayed the middle of MIDI settings;
+    Settings title and Audio output were above the visible area. Scrolling upward
+    was required to understand where the dialog began. Audio, MIDI, stems, remote,
+    MCP, SoundFont, appearance, language, keyboard and updates share the long form.
+    Closing/scanning sections requires substantial vertical navigation.
+
+23. Tempo fitting causes disruptive dialog growth and excessive numeric precision.
+    In Stretch / tempo: Detect tempo yielded "123.8 BPM (47%)". Selecting it put
+    123.83296796868554 in Source BPM; Fit to 120 BPM introduced a duration multiplier
+    such as 1.031941399739046 and more options. The dialog grew until Apply scrolled
+    below the viewport, requiring another scroll to finish a simple fitting task.
+
+24. Technical time units and unlabeled scales hinder musical editing.
+    Recording setup asks for Playlist start tick, Notebook uses Page starts at song
+    tick, and the audio editor uses start/end frame integers. The waveform has no
+    visible time ruler, and its spectrum has no frequency-axis labels (only an
+    explanatory sentence). Relating a selected range/cue to the song required
+    mental conversion rather than reading a musical/time position.
+
+25. Primary recording action is far below the first visible setup screen.
+    Clicking Record opens a narrow, tall dialog. Input/device, clock-drift, offset,
+    channel and placement options occupy the first screen; Start recording and
+    status are below it. Even with a detected default microphone, discovering how
+    to begin recording requires scrolling through setup. Actual mic capture was
+    not performed in this audit.
+
+26. Search does not expose the same vocabulary as visible features.
+    Command palette search "audio editor" returned "No action matches that" even
+    though the selected clip's inspector has an Audio editor button. Searching
+    "clip" finds Audio clip settings. This hindered recovery after closing the
+    inspector and undermined the search-as-navigation workflow.
+
+27. Playback wording remains affirmative while stopped.
+    After using Play song and then Stop, the playlist toolbar continued to show
+    "Playing from the pla..." while transport/playhead were stopped. That text is
+    also truncated. It is difficult to distinguish playback status from the chosen
+    Pattern/Song mode, which appears in both transport and playlist toolbars.
+
+28. Ordinary UI use accumulated audio dropouts without actionable context.
+    This small project reached 1, then 2, then 3 dropouts while browsing/editing;
+    the counter increased even around stopped editing interactions. CPU stayed
+    roughly 2–6%. The visible count alone did not explain what triggered it or its
+    relevance to the current operation. No root cause or audible defect is claimed.
+
+29. Browser tab names do not reliably communicate their contents.
+    Files opens score/preset/template actions rather than a conventional file
+    browser. Cloud backup contains optional local-folder backup and explicitly
+    says there is no cloud account/upload service. Both labels initially sent the
+    exploration down a different path than their contents implied.
+
+30. Dense repeated arithmetic/preset controls dominate simple parameter editing.
+    Sample settings, audio clip controls, and various forms show many Previous/
+    Next/Half/Double/preset rows together. Sample parameters continued through
+    loop processing, stretch, envelopes, multiple LFOs and note timing in one long
+    inspector. Finding a specific setting required scrolling through large amounts
+    of unrelated content; labels such as Loop crossfade were visibly truncated.
+
+Handoff scope
+The requested implementer is Claude Opus 5.5. These are problem statements, not
+design prescriptions. Investigate the reproducible behavior and choose the fixes.
+Keep confirmed defects distinct from subjective friction and unverified causes.

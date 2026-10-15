@@ -1,8 +1,17 @@
-import { useEffect, useId, useRef, useState } from "react"
+import {
+  useEffect,
+  useEffectEvent,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react"
 
 import type { Notebook, NotebookPage } from "@/bindings"
+import { PositionInput } from "@/components/position-input"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { actionForEvent, runAction } from "@/lib/actions"
 import { subscribeRealtime } from "@/lib/store/realtime"
 import { useTransportStore } from "@/lib/store/transport"
 import {
@@ -37,6 +46,20 @@ const byteLength = (value: string) => new TextEncoder().encode(value).length
 const normalize = (pages: NotebookPage[]): Notebook => ({
   pages: pages.map((page) => ({ ...page, title: page.title.trim() })),
 })
+/** Compares books as they are stored: trimmed titles, absent options as off. */
+const bookKey = (pages: readonly NotebookPage[]) =>
+  JSON.stringify(
+    pages.map((page) => [
+      page.title.trim(),
+      page.body,
+      page.startTick ?? null,
+      page.html ?? false,
+    ])
+  )
+/** How long typing pauses before the draft goes into the project. */
+export const NOTEBOOK_COMMIT_DELAY_MS = 1000
+/** Shortcuts that save the project; the draft goes into it first. */
+const SAVE_ACTIONS = new Set(["file.save", "file.saveAs", "file.saveNewVersion"])
 
 export function NotebookPanel({
   notebook,
@@ -48,17 +71,23 @@ export function NotebookPanel({
   const t = useTranslation()
   const id = useId()
   const [pages, setPages] = useState(() => notebook?.pages ?? [])
-  const [saved, setSaved] = useState(() => normalize(notebook?.pages ?? []))
+  const [savedKey, setSavedKey] = useState(() => bookKey(notebook?.pages ?? []))
+  const [source, setSource] = useState(notebook)
   const [selected, setSelected] = useState(0)
   const [follow, setFollow] = useState(false)
+  // `saving` is a Save notebook press, which holds the form. A commit after
+  // a pause in typing runs in the background, as `committing`.
   const [saving, setSaving] = useState(false)
+  const [committing, setCommitting] = useState<string | null>(null)
   const pending = useRef(false)
+  const inFlight = useRef<Promise<void> | null>(null)
   const [error, setError] = useState<string | null>(null)
   // The temporary blank page belongs only to the editor until an edit or add.
   const visiblePages = pages.length ? pages : [blankPage()]
   const page = visiblePages[selected] ?? visiblePages[0]
   const next = normalize(pages)
-  const changed = JSON.stringify(next) !== JSON.stringify(saved)
+  const nextKey = bookKey(pages)
+  const changed = nextKey !== savedKey
   const cueInvalid = pages.some((item) => item.startTick !== undefined &&
     item.startTick !== null && (!Number.isInteger(item.startTick) ||
     item.startTick < 0 || item.startTick > 960_000_000))
@@ -69,6 +98,22 @@ export function NotebookPanel({
       byteLength(item.title) > TITLE_BYTES || byteLength(item.body) > BODY_BYTES
   )
   const invalid = invalidPage !== -1 || pages.length > MAX_PAGES || cueInvalid
+
+  // The book changed under the editor: undo, redo or an edit from elsewhere
+  // replaces the draft. A commit of this draft coming back changes nothing.
+  if (notebook !== source) {
+    setSource(notebook)
+    const incoming = notebook?.pages ?? []
+    const key = bookKey(incoming)
+    if (key === committing) {
+      setSavedKey(key)
+    } else if (key !== savedKey) {
+      setPages(incoming)
+      setSavedKey(key)
+      setSelected((index) => Math.min(index, Math.max(0, incoming.length - 1)))
+      setError(null)
+    }
+  }
   const items = visiblePages.map((item, index) => ({
     value: index,
     label: message("{index}. {title}", { index: index + 1, title: item.title.trim() || t("Untitled page") }),
@@ -90,6 +135,7 @@ export function NotebookPanel({
   }, [follow, pages, saving])
 
   const edit = (patch: Partial<NotebookPage>) => {
+    setError(null)
     setPages((current) => {
       const base = current.length ? current : [blankPage()]
       return base.map((item, index) =>
@@ -98,24 +144,69 @@ export function NotebookPanel({
     })
   }
 
-  const save = async () => {
-    if (pending.current || !changed || invalid) return
+  // Puts the draft into the project: one undo step, the project marked
+  // unsaved, and written with it. A Save notebook press also tidies the
+  // titles; a background commit leaves the text being typed alone.
+  const commit = (explicit: boolean): Promise<void> => {
+    if (pending.current || !changed || invalid) return Promise.resolve()
     pending.current = true
-    setSaving(true)
+    const book = next
+    const key = nextKey
+    setCommitting(key)
+    if (explicit) setSaving(true)
     setError(null)
-    try {
-      if (await onSave(next)) {
-        setSaved(next)
-        setPages(next.pages)
-      } else {
+    const work = (async () => {
+      try {
+        if (await onSave(book)) {
+          setSavedKey(key)
+          if (explicit) setPages(book.pages)
+        } else {
+          setError(t("Could not save notebook."))
+        }
+      } catch {
         setError(t("Could not save notebook."))
+      } finally {
+        pending.current = false
+        inFlight.current = null
+        setCommitting(null)
+        if (explicit) setSaving(false)
       }
-    } catch {
-      setError(t("Could not save notebook."))
-    } finally {
-      pending.current = false
-      setSaving(false)
-    }
+    })()
+    inFlight.current = work
+    return work
+  }
+
+  // What the unmount and save-shortcut paths need from the latest render.
+  const latest = useRef({ changed, invalid, next, nextKey, committing, onSave, commit })
+  useLayoutEffect(() => {
+    latest.current = { changed, invalid, next, nextKey, committing, onSave, commit }
+  })
+
+  // A pause in typing commits the draft, so closing the notebook or saving
+  // the project never leaves notes behind. A failed commit waits for the
+  // next edit rather than retrying in a loop.
+  const commitInBackground = useEffectEvent(() => void commit(false))
+  useEffect(() => {
+    if (!changed || invalid || saving || committing !== null || error) return
+    const timer = setTimeout(() => commitInBackground(), NOTEBOOK_COMMIT_DELAY_MS)
+    return () => clearTimeout(timer)
+  }, [nextKey, changed, invalid, saving, committing, error])
+
+  // Closing the notebook commits what the pause has not yet.
+  useEffect(
+    () => () => {
+      const last = latest.current
+      if (last.changed && !last.invalid && last.nextKey !== last.committing)
+        void last.onSave(last.next).catch(() => {})
+    },
+    []
+  )
+
+  // Saves the project from inside the notebook once the draft is in it.
+  const saveProject = async (action: string) => {
+    await inFlight.current
+    await latest.current.commit(false)
+    await runAction(action)
   }
 
   return (
@@ -124,9 +215,18 @@ export function NotebookPanel({
       aria-busy={saving}
       onSubmit={(event) => {
         event.preventDefault()
-        void save()
+        void commit(true)
       }}
-      onKeyDown={(event) => event.stopPropagation()}
+      onKeyDown={(event) => {
+        // The notebook keeps the app's shortcuts from its fields, except
+        // the ones that save the project.
+        event.stopPropagation()
+        const action = actionForEvent(event.nativeEvent)
+        if (action && SAVE_ACTIONS.has(action.id)) {
+          event.preventDefault()
+          if (!event.repeat) void saveProject(action.id)
+        }
+      }}
     >
       <FieldGroup>
         <Field orientation="horizontal">
@@ -204,12 +304,12 @@ export function NotebookPanel({
           </div>
         </Field>
         <Field data-invalid={cueInvalid}>
-          <FieldLabel htmlFor={`${id}-cue`}>{t("Page starts at song tick")}</FieldLabel>
-          <Input id={`${id}-cue`} type="number" min={0} max={960_000_000}
-            step={1} value={page.startTick ?? ""} disabled={saving}
-            aria-invalid={cueInvalid}
-            onChange={(event) => edit({ startTick: event.target.value === "" ? undefined : Number(event.target.value) })} />
-          <FieldDescription>{t("Leave blank for a manual page. Playback, seeks and loops select the latest cue in song mode.")}</FieldDescription>
+          <FieldLabel htmlFor={`${id}-cue`}>{t("Page starts at song position")}</FieldLabel>
+          <PositionInput id={`${id}-cue`} optional value={page.startTick ?? undefined}
+            disabled={saving} aria-invalid={cueInvalid}
+            aria-describedby={`${id}-cue-help`}
+            onValueChange={(startTick) => edit({ startTick })} />
+          <FieldDescription id={`${id}-cue-help`}>{t("Type bar:beat or bar:beat:tick, such as 9:1. Leave blank for a manual page. Playback, seeks and loops select the latest cue in song mode.")}</FieldDescription>
           {cueInvalid && <FieldError>{t("Use a whole tick from 0 to 960,000,000.")}</FieldError>}
         </Field>
         <Field orientation="horizontal">
@@ -264,14 +364,27 @@ export function NotebookPanel({
             {t("A notebook can have at most 8 pages.")}
           </FieldError>
         )}
-        {error && <FieldError role="alert">{error}</FieldError>}
-        <Button
-          type="submit"
-          size="sm"
-          disabled={saving || !changed || invalid}
-        >
-          {t(saving ? "Saving…" : "Save notebook")}
-        </Button>
+        {/* Pinned to the bottom of the scrolling popover, so where the notes
+            stand is never out of sight. */}
+        <div className="sticky bottom-0 z-10 flex flex-col gap-2 border-t bg-popover py-2">
+          {error && <FieldError role="alert">{error}</FieldError>}
+          <div className="flex items-center gap-2">
+            <Button
+              type="submit"
+              size="sm"
+              disabled={saving || !changed || invalid}
+            >
+              {t(saving ? "Saving…" : "Save notebook")}
+            </Button>
+            <p role="status" className="text-muted-foreground">
+              {!changed
+                ? t("Notes are part of the song. Save the project to keep them.")
+                : invalid
+                  ? t("Fix the marked text to add your changes to the song.")
+                  : t("Adding your changes to the song…")}
+            </p>
+          </div>
+        </div>
       </FieldGroup>
     </form>
   )

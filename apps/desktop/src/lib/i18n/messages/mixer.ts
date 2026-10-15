@@ -311,6 +311,10 @@ export const mixerEn = {
   "{name}, {place}, silenced by solo": "{name}, {place}, silenced by solo",
   "{trackName} pan": "{trackName} pan",
   "{what} play into this track. Click to list them": "{what} play into this track. Click to list them",
+  "Track settings": "Track settings",
+  "Sidechain, presets, EQ": "Sidechain, presets, EQ",
+  "Sidechain, presets, EQ, input, output, latency": "Sidechain, presets, EQ, input, output, latency",
+  "Type a name to jump to it.": "Type a name to jump to it.",
 } as const
 
 export const mixerEs = {
@@ -624,4 +628,8 @@ export const mixerEs = {
   "{name}, {place}, silenced by solo": "{name}, {place}, acallada por un solo",
   "{trackName} pan": "Panorama de {trackName}",
   "{what} play into this track. Click to list them": "{what} alimentan esta pista. Haz clic para ver la lista",
+  "Track settings": "Ajustes de la pista",
+  "Sidechain, presets, EQ": "Cadena lateral, preajustes, EQ",
+  "Sidechain, presets, EQ, input, output, latency": "Cadena lateral, preajustes, EQ, entrada, salida, latencia",
+  "Type a name to jump to it.": "Escribe un nombre para saltar a él.",
 } satisfies Record<keyof typeof mixerEn, Message>

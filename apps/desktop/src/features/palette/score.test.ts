@@ -5,7 +5,7 @@ import { registry } from "@/lib/actions"
 import { BUILTIN_ACTIONS } from "@/lib/actions/builtin"
 
 import { searchActions } from "./command-palette"
-import { rank, scoreAction } from "./score"
+import { rank, scoreAction, shareOfWords } from "./score"
 
 /** Titles of the built-in actions that match, best first. */
 function search(text: string): string[] {
@@ -145,5 +145,15 @@ describe("rank", () => {
       "Mute notes",
       "Unmute",
     ])
+  })
+})
+
+describe("shareOfWords", () => {
+  it("counts the search words that start a title or keyword word, leaving out short ones", () => {
+    expect(shareOfWords("Audio clip settings", "inspector editor", "audio editor")).toBe(1)
+    expect(shareOfWords("Save", "write project", "save zzzz")).toBe(0.5)
+    expect(shareOfWords("Save", "write project", "zzzz")).toBe(0)
+    expect(shareOfWords("Save", "", "save to")).toBe(1)
+    expect(shareOfWords("Save", "", "to")).toBe(0)
   })
 })

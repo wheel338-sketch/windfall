@@ -222,6 +222,7 @@ export const audioEditorEn = {
   "{regionName} Loop direction": "{regionName} Loop direction",
   "{regionName} Loop repeat count": "{regionName} Loop repeat count",
   "{regionName} Root MIDI key": "{regionName} Root MIDI key",
+  "{time} from the clip start": "{time} from the clip start",
 } as const
 
 export const audioEditorEs = {
@@ -446,4 +447,5 @@ export const audioEditorEs = {
   "{regionName} Loop direction": "Dirección del bucle de {regionName}",
   "{regionName} Loop repeat count": "Número de repeticiones del bucle de {regionName}",
   "{regionName} Root MIDI key": "Nota MIDI raíz de {regionName}",
+  "{time} from the clip start": "{time} desde el inicio del clip",
 } satisfies Record<keyof typeof audioEditorEn, Message>

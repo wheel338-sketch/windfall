@@ -10,8 +10,8 @@ import { useProjectStore } from "@/lib/store/project"
 import { BackupsTab } from "."
 
 vi.mock("@/lib/ipc", async () => {
-  const { errorMessage } = await import("@/lib/ipc/backend")
-  return { backend: { browserList: vi.fn() }, errorMessage }
+  const { errorSource } = await import("@/lib/ipc/backend")
+  return { backend: { browserList: vi.fn() }, errorSource }
 })
 vi.mock("@/lib/flows/project", () => ({ openProjectPath: vi.fn() }))
 
@@ -81,7 +81,7 @@ describe("project backups browser", () => {
     ).toBeInTheDocument()
   })
 
-  it.each(["empty", "missing"])(
+  it.each(["empty", "missing", "missing (coded)"])(
     "shows no backups for an %s folder",
     async (kind) => {
       useProjectStore.setState({ path: "C:/songs/Demo.windfall" })
@@ -90,8 +90,22 @@ describe("project backups browser", () => {
           'The folder "C:/songs/Backup" does not exist.'
         )
       }
+      if (kind === "missing (coded)") {
+        // What the shell sends for a new song: a coded message, with the
+        // folder written with Windows separators.
+        browserList.mockRejectedValue(
+          `windfall-message:${JSON.stringify({
+            code: "browser.folderMissing",
+            params: { folder: "C:\\songs\\Backup" },
+          })}`
+        )
+      }
       render(<BackupsTab />)
       expect(await screen.findByText("No backups")).toBeInTheDocument()
+      expect(
+        screen.getByText(/No automatic backups yet/)
+      ).toBeInTheDocument()
+      expect(screen.getByText(/use the Folder backup tab/)).toBeInTheDocument()
       expect(screen.queryByRole("alert")).toBeNull()
     }
   )

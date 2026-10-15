@@ -184,7 +184,16 @@ export function LibraryControls() {
   )
 }
 
-function MetadataEditor({ path }: { path: string }) {
+function MetadataEditor({
+  path,
+  editing,
+  onEditingChange,
+}: {
+  path: string
+  /** Whether the tag form is open; closed, the editor is one line. */
+  editing: boolean
+  onEditingChange: (editing: boolean) => void
+}) {
   const revision = useLibraryStore((s) => s.revision)
   const [favorite, setFavorite] = useState(false)
   const [tags, setTags] = useState("")
@@ -232,60 +241,76 @@ function MetadataEditor({ path }: { path: string }) {
       setSaving(false)
     }
   }
+  // Closed, the editor is a single line, so selecting a file takes little
+  // room from the tree above it.
   return (
-    <div className="flex max-h-48 shrink-0 flex-col gap-1 overflow-y-auto border-t p-2">
-      <p className="truncate text-muted-foreground" title={path}>
-        {path}
-      </p>
-      <FieldGroup>
-        <Field data-invalid={!!error} data-disabled={!ready || saving}>
-          <div className="flex items-center justify-between gap-2">
-            <FieldLabel htmlFor="browser-file-tags">{translatedText("Tags")}</FieldLabel>
-            <Toggle
-              size="sm"
-              variant="outline"
-              pressed={favorite}
-              disabled={!ready || saving}
-              aria-label={translatedText("Star selected file")}
-              onPressedChange={(value) => void save(value)}
-            >
-              {translatedText("Star")}
-            </Toggle>
-          </div>
-          <Input
-            id="browser-file-tags"
-            value={tags}
-            disabled={!ready || saving}
-            aria-invalid={!!error}
-            maxLength={1054}
-            onChange={(e) => setTags(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault()
-                void save(favorite)
-              }
-            }}
-          />
-          <FieldDescription>
-            {translatedText("Comma separated; up to 16 tags of 32 characters. Saved for this user.")}
-          </FieldDescription>
-        </Field>
-      </FieldGroup>
-      <div className="flex flex-wrap items-center gap-1">
-        {savedTags.map((tag) => (
-          <Badge key={tag} variant="secondary">
-            {tag}
-          </Badge>
-        ))}
-        <Button
-          variant="outline"
+    <div className="flex max-h-40 shrink-0 flex-col gap-1 overflow-y-auto border-t p-1.5">
+      <div className="flex min-w-0 items-center gap-1">
+        <p className="min-w-0 flex-1 truncate text-muted-foreground" title={path}>
+          {path}
+        </p>
+        <Toggle
           size="sm"
+          variant="outline"
+          pressed={favorite}
           disabled={!ready || saving}
-          onClick={() => void save(favorite)}
+          aria-label={translatedText("Star selected file")}
+          onPressedChange={(value) => void save(value)}
         >
-          {translatedText("Save tags")}
+          {translatedText("Star")}
+        </Toggle>
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-expanded={editing}
+          aria-controls="browser-file-tags-form"
+          onClick={() => onEditingChange(!editing)}
+        >
+          {translatedText("Edit tags")}
         </Button>
       </div>
+      {savedTags.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1">
+          {savedTags.map((tag) => (
+            <Badge key={tag} variant="secondary">
+              {tag}
+            </Badge>
+          ))}
+        </div>
+      )}
+      {editing && (
+        <FieldGroup id="browser-file-tags-form" className="gap-2">
+          <Field data-invalid={!!error} data-disabled={!ready || saving}>
+            <FieldLabel htmlFor="browser-file-tags">{translatedText("Tags")}</FieldLabel>
+            <Input
+              id="browser-file-tags"
+              value={tags}
+              disabled={!ready || saving}
+              aria-invalid={!!error}
+              maxLength={1054}
+              onChange={(e) => setTags(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault()
+                  void save(favorite)
+                }
+              }}
+            />
+            <FieldDescription>
+              {translatedText("Comma separated; up to 16 tags of 32 characters. Saved for this user.")}
+            </FieldDescription>
+          </Field>
+          <Button
+            variant="outline"
+            size="sm"
+            className="self-start"
+            disabled={!ready || saving}
+            onClick={() => void save(favorite)}
+          >
+            {translatedText("Save tags")}
+          </Button>
+        </FieldGroup>
+      )}
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{localizeBackendText(error)}</AlertDescription>
@@ -297,7 +322,14 @@ function MetadataEditor({ path }: { path: string }) {
 
 export function LibraryMetadataEditor() {
   const selected = useBrowserStore((s) => s.selected)
+  // Kept here, so the form stays open while moving from file to file.
+  const [editing, setEditing] = useState(false)
   return selected && selected.kind !== "folder" ? (
-    <MetadataEditor key={selected.path} path={selected.path} />
+    <MetadataEditor
+      key={selected.path}
+      path={selected.path}
+      editing={editing}
+      onEditingChange={setEditing}
+    />
   ) : null
 }

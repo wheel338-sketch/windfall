@@ -1,5 +1,6 @@
 import { useEffect } from "react"
 import { ActionButton } from "@/components/action-button"
+import { PositionInput } from "@/components/position-input"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -94,13 +95,35 @@ export function RecordingDialog() {
       open={s.open}
       onOpenChange={(open) => useRecordingStore.setState({ open })}
     >
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      {/* Only the setup scrolls. The status and the record buttons stay in
+          view below it, so starting needs no hunt through the options. */}
+      <DialogContent className="flex max-h-[90vh] flex-col">
         <DialogHeader>
           <DialogTitle>{translatedText("Record audio input")}</DialogTitle>
           <DialogDescription>
             {translatedText("Record a mono or stereo input into the playlist. Synchronize playback to the chosen start, use a count-in, and set an offset for your setup.")}
           </DialogDescription>
         </DialogHeader>
+        <div className="-mx-4 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4">
+        {s.state.active && s.state.alignment && <p className="text-sm text-muted-foreground">
+          {translatedText("Input")}{" "}{s.state.alignment.inputSampleRate}{" "}{translatedText("Hz · input latency")}{" "}{s.state.alignment.inputLatencyMs.toFixed(1)}{" "}{translatedText("ms · output latency")}{" "}{s.state.alignment.outputLatencyMs.toFixed(1)}{" "}{translatedText("ms · drift")}{" "}{s.state.alignment.driftPpm.toFixed(1)} ppm.
+          {s.state.alignment.measuredTimestamps ? translatedText(" Driver timestamps available.") : translatedText(" Timestamp estimate in use.")}
+        </p>}
+        {s.state.active && s.state.takes && s.state.takes.length > 0 && <fieldset className="max-h-40 space-y-2 overflow-y-auto rounded border p-3">
+          <legend className="px-1 text-sm">{translatedText("Takes to keep")}</legend>
+          {s.state.takes.map((take, index, takes) => <Field key={take.index} orientation="horizontal">
+            <Checkbox id={`record-take-${take.index}`} checked={s.keepLatest ? index === takes.length - 1 : !s.excludedTakes.includes(take.index)} disabled={s.busy || s.keepLatest} onCheckedChange={(checked) => useRecordingStore.setState({ excludedTakes: checked === true ? s.excludedTakes.filter((value) => value !== take.index) : [...s.excludedTakes, take.index] })} />
+            <FieldLabel htmlFor={`record-take-${take.index}`}>{translatedText("Take")}{" "}{take.index + 1} · {(take.frames / Math.max(1, s.state.sampleRate)).toFixed(1)} s{take.complete ? "" : translatedText(" (recording)")}</FieldLabel>
+          </Field>)}
+          <p className="text-xs text-muted-foreground">{translatedText("Kept takes share the loop start. The latest is audible; earlier takes are muted for auditioning in the playlist.")}</p>
+        </fieldset>}
+        {s.state.active && s.state.monitor && <p className="text-sm text-muted-foreground">{translatedText("Monitor buffer")}{" "}{s.state.monitor.bufferedMs.toFixed(1)}{" "}{translatedText("ms · dropped")}{" "}{s.state.monitor.droppedFrames}{" "}{translatedText("frames · starved")}{" "}{s.state.monitor.starvedFrames}{" "}{translatedText("frames.")}</p>}
+        {s.state.active && s.state.tracks && <ul aria-label={translatedText("Recording tracks")} className="max-h-40 space-y-1 overflow-y-auto text-xs">
+          {s.state.tracks.map((track) => <li key={track.mixerTrack} className="rounded border p-2">
+            <p className="font-medium">{track.name} · {(track.frames / Math.max(1, s.state.sampleRate)).toFixed(1)} s · {mixerTracks.find((item) => item.id === track.mixerTrack)?.recording?.mode === "postEffects" ? translatedText("after effects") : mixerTracks.find((item) => item.id === track.mixerTrack)?.recording?.mode === "postFader" ? translatedText("after fader") : translatedText("dry input")}</p>
+            <p className="text-muted-foreground">{translatedText("Source")}{" "}{track.alignment.inputSampleRate}{" "}{translatedText("Hz · latency")}{" "}{track.alignment.inputLatencyMs.toFixed(1)}{" "}{translatedText("ms · drift")}{" "}{track.alignment.driftPpm.toFixed(1)} ppm{track.monitor ? message(" · monitor {bufferedMs} ms / {droppedFrames} dropped frames", { bufferedMs: track.monitor.bufferedMs.toFixed(1), droppedFrames: plainNumber(track.monitor.droppedFrames) }) : ""}</p>
+          </li>)}
+        </ul>}
         <FieldGroup>
           <Field orientation="horizontal">
             <Checkbox id="record-armed" checked={s.armedTracks} disabled={disabled} onCheckedChange={(checked) => useRecordingStore.setState({ armedTracks: checked === true })} />
@@ -210,20 +233,17 @@ export function RecordingDialog() {
             />
           </Field>
           <Field>
-            <FieldLabel htmlFor="record-start">{translatedText("Playlist start tick")}</FieldLabel>
-            <Input
+            <FieldLabel htmlFor="record-start">{translatedText("Playlist start position")}</FieldLabel>
+            <PositionInput
               id="record-start"
-              type="number"
-              min={0}
-              step={1}
               value={s.start}
               disabled={disabled}
-              onChange={(e) =>
-                useRecordingStore.setState({
-                  start: Math.max(0, Math.floor(Number(e.target.value))),
-                })
-              }
+              aria-describedby="record-start-help"
+              onValueChange={(start) => {
+                if (start !== undefined) useRecordingStore.setState({ start })
+              }}
             />
+            <FieldDescription id="record-start-help">{translatedText("Type a song position as bar:beat or bar:beat:tick, such as 9:1.")}</FieldDescription>
             <div className="flex gap-2">
               {(["half", "double"] as const).map((factor) => (
                 <Button
@@ -263,8 +283,10 @@ export function RecordingDialog() {
           </Field>
           {s.loopRecording && <>
             <Field>
-              <FieldLabel htmlFor="record-loop-end">{translatedText("Loop end tick")}</FieldLabel>
-              <Input id="record-loop-end" type="number" min={s.start + 1} step={1} value={s.loopEnd} disabled={disabled} onChange={(event) => useRecordingStore.setState({ loopEnd: Math.max(s.start + 1, Math.floor(Number(event.target.value))) })} />
+              <FieldLabel htmlFor="record-loop-end">{translatedText("Loop end position")}</FieldLabel>
+              <PositionInput id="record-loop-end" value={s.loopEnd} disabled={disabled} onValueChange={(loopEnd) => {
+                if (loopEnd !== undefined) useRecordingStore.setState({ loopEnd: Math.max(s.start + 1, loopEnd) })
+              }} />
               <div className="flex gap-2">
                 {(["half", "double"] as const).map((factor) => (
                   <Button
@@ -284,7 +306,7 @@ export function RecordingDialog() {
                   </Button>
                 ))}
               </div>
-              <FieldDescription>{translatedText("Each pass from the start tick to this end becomes a take. The final partial pass is retained too.")}</FieldDescription>
+              <FieldDescription>{translatedText("Each pass from the start position to this end becomes a take. The final partial pass is retained too.")}</FieldDescription>
             </Field>
             <Field orientation="horizontal">
               <Checkbox id="record-latest" checked={s.keepLatest} disabled={s.busy} onCheckedChange={(checked) => useRecordingStore.setState({ keepLatest: checked === true })} />
@@ -350,48 +372,32 @@ export function RecordingDialog() {
             </Field>
           </>}
         </FieldGroup>
-        {s.inputs.length === 0 && !s.armedTracks && (
-          <p>
-            {translatedText("No audio inputs found. Recording needs the native desktop app and an available input device.")}
+        </div>
+        <div className="flex shrink-0 flex-col gap-2 border-t pt-3">
+          {s.inputs.length === 0 && !s.armedTracks && (
+            <p>
+              {translatedText("No audio inputs found. Recording needs the native desktop app and an available input device.")}
+            </p>
+          )}
+          <p role="status">
+            {s.state.active
+              ? countInRemaining > 0 ? message("Count-in: {countInRemaining} beats remaining.", { countInRemaining: plainNumber(countInRemaining) }) : message("Recording {frames} seconds at {sampleRate} Hz. Stop and keep, or discard.", { frames: (s.state.frames / Math.max(1, s.state.sampleRate)).toFixed(1), sampleRate: plainNumber(s.state.sampleRate) })
+              : translatedText("Ready. Recording sources are kept in Windfall’s recordings folder and copied into the project on save.")}
           </p>
-        )}
-        <p role="status">
-          {s.state.active
-            ? countInRemaining > 0 ? message("Count-in: {countInRemaining} beats remaining.", { countInRemaining: plainNumber(countInRemaining) }) : message("Recording {frames} seconds at {sampleRate} Hz. Stop and keep, or discard.", { frames: (s.state.frames / Math.max(1, s.state.sampleRate)).toFixed(1), sampleRate: plainNumber(s.state.sampleRate) })
-            : translatedText("Ready. Recording sources are kept in Windfall’s recordings folder and copied into the project on save.")}
-        </p>
-        {s.state.active && s.state.alignment && <p className="text-sm text-muted-foreground">
-          {translatedText("Input")}{" "}{s.state.alignment.inputSampleRate}{" "}{translatedText("Hz · input latency")}{" "}{s.state.alignment.inputLatencyMs.toFixed(1)}{" "}{translatedText("ms · output latency")}{" "}{s.state.alignment.outputLatencyMs.toFixed(1)}{" "}{translatedText("ms · drift")}{" "}{s.state.alignment.driftPpm.toFixed(1)} ppm.
-          {s.state.alignment.measuredTimestamps ? translatedText(" Driver timestamps available.") : translatedText(" Timestamp estimate in use.")}
-        </p>}
-        {s.state.active && s.state.takes && s.state.takes.length > 0 && <fieldset className="max-h-40 space-y-2 overflow-y-auto rounded border p-3">
-          <legend className="px-1 text-sm">{translatedText("Takes to keep")}</legend>
-          {s.state.takes.map((take, index, takes) => <Field key={take.index} orientation="horizontal">
-            <Checkbox id={`record-take-${take.index}`} checked={s.keepLatest ? index === takes.length - 1 : !s.excludedTakes.includes(take.index)} disabled={s.busy || s.keepLatest} onCheckedChange={(checked) => useRecordingStore.setState({ excludedTakes: checked === true ? s.excludedTakes.filter((value) => value !== take.index) : [...s.excludedTakes, take.index] })} />
-            <FieldLabel htmlFor={`record-take-${take.index}`}>{translatedText("Take")}{" "}{take.index + 1} · {(take.frames / Math.max(1, s.state.sampleRate)).toFixed(1)} s{take.complete ? "" : translatedText(" (recording)")}</FieldLabel>
-          </Field>)}
-          <p className="text-xs text-muted-foreground">{translatedText("Kept takes share the loop start. The latest is audible; earlier takes are muted for auditioning in the playlist.")}</p>
-        </fieldset>}
-        {s.state.active && s.state.monitor && <p className="text-sm text-muted-foreground">{translatedText("Monitor buffer")}{" "}{s.state.monitor.bufferedMs.toFixed(1)}{" "}{translatedText("ms · dropped")}{" "}{s.state.monitor.droppedFrames}{" "}{translatedText("frames · starved")}{" "}{s.state.monitor.starvedFrames}{" "}{translatedText("frames.")}</p>}
-        {s.state.active && s.state.tracks && <ul aria-label={translatedText("Recording tracks")} className="max-h-40 space-y-1 overflow-y-auto text-xs">
-          {s.state.tracks.map((track) => <li key={track.mixerTrack} className="rounded border p-2">
-            <p className="font-medium">{track.name} · {(track.frames / Math.max(1, s.state.sampleRate)).toFixed(1)} s · {mixerTracks.find((item) => item.id === track.mixerTrack)?.recording?.mode === "postEffects" ? translatedText("after effects") : mixerTracks.find((item) => item.id === track.mixerTrack)?.recording?.mode === "postFader" ? translatedText("after fader") : translatedText("dry input")}</p>
-            <p className="text-muted-foreground">{translatedText("Source")}{" "}{track.alignment.inputSampleRate}{" "}{translatedText("Hz · latency")}{" "}{track.alignment.inputLatencyMs.toFixed(1)}{" "}{translatedText("ms · drift")}{" "}{track.alignment.driftPpm.toFixed(1)} ppm{track.monitor ? message(" · monitor {bufferedMs} ms / {droppedFrames} dropped frames", { bufferedMs: track.monitor.bufferedMs.toFixed(1), droppedFrames: plainNumber(track.monitor.droppedFrames) }) : ""}</p>
-          </li>)}
-        </ul>}
-        {(s.error || s.state.error) && (
-          <p role="alert" className="text-destructive">
-            {localizeBackendText(s.error || s.state.error || "")}
-          </p>
-        )}
-        <div className="flex gap-2">
-          <ActionButton action="recording.start">{translatedText("Start recording")}</ActionButton>
-          <ActionButton action="recording.stop" variant="secondary">
-            {translatedText("Stop and keep")}
-          </ActionButton>
-          <ActionButton action="recording.cancel" variant="outline">
-            {translatedText("Discard")}
-          </ActionButton>
+          {(s.error || s.state.error) && (
+            <p role="alert" className="text-destructive">
+              {localizeBackendText(s.error || s.state.error || "")}
+            </p>
+          )}
+          <div className="flex gap-2">
+            <ActionButton action="recording.start">{translatedText("Start recording")}</ActionButton>
+            <ActionButton action="recording.stop" variant="secondary">
+              {translatedText("Stop and keep")}
+            </ActionButton>
+            <ActionButton action="recording.cancel" variant="outline">
+              {translatedText("Discard")}
+            </ActionButton>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

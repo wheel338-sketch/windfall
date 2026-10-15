@@ -2,14 +2,14 @@ import { create } from "zustand"
 import { persist } from "zustand/middleware"
 
 import { onProjectReplaced } from "@/lib/store/replaced"
-import { isSharedSnap, useSnapStore } from "@/lib/store/snap"
+import { isSharedSnap, useSnapStore, type SharedSnap } from "@/lib/store/snap"
 import type { NoteArticulation } from "@/bindings"
 import { isNoteArticulation } from "@/lib/note-expression"
 import { isNoteColorGroup } from "@/lib/note-colors"
 import { DEFAULT_VELOCITY, TICKS_PER_STEP } from "@/lib/units"
 
 import { LANE_KINDS, type LaneKind } from "./lane-math"
-import type { SnapId } from "./snap"
+import { DEFAULT_SNAP, type SnapId } from "./snap"
 import { isScaleId, isScaleRoot, type ScaleId } from "./scales"
 import type { RiffSettings } from "./riff/model"
 
@@ -78,7 +78,10 @@ export const usePianoRollStore = create<PianoRollState>()(
     (set) => ({
       tool: "draw",
       drum: false,
-      snap: useSnapStore.getState().snap,
+      // The shared snap starts on Bar, which suits the playlist but makes
+      // drawing a phrase into one bar awkward. The piano roll starts on
+      // Step and follows the shared snap once either editor chooses one.
+      snap: DEFAULT_SNAP,
       scaleRoot: 0,
       scaleId: "major",
       highlightScale: false,
@@ -203,8 +206,11 @@ useSnapStore.subscribe(({ snap }) => usePianoRollStore.setState({ snap }))
 // The Draw tool gives a new note the length and velocity of the last one
 // touched. Those belong to the song that note was in: the first note of a
 // new project came out four bars long, and grew its pattern to match.
+// The shared snap goes back to Bar first (it subscribed earlier), and the
+// piano roll back to its own starting snap after it.
 onProjectReplaced(() =>
   usePianoRollStore.setState({
+    snap: DEFAULT_SNAP,
     drum: false,
     lastLength: TICKS_PER_STEP,
     lastVelocity: DEFAULT_VELOCITY,
@@ -213,3 +219,12 @@ onProjectReplaced(() =>
     drawColorGroup: null,
   })
 )
+
+/**
+ * The snap typed and played notes land on: the piano roll's, unless it is a
+ * division only the piano roll has, which live input does not follow.
+ */
+export function liveInputSnap(): SharedSnap {
+  const { snap } = usePianoRollStore.getState()
+  return isSharedSnap(snap) ? snap : useSnapStore.getState().snap
+}

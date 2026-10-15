@@ -72,6 +72,17 @@ export function useMixerTrackIndex(id: TrackId | null): number {
   )
 }
 
+/**
+ * The number a mixer track shows on its strip: its place among the tracks,
+ * the Current utility copy aside, with the master as 0. -1 when the track is
+ * missing or is the Current copy.
+ */
+export function useMixerTrackNumber(id: TrackId | null): number {
+  return useProjectStore((state) =>
+    state.project.mixer.tracks.filter((track) => !track.current).findIndex((track) => track.id === id)
+  )
+}
+
 export function usePatternIds(): PatternId[] {
   return useProjectStore(
     useShallow((state) => state.project.patterns.map((pattern) => pattern.id))

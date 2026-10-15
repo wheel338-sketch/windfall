@@ -6,6 +6,7 @@ import {
   extensionStart,
   findByPrefix,
   firstIndex,
+  flattenLibrary,
   flattenTree,
   isUnder,
   lastIndex,
@@ -19,7 +20,9 @@ import {
   type TreeRow,
 } from "./tree-model"
 
-const FACTORY: BrowserRoot = { name: "Factory", path: "/f", kind: "factory" }
+// A folder the user added, so its Readme.txt still shows as a row Windfall
+// cannot use; the shipped factory library hides such files (tested below).
+const FACTORY: BrowserRoot = { name: "Factory", path: "/f", kind: "user" }
 const MINE: BrowserRoot = { name: "Mine", path: "/m", kind: "user" }
 
 const entry = (
@@ -242,6 +245,61 @@ describe("flattenTree with a filter", () => {
     })
     // Sound 00999 and Sound 09990 to 09999.
     expect(some.rows).toHaveLength(12)
+  })
+})
+
+describe("factory support files", () => {
+  const SHIPPED: BrowserRoot = { name: "Factory", path: "/s", kind: "factory" }
+  const listings: Listings = {
+    "/s": ready([
+      entry("/s/Loops", "folder"),
+      entry("/s/assets", "folder"),
+      entry("/s/LICENSE.md", "other"),
+      entry("/s/README.md", "other"),
+    ]),
+    "/s/Loops": ready([
+      entry("/s/Loops/Afterglow.wav"),
+      entry("/s/Loops/manifest.json", "other"),
+    ]),
+    "/s/assets": ready([entry("/s/assets/GeneralUser-GS-LICENSE.txt", "other")]),
+  }
+
+  it("leaves licences, readmes and manifests out of the factory library", () => {
+    const tree = flattenTree({
+      roots: [SHIPPED],
+      listings,
+      expanded: new Set(
+        ["/s", "/s/Loops", "/s/assets"].map((path) => rowId("/s", path))
+      ),
+      filter: "",
+    })
+    expect(names(tree.rows)).toEqual([
+      "Factory",
+      "  Loops",
+      "    Afterglow.wav",
+      "  assets",
+      "    (empty)",
+    ])
+    expect(tree.rows[1]).toMatchObject({ position: 1, setSize: 2 })
+  })
+
+  it("leaves files Windfall cannot use out of search results", () => {
+    const token = (path: string) => ({ rootPath: "/s", path })
+    const held = (path: string, kind: BrowserEntry["kind"]) => ({
+      entry: entry(path, kind),
+      token: token(path),
+      relativePath: path.slice(3),
+    })
+    const tree = flattenLibrary({
+      entries: [
+        held("/s/Loops/Afterglow.wav", "audio"),
+        held("/s/README.md", "other"),
+      ],
+    } as unknown as Parameters<typeof flattenLibrary>[0])
+    expect(tree.rows.map((row) => row.type === "entry" && row.name)).toEqual([
+      "Afterglow.wav",
+    ])
+    expect(tree.rows[0]).toMatchObject({ position: 1, setSize: 1 })
   })
 })
 

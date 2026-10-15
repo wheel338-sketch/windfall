@@ -1087,7 +1087,10 @@ impl Feeder {
         let started = Instant::now();
         let frames = data.len() / self.channels;
         self.processor.begin_device_buffer(started, frames);
-        if self.coverage.fell_behind(started, frames) {
+        if self
+            .coverage
+            .fell_behind(started, frames, self.shared.xruns())
+        {
             self.shared.record_xrun();
         }
         match data.sample_format() {
@@ -1143,6 +1146,11 @@ impl Feeder {
 /// requested drops behind the clock and stays there. That lasting drop is
 /// what this looks for, and it catches dropouts no driver reports, such as
 /// a callback the system scheduled too late.
+///
+/// A buffer the engine took too long to fill is counted when it ends, and
+/// the gap it leaves shows up here a window or two later. That is one
+/// dropout, so a gap is only counted when no other dropout was counted
+/// since the window before began.
 struct Coverage {
     sample_rate: f64,
     started: Option<Instant>,
@@ -1155,6 +1163,10 @@ struct Coverage {
     /// The same figure for the window before.
     previous_best: Option<f64>,
     buffers: u32,
+    /// The dropout count when the current window began.
+    window_xruns: u32,
+    /// The dropout count when the window before began.
+    previous_window_xruns: Option<u32>,
 }
 
 impl Coverage {
@@ -1166,13 +1178,19 @@ impl Coverage {
             best: f64::NEG_INFINITY,
             previous_best: None,
             buffers: 0,
+            window_xruns: 0,
+            previous_window_xruns: None,
         }
     }
 
-    /// Takes note of a buffer of `frames` frames asked for at `now`. Returns
-    /// true when this buffer completes a window in which the requests fell
-    /// behind the clock.
-    fn fell_behind(&mut self, now: Instant, frames: usize) -> bool {
+    /// Takes note of a buffer of `frames` frames asked for at `now`, with
+    /// `xruns` dropouts counted so far. Returns true when this buffer
+    /// completes a window in which the requests fell behind the clock and
+    /// no other dropout already accounts for it.
+    fn fell_behind(&mut self, now: Instant, frames: usize, xruns: u32) -> bool {
+        if self.started.is_none() {
+            self.window_xruns = xruns;
+        }
         let started = *self.started.get_or_insert(now);
         let due = now.duration_since(started).as_secs_f64() * self.sample_rate;
         self.best = self.best.max(self.frames as f64 - due);
@@ -1188,10 +1206,13 @@ impl Coverage {
         let behind = self
             .previous_best
             .is_some_and(|previous| self.best < previous - tolerance);
+        let explained = xruns != self.previous_window_xruns.unwrap_or(self.window_xruns);
         self.previous_best = Some(self.best);
         self.best = f64::NEG_INFINITY;
         self.buffers = 0;
-        behind
+        self.previous_window_xruns = Some(self.window_xruns);
+        self.window_xruns = xruns;
+        behind && !explained
     }
 }
 
@@ -1983,12 +2004,22 @@ mod tests {
     /// 10 ms, each `delay_ms(index)` later than that, and counts the windows
     /// in which it saw the requests fall behind.
     fn gaps(delay_ms: impl Fn(u32) -> f64, buffers: u32) -> usize {
+        gaps_counted(delay_ms, |_| 0, buffers)
+    }
+
+    /// Like [`gaps`], with `xruns(index)` dropouts already counted by other
+    /// means when buffer `index` is asked for.
+    fn gaps_counted(
+        delay_ms: impl Fn(u32) -> f64,
+        xruns: impl Fn(u32) -> u32,
+        buffers: u32,
+    ) -> usize {
         let mut coverage = Coverage::new(48_000);
         let start = Instant::now();
         (0..buffers)
             .filter(|&index| {
                 let at = f64::from(index) * 0.01 + delay_ms(index) / 1000.0;
-                coverage.fell_behind(start + Duration::from_secs_f64(at), 480)
+                coverage.fell_behind(start + Duration::from_secs_f64(at), 480, xruns(index))
             })
             .count()
     }
@@ -2016,6 +2047,20 @@ mod tests {
         // sat dry for that long and never asked for those frames.
         let stalled = |index| if index >= 500 { 30.0 } else { 0.0 };
         assert_eq!(gaps(stalled, 1_000), 1);
+    }
+
+    #[test]
+    fn a_gap_left_by_a_buffer_already_counted_late_is_not_counted_again() {
+        // Buffer 499 took 30 ms to fill and was counted when it ended; the
+        // gap it leaves is the same dropout.
+        let stalled = |index| if index >= 500 { 30.0 } else { 0.0 };
+        let counted = |index| u32::from(index >= 500);
+        assert_eq!(gaps_counted(stalled, counted, 1_000), 0);
+        // A later gap with nothing else counted is a dropout of its own.
+        let twice = |index| {
+            if index >= 800 { 60.0 } else { stalled(index) }
+        };
+        assert_eq!(gaps_counted(twice, counted, 1_000), 1);
     }
 
     #[test]

@@ -171,6 +171,34 @@ it("adds an effect to the requested track and opens its actual inspector", async
   )
 })
 
+it("names the destination track the way the mixer numbers it, not by its id", async () => {
+  // Removing an earlier track leaves the last one's id ahead of its place.
+  const inserts = () =>
+    useProjectStore.getState().project.mixer.tracks.filter((track) => !track.current)
+  await dispatch({ type: "removeMixerTrack", id: inserts()[1].id })
+  const last = inserts().at(-1)!
+  const place = inserts().length - 1
+  expect(last.id).not.toBe(place)
+  act(() => useUiStore.getState().selectTrack(last.id))
+  act(() => openPluginManager())
+  render(<PluginManager />)
+  expect(
+    await screen.findByText(new RegExp(`effects to mixer track ${place}, ${last.name}\\.`))
+  ).toBeInTheDocument()
+  await screen.findByText("Native Gain · Fixture · CLAP")
+  await userEvent.click(screen.getByRole("button", { name: "Add effect" }))
+  expect(app.backend.pluginsAdd).toHaveBeenCalledWith("/plugins/gain.clap", "native.gain", last.id)
+})
+
+it("keeps one search for the scanned files and the library", async () => {
+  act(() => openPluginManager(0))
+  render(<PluginManager />)
+  await screen.findByText("Native Synth · Fixture · CLAP")
+  expect(screen.getAllByRole("textbox", { name: /search/i })).toHaveLength(1)
+  expect(screen.getByRole("region", { name: "Plugin files on this computer" })).toBeInTheDocument()
+  expect(screen.getByRole("region", { name: "Plugin library" })).toBeInTheDocument()
+})
+
 it("retains a failed VST3 scan and refuses additions", async () => {
   const state = catalog()
   state.entries = [

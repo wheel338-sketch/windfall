@@ -3,7 +3,6 @@ import { refuse } from "@/lib/errors"
 import { dispatch, useProjectStore } from "@/lib/store/project"
 import { realtimeFrame } from "@/lib/store/realtime"
 import { getProjectGeneration } from "@/lib/store/replaced"
-import { useSnapStore } from "@/lib/store/snap"
 import { useUiStore } from "@/lib/store/ui"
 import { MAX_PATTERN_TICKS, PPQ, TICKS_PER_STEP } from "@/lib/units"
 
@@ -11,6 +10,7 @@ import { consumePlayedNotes, playedNotesFor, useNoteLogStore } from "./note-log"
 import { patternMeterAt } from "./pattern-timeline"
 import { currentSession } from "./session"
 import { snapRound, snapTicks } from "./snap"
+import { liveInputSnap } from "./store"
 import { translatedText as t } from "@/lib/i18n"
 
 export function canDumpPlayedNotes(): boolean {
@@ -34,7 +34,7 @@ export async function dumpPlayedNotes(): Promise<void> {
   const ticksPerMs =
     (useProjectStore.getState().project.settings.tempoBpm * PPQ) / 60_000
   const position = Math.max(0, realtimeFrame().tick)
-  const sharedSnap = useSnapStore.getState().snap
+  const sharedSnap = liveInputSnap()
   const notes: NoteInit[] = played.map((note) => {
     const rawStart = position + (note.start - played[0].start) * ticksPerMs
     const meter = patternMeterAt(rawStart, pattern.signature, pattern.timeline)

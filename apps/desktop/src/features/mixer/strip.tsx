@@ -12,6 +12,7 @@ import {
   useEngineStore,
   useHint,
   useMixerTrackIndex,
+  useMixerTrackNumber,
   useProjectStore,
   useUiStore,
 } from "@/lib/store"
@@ -252,7 +253,7 @@ export const MixerStrip = memo(function MixerStrip({
 }: MixerStripProps) {
   const track = useStripTrack(id)
   const index = useMixerTrackIndex(id)
-  const number = useProjectStore((state) => state.project.mixer.tracks.filter((track) => !track.current).findIndex((track) => track.id === id))
+  const number = useMixerTrackNumber(id)
   const selected = useUiStore((state) => state.selectedTrack === id)
   const groupSelected = useMixerUi((state) => state.selected.includes(id))
   const pointerSelecting = useRef(false)
@@ -290,7 +291,7 @@ export const MixerStrip = memo(function MixerStrip({
   return (
     <div
       role="group"
-      aria-label={stripLabel(track, index, audible)}
+      aria-label={stripLabel(track, track.current ? index : number, audible)}
       data-track={id}
       data-mode={mode}
       data-audible={audible}

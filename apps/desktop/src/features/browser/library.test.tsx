@@ -39,6 +39,9 @@ describe("browser library workflow", () => {
       name: "Star selected file",
     })
     await waitFor(() => expect(favorite).toBeEnabled())
+    // The tag form is closed until asked for, so the tree keeps its room.
+    expect(screen.queryByRole("textbox", { name: "Tags" })).toBeNull()
+    await user.click(screen.getByRole("button", { name: "Edit tags" }))
     await user.type(
       screen.getByRole("textbox", { name: "Tags" }),
       "Warm, DRUM, warm"

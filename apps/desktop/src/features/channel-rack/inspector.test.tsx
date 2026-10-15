@@ -96,6 +96,20 @@ describe("the settings panel", () => {
     expect(await screen.findByText("DrumSynth tone/flat-noise rendering is approximate.")).toBeVisible()
     expect(screen.getByText("Retained but not interpreted: own extension.text")).toBeVisible()
   })
+  it("lists the sections in a bar and scrolls to the one picked", async () => {
+    await openSettings("Kick")
+    const bar = within(settings()).getByRole("navigation", {
+      name: "Channel settings sections",
+    })
+    const loop = within(settings()).getByRole("region", { name: "Loop" })
+    const scroll = vi.fn()
+    loop.scrollIntoView = scroll
+    fireEvent.click(within(bar).getByRole("button", { name: "Go to Loop" }))
+    expect(scroll).toHaveBeenCalledTimes(1)
+    expect(
+      within(bar).getByRole("button", { name: "Go to Note timing" })
+    ).toBeVisible()
+  })
   it("dispatches one sampler patch when the loop crossfade knob moves", async () => {
     const user = userEvent.setup()
     await openSettings("Kick")

@@ -32,4 +32,6 @@ export const PANEL_MENU: ContextItem[] = [
   "playlist.follow",
   "playlist.loopSong",
   "playlist.patterns",
+  "playlist.clipInspector",
+  "playlist.rightClickDeletes",
 ]

@@ -382,6 +382,23 @@ describe("audio settings in the dialog", () => {
     }
   )
 
+  it("opens at the top of the form and jumps to a section from the list", async () => {
+    const user = userEvent.setup()
+    await open()
+    const body = document.querySelector<HTMLElement>("[data-slot=settings-body]")!
+    // Focus starts at the top of the form rather than on a control further down.
+    await waitFor(() => expect(body).toHaveFocus())
+    expect(body.scrollTop).toBe(0)
+    expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument()
+
+    const sections = screen.getByRole("navigation", { name: "Settings sections" })
+    const keyboard = body.querySelector<HTMLElement>("[data-settings-section=keyboard]")!
+    Object.defineProperty(keyboard, "offsetTop", { configurable: true, value: 640 })
+    await user.click(within(sections).getByRole("button", { name: "Keyboard" }))
+    expect(body.scrollTop).toBe(640)
+    expect(keyboard).toHaveFocus()
+  })
+
   it("shows a stored request the device cannot do, so it can be put right", async () => {
     await open({
       engineSettings: () => Promise.resolve({ bufferFrames: 80 }),

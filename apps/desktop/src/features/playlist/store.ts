@@ -57,6 +57,11 @@ type PlaylistUiState = {
   pickerOpen: boolean
   /** Show the settings of the selected audio clips above the timeline. */
   inspectorOpen: boolean
+  /**
+   * The right button deletes clips in every tool but Select, as in FL
+   * Studio. Off, it opens the clip menu in every tool but Playback.
+   */
+  rightClickDeletes: boolean
   brush: Brush
   selection: ReadonlySet<ClipId>
   /** The track the track actions act on: the header last pressed. */
@@ -90,6 +95,8 @@ type PlaylistUiState = {
   toggleFollow(): void
   togglePicker(): void
   toggleInspector(): void
+  showInspector(): void
+  toggleRightClickDeletes(): void
   setBrush(brush: Brush): void
   select(ids: Iterable<ClipId>): void
   clearSelection(): void
@@ -118,6 +125,7 @@ export const usePlaylistStore = create<PlaylistUiState>()(
       follow: true,
       pickerOpen: true,
       inspectorOpen: true,
+      rightClickDeletes: true,
       brush: PATTERN_BRUSH,
       selection: NO_CLIPS,
       targetTrack: null,
@@ -137,6 +145,11 @@ export const usePlaylistStore = create<PlaylistUiState>()(
       togglePicker: () => set((state) => ({ pickerOpen: !state.pickerOpen })),
       toggleInspector: () =>
         set((state) => ({ inspectorOpen: !state.inspectorOpen })),
+      showInspector: () => {
+        if (!get().inspectorOpen) set({ inspectorOpen: true })
+      },
+      toggleRightClickDeletes: () =>
+        set((state) => ({ rightClickDeletes: !state.rightClickDeletes })),
       setBrush: (brush) => {
         const current = get().brush
         const same =
@@ -214,6 +227,7 @@ export const usePlaylistStore = create<PlaylistUiState>()(
         follow: state.follow,
         pickerOpen: state.pickerOpen,
         inspectorOpen: state.inspectorOpen,
+        rightClickDeletes: state.rightClickDeletes,
       }),
       // Ignore snap in preferences saved before it became a session choice.
       merge: (saved, current) => ({

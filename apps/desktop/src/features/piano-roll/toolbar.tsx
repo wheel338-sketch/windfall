@@ -384,7 +384,11 @@ function DrawColorPicker() {
   )
 }
 
-/** The strip above the grid: channel, tools, snap, view switches, readout. */
+/**
+ * The strip above the grid: channel, tools, snap, view switches, readout.
+ * It wraps onto more rows when the panel is narrow, so the melodic tools at
+ * its end stay in sight instead of behind a scroll.
+ */
 export function PianoRollToolbar({ channelId, readoutRef }: ToolbarProps) {
   const tool = usePianoRollStore((state) => state.tool)
   const setTool = usePianoRollStore((state) => state.setTool)
@@ -401,7 +405,7 @@ export function PianoRollToolbar({ channelId, readoutRef }: ToolbarProps) {
         role="toolbar"
         aria-label={t("Piano roll")}
         data-scroll-strip
-        className="flex h-9 shrink-0 items-center gap-3 overflow-x-auto overflow-y-hidden border-b bg-chassis/40 px-1.5 whitespace-nowrap"
+        className="flex min-h-9 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 overflow-x-auto overflow-y-hidden border-b bg-chassis/40 px-1.5 py-1 whitespace-nowrap"
       >
         <ChannelPicker channelId={channelId} />
         <ActionButton

@@ -4,7 +4,7 @@ import {
   type ContextItem,
 } from "@/components/context-actions"
 import { automationItems } from "@/features/automation/menu"
-import { INSTRUMENT_KINDS } from "@/features/params"
+import { instrumentFamilies } from "@/features/plugins/families"
 
 import { LENGTH_PRESETS } from "./actions"
 import { showInMixer } from "./channel-ops"
@@ -16,15 +16,24 @@ import { translatedText as t, dynamicTitle } from "@/lib/i18n"
  * pattern being edited.
  */
 
+// The instruments come in a submenu per family, so the list can be
+// surveyed by role instead of scrolled through by name.
 const ADD_CHANNEL: ContextItem = {
   get submenu() { return t("Add channel") },
-  items: [
-    "channel.add",
-    ...INSTRUMENT_KINDS.map((kind) => `channel.addInstrument.${kind}`),
-    "channel.addGeneralMidi",
-    "channel.addLayer",
-    "channel.addFromFile",
-  ],
+  get items(): ContextItem[] {
+    return [
+      "channel.add",
+      contextSeparator,
+      ...instrumentFamilies().map((family): ContextItem => ({
+        submenu: family.label,
+        items: family.kinds.map((kind) => `channel.addInstrument.${kind}`),
+      })),
+      contextSeparator,
+      "channel.addGeneralMidi",
+      "channel.addLayer",
+      "channel.addFromFile",
+    ]
+  },
 }
 
 const PATTERN_LENGTH: ContextItem = {

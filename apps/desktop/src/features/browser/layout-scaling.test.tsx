@@ -62,6 +62,7 @@ describe.each([75, 100, 125, 200])("browser layout at scale %i", (scale) => {
         screen.getByRole("treeitem", { selected: true }).id
       )
       expect(await screen.findByText(/44.1 kHz/)).toBeInTheDocument()
+      await user.click(await screen.findByRole("button", { name: "Edit tags" }))
       const tags = await screen.findByRole("textbox", { name: "Tags" })
       await waitFor(() => expect(tags).toBeEnabled())
       expect(panel).toContainElement(tags)

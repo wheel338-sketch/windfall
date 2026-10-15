@@ -175,6 +175,11 @@ export function resizeMinLength(snap: number): number {
 /**
  * The resize a drag of one edge stands for. Every selected note gets the
  * same change, and the start edge cannot pull a note before tick 0.
+ *
+ * With `absolute`, the grabbed edge (`anchor`) is snapped to the grid lines
+ * counted from `origin`, so a sixteenth dragged on the beat grid ends on a
+ * beat. Without it the distance is snapped, which keeps an edge that is off
+ * the grid off it by the same amount.
  */
 export function resizeDelta(
   edge: ResizeEdge,
@@ -437,15 +442,14 @@ export type PatternInfo = {
 }
 
 /**
- * One command for an edit. When the edit puts a note past the end of the
- * pattern, the pattern grows to the next bar in the same undo step.
+ * The length a pattern grows to so that it holds a note ending at
+ * `endTick`, to the end of the bar in the meter there. Null when it is
+ * long enough already.
  */
-export function withExtension(
-  command: Command,
-  label: string,
+export function extensionSteps(
   pattern: PatternInfo,
   endTick: number
-): Command {
+): number | null {
   let lengthSteps = extendedLengthSteps(
     pattern.lengthSteps,
     endTick,
@@ -459,15 +463,76 @@ export function withExtension(
       lengthSteps = clamp(Math.ceil(end / TICKS_PER_STEP), 1, MAX_PATTERN_STEPS)
     }
   }
-  if (lengthSteps === null) return command
+  return lengthSteps
+}
+
+/** An edit and a new pattern length, as one undo step. */
+export function withLength(
+  command: Command,
+  label: string,
+  pattern: PatternId,
+  lengthSteps: number
+): Command {
   return {
     type: "batch",
     label,
     commands: [
       command,
-      { type: "updatePattern", id: pattern.id, patch: { lengthSteps } },
+      { type: "updatePattern", id: pattern, patch: { lengthSteps } },
     ],
   }
+}
+
+/**
+ * One command for an edit. When the edit puts a note past the end of the
+ * pattern, the pattern grows to the next bar in the same undo step.
+ */
+export function withExtension(
+  command: Command,
+  label: string,
+  pattern: PatternInfo,
+  endTick: number
+): Command {
+  const lengthSteps = extensionSteps(pattern, endTick)
+  if (lengthSteps === null) return command
+  return withLength(command, label, pattern.id, lengthSteps)
+}
+
+/** The latest end among a lane's notes once an update has moved or resized them. */
+export function laneEndAfterUpdates(
+  notes: readonly Note[],
+  updates: readonly NoteUpdate[]
+): number {
+  const byId = new Map(updates.map((update) => [update.id, update.patch]))
+  let end = 0
+  for (const note of notes) {
+    const patch = byId.get(note.id)
+    end = Math.max(
+      end,
+      (patch?.start ?? note.start) + (patch?.length ?? note.length)
+    )
+  }
+  return end
+}
+
+/**
+ * The length a pattern that an edit grew from `fromSteps` can go back to
+ * once its content ends at `contentEnd`: the end of the bar the content
+ * reaches, never shorter than the pattern was before it grew. Null when it
+ * stays as it is.
+ */
+export function shrunkLengthSteps(
+  fromSteps: number,
+  lengthSteps: number,
+  contentEnd: number,
+  signature: TimeSignature
+): number | null {
+  const bar = ticksPerBar(signature)
+  const steps = Math.max(
+    fromSteps,
+    Math.ceil((Math.ceil(contentEnd / bar) * bar) / TICKS_PER_STEP)
+  )
+  return steps < lengthSteps ? steps : null
 }
 
 /** The pattern length a ruler drag asks for: whole bars, or whole steps. */

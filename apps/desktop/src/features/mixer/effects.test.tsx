@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { EffectKind } from "@/bindings"
 import { effectDescriptor, EFFECT_KINDS } from "@/features/params"
+import { effectFamilies } from "@/features/plugins/families"
 import {
   disabledReason,
   getAppState,
@@ -151,7 +152,21 @@ describe("the effect rack on a strip", () => {
     )
     expect(
       (await screen.findAllByRole("menuitem")).map((item) => item.textContent)
-    ).toEqual(["Browse plugins…", "Audio editor recorder", ...EFFECT_KINDS.map(nameOfKind)])
+    ).toEqual([
+      "Browse plugins…",
+      // By family, with the recorder among the utilities.
+      ...effectFamilies().flatMap((family) => [
+        ...(family.id === "utility" ? ["Audio editor recorder"] : []),
+        ...family.kinds.map(nameOfKind),
+      ]),
+    ])
+    // Every effect is offered exactly once.
+    expect(
+      effectFamilies()
+        .flatMap((family) => family.kinds)
+        .sort()
+    ).toEqual([...EFFECT_KINDS].sort())
+    expect(effectFamilies().map((family) => family.id)).not.toContain("other")
     await user.click(screen.getByRole("menuitem", { name: "Reverb" }))
     await flush()
 
@@ -826,6 +841,23 @@ describe("the effect inspector", () => {
     expect(count).toHaveClass("shrink-0")
   })
 
+  it("folds the track's own settings away so a new effect's controls get the room", async () => {
+    const user = userEvent.setup()
+    render(<MixerPanel />)
+    const [eq] = await addEffects("Kick", "eq")
+    fireEvent.click(slotButton("Kick", eq))
+    const toggle = within(inspector()).getByRole("button", { name: /^Track settings/ })
+    expect(toggle).toHaveAttribute("aria-expanded", "false")
+    expect(within(inspector()).queryByRole("button", { name: "Track presets" })).toBeNull()
+    // The effect's editor shows under its header all the same.
+    expect(inspector().querySelector("[data-slot=effect-body]")).not.toBeNull()
+
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute("aria-expanded", "true")
+    expect(within(inspector()).getByRole("button", { name: "Track presets" })).toBeVisible()
+    expect(effectsUi().trackSettingsOpen).toBe(true)
+  })
+
   it("is given the editor area by its Enlarge button, and comes back", async () => {
     const user = userEvent.setup()
     render(<MixerPanel />)
@@ -1066,9 +1098,9 @@ describe("the effect inspector", () => {
     act(() => effectsUi().setCollapsed(compressor, true))
 
     // Folds are kept by effect id, and ids start over in every project, so
-    // only whether the inspector is open is saved.
+    // only whether the inspector and its track settings are open is saved.
     const saved = JSON.parse(localStorage.getItem("windfall.mixer") ?? "{}")
-    expect(saved.state).toEqual({ inspectorOpen: true })
+    expect(saved.state).toEqual({ inspectorOpen: true, trackSettingsOpen: false })
 
     // A new session starts from what was saved.
     useEffectsUi.setState(useEffectsUi.getInitialState(), true)

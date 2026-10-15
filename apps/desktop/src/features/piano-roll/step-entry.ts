@@ -6,7 +6,6 @@ import { shortcutAllowed } from "@/lib/actions/keymap"
 import { dispatch } from "@/lib/store/project"
 import { realtimeFrame } from "@/lib/store/realtime"
 import { onProjectReplaced } from "@/lib/store/replaced"
-import { useSnapStore } from "@/lib/store/snap"
 import { useTransportStore } from "@/lib/store/transport"
 import {
   DEFAULT_VELOCITY,
@@ -18,6 +17,7 @@ import { auditionOff, auditionOn } from "./audition"
 import { patternMeterAt } from "./pattern-timeline"
 import { currentSession } from "./session"
 import { snapTicks } from "./snap"
+import { liveInputSnap } from "./store"
 import { NOTE_OFFSETS, useTypingKeyboardStore } from "./typing-keyboard"
 
 type StepEntryState = {
@@ -99,7 +99,7 @@ export function attachStepEntry(
       context.pattern.timeline
     )
     const length =
-      snapTicks(useSnapStore.getState().snap, meter.signature) || TICKS_PER_STEP
+      snapTicks(liveInputSnap(), meter.signature) || TICKS_PER_STEP
     if (start + length > MAX_PATTERN_TICKS) return
     // Reserve the next position synchronously, even when keys arrive before IPC replies.
     useStepEntryStore.setState({ cursor: start + length })

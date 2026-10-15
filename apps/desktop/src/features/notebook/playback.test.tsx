@@ -47,7 +47,7 @@ describe("notebook playback cues", () => {
   it("saves cue and HTML mode in the existing whole-book transaction", async () => {
     const save = vi.fn(async () => true)
     render(<NotebookPanel notebook={{ pages: [pages[0]] }} onSave={save} />)
-    fireEvent.change(screen.getByLabelText("Page starts at song tick"), { target: { value: "960" } })
+    fireEvent.change(screen.getByLabelText("Page starts at song position"), { target: { value: "1:2" } })
     fireEvent.click(screen.getByRole("checkbox", { name: "Safe HTML preview" }))
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Save notebook" })))
     expect(save).toHaveBeenCalledWith({ pages: [{ ...pages[0], startTick: 960, html: true }] })

@@ -14,6 +14,7 @@ export function DockStrips({
   linked,
   layout,
   onHeight,
+  onWidth,
   onScrollbar,
   scrollbarSpace = 0,
   children,
@@ -24,6 +25,8 @@ export function DockStrips({
   linked: TrackId | null
   layout: StripLayout & { width: number }
   onHeight?: (height: number) => void
+  /** Hears the width of the scrolling area, which the strips do not change. */
+  onWidth?: (width: number) => void
   onScrollbar?: (height: number) => void
   scrollbarSpace?: number
   children?: ReactNode
@@ -46,6 +49,9 @@ export function DockStrips({
   useEffect(() => {
     onHeight?.(view.height)
   }, [view.height, onHeight])
+  useEffect(() => {
+    onWidth?.(view.width)
+  }, [view.width, onWidth])
   useEffect(() => {
     onScrollbar?.(view.scrollbar)
   }, [view.scrollbar, onScrollbar])

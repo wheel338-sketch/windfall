@@ -32,6 +32,15 @@ export function readContext(
   if (!pattern) return null
   if (!project.channels.some((channel) => channel.id === channelId)) return null
   const lane = pattern.lanes.find((item) => item.channel === channelId)
+  let elsewhereEnd = 0
+  for (const other of pattern.lanes) {
+    if (other === lane) continue
+    for (const note of other.notes) elsewhereEnd = Math.max(elsewhereEnd, note.start + note.length)
+  }
+  for (const events of pattern.events ?? []) {
+    for (const point of events.points) elsewhereEnd = Math.max(elsewhereEnd, point.tick)
+  }
+  for (const marker of pattern.timeline?.markers ?? []) elsewhereEnd = Math.max(elsewhereEnd, marker.tick)
   return {
     pattern: {
       id: pattern.id,
@@ -42,6 +51,7 @@ export function readContext(
     },
     channel: channelId,
     notes: lane?.notes ?? EMPTY_NOTES,
+    elsewhereEnd,
   }
 }
 

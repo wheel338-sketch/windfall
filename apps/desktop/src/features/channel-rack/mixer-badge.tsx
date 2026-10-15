@@ -7,7 +7,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useHint } from "@/lib/store/hint"
-import { useMixerTrack, useMixerTrackIndex } from "@/lib/store/selectors"
+import { useMixerTrack, useMixerTrackNumber } from "@/lib/store/selectors"
 import { useUiStore } from "@/lib/store/ui"
 import { colorToCss } from "@/lib/units"
 
@@ -31,7 +31,7 @@ export const MixerBadge = memo(function MixerBadge({
   track: trackId,
 }: MixerBadgeProps) {
   const track = useMixerTrack(trackId)
-  const index = useMixerTrackIndex(trackId)
+  const index = useMixerTrackNumber(trackId)
   const trackName = track?.name ?? t("a missing track")
   const hint = useHint(
     message("{channelName} plays into mixer track {trackNumber}, {trackName}. Click to select it or route somewhere else", { channelName, trackNumber: trackNumber(index), trackName })

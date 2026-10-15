@@ -11,7 +11,7 @@ import { useActions, useAppState } from "@/lib/actions"
 import {
   useMixerTrack,
   useMixerTrackIds,
-  useMixerTrackIndex,
+  useMixerTrackNumber,
 } from "@/lib/store/selectors"
 import { colorToCss } from "@/lib/units"
 
@@ -26,7 +26,7 @@ export function trackNumber(index: number): string {
 
 function TrackOption({ id }: { id: TrackId }) {
   const track = useMixerTrack(id)
-  const index = useMixerTrackIndex(id)
+  const index = useMixerTrackNumber(id)
   if (!track || track.current) return null
   return (
     <DropdownMenuRadioItem value={id} closeOnClick>

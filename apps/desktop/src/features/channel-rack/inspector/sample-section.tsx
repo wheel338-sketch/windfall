@@ -46,6 +46,12 @@ import { nextSampleTrimPreset } from "./sample-trim-preset-step"
 import { nextSampleTrim, SAMPLE_TRIM_PRESETS } from "./sample-trim-presets"
 import { nextSampleTrimScale } from "./sample-trim-scale"
 import { nextTrimStartScale } from "./trim-start-scale"
+import {
+  directionSteps,
+  factorSteps,
+  StepsMenus,
+  type SettingSteps,
+} from "./value-steps"
 
 /** Lists the samples already in the project, to point the channel at one. */
 function ProjectSamples({ channel }: { channel: SamplerChannel }) {
@@ -172,10 +178,64 @@ function Trim({
   )
 }
 
+/** The trim's presets and steps. Each reads the trim the project has now. */
+function trimSteps({ id, source }: SamplerChannel): SettingSteps {
+  const start = source.start ?? 0
+  const end = source.end ?? 1
+  const latest = () => {
+    const current = findChannel(id)?.source
+    return current?.type === "sampler"
+      ? { start: current.start ?? 0, end: current.end ?? 1 }
+      : null
+  }
+  const send = (patch: { start?: number; end?: number }) =>
+    void dispatch({ type: "updateSampler", id, patch })
+  return {
+    name: t("Sample trim"),
+    groups: [
+      SAMPLE_TRIM_PRESETS.map((preset) => ({
+        title: t(preset.label),
+        disabled: nextSampleTrim(start, end, preset) === null,
+        run: () => {
+          const now = latest()
+          if (now && nextSampleTrim(now.start, now.end, preset) !== null)
+            send({ start: preset.start, end: preset.end })
+        },
+      })),
+      directionSteps(
+        (direction) => {
+          const now = latest()
+          const next = now && nextSampleTrimPreset(now.start, now.end, direction)
+          if (next) send({ start: next.start, end: next.end })
+        },
+        (direction) => nextSampleTrimPreset(start, end, direction) !== null
+      ),
+      factorSteps(
+        (factor) => {
+          const now = latest()
+          const next = now && nextSampleTrimScale(now.start, now.end, factor)
+          if (next !== null) send({ end: next })
+        },
+        (factor) => nextSampleTrimScale(start, end, factor) !== null,
+        { half: t("Halve trim"), double: t("Double trim") }
+      ),
+      factorSteps(
+        (factor) => {
+          const now = latest()
+          const next = now && nextTrimStartScale(now.start, now.end, factor)
+          if (next !== null) send({ start: next })
+        },
+        (factor) => nextTrimStartScale(start, end, factor) !== null,
+        { half: t("Halve from end"), double: t("Double from end") }
+      ),
+    ],
+  }
+}
+
 /** The sample a channel plays: its waveform, trim handles and a way to change it. */
 export function SampleSection({ channel }: { channel: SamplerChannel }) {
   useLanguageStore((state) => state.language)
-  const { id, source } = channel
+  const { id } = channel
   const sample = useSample(channel.source.sample)
   const state = useSampleInfo(sample)
   const browserVisible = useUiStore((state) => state.panels.browser)
@@ -258,141 +318,7 @@ export function SampleSection({ channel }: { channel: SamplerChannel }) {
         )}
       </div>
       <PresetRerenderButton channel={id} />
-      <div className="flex flex-wrap gap-1">
-        {SAMPLE_TRIM_PRESETS.map((preset) => (
-          <Button
-            key={preset.label}
-            variant="outline"
-            size="xs"
-            disabled={
-              nextSampleTrim(source.start ?? 0, source.end ?? 1, preset) ===
-              null
-            }
-            onClick={() => {
-              const latest = findChannel(id)?.source
-              if (latest?.type !== "sampler") return
-              if (
-                nextSampleTrim(latest.start ?? 0, latest.end ?? 1, preset) ===
-                null
-              )
-                return
-              void dispatch({
-                type: "updateSampler",
-                id,
-                patch: { start: preset.start, end: preset.end },
-              })
-            }}
-          >
-            {t(preset.label)}
-          </Button>
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-1">
-        {(["previous", "next"] as const).map((direction) => (
-          <Button
-            key={direction}
-            variant="outline"
-            size="xs"
-            aria-label={
-              direction === "previous"
-                ? t("Choose the previous sample trim preset")
-                : t("Choose the next sample trim preset")
-            }
-            disabled={
-              nextSampleTrimPreset(
-                source.start ?? 0,
-                source.end ?? 1,
-                direction
-              ) === null
-            }
-            onClick={() => {
-              const latest = findChannel(id)?.source
-              if (latest?.type !== "sampler") return
-              const next = nextSampleTrimPreset(
-                latest.start ?? 0,
-                latest.end ?? 1,
-                direction
-              )
-              if (next === null) return
-              void dispatch({
-                type: "updateSampler",
-                id,
-                patch: { start: next.start, end: next.end },
-              })
-            }}
-          >
-            {direction === "previous" ? t("Previous") : t("Next")}
-          </Button>
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-1">
-        {(["half", "double"] as const).map((factor) => (
-          <Button
-            key={factor}
-            variant="outline"
-            size="xs"
-            aria-label={
-              factor === "half" ? t("Halve sample trim") : t("Double sample trim")
-            }
-            disabled={
-              nextSampleTrimScale(source.start ?? 0, source.end ?? 1, factor) ===
-              null
-            }
-            onClick={() => {
-              const latest = findChannel(id)?.source
-              if (latest?.type !== "sampler") return
-              const next = nextSampleTrimScale(
-                latest.start ?? 0,
-                latest.end ?? 1,
-                factor
-              )
-              if (next === null) return
-              void dispatch({
-                type: "updateSampler",
-                id,
-                patch: { end: next },
-              })
-            }}
-          >
-            {factor === "half" ? t("Halve trim") : t("Double trim")}
-          </Button>
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-1">
-        {(["half", "double"] as const).map((factor) => (
-          <Button
-            key={factor}
-            variant="outline"
-            size="xs"
-            aria-label={
-              factor === "half"
-                ? t("Halve sample trim from the end")
-                : t("Double sample trim from the end")
-            }
-            disabled={
-              nextTrimStartScale(source.start ?? 0, source.end ?? 1, factor) ===
-              null
-            }
-            onClick={() => {
-              const latest = findChannel(id)?.source
-              if (latest?.type !== "sampler") return
-              const next = nextTrimStartScale(
-                latest.start ?? 0,
-                latest.end ?? 1,
-                factor
-              )
-              if (next === null) return
-              void dispatch({
-                type: "updateSampler",
-                id,
-                patch: { start: next },
-              })
-            }}
-          >
-            {factor === "half" ? t("Halve from end") : t("Double from end")}
-          </Button>
-        ))}
-      </div>
+      <StepsMenus settings={[trimSteps(channel)]} />
       {sample && (
         <div className="flex items-baseline gap-3">
           <span

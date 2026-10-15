@@ -34,14 +34,14 @@ import { useProjectStore } from "@/lib/store/project"
 import { usePlayhead } from "@/lib/store/realtime"
 import { useChannel, useLane, usePattern } from "@/lib/store/selectors"
 import { useTransportStore } from "@/lib/store/transport"
-import { ticksPerBar } from "@/lib/time"
+import { ticksPerBar, ticksPerBeat } from "@/lib/time"
 import { meterSegments, musicalPosition } from "@/lib/timeline"
 import { colorToCss, MAX_PATTERN_STEPS, TICKS_PER_STEP } from "@/lib/units"
 
 import { SessionContext } from "./context"
 import { noteEnd } from "./edit-math"
 import { createSession, readContext } from "./create-session"
-import { closePatternTimeline } from "./pattern-timeline"
+import { closePatternTimeline, patternMeterAt } from "./pattern-timeline"
 import { useSampleInfo } from "@/features/channel-rack/inspector/sample-info"
 import { buildPianoUnderlay, helperDurationTicks, useWaveformHelper } from "./waveform-helper"
 import { attachGridInput } from "./grid-input"
@@ -88,7 +88,7 @@ import {
   patternTickInSong,
   ROW_COUNT,
 } from "./view-math"
-import { translatedText as t } from "@/lib/i18n"
+import { message, translatedText as t } from "@/lib/i18n"
 
 const GUTTER_WIDTH = 68
 const RULER_HEIGHT = 38
@@ -322,7 +322,13 @@ export function Workspace({ patternId, channelId }: WorkspaceProps) {
         const readout = readoutRef.current
         if (readout && hover) {
           const pattern = editor.context?.pattern
-          if (pattern) readout.textContent = `${formatPosition(hover.tick, pattern.signature, pattern.timeline)}  ${noteName(hover.key)}`
+          if (pattern) {
+            const position = `${formatPosition(hover.tick, pattern.signature, pattern.timeline)}  ${noteName(hover.key)}`
+            // While an edge is dragged, the length it makes is shown too.
+            const length = editor.resizedLength
+            const beat = ticksPerBeat(patternMeterAt(hover.tick, pattern.signature, pattern.timeline).signature)
+            readout.textContent = length === null ? position : message("{position}  {count} beats long", { position, count: Math.round((length / beat) * 1000) / 1000 })
+          }
         }
         return
       }

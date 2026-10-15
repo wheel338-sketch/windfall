@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { frameAt, selectionBetween, validSelection } from "./selection"
+import { clockTime, frameAt, rulerTicks, selectionBetween, validSelection } from "./selection"
 
 describe("audio editor frame selection", () => {
   it("maps and clamps the pointer and sorts backward drags with exclusive ends", () => {
@@ -24,5 +24,20 @@ describe("audio editor frame selection", () => {
     ]) {
       expect(validSelection(selection, 1000)).toBe(false)
     }
+  })
+  it("reads positions as minutes and seconds and rounds into the next minute", () => {
+    expect(clockTime(0)).toBe("0:00.000")
+    expect(clockTime(1.25)).toBe("0:01.250")
+    expect(clockTime(62.5, 1)).toBe("1:02.5")
+    expect(clockTime(59.9996)).toBe("1:00.000")
+    expect(clockTime(5, 0)).toBe("0:05")
+    expect(clockTime(NaN)).toBe("")
+  })
+  it("marks a ruler with a round step and at most eight intervals", () => {
+    expect(rulerTicks(4).map((tick) => tick.seconds)).toEqual([0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4])
+    expect(rulerTicks(4)[1].decimals).toBe(1)
+    expect(rulerTicks(120).map((tick) => tick.seconds)).toEqual([0, 15, 30, 45, 60, 75, 90, 105, 120])
+    expect(rulerTicks(0.03).every((tick) => tick.decimals === 3)).toBe(true)
+    expect(rulerTicks(0)).toEqual([])
   })
 })

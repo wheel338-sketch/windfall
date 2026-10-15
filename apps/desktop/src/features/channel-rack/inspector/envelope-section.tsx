@@ -1,4 +1,3 @@
-import { message as i18nMessage } from "@/lib/i18n"
 import { translatedText as t, useLanguageStore } from "@/lib/i18n"
 import type { Channel, ChannelId, Envelope } from "@/bindings"
 import {
@@ -9,7 +8,6 @@ import {
   percentUnit,
   powerScale,
 } from "@/components/audio"
-import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import type { SamplerChannel } from "@/lib/channel-source"
 import { useHint } from "@/lib/store/hint"
@@ -23,6 +21,13 @@ import { ENVELOPE_PRESETS, nextEnvelope } from "./envelope-presets"
 import { nextEnvelopeScale } from "./envelope-scale"
 import { Section } from "./parts"
 import { nextSustainScale } from "./sustain-scale"
+import {
+  directionSteps,
+  factorSteps,
+  StepsMenus,
+  WithSteps,
+  type SettingSteps,
+} from "./value-steps"
 
 /** What a sampler gets when its envelope is first turned on. */
 export const DEFAULT_ENVELOPE: Envelope = {
@@ -83,6 +88,35 @@ function EnvelopeControls({
     t("Release: how long the sound rings on after the note ends")
   )
 
+  const send = (next: Envelope | null) => {
+    if (next !== null)
+      void dispatch({ type: "setSamplerEnvelope", id, envelope: next })
+  }
+  const shapeSteps: SettingSteps = {
+    name: t("Shape"),
+    groups: [
+      ENVELOPE_PRESETS.map(({ label, envelope: preset }) => ({
+        title: t(label),
+        disabled: nextEnvelope(value, preset) === null,
+        run: () => send(nextEnvelope(value, preset)),
+      })),
+      directionSteps(
+        (direction) => send(nextEnvelopePreset(value, direction)),
+        (direction) => nextEnvelopePreset(value, direction) !== null
+      ),
+      factorSteps(
+        (factor) => send(nextEnvelopeScale(value, factor === "half" ? 0.5 : 2)),
+        (factor) => nextEnvelopeScale(value, factor === "half" ? 0.5 : 2) !== null,
+        { half: t("Halve times"), double: t("Double times") }
+      ),
+      factorSteps(
+        (factor) => send(nextSustainScale(value, factor === "half" ? 0.5 : 2)),
+        (factor) => nextSustainScale(value, factor === "half" ? 0.5 : 2) !== null,
+        { half: t("Halve sustain"), double: t("Double sustain") }
+      ),
+    ],
+  }
+
   return (
     <>
       <EnvelopeEditor
@@ -97,163 +131,62 @@ function EnvelopeControls({
         {...gesture}
         {...editorHint}
       />
-      <div className="grid grid-cols-4 justify-items-center gap-1">
-        <Knob
-          label={t("Attack")}
-          showValue
-          min={0}
-          max={maxAttackMs}
-          scale={TIME_SCALE}
-          defaultValue={DEFAULT_ENVELOPE.attackMs}
-          value={value.attackMs}
-          onValueChange={(attackMs) => set({ attackMs })}
-          {...msUnit}
-          {...gesture}
-          {...attackHint}
-        />
-        <Knob
-          label={t("Decay")}
-          showValue
-          min={0}
-          max={maxDecayMs}
-          scale={TIME_SCALE}
-          defaultValue={DEFAULT_ENVELOPE.decayMs}
-          value={value.decayMs}
-          onValueChange={(decayMs) => set({ decayMs })}
-          {...msUnit}
-          {...gesture}
-          {...decayHint}
-        />
-        <Knob
-          label={t("Sustain")}
-          showValue
-          min={0}
-          max={1}
-          defaultValue={DEFAULT_ENVELOPE.sustain}
-          value={value.sustain}
-          onValueChange={(sustain) => set({ sustain })}
-          {...percentUnit}
-          {...gesture}
-          {...sustainHint}
-        />
-        <Knob
-          label={t("Release")}
-          showValue
-          min={0}
-          max={maxReleaseMs}
-          scale={TIME_SCALE}
-          defaultValue={DEFAULT_ENVELOPE.releaseMs}
-          value={value.releaseMs}
-          onValueChange={(releaseMs) => set({ releaseMs })}
-          {...msUnit}
-          {...gesture}
-          {...releaseHint}
-        />
-      </div>
-      <div className="grid grid-cols-4 gap-1">
-        {ENVELOPE_PRESETS.map(({ label, envelope: preset }) => (
-          <Button
-            key={label}
-            variant="outline"
-            size="sm"
-            disabled={nextEnvelope(value, preset) === null}
-            onClick={() => {
-              const next = nextEnvelope(value, preset)
-              if (next !== null) {
-                void dispatch({
-                  type: "setSamplerEnvelope",
-                  id,
-                  envelope: next,
-                })
-              }
-            }}
-          >
-            {t(label)}
-          </Button>
-        ))}
-      </div>
-      <div className="flex gap-1">
-        {(
-          [
-            [t("Previous"), "previous"],
-            [t("Next"), "next"],
-          ] as const
-        ).map(([label, direction]) => (
-          <Button
-            key={direction}
-            variant="outline"
-            size="sm"
-            aria-label={i18nMessage("Choose the {value0} envelope preset", { value0: t(direction) })}
-            disabled={nextEnvelopePreset(value, direction) === null}
-            onClick={() => {
-              const next = nextEnvelopePreset(value, direction)
-              if (next !== null) {
-                void dispatch({
-                  type: "setSamplerEnvelope",
-                  id,
-                  envelope: next,
-                })
-              }
-            }}
-          >
-            {t(label)}
-          </Button>
-        ))}
-      </div>
-      <div className="flex gap-1">
-        {(
-          [
-            [t("Half"), 0.5],
-            [t("Double"), 2],
-          ] as const
-        ).map(([label, factor]) => (
-          <Button
-            key={label}
-            variant="outline"
-            size="sm"
-            disabled={nextEnvelopeScale(value, factor) === null}
-            onClick={() => {
-              const next = nextEnvelopeScale(value, factor)
-              if (next !== null) {
-                void dispatch({
-                  type: "setSamplerEnvelope",
-                  id,
-                  envelope: next,
-                })
-              }
-            }}
-          >
-            {t(label)}
-          </Button>
-        ))}
-      </div>
-      <div className="flex gap-1">
-        {(
-          [
-            [t("Halve sustain"), 0.5],
-            [t("Double sustain"), 2],
-          ] as const
-        ).map(([label, factor]) => (
-          <Button
-            key={label}
-            variant="outline"
-            size="sm"
-            disabled={nextSustainScale(value, factor) === null}
-            onClick={() => {
-              const next = nextSustainScale(value, factor)
-              if (next !== null) {
-                void dispatch({
-                  type: "setSamplerEnvelope",
-                  id,
-                  envelope: next,
-                })
-              }
-            }}
-          >
-            {t(label)}
-          </Button>
-        ))}
-      </div>
+      <WithSteps steps={shapeSteps}>
+        <div className="grid grid-cols-4 justify-items-center gap-1">
+          <Knob
+            label={t("Attack")}
+            showValue
+            min={0}
+            max={maxAttackMs}
+            scale={TIME_SCALE}
+            defaultValue={DEFAULT_ENVELOPE.attackMs}
+            value={value.attackMs}
+            onValueChange={(attackMs) => set({ attackMs })}
+            {...msUnit}
+            {...gesture}
+            {...attackHint}
+          />
+          <Knob
+            label={t("Decay")}
+            showValue
+            min={0}
+            max={maxDecayMs}
+            scale={TIME_SCALE}
+            defaultValue={DEFAULT_ENVELOPE.decayMs}
+            value={value.decayMs}
+            onValueChange={(decayMs) => set({ decayMs })}
+            {...msUnit}
+            {...gesture}
+            {...decayHint}
+          />
+          <Knob
+            label={t("Sustain")}
+            showValue
+            min={0}
+            max={1}
+            defaultValue={DEFAULT_ENVELOPE.sustain}
+            value={value.sustain}
+            onValueChange={(sustain) => set({ sustain })}
+            {...percentUnit}
+            {...gesture}
+            {...sustainHint}
+          />
+          <Knob
+            label={t("Release")}
+            showValue
+            min={0}
+            max={maxReleaseMs}
+            scale={TIME_SCALE}
+            defaultValue={DEFAULT_ENVELOPE.releaseMs}
+            value={value.releaseMs}
+            onValueChange={(releaseMs) => set({ releaseMs })}
+            {...msUnit}
+            {...gesture}
+            {...releaseHint}
+          />
+        </div>
+      </WithSteps>
+      <StepsMenus settings={[shapeSteps]} />
     </>
   )
 }

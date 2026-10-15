@@ -9,7 +9,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { backend, errorMessage } from "@/lib/ipc"
 import { receivePatch, useProjectStore } from "@/lib/store/project"
@@ -19,12 +19,13 @@ import {
   useProjectGeneration,
 } from "@/lib/store/replaced"
 import { usePlaylistStore } from "@/features/playlist/store"
-import { validSelection, type Selection } from "./selection"
+import { clockTime, validSelection, type Selection } from "./selection"
 import { Choice, EditTools } from "./tools-panel"
 import { AnalysisTools } from "./analysis-tools"
 import { ScriptTools } from "./script-tools"
 import type { AudioEditOperation, AudioEditPreview } from "./types"
 import { Waveform } from "./waveform"
+import { takeAudioEditorRequest, useAudioEditorRequest } from "./request"
 import { Regions } from "./regions"
 import { startSelectionDrag, endSelectionDrag, registerSelectionReceiver } from "./transfer"
 import { translatedText as t, message } from "@/lib/i18n"
@@ -77,14 +78,34 @@ const OPERATIONS: {
   },
 ]
 
+/**
+ * Whether the playlist selection is still the one the editor opened with.
+ * An edit replaces its clip, and the playlist drops the removed clip from
+ * the selection when the replacement arrives, often before Apply's reply:
+ * losing only clips that no longer exist keeps the editor's session, so it
+ * can follow the edit to the derived clip.
+ */
+function selectionKept(atOpen: ReadonlySet<number>) {
+  const current = usePlaylistStore.getState().selection
+  if (current === atOpen) return true
+  // Choosing the same clips again is still leaving the operation.
+  const dropped = [...atOpen].filter((id) => !current.has(id))
+  const clips = useProjectStore.getState().project.playlist.clips
+  return dropped.length > 0 && [...current].every((id) => atOpen.has(id)) &&
+    dropped.every((id) => !clips.some((clip) => clip.id === id))
+}
+
 export function AudioEditorButton({
   clip,
   disabled,
   defaultOpen = false,
+  answersRequests = false,
 }: {
   clip: number | null
   disabled?: boolean
   defaultOpen?: boolean
+  /** Opens when the command palette asks for the editor. */
+  answersRequests?: boolean
 }) {
   // Capture the source at Open. The inspector may stop resolving that source
   // after Apply publishes its replacement, before the IPC reply arrives.
@@ -114,6 +135,18 @@ export function AudioEditorButton({
       offProject()
     }
   }, [])
+  const requested = useAudioEditorRequest((state) => state.pending)
+  useEffect(() => {
+    if (!answersRequests || !requested || disabled || clip === null) return
+    if (!takeAudioEditorRequest()) return
+    setSession((current) => current ?? {
+      clip,
+      selection: usePlaylistStore.getState().selection,
+      generation: getProjectGeneration(),
+      ticket: ++nextTicket.current,
+      busy: false,
+    })
+  }, [answersRequests, requested, disabled, clip])
   function close() {
     setSession((current) =>
       current?.ticket === session?.ticket ? null : current
@@ -229,7 +262,7 @@ function Editor({
         if (
           cancelled ||
           atGeneration !== getProjectGeneration() ||
-          selectionAtOpen !== usePlaylistStore.getState().selection
+          !selectionKept(selectionAtOpen)
         ) {
           void backend.audioEditorDiscard(value.token).catch(() => {})
           if (!cancelled)
@@ -245,7 +278,7 @@ function Editor({
         if (
           !cancelled &&
           atGeneration === getProjectGeneration() &&
-          selectionAtOpen === usePlaylistStore.getState().selection
+          selectionKept(selectionAtOpen)
         )
           setError(errorMessage(error))
       })
@@ -278,7 +311,7 @@ function Editor({
       !preview ||
       stale ||
       previewGeneration !== getProjectGeneration() ||
-      selectionAtOpen !== usePlaylistStore.getState().selection ||
+      !selectionKept(selectionAtOpen) ||
       !validSelection(selection, preview.frames) ||
       busy
     )
@@ -292,7 +325,7 @@ function Editor({
       if (
         !alive.current ||
         atGeneration !== getProjectGeneration() ||
-        selectionAtOpen !== usePlaylistStore.getState().selection
+        !selectionKept(selectionAtOpen)
       )
         return
       receivePatch(result.patch)
@@ -303,7 +336,7 @@ function Editor({
       if (
         alive.current &&
         atGeneration === getProjectGeneration() &&
-        selectionAtOpen === usePlaylistStore.getState().selection
+        selectionKept(selectionAtOpen)
       )
         setError(errorMessage(error))
     } finally {
@@ -401,6 +434,7 @@ function Editor({
                   setSelection({ ...selection, start: e.target.valueAsNumber })
                 }
               />
+              <ClipTime frame={selection.start} sampleRate={preview.sampleRate} />
             </Field>
             <Field className="w-40" data-invalid={!valid}>
               <FieldLabel htmlFor="audio-edit-end">
@@ -419,6 +453,7 @@ function Editor({
                   setSelection({ ...selection, end: e.target.valueAsNumber })
                 }
               />
+              <ClipTime frame={selection.end} sampleRate={preview.sampleRate} />
             </Field>
           </FieldGroup>
           <div className="flex flex-wrap items-center gap-2">
@@ -474,7 +509,7 @@ function Editor({
             onBusy={(value) => { setBusy(value); onBusy(value) }}
             onCommit={(result) => {
               if (!alive.current || previewGeneration !== getProjectGeneration() ||
-                selectionAtOpen !== usePlaylistStore.getState().selection) return
+                !selectionKept(selectionAtOpen)) return
               receivePatch(result.patch)
               const id = result.created.at(-1)
               if (id !== undefined) onSelect(id)
@@ -485,7 +520,7 @@ function Editor({
             onBusy={value => { setBusy(value); onBusy(value) }}
             onCommit={result => {
               if (!alive.current || previewGeneration !== getProjectGeneration() ||
-                selectionAtOpen !== usePlaylistStore.getState().selection) return
+                !selectionKept(selectionAtOpen)) return
               receivePatch(result.patch)
               const id = result.created.at(-1)
               if (id !== undefined) onSelect(id)
@@ -512,5 +547,15 @@ function Editor({
         </Button>
       </div>
     </div>
+  )
+}
+
+/** A frame endpoint read as time, so a range relates to what is heard. */
+function ClipTime({ frame, sampleRate }: { frame: number; sampleRate: number }) {
+  if (!Number.isFinite(frame) || sampleRate <= 0) return null
+  return (
+    <FieldDescription className="tabular-nums">
+      {message("{time} from the clip start", { time: clockTime(frame / sampleRate) })}
+    </FieldDescription>
   )
 }

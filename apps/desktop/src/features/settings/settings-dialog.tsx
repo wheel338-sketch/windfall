@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react"
+import { useEffect, useRef, type ReactNode } from "react"
 
 import type { AudioSettings, EngineStatus } from "@/bindings"
 import { Button } from "@/components/ui/button"
@@ -348,11 +348,51 @@ function KeyboardSection() {
   )
 }
 
-/** Audio device, theme and keyboard shortcuts. */
+/** The sections of the dialog, in order, named as their headings are. */
+const SECTIONS = [
+  { id: "audio", get title() { return t("Audio output") } },
+  { id: "midi", get title() { return t("MIDI hardware") } },
+  { id: "stems", get title() { return t("Stem separation") } },
+  { id: "remote", get title() { return t("Phone remote") } },
+  { id: "mcp", get title() { return t("AI agents (MCP)") } },
+  { id: "soundfont", get title() { return t("General MIDI SoundFont") } },
+  { id: "appearance", get title() { return t("Appearance") } },
+  { id: "language", get title() { return t("Language") } },
+  { id: "keyboard", get title() { return t("Keyboard") } },
+  { id: "updates", get title() { return t("Updates") } },
+] as const
+
+type SectionId = (typeof SECTIONS)[number]["id"]
+
+/** One section of the form, a place the jump list can go to. */
+function Part({ id, children }: { id: SectionId; children: ReactNode }) {
+  return (
+    <div data-settings-section={id} tabIndex={-1} className="outline-none">
+      {children}
+    </div>
+  )
+}
+
+/**
+ * Audio device, theme and keyboard shortcuts. The form is long, so the
+ * title and a list of its sections stay at the top while the sections
+ * scroll under them, and the dialog always opens at the first section.
+ */
 export function SettingsDialog() {
   const t = useTranslation()
   const open = useUiStore((state) => state.dialog === "settings")
   const closeDialog = useUiStore((state) => state.closeDialog)
+  const body = useRef<HTMLDivElement>(null)
+
+  function jump(id: SectionId) {
+    const element = body.current
+    const target = element?.querySelector<HTMLElement>(
+      `[data-settings-section="${id}"]`
+    )
+    if (!element || !target) return
+    element.scrollTop = target.offsetTop
+    target.focus({ preventScroll: true })
+  }
 
   return (
     <Dialog
@@ -361,25 +401,50 @@ export function SettingsDialog() {
         if (!next) closeDialog()
       }}
     >
-      <DialogContent className="max-h-[85vh] gap-5 overflow-y-auto sm:max-w-lg">
+      {/* Focus goes to the top of the form, not to the first control that
+          happens to be enabled: while the audio devices load, that one sits
+          far down, and focusing it scrolled the dialog away from its title. */}
+      <DialogContent
+        initialFocus={body}
+        className="flex max-h-[85vh] flex-col gap-3 sm:max-w-lg"
+      >
         <DialogHeader>
           <DialogTitle>{t("Settings")}</DialogTitle>
           <DialogDescription>
             {t("Changes take effect right away and are kept for next time.")}
           </DialogDescription>
         </DialogHeader>
-        <AudioSection />
-        <MidiHardwareSettingsSection />
-        <LanguageBoundary>
-          <StemSeparationSettings />
-          <PhoneRemoteSettings />
-          <McpSettingsSection />
-          <GeneralMidiSoundFontSection />
-        </LanguageBoundary>
-        <AppearanceSection />
-        <LanguageSection />
-        <KeyboardSection />
-        <UpdatesSection />
+        <nav aria-label={t("Settings sections")} className="flex flex-wrap gap-1">
+          {SECTIONS.map((section) => (
+            <Button
+              key={section.id}
+              variant="outline"
+              size="xs"
+              onClick={() => jump(section.id)}
+            >
+              {section.title}
+            </Button>
+          ))}
+        </nav>
+        <div
+          ref={body}
+          data-slot="settings-body"
+          tabIndex={-1}
+          className="relative -mx-4 flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto border-t px-4 pt-3 outline-none"
+        >
+          <Part id="audio"><AudioSection /></Part>
+          <Part id="midi"><MidiHardwareSettingsSection /></Part>
+          <LanguageBoundary>
+            <Part id="stems"><StemSeparationSettings /></Part>
+            <Part id="remote"><PhoneRemoteSettings /></Part>
+            <Part id="mcp"><McpSettingsSection /></Part>
+            <Part id="soundfont"><GeneralMidiSoundFontSection /></Part>
+          </LanguageBoundary>
+          <Part id="appearance"><AppearanceSection /></Part>
+          <Part id="language"><LanguageSection /></Part>
+          <Part id="keyboard"><KeyboardSection /></Part>
+          <Part id="updates"><UpdatesSection /></Part>
+        </div>
       </DialogContent>
     </Dialog>
   )

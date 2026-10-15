@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Field, FieldLabel, FieldDescription } from "@/components/ui/field"
 import { parseManifest } from "@/features/analysis/manifest"
 import type { AnalysisModel, AnalysisRuntimeSettings } from "@/features/analysis/types"
-import { translatedText as t } from "@/lib/i18n"
+import { localizeBackendText, translatedText as t } from "@/lib/i18n"
 
 export function StemSeparationSettings() {
   const [settings, setSettings] = useState<AnalysisRuntimeSettings>({ libraryPath: null, modelId: null, modelVersion: null })
@@ -30,7 +30,7 @@ export function StemSeparationSettings() {
   }
   return <section aria-label={t("Stem separation settings")} className="flex flex-col gap-2">
     <h3 className="text-xs font-medium">{t("Stem separation")}</h3>
-    {status && <p role="status" className="text-xs text-muted-foreground">{status}</p>}
+    {status && <p role="status" className="text-xs text-muted-foreground">{localizeBackendText(status)}</p>}
     {error && <p role="alert">{error}</p>}
     <fieldset disabled={!native || busy} className="flex flex-col gap-2">
       <Field><FieldLabel htmlFor="stem-runtime">{t("ONNX Runtime library")}</FieldLabel>

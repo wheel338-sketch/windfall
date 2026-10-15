@@ -8,7 +8,9 @@ import {
   duplicateRight,
   endAfterUpdates,
   extendedLengthSteps,
+  extensionSteps,
   initsFit,
+  laneEndAfterUpdates,
   lengthStepsAt,
   MAX_PATTERN_TICKS,
   moveDelta,
@@ -24,8 +26,10 @@ import {
   resizeDelta,
   resizeUpdates,
   rowsAlongSegment,
+  shrunkLengthSteps,
   updatesFit,
   withExtension,
+  withLength,
 } from "./edit-math"
 
 const FOUR_FOUR: TimeSignature = { numerator: 4, denominator: 4 }
@@ -148,6 +152,109 @@ describe("resizing", () => {
     expect(resizeUpdates([long, short], delta)).toEqual([
       { id: long.id, patch: { length: 480 } },
     ])
+  })
+})
+
+describe("resizing onto the grid", () => {
+  const BEAT = 960
+
+  it("lands a dragged end on a beat line, not a beat past where it was", () => {
+    // A sixteenth stretched by about a beat on the beat grid. Snapping the
+    // distance made it 1¼ beats long; the end goes to the beat line instead.
+    const a = note(0, 60, 240)
+    const delta = resizeDelta("end", 900, BEAT, [a], { anchor: 240, origin: 0 })
+    expect(delta.end).toBe(720)
+    expect(resizeUpdates([a], delta)).toEqual([
+      { id: a.id, patch: { length: BEAT } },
+    ])
+    // The old rule, without an anchor, keeps the end off the grid.
+    expect(resizeUpdates([a], resizeDelta("end", 900, BEAT, [a]))).toEqual([
+      { id: a.id, patch: { length: 1200 } },
+    ])
+  })
+
+  it("rounds to the nearest line and keeps a short note until the next one is nearer", () => {
+    const a = note(0, 60, 240)
+    expect(resizeUpdates([a], resizeDelta("end", 200, BEAT, [a], { anchor: 240, origin: 0 }))).toEqual([])
+    expect(resizeUpdates([a], resizeDelta("end", 250, BEAT, [a], { anchor: 240, origin: 0 }))).toEqual([
+      { id: a.id, patch: { length: BEAT } },
+    ])
+  })
+
+  it("puts a dragged start on a line and keeps the end", () => {
+    const a = note(130, 60, 830)
+    const delta = resizeDelta("start", -100, 240, [a], { anchor: 130, origin: 0 })
+    expect(resizeUpdates([a], delta)).toEqual([
+      { id: a.id, patch: { start: 0, length: 960 } },
+    ])
+  })
+
+  it("counts the lines from the origin of the meter in force", () => {
+    const a = note(480, 60, 240)
+    // Lines every beat from tick 120: 1080 is the nearest to 720 + 300.
+    const delta = resizeDelta("end", 300, BEAT, [a], { anchor: 720, origin: 120 })
+    expect(delta.end).toBe(360)
+  })
+
+  it("gives the other selected notes the grabbed note's change", () => {
+    const grabbed = note(0, 60, 240)
+    const other = note(480, 64, 300)
+    const delta = resizeDelta("end", 900, BEAT, [grabbed, other], { anchor: 240, origin: 0 })
+    expect(resizeUpdates([grabbed, other], delta)).toEqual([
+      { id: grabbed.id, patch: { length: 960 } },
+      { id: other.id, patch: { length: 1020 } },
+    ])
+  })
+
+  it("ignores the grid with snap off", () => {
+    const a = note(0, 60, 240)
+    expect(resizeDelta("end", 333, 0, [a], { anchor: 240, origin: 0 }).end).toBe(333)
+  })
+})
+
+describe("pattern length that follows the notes", () => {
+  const info = { id: 7, lengthSteps: 16, signature: FOUR_FOUR }
+  const edit: Command = {
+    type: "updateNotes",
+    pattern: 7,
+    channel: 2,
+    updates: [{ id: 1, patch: { length: 480 } }],
+  }
+
+  it("grows to the end of the bar a note reaches", () => {
+    expect(extensionSteps(info, 3840)).toBeNull()
+    expect(extensionSteps(info, 3841)).toBe(32)
+    expect(withLength(edit, "Resize notes", 7, 32)).toEqual({
+      type: "batch",
+      label: "Resize notes",
+      commands: [edit, { type: "updatePattern", id: 7, patch: { lengthSteps: 32 } }],
+    })
+  })
+
+  it("gives back bars no note reaches any more, down to the length before growing", () => {
+    // Grown from one bar to two; the last note is back inside the first.
+    expect(shrunkLengthSteps(16, 32, 3600, FOUR_FOUR)).toBe(16)
+    // Something still reaches into the second bar.
+    expect(shrunkLengthSteps(16, 32, 3900, FOUR_FOUR)).toBeNull()
+    // Grown from three bars to five, with notes now ending in the second:
+    // never shorter than the three bars it had.
+    expect(shrunkLengthSteps(48, 80, 4000, FOUR_FOUR)).toBe(48)
+    // Grown from one bar to four, with notes ending in the third.
+    expect(shrunkLengthSteps(16, 64, 9000, FOUR_FOUR)).toBe(48)
+    // In 6/8 a bar is 12 steps.
+    expect(shrunkLengthSteps(12, 24, 2000, SIX_EIGHT)).toBe(12)
+  })
+
+  it("finds where a lane ends once an update has moved or resized notes", () => {
+    const short = note(0, 60, 240)
+    const long = note(3000, 62, 1200)
+    expect(laneEndAfterUpdates([short, long], [])).toBe(4200)
+    expect(
+      laneEndAfterUpdates([short, long], [{ id: long.id, patch: { length: 600 } }])
+    ).toBe(3600)
+    expect(
+      laneEndAfterUpdates([short, long], [{ id: long.id, patch: { start: 0 } }])
+    ).toBe(1200)
   })
 })
 

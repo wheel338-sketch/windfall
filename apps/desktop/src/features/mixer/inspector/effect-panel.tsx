@@ -177,7 +177,9 @@ export const EffectPanel = memo(function EffectPanel({
 
   useEffect(() => {
     if (!revealing) return
-    root.current?.scrollIntoView({ block: "nearest" })
+    // To the top, so the editor under the header shows as well, not only
+    // the header at the bottom edge.
+    root.current?.scrollIntoView({ block: "start" })
     useEffectsUi.setState({ revealing: null })
   }, [revealing])
 

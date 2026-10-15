@@ -38,10 +38,14 @@ export function ScriptTools({ preview, selection, disabled, onBusy, onCommit }: 
   const working = useRef(false)
   const alive = useRef(false)
   const current = useRef<() => boolean>(() => false)
+  // An applied edit publishes its own revision, often before its reply, so
+  // the reply is followed while this editor still shows the same project.
+  const open = useRef<() => boolean>(() => false)
   useEffect(() => {
     alive.current = true
     const invalidateOperation = () => { operation.current++ }
     const generation = getProjectGeneration()
+    open.current = () => alive.current && generation === getProjectGeneration()
     const revision = useProjectStore.getState().revision
     const selected = usePlaylistStore.getState().selection
     current.current = () => alive.current && generation === getProjectGeneration() &&
@@ -109,10 +113,10 @@ export function ScriptTools({ preview, selection, disabled, onBusy, onCommit }: 
       <Button variant="outline" disabled={!result || !matches || disabled || busy} onClick={() => void work(async () => {
         if (result) await backend.audioScriptAudition(preview.token, result.request)
       })}>{t("Audition script result")}</Button>
-      <Button disabled={!result || !matches || disabled || busy} onClick={() => void work(async op => {
+      <Button disabled={!result || !matches || disabled || busy} onClick={() => void work(async () => {
         if (!result) return
         const applied = await backend.audioScriptApply(preview.token, result.request)
-        if (current.current() && op === operation.current) onCommit(applied)
+        if (open.current()) onCommit(applied)
       })}>{t("Apply script result")}</Button>
       <Button variant="outline" disabled={!busy && !result} onClick={cancel}>{t("Cancel audio script")}</Button>
     </div>

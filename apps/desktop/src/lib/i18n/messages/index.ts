@@ -31,6 +31,8 @@ import { loopsEn, loopsEs } from "./loops"
 import { mcpEn, mcpEs } from "./mcp"
 import { mixerEn, mixerEs } from "./mixer"
 import { modularEn, modularEs } from "./modular"
+import { notebookEn, notebookEs } from "./notebook"
+import { paletteEn, paletteEs } from "./palette"
 import { paramsEn, paramsEs } from "./params"
 import { performanceEn, performanceEs } from "./performance"
 import { performanceMediaEn, performanceMediaEs } from "./performance-media"
@@ -90,6 +92,8 @@ export const areaEn = {
   ...mcpEn,
   ...mixerEn,
   ...modularEn,
+  ...notebookEn,
+  ...paletteEn,
   ...paramsEn,
   ...performanceEn,
   ...performanceMediaEn,
@@ -149,6 +153,8 @@ export const areaEs = {
   ...mcpEs,
   ...mixerEs,
   ...modularEs,
+  ...notebookEs,
+  ...paletteEs,
   ...paramsEs,
   ...performanceEs,
   ...performanceMediaEs,

@@ -1,6 +1,5 @@
 import { translatedText as t, useLanguageStore } from "@/lib/i18n"
 import { formatPercent, Knob, percentUnit } from "@/components/audio"
-import { Button } from "@/components/ui/button"
 import { Field, FieldDescription } from "@/components/ui/field"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import type { SamplerChannel } from "@/lib/channel-source"
@@ -17,11 +16,17 @@ import {
 } from "./loop-crossfade-presets"
 import { nextLoopCrossfadeScale } from "./loop-crossfade-scale"
 import { nextLoopLengthScale } from "./loop-length-scale"
-import { nextLoopMode } from "./loop-mode-step"
 import { nextLoopRegionPreset } from "./loop-region-preset-step"
 import { LOOP_REGION_PRESETS, nextLoopRegion } from "./loop-region-presets"
 import { nextLoopStartScale } from "./loop-start-scale"
 import { Section } from "./parts"
+import {
+  directionSteps,
+  factorSteps,
+  StepsMenus,
+  WithSteps,
+  type SettingSteps,
+} from "./value-steps"
 
 /** A loop's points stay relative to the trimmed sample, in source order. */
 export function LoopSection({ channel }: { channel: SamplerChannel }) {
@@ -59,6 +64,106 @@ export function LoopSection({ channel }: { channel: SamplerChannel }) {
     t("Loop end: exclusive end within the trimmed sample. Short loops hold at least one frame")
   )
 
+  /** Sets the loop's points, if the channel is still a sampler. */
+  const setRegion = (patch: { loopStart?: number; loopEnd?: number }) =>
+    void dispatch({ type: "updateSampler", id, patch })
+  /** The loop's points as the project has them right now. */
+  const region = () => {
+    const current = findChannel(id)?.source
+    return current?.type === "sampler"
+      ? { start: current.loopStart ?? 0, end: current.loopEnd ?? 1 }
+      : null
+  }
+  /** The crossfade as the project has it, while the loop is on. */
+  const looping = () => {
+    const current = findChannel(id)?.source
+    return current?.type === "sampler" && (current.loopMode ?? "off") !== "off"
+      ? (current.loopCrossfade ?? 0)
+      : null
+  }
+  const setCrossfade = (loopCrossfade: number) =>
+    void dispatch({ type: "updateSampler", id, patch: { loopCrossfade } })
+  const loopStart = source.loopStart ?? 0
+  const loopEnd = source.loopEnd ?? 1
+  const loopCrossfade = source.loopCrossfade ?? 0
+
+  const regionSteps: SettingSteps = {
+    name: t("Loop region"),
+    groups: [
+      LOOP_REGION_PRESETS.map((preset) => ({
+        title: t(preset.label),
+        disabled: nextLoopRegion(loopStart, loopEnd, preset) === null,
+        run: () => {
+          const now = region()
+          if (now && nextLoopRegion(now.start, now.end, preset) !== null)
+            setRegion({ loopStart: preset.start, loopEnd: preset.end })
+        },
+      })),
+      directionSteps(
+        (direction) => {
+          const now = region()
+          const next = now && nextLoopRegionPreset(now.start, now.end, direction)
+          if (next) setRegion({ loopStart: next.start, loopEnd: next.end })
+        },
+        (direction) =>
+          nextLoopRegionPreset(loopStart, loopEnd, direction) !== null
+      ),
+      factorSteps(
+        (factor) => {
+          const now = region()
+          const next = now && nextLoopLengthScale(now.start, now.end, factor)
+          if (next !== null) setRegion({ loopEnd: next })
+        },
+        (factor) => nextLoopLengthScale(loopStart, loopEnd, factor) !== null,
+        { half: t("Halve length"), double: t("Double length") }
+      ),
+      factorSteps(
+        (factor) => {
+          const now = region()
+          const next = now && nextLoopStartScale(now.start, now.end, factor)
+          if (next !== null) setRegion({ loopStart: next })
+        },
+        (factor) => nextLoopStartScale(loopStart, loopEnd, factor) !== null,
+        { half: t("Halve from end"), double: t("Double from end") }
+      ),
+    ],
+  }
+  const crossfadeSteps: SettingSteps = {
+    name: t("Crossfade"),
+    groups: [
+      LOOP_CROSSFADE_PRESETS.map(({ label, crossfade: preset }) => ({
+        title: t(label),
+        disabled:
+          mode === "off" || nextLoopCrossfade(loopCrossfade, preset) === null,
+        run: () => {
+          const now = looping()
+          if (now !== null && nextLoopCrossfade(now, preset) !== null)
+            setCrossfade(preset)
+        },
+      })),
+      directionSteps(
+        (direction) => {
+          const now = looping()
+          const next = now === null ? null : nextLoopCrossfadePreset(now, direction)
+          if (next !== null) setCrossfade(next)
+        },
+        (direction) =>
+          mode !== "off" &&
+          nextLoopCrossfadePreset(loopCrossfade, direction) !== null
+      ),
+      factorSteps(
+        (factor) => {
+          const now = looping()
+          const next = now === null ? null : nextLoopCrossfadeScale(now, factor)
+          if (next !== null) setCrossfade(next)
+        },
+        (factor) =>
+          mode !== "off" &&
+          nextLoopCrossfadeScale(loopCrossfade, factor) !== null
+      ),
+    ],
+  }
+
   return (
     <Section title={t("Loop")}>
       <Field>
@@ -82,326 +187,60 @@ export function LoopSection({ channel }: { channel: SamplerChannel }) {
           <ToggleGroupItem value="forward">{t("Forward")}</ToggleGroupItem>
           <ToggleGroupItem value="pingPong">{t("Ping-pong")}</ToggleGroupItem>
         </ToggleGroup>
-        <div className="flex flex-wrap gap-1">
-          {(["previous", "next"] as const).map((direction) => (
-            <Button
-              key={direction}
-              variant="outline"
-              size="sm"
-              aria-label={
-                direction === "previous"
-                  ? t("Choose the previous loop mode")
-                  : t("Choose the next loop mode")
-              }
-              disabled={
-                nextLoopMode(source.loopMode ?? "off", direction) === null
-              }
-              onClick={() => {
-                const current = findChannel(id)?.source
-                if (current?.type !== "sampler") return
-                const next = nextLoopMode(current.loopMode ?? "off", direction)
-                if (next !== null)
-                  void dispatch({
-                    type: "updateSampler",
-                    id,
-                    patch: { loopMode: next },
-                  })
-              }}
-            >
-              {direction === "previous" ? t("Previous") : t("Next")}
-            </Button>
-          ))}
-        </div>
         <FieldDescription>{t("Repeats while held, including release. Points are percentages of the trimmed sample.")}</FieldDescription>
       </Field>
       <div className="flex justify-center gap-4">
-        <Knob
-          label={t("Loop start")}
-          showValue
-          min={0}
-          max={1}
-          step={0.001}
-          defaultValue={0}
-          {...percentUnit}
-          format={(value) => formatPercent(value, 1)}
-          {...start}
-          {...startHint}
-        />
-        <Knob
-          label={t("Loop end")}
-          showValue
-          min={0}
-          max={1}
-          step={0.001}
-          defaultValue={1}
-          {...percentUnit}
-          format={(value) => formatPercent(value, 1)}
-          {...end}
-          {...endHint}
-        />
-        <Knob
-          label={t("Loop crossfade")}
-          showValue
-          min={0}
-          max={1}
-          step={0.001}
-          defaultValue={0}
-          disabled={mode === "off"}
-          {...percentUnit}
-          format={(value) => formatPercent(value, 1)}
-          {...crossfade}
-          {...crossfadeHint}
-        />
+        {/* The section says Loop, so the knobs need not: their full names
+            did not fit under them. */}
+        <WithSteps steps={regionSteps}>
+          <Knob
+            label={t("Start")}
+            aria-label={t("Loop start")}
+            showValue
+            min={0}
+            max={1}
+            step={0.001}
+            defaultValue={0}
+            {...percentUnit}
+            format={(value) => formatPercent(value, 1)}
+            {...start}
+            {...startHint}
+          />
+          <Knob
+            label={t("End")}
+            aria-label={t("Loop end")}
+            showValue
+            min={0}
+            max={1}
+            step={0.001}
+            defaultValue={1}
+            {...percentUnit}
+            format={(value) => formatPercent(value, 1)}
+            {...end}
+            {...endHint}
+          />
+        </WithSteps>
+        <WithSteps steps={crossfadeSteps}>
+          <Knob
+            label={t("Crossfade")}
+            aria-label={t("Loop crossfade")}
+            showValue
+            min={0}
+            max={1}
+            step={0.001}
+            defaultValue={0}
+            disabled={mode === "off"}
+            {...percentUnit}
+            format={(value) => formatPercent(value, 1)}
+            {...crossfade}
+            {...crossfadeHint}
+          />
+        </WithSteps>
       </div>
-      <div className="mt-1 flex flex-wrap gap-1">
-        {LOOP_CROSSFADE_PRESETS.map(({ label, crossfade: preset }) => (
-          <Button
-            key={label}
-            variant="outline"
-            size="sm"
-            disabled={
-              mode === "off" ||
-              nextLoopCrossfade(source.loopCrossfade ?? 0, preset) === null
-            }
-            onClick={() => {
-              const current = findChannel(id)?.source
-              if (
-                current?.type !== "sampler" ||
-                (current.loopMode ?? "off") === "off"
-              )
-                return
-              if (
-                nextLoopCrossfade(current.loopCrossfade ?? 0, preset) !== null
-              )
-                void dispatch({
-                  type: "updateSampler",
-                  id,
-                  patch: { loopCrossfade: preset },
-                })
-            }}
-          >
-            {t(label)}
-          </Button>
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-1">
-        {(["previous", "next"] as const).map((direction) => (
-          <Button
-            key={direction}
-            variant="outline"
-            size="sm"
-            aria-label={
-              direction === "previous"
-                ? t("Choose the previous loop crossfade preset")
-                : t("Choose the next loop crossfade preset")
-            }
-            disabled={
-              mode === "off" ||
-              nextLoopCrossfadePreset(source.loopCrossfade ?? 0, direction) ===
-                null
-            }
-            onClick={() => {
-              const current = findChannel(id)?.source
-              if (
-                current?.type !== "sampler" ||
-                (current.loopMode ?? "off") === "off"
-              )
-                return
-              const next = nextLoopCrossfadePreset(
-                current.loopCrossfade ?? 0,
-                direction
-              )
-              if (next === null) return
-              void dispatch({
-                type: "updateSampler",
-                id,
-                patch: { loopCrossfade: next },
-              })
-            }}
-          >
-            {direction === "previous" ? t("Previous") : t("Next")}
-          </Button>
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-1">
-        {(["half", "double"] as const).map((factor) => (
-          <Button
-            key={factor}
-            variant="outline"
-            size="sm"
-            disabled={
-              mode === "off" ||
-              nextLoopCrossfadeScale(source.loopCrossfade ?? 0, factor) === null
-            }
-            onClick={() => {
-              const current = findChannel(id)?.source
-              if (
-                current?.type !== "sampler" ||
-                (current.loopMode ?? "off") === "off"
-              )
-                return
-              const next = nextLoopCrossfadeScale(
-                current.loopCrossfade ?? 0,
-                factor
-              )
-              if (next !== null)
-                void dispatch({
-                  type: "updateSampler",
-                  id,
-                  patch: { loopCrossfade: next },
-                })
-            }}
-          >
-            {factor === "half" ? t("Half") : t("Double")}
-          </Button>
-        ))}
-      </div>
-      <div className="mt-1 flex flex-wrap gap-1">
-        {LOOP_REGION_PRESETS.map((preset) => (
-          <Button
-            key={preset.label}
-            variant="outline"
-            size="sm"
-            disabled={
-              nextLoopRegion(
-                source.loopStart ?? 0,
-                source.loopEnd ?? 1,
-                preset
-              ) === null
-            }
-            onClick={() => {
-              const current = findChannel(id)?.source
-              if (current?.type !== "sampler") return
-              if (
-                nextLoopRegion(
-                  current.loopStart ?? 0,
-                  current.loopEnd ?? 1,
-                  preset
-                ) !== null
-              )
-                void dispatch({
-                  type: "updateSampler",
-                  id,
-                  patch: { loopStart: preset.start, loopEnd: preset.end },
-                })
-            }}
-          >
-            {t(preset.label)}
-          </Button>
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-1">
-        {(["previous", "next"] as const).map((direction) => (
-          <Button
-            key={direction}
-            variant="outline"
-            size="sm"
-            aria-label={
-              direction === "previous"
-                ? t("Choose the previous loop region preset")
-                : t("Choose the next loop region preset")
-            }
-            disabled={
-              nextLoopRegionPreset(
-                source.loopStart ?? 0,
-                source.loopEnd ?? 1,
-                direction
-              ) === null
-            }
-            onClick={() => {
-              const current = findChannel(id)?.source
-              if (current?.type !== "sampler") return
-              const next = nextLoopRegionPreset(
-                current.loopStart ?? 0,
-                current.loopEnd ?? 1,
-                direction
-              )
-              if (next === null) return
-              void dispatch({
-                type: "updateSampler",
-                id,
-                patch: { loopStart: next.start, loopEnd: next.end },
-              })
-            }}
-          >
-            {direction === "previous" ? t("Previous") : t("Next")}
-          </Button>
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-1">
-        {(["half", "double"] as const).map((factor) => (
-          <Button
-            key={factor}
-            variant="outline"
-            size="sm"
-            aria-label={
-              factor === "half" ? t("Halve loop length") : t("Double loop length")
-            }
-            disabled={
-              nextLoopLengthScale(
-                source.loopStart ?? 0,
-                source.loopEnd ?? 1,
-                factor
-              ) === null
-            }
-            onClick={() => {
-              const current = findChannel(id)?.source
-              if (current?.type !== "sampler") return
-              const next = nextLoopLengthScale(
-                current.loopStart ?? 0,
-                current.loopEnd ?? 1,
-                factor
-              )
-              if (next !== null)
-                void dispatch({
-                  type: "updateSampler",
-                  id,
-                  patch: { loopEnd: next },
-                })
-            }}
-          >
-            {factor === "half" ? t("Halve length") : t("Double length")}
-          </Button>
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-1">
-        {(["half", "double"] as const).map((factor) => (
-          <Button
-            key={factor}
-            variant="outline"
-            size="sm"
-            aria-label={
-              factor === "half"
-                ? t("Halve loop length from the end")
-                : t("Double loop length from the end")
-            }
-            disabled={
-              nextLoopStartScale(
-                source.loopStart ?? 0,
-                source.loopEnd ?? 1,
-                factor
-              ) === null
-            }
-            onClick={() => {
-              const current = findChannel(id)?.source
-              if (current?.type !== "sampler") return
-              const next = nextLoopStartScale(
-                current.loopStart ?? 0,
-                current.loopEnd ?? 1,
-                factor
-              )
-              if (next !== null)
-                void dispatch({
-                  type: "updateSampler",
-                  id,
-                  patch: { loopStart: next },
-                })
-            }}
-          >
-            {factor === "half" ? t("Halve from end") : t("Double from end")}
-          </Button>
-        ))}
-      </div>
+      <StepsMenus
+        settings={[regionSteps, crossfadeSteps]}
+        disabled={mode === "off" ? [crossfadeSteps.name] : undefined}
+      />
     </Section>
   )
 }

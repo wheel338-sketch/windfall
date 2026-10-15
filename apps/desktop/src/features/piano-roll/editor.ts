@@ -16,6 +16,7 @@ import {
   DEFAULT_LIMITS,
   keyToRow,
   queryRect,
+  resizedSpan,
   rowToKey,
   withAlpha,
   xToTick,
@@ -59,7 +60,10 @@ import {
   resizeUpdates,
   rowsAlongSegment,
   updatesFit,
-  withExtension,
+  extensionSteps,
+  laneEndAfterUpdates,
+  shrunkLengthSteps,
+  withLength,
   type MoveDelta,
   type MoveLimits,
   type PasteTarget,
@@ -109,6 +113,11 @@ export type EditorContext = {
   channel: ChannelId
   /** The lane's notes, sorted by start. The same array until they change. */
   notes: readonly Note[]
+  /**
+   * Where the rest of the pattern ends: the other lanes' notes, its event
+   * automation and markers. Without it the editor never shortens a pattern.
+   */
+  elsewhereEnd?: number
 }
 
 export type EditorSettings = {
@@ -297,6 +306,14 @@ export class Editor {
   private scene: Scene = buildScene([], [], FALLBACK_PALETTE, new Set())
   private selected = new Set<number>()
   private provisional: Note[] = []
+  /**
+   * Patterns this editor made longer to hold an edit, with the length they
+   * had before and the one they grew to. While a pattern still has the
+   * length it grew to, edits that pull its notes back in give the bars back.
+   * Any other change of the length (the ruler, undo) ends the record, so a
+   * length the user chose is never shortened.
+   */
+  private grown = new Map<PatternInfo["id"], { from: number; to: number; generation?: number }>()
   private gesture: Gesture = IDLE
   private preview: DragPreview | null = null
   private sounding: number | null = null
@@ -344,6 +361,14 @@ export class Editor {
 
   get drag(): DragPreview | null {
     return this.preview
+  }
+
+  /** The length the grabbed note has while an edge of it is dragged. */
+  get resizedLength(): number | null {
+    const gesture = this.gesture
+    if (gesture.kind !== "resize" || !gesture.moved) return null
+    const { grabbed, delta } = gesture
+    return resizedSpan(grabbed.start, grabbed.length, delta.start, delta.end, delta.minLength).length
   }
 
   /** How many notes of the project are selected. */
@@ -707,11 +732,18 @@ export class Editor {
           tick - gesture.tick,
           snap,
           gesture.notes,
-          this.ctx?.pattern.timeline?.meters.length ? { anchor, origin: settings.snapOrigin ?? 0 } : undefined
+          // The grabbed edge lands on a grid line, wherever it started.
+          { anchor, origin: settings.snapOrigin ?? 0 }
         )
         gesture.delta = delta
         surface.setDragResize(delta.start, delta.end, delta.minLength)
         this.preview = { ticks: 0, keys: 0, resize: delta, duplicate: false }
+        // The readout follows the dragged edge and shows the new length.
+        const span = resizedSpan(gesture.grabbed.start, gesture.grabbed.length, delta.start, delta.end, delta.minLength)
+        this.setHover(gesture.edge === "start" ? span.start : span.start + span.length, gesture.grabbed.key, {
+          kind: "resize",
+          edge: gesture.edge,
+        })
         this.emit("drag")
         return
       }
@@ -803,7 +835,7 @@ export class Editor {
         this.cancel()
         if (notes.length === 0) break
         this.commitDrag(
-          withExtension(
+          this.extend(
             {
               type: "addNotes",
               pattern: ctx.pattern.id,
@@ -849,7 +881,7 @@ export class Editor {
           gesture.grabbed.velocity
         )
         this.commitDrag(
-          withExtension(
+          this.fit(
             {
               type: "updateNotes",
               pattern: ctx.pattern.id,
@@ -857,8 +889,9 @@ export class Editor {
               updates,
             },
             "Resize notes",
-            ctx.pattern,
-            endAfterUpdates(gesture.notes, updates)
+            ctx,
+            gesture.notes,
+            updates
           )
         )
         break
@@ -879,7 +912,7 @@ export class Editor {
           channel: ctx.channel,
           notes: adds,
         })
-        if (commands.length) this.commitDrag(withExtension(
+        if (commands.length) this.commitDrag(this.extend(
           { type: "batch", label: historyLabel("Paint drum steps"), commands },
           "Paint drum steps",
           ctx.pattern,
@@ -896,7 +929,7 @@ export class Editor {
         if (painted.length === 0) break
         const notes = movedCopies(painted, { ticks: 0, keys: 0 })
         this.commitDrag(
-          withExtension(
+          this.extend(
             {
               type: "addNotes",
               pattern: ctx.pattern.id,
@@ -1041,7 +1074,7 @@ export class Editor {
     }
     if (!initsFit(notes)) return this.refusePastEnd()
     await this.commit(
-      withExtension(
+      this.extend(
         noteInsertionCommand({ pattern: ctx.pattern.id, channel: ctx.channel }, notes, contents.curves),
         "Paste notes",
         ctx.pattern,
@@ -1063,7 +1096,7 @@ export class Editor {
     if (inits.length === 0) return
     if (!initsFit(inits)) return this.refusePastEnd()
     await this.commit(
-      withExtension(
+      this.extend(
         noteInsertionCommand({ pattern: ctx.pattern.id, channel: ctx.channel }, inits, curveInserts(sources, ctx.pattern.noteCurves)),
         "Duplicate notes",
         ctx.pattern,
@@ -1171,7 +1204,7 @@ export class Editor {
     if (!ctx || updates.length === 0) return
     if (!updatesFit(notes, updates)) return this.refusePastEnd()
     await this.commit(
-      withExtension(
+      this.fit(
         {
           type: "updateNotes",
           pattern: ctx.pattern.id,
@@ -1179,13 +1212,94 @@ export class Editor {
           updates: [...updates],
         },
         label,
-        ctx.pattern,
-        endAfterUpdates(notes, updates)
+        ctx,
+        notes,
+        updates
       )
     )
   }
 
   // Internals
+
+  /**
+   * An edit with the growth of the pattern it needs, as `withExtension`
+   * makes it. The growth is remembered for `fit`.
+   */
+  private extend(
+    command: Command,
+    label: string,
+    pattern: PatternInfo,
+    endTick: number
+  ): Command {
+    const lengthSteps = extensionSteps(pattern, endTick)
+    if (lengthSteps === null) return command
+    const grown = this.grownFrom(pattern)
+    this.grown.set(pattern.id, {
+      from: grown ?? pattern.lengthSteps,
+      to: lengthSteps,
+      generation: this.host.generation?.(),
+    })
+    return withLength(command, label, pattern.id, lengthSteps)
+  }
+
+  /**
+   * An edit that moves or resizes notes. It grows the pattern as `extend`
+   * does; and when it brings the notes back inside a pattern this editor
+   * grew, the pattern goes back down to the bar they now reach, never
+   * shorter than it was before it grew. Shortening a note that made the
+   * pattern a bar longer gives that bar back.
+   */
+  private fit(
+    command: Command,
+    label: string,
+    ctx: EditorContext,
+    notes: readonly Note[],
+    updates: readonly NoteUpdate[]
+  ): Command {
+    const extended = this.extend(
+      command,
+      label,
+      ctx.pattern,
+      endAfterUpdates(notes, updates)
+    )
+    if (extended !== command) return extended
+    const from = this.grownFrom(ctx.pattern)
+    const timed = updates.some(
+      ({ patch }) => patch.start !== undefined || patch.length !== undefined
+    )
+    // Meter changes inside the pattern make bars uneven; those stay put.
+    if (
+      from === null ||
+      !timed ||
+      ctx.elsewhereEnd === undefined ||
+      ctx.pattern.timeline?.meters.length
+    )
+      return command
+    const lengthSteps = shrunkLengthSteps(
+      from,
+      ctx.pattern.lengthSteps,
+      Math.max(ctx.elsewhereEnd, laneEndAfterUpdates(ctx.notes, updates)),
+      ctx.pattern.signature
+    )
+    if (lengthSteps === null) return command
+    if (lengthSteps === from) this.grown.delete(ctx.pattern.id)
+    else this.grown.set(ctx.pattern.id, { from, to: lengthSteps, generation: this.host.generation?.() })
+    return withLength(command, label, ctx.pattern.id, lengthSteps)
+  }
+
+  /** The length a pattern had before this editor grew it, while it still has the grown length. */
+  private grownFrom(pattern: PatternInfo): number | null {
+    const grown = this.grown.get(pattern.id)
+    if (!grown) return null
+    if (
+      grown.generation !== this.host.generation?.() ||
+      grown.to !== pattern.lengthSteps
+    ) {
+      this.grown.delete(pattern.id)
+      return null
+    }
+    return grown.from
+  }
 
   private emit(event: EditorEvent): void {
     for (const listener of [...this.listeners]) listener(event)
@@ -1495,7 +1609,7 @@ export class Editor {
       this.selected = new Set()
       if (!initsFit(inits)) return this.refusePastEnd()
       this.commitDrag(
-        withExtension(
+        this.extend(
           noteInsertionCommand(target, inits, curveInserts(notes, ctx.pattern.noteCurves)),
           "Add note",
           ctx.pattern,
@@ -1519,7 +1633,7 @@ export class Editor {
       const inits = movedCopies(notes, delta)
       if (!initsFit(inits)) return this.refusePastEnd()
       this.commitDrag(
-        withExtension(
+        this.extend(
           noteInsertionCommand(target, inits, curveInserts(notes, ctx.pattern.noteCurves)),
           "Duplicate notes",
           ctx.pattern,
@@ -1532,11 +1646,12 @@ export class Editor {
     const updates = moveUpdates(notes, delta)
     if (!updatesFit(notes, updates)) return this.refusePastEnd()
     this.commitDrag(
-      withExtension(
+      this.fit(
         { type: "updateNotes", ...target, updates },
         "Move notes",
-        ctx.pattern,
-        endAfterUpdates(notes, updates)
+        ctx,
+        notes,
+        updates
       )
     )
   }

@@ -357,6 +357,60 @@ describe("the preview pane", () => {
   })
 })
 
+describe("factory loops", () => {
+  const HOUSE = "/factory/Loops/House"
+  const afterglow = {
+    id: "house-a",
+    name: "Afterglow",
+    genre: "House",
+    tempo: 124,
+    key: 9,
+    mode: "minor",
+    bars: 2,
+    provenance: "",
+  }
+
+  it("adds a factory loop at the song's tempo, as the Loops tab does", async () => {
+    const user = userEvent.setup()
+    const loopInsert = vi.fn<Backend["loopInsert"]>(() =>
+      Promise.reject(new Error("not in this test"))
+    )
+    const app = await startBrowserTest((mock) => ({
+      browserList: async (path) =>
+        path === "/factory/Loops"
+          ? [{ name: "House", path: HOUSE, kind: "folder" }]
+          : path === HOUSE
+            ? [{ name: "Afterglow.wav", path: `${HOUSE}/Afterglow.wav`, kind: "audio" }]
+            : mock.browserList(path),
+      loopCatalog: async () => ({ generation: 3, revision: 5, entries: [afterglow] }),
+      loopInsert,
+    }))
+    stop = app.stop
+    render(<BrowserPanel />)
+    await user.click(await findItem("Loops"))
+    await user.click(await findItem("House"))
+    await user.click(await findItem("Afterglow.wav"))
+
+    const add = await within(pane()).findByRole("button", { name: /^Add at .+ BPM$/ })
+    expect(within(pane()).queryByRole("button", { name: "Add to playlist" })).toBeNull()
+    await user.click(add)
+    await waitFor(() =>
+      expect(loopInsert).toHaveBeenCalledWith("house-a", null, null, expect.any(Number), 3, 5)
+    )
+  })
+
+  it("keeps Add to playlist for a sound that is not a factory loop", async () => {
+    await openKicks(() => ({
+      loopCatalog: async () => ({ generation: 0, revision: 0, entries: [afterglow] }),
+    }))
+    fireEvent.mouseDown(item("Kick 01.wav"))
+    expect(
+      await within(pane()).findByRole("button", { name: "Add to playlist" })
+    ).toBeInTheDocument()
+    expect(within(pane()).queryByRole("button", { name: /^Add at/ })).toBeNull()
+  })
+})
+
 /**
  * `openKicks` for tests that run on fake timers. user-event waits on real
  * timers, so the folders are opened with plain events instead.

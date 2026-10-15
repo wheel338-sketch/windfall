@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { backend, errorSource } from "@/lib/ipc"
+import { builtinKey, builtinRoles } from "./families"
 import { insertPlugin, startPluginDrag } from "./insert"
 import { applyPresetFile } from "@/features/project-files/actions"
 
@@ -33,12 +34,19 @@ function Artwork({ record, image }: { record: PluginRecord; image?: string }) {
 }
 
 /** The database browser and full-screen tile picker share the same persisted catalog. */
-export function PluginCatalog({ tiles = false, track, searchLabel = t("Search plugins") }: { tiles?: boolean; track?: number; searchLabel?: string }) {
+/**
+ * `search`, when given, is a search field of the caller's that this list
+ * follows instead of showing one of its own.
+ */
+export function PluginCatalog({ tiles = false, track, searchLabel = t("Search plugins"), search: outerSearch }: { tiles?: boolean; track?: number; searchLabel?: string; search?: string }) {
   useLanguageStore((state) => state.language)
   const id = useId()
+  const roles = builtinRoles()
+  const roleOf = (record: PluginRecord) => record.format === "builtin" ? roles.get(builtinKey(record.id, record.instrument)) : undefined
   const [view, setView] = useState<PluginDatabaseView | null>(null)
   const [presets, setPresets] = useState<PresetEntry[]>([])
-  const [search, setSearch] = useState("")
+  const [ownSearch, setSearch] = useState("")
+  const search = outerSearch ?? ownSearch
   const [favorites, setFavorites] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -54,9 +62,9 @@ export function PluginCatalog({ tiles = false, track, searchLabel = t("Search pl
     pending.current = true; setBusy(true); setError(null)
     try { await task() } catch (error) { setError(errorSource(error)) } finally { pending.current = false; setBusy(false) }
   }
-  const records = view?.records.filter((record) => (!favorites || record.favorite) && `${record.name} ${record.vendor} ${record.category} ${record.format} ${t(record.status)}`.toLowerCase().includes(search.toLowerCase())) ?? []
+  const records = view?.records.filter((record) => (!favorites || record.favorite) && `${record.name} ${record.vendor} ${record.category} ${t(record.category)} ${roleOf(record) ?? ""} ${record.format} ${t(record.status)}`.toLowerCase().includes(search.toLowerCase())) ?? []
   return <div className="flex min-h-0 flex-col gap-3 p-2">
-    <FieldGroup><Field><FieldLabel htmlFor={`${id}-search`}>{searchLabel}</FieldLabel><Input id={`${id}-search`} value={search} onChange={(event) => setSearch(event.target.value)} /></Field>
+    <FieldGroup>{outerSearch === undefined && <Field><FieldLabel htmlFor={`${id}-search`}>{searchLabel}</FieldLabel><Input id={`${id}-search`} value={search} onChange={(event) => setSearch(event.target.value)} /></Field>}
       <Field orientation="horizontal"><Checkbox id={`${id}-favorites`} checked={favorites} onCheckedChange={(checked) => setFavorites(checked === true)} /><FieldLabel htmlFor={`${id}-favorites`}>{t("Favorites only")}</FieldLabel></Field>
     </FieldGroup>
     {(error || view?.error) && <Alert><AlertTitle>{t("Plugin catalog")}</AlertTitle><AlertDescription>{localizeBackendText(error ?? view?.error ?? "")}</AlertDescription></Alert>}
@@ -69,12 +77,15 @@ export function PluginCatalog({ tiles = false, track, searchLabel = t("Search pl
         return <section key={key} aria-label={record.name} className="flex flex-col gap-2 rounded border p-2" draggable={usable} onDragStart={(event) => startPluginDrag(event, record)} onDoubleClick={(event) => { if (usable && !(event.target instanceof Element && event.target.closest("button,input,label"))) void work(() => insertPlugin(record, { track: record.instrument ? undefined : track })) }}>
           {tiles && <Artwork record={record} image={images[key]} />}
           <div className="flex flex-wrap items-center gap-2"><h3>{record.name}</h3><Badge variant="outline">{t(record.status)}</Badge></div>
-          <p className="text-muted-foreground">{record.vendor} · {record.instrument ? t("Instrument") : t("Effect")} · {record.category}</p>
+          <p className="text-muted-foreground">{record.vendor} · {record.instrument ? t("Instrument") : t("Effect")} · {t(record.category)}</p>
+          {/* What a built-in is for, from the family the add menus file it under. */}
+          {roleOf(record) && <p data-slot="plugin-role" className="text-xs">{roleOf(record)}</p>}
           {record.detail && <p>{localizeBackendText(record.detail)}</p>}
           <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={busy || !usable} onClick={() => void work(() => insertPlugin(record, { track: record.instrument ? undefined : track }))}>{i18nMessage("Add {name}", { name: record.name })}</Button>
             <Button size="sm" variant="ghost" disabled={busy} aria-label={i18nMessage(record.favorite ? "Unfavorite {name}" : "Favorite {name}", { name: record.name })} onClick={() => void work(async () => setView(await backend.pluginDatabaseAnnotate(record.format, record.id, { favorite: !record.favorite, category: record.categorized ? record.category : null })))}>{record.favorite ? "★" : "☆"}</Button>
           </div>
-          {!tiles && <Field><FieldLabel htmlFor={`${id}-category-${key}`}>{i18nMessage("Category for {name}", { name: record.name })}</FieldLabel><Input id={`${id}-category-${key}`} defaultValue={record.categorized ? record.category : ""} placeholder={record.category} maxLength={48} disabled={busy} onBlur={(event) => { const category = event.target.value.trim() || null; if (category !== (record.categorized ? record.category : null)) void work(async () => setView(await backend.pluginDatabaseAnnotate(record.format, record.id, { favorite: record.favorite, category }))) }} /></Field>}
+          {/* Filing a plugin elsewhere is occasional, so its field stays folded and the cards stay short. */}
+          {!tiles && <details data-slot="plugin-category" className="text-xs"><summary className="w-fit cursor-pointer text-muted-foreground hover:text-foreground">{t("Edit category")}</summary><Field className="pt-1"><FieldLabel htmlFor={`${id}-category-${key}`}>{i18nMessage("Category for {name}", { name: record.name })}</FieldLabel><Input id={`${id}-category-${key}`} defaultValue={record.categorized ? record.category : ""} placeholder={t(record.category)} maxLength={48} disabled={busy} onBlur={(event) => { const category = event.target.value.trim() || null; if (category !== (record.categorized ? record.category : null)) void work(async () => setView(await backend.pluginDatabaseAnnotate(record.format, record.id, { favorite: record.favorite, category }))) }} /></Field></details>}
           {tiles && <Field><FieldLabel htmlFor={`${id}-image-${key}`}>{i18nMessage("Tile image for {name}", { name: record.name })}</FieldLabel><Input id={`${id}-image-${key}`} type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void work(async () => {
             const file = event.target.files?.[0]; if (!file) return
             if (file.size > 2 * 1024 * 1024 || !["image/png", "image/jpeg", "image/webp"].includes(file.type)) throw new Error(t("Choose a PNG, JPEG or WebP image smaller than 2 MiB"))

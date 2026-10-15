@@ -7,6 +7,7 @@ import {
   effectDescriptor,
   instrumentDescriptor,
 } from "@/features/params/descriptors"
+import { historyLabel } from "@/lib/i18n"
 import { useProjectStore } from "@/lib/store/project"
 import { useUiStore } from "@/lib/store/ui"
 
@@ -179,6 +180,20 @@ describe("read-only project browser", () => {
       "data-undone",
       "true"
     )
+  })
+
+  it("shows a kept history label as words, not its stored form", async () => {
+    const app = await startBrowserTest()
+    stop = app.stop
+    act(() =>
+      useProjectStore.setState({
+        project: populatedProject(),
+        history: { entries: [{ label: historyLabel("Fill every {every} steps", { every: 4 }) }], cursor: 1 },
+      })
+    )
+    render(<ProjectTab />)
+    expect(screen.getByText("Fill every 4 steps")).toBeInTheDocument()
+    expect(screen.queryByText(/windfall-label/)).toBeNull()
   })
 
   it("omits empty groups and shows optional plugin names and retained names when present", async () => {

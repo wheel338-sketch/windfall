@@ -370,7 +370,7 @@ describe("toolbar", () => {
       playing: true,
     })
     expect(screen.queryByRole("button", { name: "Play song" })).toBeNull()
-    expect(screen.getByText("Playing from the playlist")).toBeInTheDocument()
+    expect(screen.getByText("Playing the song")).toBeInTheDocument()
   })
 
   it("switches the mode with the same control as the transport bar", async () => {

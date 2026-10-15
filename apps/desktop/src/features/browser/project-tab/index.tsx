@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { effectDescriptor } from "@/features/params/descriptors"
 import { useProjectStore } from "@/lib/store/project"
-import { translatedText as t, message, plainNumber } from "@/lib/i18n"
+import { translatedText as t, message, plainNumber, historyLabelText } from "@/lib/i18n"
 
 function ProjectGroup({
   title,
@@ -135,7 +135,7 @@ export function ProjectTab() {
                   data-undone={undone}
                   className="flex items-center gap-2 rounded-sm px-2 py-1 data-[undone=true]:text-muted-foreground"
                 >
-                  <span className="min-w-0 break-words">{entry.label}</span>
+                  <span className="min-w-0 break-words">{historyLabelText(entry.label)}</span>
                   <Badge variant={undone ? "outline" : "secondary"}>
                     {undone ? t("Undone") : t("Applied")}
                   </Badge>

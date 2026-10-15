@@ -13,6 +13,21 @@ export const MIXER_LAYOUTS = [
   { value: "extraLarge", get label() { return t("Extra large") }, width: 176, mode: "full" },
 ] as const
 
+/** The widest an adaptive strip grows to, the "Extra wide" layout's width. */
+export const ADAPTIVE_MAX_WIDTH = 128
+
+/**
+ * The width of the strips in the adaptive layout: `count` strips share
+ * `room` pixels, beside the add column, so a few tracks spread out and keep
+ * their names readable, and many fall back to the standard width and scroll.
+ * Unmeasured (0) room gets the standard width.
+ */
+export function adaptiveStripWidth(room: number, count: number): number {
+  if (room <= 0 || count <= 0) return STRIP_WIDTH
+  const share = Math.floor((room - ADD_WIDTH) / count)
+  return Math.max(STRIP_WIDTH, Math.min(ADAPTIVE_MAX_WIDTH, share))
+}
+
 export function chosenStripLayout(choice: string, height: number, sends: number, effects: number): StripLayout & { width: number } {
   const selected = MIXER_LAYOUTS.find((layout) => layout.value === choice) ?? MIXER_LAYOUTS[0]
   const automatic = stripLayout(height, sends, effects)

@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useHint } from "@/lib/store/hint"
-import { useMixerTrack, useMixerTrackIndex } from "@/lib/store/selectors"
+import { useMixerTrack, useMixerTrackNumber } from "@/lib/store/selectors"
 import { colorToCss } from "@/lib/units"
 
 import { RoutingMenu, trackNumber } from "../routing-menu"
@@ -22,7 +22,7 @@ import { Section } from "./parts"
 export function RoutingSection({ channel }: { channel: Channel }) {
   useLanguageStore((state) => state.language)
   const track = useMixerTrack(channel.mixerTrack)
-  const index = useMixerTrackIndex(channel.mixerTrack)
+  const index = useMixerTrackNumber(channel.mixerTrack)
   const hint = useHint(
     t("Mixer track: where this channel's sound goes. Click to route it to another track or a new one")
   )

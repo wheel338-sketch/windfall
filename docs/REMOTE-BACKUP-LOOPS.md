@@ -56,7 +56,7 @@ same port may briefly fail until its worker exits.
 
 ## Optional folder backup
 
-The Browser's Cloud backup tab lets the user choose an existing dedicated
+The Browser's Folder backup tab lets the user choose an existing dedicated
 folder for one project history. It can be a local folder or a folder already
 managed by the user's synced-drive client. The user chooses that client and its
 account. Windfall writes files to the chosen folder; the drive client controls

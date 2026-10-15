@@ -10,6 +10,11 @@ const MAX_REMEMBERED = 256
 type EffectsUiState = {
   /** Whether the selected track's effects are showing beside the strips. */
   inspectorOpen: boolean
+  /**
+   * Whether the track's own settings (sidechain, presets, EQ, input, output,
+   * latency) are unfolded above its effects. Folded, the effects get the room.
+   */
+  trackSettingsOpen: boolean
   /** Effects whose editor is folded away in the inspector. */
   collapsed: EffectId[]
   /** The effect the effect actions act on, and whose slot is marked. */
@@ -21,6 +26,7 @@ type EffectsUiState = {
 
   setInspectorOpen(open: boolean): void
   toggleInspector(): void
+  setTrackSettingsOpen(open: boolean): void
   selectEffect(effect: EffectId | null): void
   setCollapsed(effect: EffectId, collapsed: boolean): void
 }
@@ -36,6 +42,7 @@ export const useEffectsUi = create<EffectsUiState>()(
   persist(
     (set) => ({
       inspectorOpen: false,
+      trackSettingsOpen: false,
       collapsed: [],
       selectedEffect: null,
       focusing: null,
@@ -44,6 +51,7 @@ export const useEffectsUi = create<EffectsUiState>()(
       setInspectorOpen: (inspectorOpen) => set({ inspectorOpen }),
       toggleInspector: () =>
         set((state) => ({ inspectorOpen: !state.inspectorOpen })),
+      setTrackSettingsOpen: (trackSettingsOpen) => set({ trackSettingsOpen }),
       selectEffect: (selectedEffect) => set({ selectedEffect }),
       setCollapsed: (effect, collapsed) =>
         set((state) => {
@@ -63,7 +71,10 @@ export const useEffectsUi = create<EffectsUiState>()(
         inspectorOpen:
           (saved as { inspectorOpen?: unknown } | null)?.inspectorOpen === true,
       }),
-      partialize: (state) => ({ inspectorOpen: state.inspectorOpen }),
+      partialize: (state) => ({
+        inspectorOpen: state.inspectorOpen,
+        trackSettingsOpen: state.trackSettingsOpen,
+      }),
     }
   )
 )

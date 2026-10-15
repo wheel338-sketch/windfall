@@ -188,6 +188,52 @@ describe("draw tool", () => {
     expect(currentPattern().lengthSteps).toBe(16)
   })
 
+  it("ends a resized note on the beat grid and gives back the bar it grew", async () => {
+    usePianoRollStore.getState().setSnap("beat")
+    await roll.click(at(2900, 60))
+    expect(lead()).toEqual(["2880:60:240"])
+    // About a beat to the right puts the end on the next beat line. Snapping
+    // the distance instead made it 1¼ beats, across the bar line.
+    roll.editor.pointerDown(at(3100, 60), "left")
+    roll.editor.pointerMove(at(3100 + 900, 60))
+    expect(roll.editor.resizedLength).toBe(960)
+    roll.editor.pointerUp(at(3100 + 900, 60))
+    await settle()
+    expect(roll.editor.resizedLength).toBeNull()
+    expect(lead()).toEqual(["2880:60:960"])
+    expect(currentPattern().lengthSteps).toBe(16)
+    // Past the bar line, the pattern grows to two bars.
+    await roll.drag(at(3820, 60), at(3820 + 960, 60))
+    expect(lead()).toEqual(["2880:60:1920"])
+    expect(currentPattern().lengthSteps).toBe(32)
+    // Back inside the first bar, the bar it grew goes again, in the same undo step.
+    const before = undoSteps()
+    await roll.drag(at(4780, 60), at(4780 - 960, 60))
+    expect(lead()).toEqual(["2880:60:960"])
+    expect(currentPattern().lengthSteps).toBe(16)
+    expect(undoSteps()).toBe(before + 1)
+    await undo()
+    expect(lead()).toEqual(["2880:60:1920"])
+    expect(currentPattern().lengthSteps).toBe(32)
+  })
+
+  it("keeps a pattern length set by hand when the notes come back in", async () => {
+    usePianoRollStore.getState().setSnap("beat")
+    await roll.click(at(2900, 60))
+    await roll.drag(at(3100, 60), at(3100 + 1680, 60))
+    expect(lead()).toEqual(["2880:60:1920"])
+    expect(currentPattern().lengthSteps).toBe(32)
+    await dispatch({
+      type: "updatePattern",
+      id: currentPattern().id,
+      patch: { lengthSteps: 48 },
+    })
+    await settle()
+    await roll.drag(at(4780, 60), at(4780 - 960, 60))
+    expect(lead()).toEqual(["2880:60:960"])
+    expect(currentPattern().lengthSteps).toBe(48)
+  })
+
   it("deletes with the right button, one undo step per drag", async () => {
     await dispatch({
       type: "addNotes",

@@ -1,11 +1,18 @@
 import { PlayIcon, StopIcon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { useEffect, useRef, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 
+import type { LoopEntry } from "@/bindings"
 import { Waveform, type WaveformHandle } from "@/components/audio"
 import { Button } from "@/components/ui/button"
+import { insertFactoryLoop } from "@/features/loops/insert"
+import { songTick } from "@/features/playlist/ops"
+import { reportError } from "@/lib/errors"
 import { openProjectPath } from "@/lib/flows/project"
+import { backend } from "@/lib/ipc"
 import { useHint } from "@/lib/store/hint"
+import { useProjectStore } from "@/lib/store/project"
+import { useProjectGeneration } from "@/lib/store/replaced"
 import { useChannel } from "@/lib/store/selectors"
 import { useUiStore } from "@/lib/store/ui"
 
@@ -14,7 +21,7 @@ import { formatChannels, formatDuration, formatSampleRate } from "./format"
 import { previewEnded, requestPreview, stopPreview } from "./preview"
 import { PREVIEW_WAVE } from "./preview-colors"
 import { useBrowserStore, type Selection } from "./store"
-import { extensionStart } from "./tree-model"
+import { extensionStart, isUnder, parseRowId } from "./tree-model"
 import { translatedText as t, message as i18nMessage } from "@/lib/i18n"
 
 function PaneName({ selection }: { selection: Selection }) {
@@ -98,6 +105,90 @@ function PlaylistButton({ path }: { path: string }) {
   )
 }
 
+/**
+ * The factory loop a selected sound is, or null. The factory library keeps
+ * each starter loop at Loops/<genre>/<name>.wav, which is how the Loops tab's
+ * catalog is matched to a file here.
+ */
+function useFactoryLoop(selection: Selection): LoopEntry | null {
+  const generation = useProjectGeneration()
+  const factory = useBrowserStore((state) =>
+    state.roots.find((root) => root.kind === "factory")
+  )
+  const rootPath = parseRowId(selection.id)?.root ?? null
+  const relative =
+    factory && rootPath === factory.path && isUnder(selection.path, factory.path)
+      ? selection.path
+          .slice(factory.path.length)
+          .replaceAll("\\", "/")
+          .replace(/^\//, "")
+      : null
+  const [loop, setLoop] = useState<LoopEntry | null>(null)
+  useEffect(() => {
+    if (relative === null || !relative.startsWith("Loops/")) return undefined
+    let live = true
+    void backend.loopCatalog().then(
+      (catalog) => {
+        if (!live) return
+        const found = catalog.entries.find(
+          (entry) => `Loops/${entry.genre}/${entry.name}.wav` === relative
+        )
+        setLoop(found ?? null)
+      },
+      // Without the catalog the sound is still an ordinary file.
+      () => undefined
+    )
+    return () => {
+      live = false
+    }
+  }, [relative, generation])
+  return relative === null ? null : loop
+}
+
+/**
+ * Puts a factory loop on the playlist the way the Loops tab does: made again
+ * at the song's tempo, at the song position on a new track. Dragging the file
+ * still brings the recording as it is, at the tempo it was made at.
+ */
+function FitLoopButton({ loop }: { loop: LoopEntry }) {
+  const tempo = useProjectStore((state) => state.project.settings.tempoBpm)
+  const hint = useHint(
+    i18nMessage("This factory loop was made at {source} BPM. It is added at the song's {tempo} BPM, as in the Loops tab. Drag it onto the timeline to keep {source} BPM", { source: loop.tempo, tempo })
+  )
+  async function insert() {
+    try {
+      // The catalog names the project state the loop is fitted for.
+      const catalog = await backend.loopCatalog()
+      await insertFactoryLoop(
+        {
+          id: loop.id,
+          name: loop.name,
+          bars: loop.bars,
+          key: null,
+          generation: catalog.generation,
+          revision: catalog.revision,
+        },
+        songTick()
+      )
+    } catch (error) {
+      reportError(error, t("Could not insert the factory loop"))
+    }
+  }
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      className="min-w-0"
+      onClick={() => void insert()}
+      {...hint}
+    >
+      <span className="truncate">
+        {i18nMessage("Add at {tempo} BPM", { tempo })}
+      </span>
+    </Button>
+  )
+}
+
 function Facts({ children }: { children: ReactNode }) {
   return (
     <div className="flex h-4 items-center gap-2.5 overflow-hidden font-readout text-[10.5px] whitespace-nowrap text-muted-foreground">
@@ -169,6 +260,7 @@ function SoundPane({ selection }: { selection: Selection }) {
   }, [startedAt, duration, path])
 
   const playing = startedAt !== null
+  const loop = useFactoryLoop(selection)
 
   return (
     <>
@@ -230,6 +322,7 @@ function SoundPane({ selection }: { selection: Selection }) {
           <span>{formatDuration(info.info.durationSecs)}</span>
           <span>{formatSampleRate(info.info.sampleRate)}</span>
           <span>{formatChannels(info.info.channels)}</span>
+          {loop && <span>{i18nMessage("{tempo} BPM loop", { tempo: loop.tempo })}</span>}
         </Facts>
       ) : (
         <Facts>{null}</Facts>
@@ -243,7 +336,7 @@ function SoundPane({ selection }: { selection: Selection }) {
         >
           <span className="truncate">{t("Add to rack")}</span>
         </Button>
-        <PlaylistButton path={path} />
+        {loop ? <FitLoopButton loop={loop} /> : <PlaylistButton path={path} />}
         <ReplaceButton path={path} />
       </div>
     </>

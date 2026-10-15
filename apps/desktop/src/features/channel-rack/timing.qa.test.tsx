@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react"
+import { act, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, expect, it } from "vitest"
 
 import { runAction } from "@/lib/actions"
@@ -22,21 +22,23 @@ function MountedTiming() {
 }
 const flush = () => act(settle)
 
+/** Picks an entry of a setting's presets and steps menu. */
+async function pick(setting: string, entry: string) {
+  fireEvent.click(
+    screen.getByRole("button", { name: `${setting} presets and steps` })
+  )
+  fireEvent.click(await screen.findByRole("menuitem", { name: entry }))
+  await flush()
+}
+
 it("composes mounted swing, gate and signed-shift controls without overwriting each other or notes, with reset, history and file persistence", async () => {
   useUiStore.getState().selectChannel(channel("Kick").id)
   render(<MountedTiming />)
   const before = structuredClone(project())
   const cursor = history().cursor
-  const swingPresets =
-    screen.getByText("Swing mix").parentElement!.nextElementSibling
-  if (!(swingPresets instanceof HTMLElement))
-    throw new Error("Missing swing presets")
-  fireEvent.click(within(swingPresets).getByRole("button", { name: "Half" }))
-  await flush()
-  fireEvent.click(screen.getByRole("button", { name: "Quarter" }))
-  await flush()
-  fireEvent.click(screen.getByRole("button", { name: "16th early" }))
-  await flush()
+  await pick("Swing mix", "Half")
+  await pick("Gate", "Quarter")
+  await pick("Shift", "16th early")
   expect(channel("Kick").timing).toEqual({
     swingMix: 0.5,
     gateTicks: 960,
@@ -61,8 +63,7 @@ it("composes mounted swing, gate and signed-shift controls without overwriting e
   await act(async () => {
     await redo()
   })
-  fireEvent.click(screen.getByRole("button", { name: "8th late" }))
-  await flush()
+  await pick("Shift", "8th late")
   expect(channel("Kick").timing).toEqual({
     swingMix: 0.5,
     gateTicks: 960,

@@ -483,7 +483,7 @@ export class PlaylistSession {
   pointerDown(input: PointerInput): boolean {
     if (this.gesture.kind !== "idle") return false
     this.pressedAt = { x: input.x, y: input.y }
-    const { tool, selection } = ui()
+    const { tool, selection, rightClickDeletes } = ui()
     const scene = this.scene
     const { hit, inner } = this.targetAt(input)
     const intent = intentFor({
@@ -493,6 +493,7 @@ export class PlaylistSession {
       shift: input.shift,
       hit,
       inner,
+      rightClickMenu: !rightClickDeletes,
     })
     const point = this.pointAt(input)
 
@@ -510,7 +511,7 @@ export class PlaylistSession {
       const onPoint = intent.kind === "point" ? intent.index : -1
       if (this.isDoubleClick(pressed.id, onPoint, input)) {
         // Twice on a point makes it a step; twice on a clip opens its
-        // pattern.
+        // pattern, or brings back the settings of an audio clip.
         const content = pressed.content
         if (intent.kind === "point" && content.type === "automation") {
           void togglePointHold({
@@ -520,6 +521,9 @@ export class PlaylistSession {
           })
         } else if (intent.kind !== "point" && content.type === "pattern") {
           void openPattern(content.pattern)
+        } else if (intent.kind !== "point" && content.type === "audio") {
+          if (!selection.has(pressed.id)) ui().select([pressed.id])
+          ui().showInspector()
         }
         return false
       }

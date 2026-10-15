@@ -22,7 +22,6 @@ import { Spinner } from "@/components/ui/spinner"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { backend } from "@/lib/ipc"
 import { receivePatch, useProjectStore } from "@/lib/store/project"
-import { nextClipStretchQuality } from "./clip-quality-step"
 import {
   beatFitRatio,
   fitRatio,
@@ -31,6 +30,24 @@ import {
 } from "./processing"
 import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
+/**
+ * A number as a field shows it: at most `digits` decimals, without trailing
+ * zeros. A detected tempo or a fitted multiplier has many more than anyone
+ * reads.
+ */
+function shown(value: number, digits: number): string {
+  return String(Number(value.toFixed(digits)))
+}
+
+/**
+ * The value of a field that may hold a rounded number: the exact one it was
+ * rounded from while the text is still what was shown, or else what is
+ * typed.
+ */
+function exactOr(text: string, exact: { text: string; value: number } | null) {
+  return exact !== null && exact.text === text ? exact.value : Number(text)
+}
+
 export function ClipProcessingControls({ clips }: { clips: AudioClip[] }) {
   const [open, setOpen] = useState(false)
   return (
@@ -38,7 +55,7 @@ export function ClipProcessingControls({ clips }: { clips: AudioClip[] }) {
       <DialogTrigger render={<Button size="sm" variant="outline" />}>
         {t("Stretch / tempo")}
       </DialogTrigger>
-      <DialogContent className="max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{t("Stretch and pitch")}</DialogTitle>
           <DialogDescription>
@@ -73,6 +90,9 @@ function ProcessingForm({
     initial?.mode === "spectral" && initial.formants
   )
   const [bpm, setBpm] = useState("")
+  // The unrounded values behind a detected tempo and a fitted multiplier.
+  const [exactBpm, setExactBpm] = useState<{ text: string; value: number } | null>(null)
+  const [exactRatio, setExactRatio] = useState<{ text: string; value: number } | null>(null)
   const [beats, setBeats] = useState("")
   const [candidates, setCandidates] = useState<
     { bpm: number; confidence: number }[] | null
@@ -101,7 +121,7 @@ function ProcessingForm({
         mode === "spectral"
           ? {
               mode: "spectral" as const,
-              ratio: Number(ratio),
+              ratio: exactOr(ratio, exactRatio),
               quality,
               formants,
             }
@@ -129,9 +149,11 @@ function ProcessingForm({
             (await backend.sampleInfoById(first.content.sample)).durationSecs,
             tempo
           )
-        : fitRatio(Number(bpm), tempo)
+        : fitRatio(exactOr(bpm, exactBpm), tempo)
+      const text = shown(fitted, 4)
       setMode("spectral")
-      setRatio(String(fitted))
+      setRatio(text)
+      setExactRatio({ text, value: fitted })
     })
   }
   return (
@@ -200,34 +222,6 @@ function ProcessingForm({
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                aria-label={t("Choose the previous clip stretch quality")}
-                disabled={
-                  busy || nextClipStretchQuality(quality, "previous") === null
-                }
-                onClick={() => {
-                  const next = nextClipStretchQuality(quality, "previous")
-                  if (next !== null) setQuality(next)
-                }}
-              >
-                {t("Previous")}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                aria-label={t("Choose the next clip stretch quality")}
-                disabled={busy || nextClipStretchQuality(quality, "next") === null}
-                onClick={() => {
-                  const next = nextClipStretchQuality(quality, "next")
-                  if (next !== null) setQuality(next)
-                }}
-              >
-                {t("Next")}
-              </Button>
-            </div>
           </Field>
           <Field orientation="horizontal">
             <Checkbox
@@ -290,7 +284,11 @@ function ProcessingForm({
                 variant="outline"
                 size="sm"
                 disabled={busy}
-                onClick={() => setBpm(String(c.bpm))}
+                onClick={() => {
+                  const text = shown(c.bpm, 2)
+                  setBpm(text)
+                  setExactBpm({ text, value: c.bpm })
+                }}
               >
                 {c.bpm.toFixed(1)} BPM ({Math.round(c.confidence * 100)}%)
               </Button>
@@ -321,13 +319,17 @@ function ProcessingForm({
           {t("Beat-count fitting requires the selected clips to use one source file.")}
         </FieldDescription>
       </Field>
-      {error && <FieldError role="alert">{error}</FieldError>}
-      <Button disabled={busy} onClick={() => void apply()}>
-        {busy && <Spinner />}
-        {busy
-          ? t("Preparing audio…")
-          : message("Apply to {count} clip{count2}", { count: plainNumber(clips.length), count2: clips.length === 1 ? "" : t("s") })}
-      </Button>
+      {/* Held at the bottom of the dialog, so detecting and fitting a tempo
+          never scroll Apply out of reach. */}
+      <div className="sticky -bottom-4 z-10 -mx-4 -mb-4 flex flex-col gap-2 border-t bg-popover px-4 pt-3 pb-4">
+        {error && <FieldError role="alert">{error}</FieldError>}
+        <Button disabled={busy} onClick={() => void apply()}>
+          {busy && <Spinner />}
+          {busy
+            ? t("Preparing audio…")
+            : message("Apply to {count} clip{count2}", { count: plainNumber(clips.length), count2: clips.length === 1 ? "" : t("s") })}
+        </Button>
+      </div>
     </FieldGroup>
   )
 }

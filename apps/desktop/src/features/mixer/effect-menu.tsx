@@ -1,5 +1,6 @@
 import { Add01Icon, MoreHorizontalIcon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
+import { effectFamilies } from "@/features/plugins/families"
 import { openPluginManager, usePluginBinding } from "@/features/plugins/store"
 import type { ReactNode } from "react"
 
@@ -12,7 +13,9 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuSub,
@@ -224,19 +227,41 @@ export function AddEffectMenu({
           </>
         )}
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-auto min-w-40">
-        <DropdownMenuItem onClick={() => openPluginManager(track)}>
-          {t("Browse plugins…")}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => void addEffect(track, "sendTap", index)}>{t("Audio editor recorder")}</DropdownMenuItem>
-        {EFFECT_KINDS.map((kind) => (
-          <DropdownMenuItem
-            key={kind}
-            onClick={() => void addEffect(track, kind, index)}
-          >
-            {effectName(kind)}
+      {/* Every effect at once, in columns by family, so the list can be
+          surveyed by role instead of scrolled through by name. */}
+      <DropdownMenuContent className="w-[min(46rem,calc(100vw-1rem))]">
+        <div className="flex flex-wrap items-center gap-x-2 px-1">
+          <DropdownMenuItem onClick={() => openPluginManager(track)}>
+            {t("Browse plugins…")}
           </DropdownMenuItem>
-        ))}
+          <p className="text-[11px] text-muted-foreground">{t("Type a name to jump to it.")}</p>
+        </div>
+        <DropdownMenuSeparator />
+        <div data-slot="effect-families" className="columns-[10.5rem] gap-2">
+          {effectFamilies().map((family) => (
+            <DropdownMenuGroup
+              key={family.id}
+              data-family={family.id}
+              className="mb-1 break-inside-avoid"
+            >
+              <DropdownMenuLabel className="pb-0.5">
+                <span className="block font-medium text-foreground">{family.label}</span>
+                {family.role && <span className="block text-[10px] leading-snug">{family.role}</span>}
+              </DropdownMenuLabel>
+              {family.id === "utility" && (
+                <DropdownMenuItem onClick={() => void addEffect(track, "sendTap", index)}>{t("Audio editor recorder")}</DropdownMenuItem>
+              )}
+              {family.kinds.map((kind) => (
+                <DropdownMenuItem
+                  key={kind}
+                  onClick={() => void addEffect(track, kind, index)}
+                >
+                  {effectName(kind)}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuGroup>
+          ))}
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   )

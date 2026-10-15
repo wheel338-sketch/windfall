@@ -343,6 +343,7 @@ export class PlaylistScene implements PaintSource {
 
     this.tracks = playlist.tracks
     const activePlaylist = arrangementPlaylist(playlist)
+    const rowsBefore = this.visibleRows.length
     if (rowsChanged) {
       const layout = buildTrackRows(playlist, ui().collapsedGroups)
       this.visibleRows = layout.rows
@@ -384,6 +385,7 @@ export class PlaylistScene implements PaintSource {
     }
     this.showGrid()
     this.fitRows(true)
+    if (this.visibleRows.length < rowsBefore) this.keepLastTrackInView()
     // The batch holds places and colors. What is inside a clip (its notes,
     // its curve, its waveform) is painted over it and needs no new batch.
     if (clipsChanged || rowsChanged || colorsChanged) this.rebuild()
@@ -454,6 +456,21 @@ export class PlaylistScene implements PaintSource {
         current.playlist.timeline?.meters
       )
     )
+  }
+
+  /**
+   * After tracks go away, say by undoing the one a loop was added on, the
+   * view can be left on nothing but the spare rows below the song, which
+   * looks like the song is gone. Scrolls up until the last track is in view
+   * again, with one spare row under it.
+   */
+  private keepLastTrackInView(): void {
+    const viewport = this.metrics.viewport
+    const bottom = rowGeometry(viewport).top(this.visibleRows.length + 1)
+    const most = Math.max(0, bottom - viewport.height) / viewport.rowHeight
+    if (viewport.scrollRow > most) {
+      this.metrics.setViewport({ ...viewport, scrollRow: most })
+    }
   }
 
   /**

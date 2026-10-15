@@ -48,9 +48,15 @@ export type EntryRow = {
   setSize: number
 }
 
-/** Indexed results retain the same row identity, selection, keyboard and drag semantics. */
+/**
+ * Indexed results retain the same row identity, selection, keyboard and drag
+ * semantics. A search looks for something to use, so files Windfall cannot
+ * use, such as licences, readmes and manifests, are not among the results.
+ */
 export function flattenLibrary(results: LibraryResults | null): FlatTree {
-  const entries = results?.entries ?? []
+  const entries = (results?.entries ?? []).filter(
+    (held) => held.entry.kind !== "other"
+  )
   const rows: EntryRow[] = entries.map((held, index) => ({
     ...held.entry,
     library: held.token,
@@ -187,6 +193,16 @@ function createMatchBelow(listings: Listings, query: string) {
 }
 
 /**
+ * Whether a folder's entry gets a row. The factory library ships support
+ * files beside its sounds, such as its licence, readme and loop manifest;
+ * they are never something to play, so they are left out. A folder the user
+ * added shows everything in it, with files Windfall cannot use greyed out.
+ */
+function listable(entry: BrowserEntry, root: BrowserRoot): boolean {
+  return !(root.kind === "factory" && entry.kind === "other")
+}
+
+/**
  * Turns the folders read so far into the list of rows to draw, top to bottom.
  *
  * With a filter, a row stays when its name matches or when something inside
@@ -211,12 +227,14 @@ export function flattenTree(input: TreeInput): FlatTree {
   ) => {
     const shown: { entry: BrowserEntry; root: BrowserRoot }[] = []
     entries.forEach((entry, index) => {
+      const root = rootOf(entry, index)
+      if (!listable(entry, root)) return
       const visible =
         below === null ||
         showAll ||
         entry.name.toLowerCase().includes(query) ||
         (entry.kind === "folder" && below(entry.path))
-      if (visible) shown.push({ entry, root: rootOf(entry, index) })
+      if (visible) shown.push({ entry, root })
     })
 
     shown.forEach(({ entry, root }, index) => {
@@ -248,7 +266,9 @@ export function flattenTree(input: TreeInput): FlatTree {
       rows.push(row)
       if (!open) return
 
-      const children = loadedEntries(listing)
+      const children =
+        loadedEntries(listing)?.filter((child) => listable(child, root)) ??
+        null
       if (children !== null && children.length > 0) {
         visit(children, () => root, row, depth + 1, showAll || match !== null)
         return

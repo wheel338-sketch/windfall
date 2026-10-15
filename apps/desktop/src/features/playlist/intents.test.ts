@@ -151,6 +151,33 @@ describe("intentFor", () => {
     }
   )
 
+  it.each<Tool>(["draw", "paint", "erase", "mute", "slip"])(
+    "opens the menu with the right button in the %s tool when set to",
+    (tool) => {
+      expect(
+        intentFor(press({ tool, button: 2, hit: body, rightClickMenu: true }))
+      ).toEqual({ kind: "menu", id: 7 })
+      expect(
+        intentFor(press({ tool, button: 2, rightClickMenu: true }))
+      ).toEqual({ kind: "menu", id: null })
+    }
+  )
+
+  it("opens a point's menu instead of deleting it when the right button is set to", () => {
+    const point = { kind: "point", index: 2 } as const
+    expect(
+      intentFor(
+        press({ button: 2, hit: body, inner: point, rightClickMenu: true })
+      )
+    ).toEqual({ kind: "point-menu", id: 7, index: 2 })
+    // Playback seeks and has no menu either way.
+    expect(
+      intentFor(
+        press({ tool: "playback", button: 2, hit: body, rightClickMenu: true })
+      )
+    ).toEqual({ kind: "none" })
+  })
+
   it("opens a menu with the right button in the Select tool", () => {
     expect(intentFor(press({ tool: "select", button: 2, hit: body }))).toEqual({
       kind: "menu",

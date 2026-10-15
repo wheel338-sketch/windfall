@@ -79,7 +79,7 @@ describe("shared editor snap", () => {
   })
 
   it.each(["new", "open"] as const)(
-    "%s project restores bar and clears the piano division",
+    "%s project restores bar and puts the piano roll back on step",
     async (change) => {
       const { backend, stop } = await startTestApp()
       try {
@@ -95,7 +95,7 @@ describe("shared editor snap", () => {
 
         expect(useSnapStore.getState().snap).toBe("bar")
         expect(playlist().snap).toBe("bar")
-        expect(piano().snap).toBe("bar")
+        expect(piano().snap).toBe("step")
       } finally {
         stop()
       }

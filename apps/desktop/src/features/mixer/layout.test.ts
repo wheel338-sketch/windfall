@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  ADAPTIVE_MAX_WIDTH,
+  ADD_WIDTH,
+  adaptiveStripWidth,
   EFFECT_ROW_HEIGHT,
   INSPECTOR_MIN_WIDTH,
   INSPECTOR_WIDTH,
@@ -28,6 +31,20 @@ describe("the width the effects start at", () => {
     expect(inspectorWidthFor(960)).toBe(346)
     expect(inspectorWidthFor(960)).toBeLessThan(960 / 2)
     expect(inspectorWidthFor(640)).toBe(INSPECTOR_MIN_WIDTH)
+  })
+})
+
+describe("adaptiveStripWidth", () => {
+  it("spreads a few strips over the room so their names stay readable", () => {
+    // Five tracks in 800 pixels are not squeezed to the standard width.
+    expect(adaptiveStripWidth(800, 5)).toBe(ADAPTIVE_MAX_WIDTH)
+    expect(adaptiveStripWidth(600, 5)).toBe(Math.floor((600 - ADD_WIDTH) / 5))
+  })
+
+  it("falls back to the standard width for many strips or no measurement", () => {
+    expect(adaptiveStripWidth(800, 40)).toBe(STRIP_WIDTH)
+    expect(adaptiveStripWidth(0, 5)).toBe(STRIP_WIDTH)
+    expect(adaptiveStripWidth(800, 0)).toBe(STRIP_WIDTH)
   })
 })
 

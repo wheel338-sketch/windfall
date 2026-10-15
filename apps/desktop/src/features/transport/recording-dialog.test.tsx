@@ -1,7 +1,8 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import type { Backend } from "@/lib/ipc"
+import { useProjectStore } from "@/lib/store/project"
 import { startTestApp } from "@/test/harness"
 import { RecordingDialog } from "./recording-dialog"
 import { openRecording, useRecordingStore } from "./recording-store"
@@ -104,4 +105,34 @@ it("explains that browser preview cannot capture audio", async () => {
       /Driver timestamps supply automatic input\/output latency alignment/
     )
   ).toBeVisible()
+})
+it("takes the playlist start as a song position and keeps the record controls out of the scrolling setup", async () => {
+  const { project } = useProjectStore.getState()
+  useProjectStore.setState({
+    project: {
+      ...project,
+      settings: {
+        ...project.settings,
+        timeSignature: { numerator: 4, denominator: 4 },
+      },
+      playlist: { ...project.playlist, timeline: undefined },
+    },
+  })
+  render(<RecordingDialog />)
+  await openRecording()
+  const start = screen.getByLabelText("Playlist start position")
+  expect(start).toHaveValue("1:2")
+  fireEvent.change(start, { target: { value: "3:1" } })
+  expect(useRecordingStore.getState().start).toBe(7680)
+  fireEvent.change(start, { target: { value: "3:9" } })
+  expect(start).toHaveAttribute("aria-invalid", "true")
+  expect(useRecordingStore.getState().start).toBe(7680)
+  fireEvent.blur(start)
+  expect(start).toHaveValue("3:1")
+  const setup = start.closest(".overflow-y-auto")
+  expect(setup).not.toBeNull()
+  expect(setup).not.toContainElement(
+    screen.getByRole("button", { name: "Start recording" })
+  )
+  expect(setup).not.toContainElement(screen.getByRole("status"))
 })

@@ -2,7 +2,9 @@ import { message as i18nMessage } from "@/lib/i18n"
 import { translatedText as t, useLanguageStore } from "@/lib/i18n"
 import {
   Add01Icon,
+  ArrowDown01Icon,
   ArrowExpand01Icon,
+  ArrowRight01Icon,
   ArrowShrink01Icon,
   Cancel01Icon,
   SidebarRight01Icon,
@@ -40,6 +42,7 @@ import { useEffectDrop } from "../effect-drag"
 import { AddEffectMenu } from "../effect-menu"
 import { MAX_EFFECT_SLOTS } from "../effect-ops"
 import { DropLine } from "../effect-rack"
+import { useEffectsUi } from "../effects-ui"
 import { INSPECTOR_MENU } from "../menus"
 import { useEffectIds } from "../strip-track"
 import { EffectPanel } from "./effect-panel"
@@ -150,6 +153,57 @@ function Chain({ track }: { track: TrackId }) {
   )
 }
 
+/**
+ * The track's own settings: sidechain, presets, EQ, input, hardware output
+ * and latency. They fold into one row by default so the effects, which are
+ * what the inspector is for, get its height. Unfolded they scroll on their
+ * own and never take more than half of it.
+ */
+function TrackSettings({ track, current }: { track: TrackId; current: boolean }) {
+  useLanguageStore((state) => state.language)
+  const open = useEffectsUi((state) => state.trackSettingsOpen)
+  return (
+    <section
+      data-slot="track-settings"
+      aria-label={t("Track settings")}
+      className="flex max-h-[50%] min-h-0 shrink-0 flex-col border-b"
+    >
+      <button
+        type="button"
+        aria-expanded={open}
+        data-slot="track-settings-toggle"
+        className="flex h-6 shrink-0 items-center gap-1 px-2 text-left text-[11px] text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        onClick={() => useEffectsUi.getState().setTrackSettingsOpen(!open)}
+      >
+        <HugeiconsIcon
+          icon={open ? ArrowDown01Icon : ArrowRight01Icon}
+          strokeWidth={2}
+          className="size-3 shrink-0"
+        />
+        <span className="truncate">{t("Track settings")}</span>
+        {!open && (
+          <span className="min-w-0 truncate text-[10px] text-muted-foreground/80">
+            {current
+              ? t("Sidechain, presets, EQ")
+              : t("Sidechain, presets, EQ, input, output, latency")}
+          </span>
+        )}
+      </button>
+      {open && (
+        // Keyed by track, as each panel keeps a draft of its own.
+        <div key={track} className="min-h-0 overflow-y-auto border-t">
+          <SidechainPanel track={track} />
+          <TrackPresetsPanel track={track} />
+          <TrackProcessingPanel track={track} />
+          {!current && <MixerRecordingPanel track={track} />}
+          {!current && <ExternalOutputPanel track={track} />}
+          {!current && <LatencyOffsetPanel track={track} />}
+        </div>
+      )}
+    </section>
+  )
+}
+
 type EffectInspectorProps = {
   /** Shown in the editor area instead of beside the strips. */
   enlarged?: boolean
@@ -241,12 +295,7 @@ export function EffectInspector({ enlarged = false }: EffectInspectorProps) {
           </div>
         </header>
         {current && <CurrentSourcePanel />}
-        {selected !== null && name !== null && <SidechainPanel key={`sidechain-${selected}`} track={selected} />}
-        {selected !== null && name !== null && <TrackPresetsPanel key={`presets-${selected}`} track={selected} />}
-        {selected !== null && name !== null && <TrackProcessingPanel key={`processing-${selected}`} track={selected} />}
-        {!current && selected !== null && name !== null && <MixerRecordingPanel key={`input-${selected}`} track={selected} />}
-        {!current && selected !== null && name !== null && <ExternalOutputPanel key={`output-${selected}`} track={selected} />}
-        {!current && selected !== null && name !== null && <LatencyOffsetPanel key={`latency-${selected}`} track={selected} />}
+        {selected !== null && name !== null && <TrackSettings track={selected} current={current} />}
         {selected !== null && name !== null ? (
           // Keyed by track so a drag in flight never lands on another one.
           <Chain key={selected} track={selected} />

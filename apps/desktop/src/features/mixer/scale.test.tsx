@@ -8,7 +8,7 @@ import { MAX_MIXER_TRACKS } from "@/lib/units"
 import { startTestApp } from "@/test/harness"
 
 import MixerPanel from "."
-import { STRIP_WIDTH } from "./layout"
+import { adaptiveStripWidth, STRIP_WIDTH } from "./layout"
 import { useMixerUi } from "./mixer-ui"
 import {
   channelNamed,
@@ -169,6 +169,17 @@ describe("a full mixer", () => {
     expect(
       screen.getByRole("button", { name: "Add mixer track" })
     ).toBeDisabled()
+  })
+})
+
+describe("adaptive widths", () => {
+  it("spreads a few strips over the room instead of cutting their names short", () => {
+    sizeMixer(800, 420)
+    render(<MixerPanel />)
+    const inserts = tracks().filter((track) => track.id !== 0 && !track.current)
+    const width = adaptiveStripWidth(800, inserts.length)
+    expect(width).toBeGreaterThan(STRIP_WIDTH)
+    expect(strip("Kick").parentElement).toHaveStyle({ width: `${width}px` })
   })
 })
 

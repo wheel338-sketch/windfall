@@ -160,4 +160,19 @@ describe("native coded message localization", () => {
     expect(localizeBackendText(coded("files.refusedEdited", { what })))
       .toBe("\"song.windfall\" was not opened because the project was edited in the meantime. Save or discard those changes, then try again.")
   })
+
+  it("says why analysis is unavailable without its kind or the adapter wrapper", () => {
+    const missing = "ONNX Runtime library is missing. Choose the installed library in Settings → Stem separation, or set ORT_DYLIB_PATH. Nothing is downloaded."
+    const reason = `analysis:unavailable: ${coded("analysis.error.adapter", { detail: term(missing) })}`
+    expect(localizeBackendText(reason)).toBe(missing)
+    setLanguage("es")
+    expect(localizeBackendText(reason)).toBe(message(missing as MessageKey))
+    expect(localizeBackendText(reason)).not.toMatch(/analysis:|windfall-message|[{}]/)
+    setLanguage("en")
+    // Other kinds keep what the failure says; only the kind goes.
+    expect(localizeBackendText(`analysis:io: ${coded("analysis.error.io", { detail: "disk full" })}`))
+      .toBe("Analysis IO failed: disk full")
+    expect(localizeBackendText("analysis:unavailable: No inference algorithm is installed."))
+      .toBe("No inference algorithm is installed.")
+  })
 })

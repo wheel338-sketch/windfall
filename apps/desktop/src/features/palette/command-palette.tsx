@@ -22,7 +22,7 @@ import {
 import { useUiStore } from "@/lib/store/ui"
 import { actionTitle, translatedText, useLanguageStore, useTranslation, type Language } from "@/lib/i18n"
 
-import { scoreAction } from "./score"
+import { scoreAction, shareOfWords } from "./score"
 
 function bySection(actions: Action[]): [string, Action[]][] {
   const sections = new Map<string, Action[]>()
@@ -44,6 +44,22 @@ export function searchActions(actions: readonly Action[], search: string, langua
   }).filter((entry) => entry.score > 0).sort((a, b) => b.score - a.score || a.index - b.index).map((entry) => entry.action)
 }
 
+/** How many actions a search nothing matches in full still suggests. */
+const CLOSEST_LIMIT = 8
+
+/**
+ * For a search no action matches in full, such as a feature called by
+ * another name: the actions that match at least half of its words, the
+ * most first. Empty when nothing comes that close.
+ */
+export function closestActions(actions: readonly Action[], search: string, language: Language = useLanguageStore.getState().language) {
+  return actions.map((action, index) => {
+    const keywords = `${action.section} ${translatedText(action.section, language)} ${action.keywords ?? ""}`
+    const share = Math.max(shareOfWords(action.title, keywords, search), shareOfWords(actionTitle(action.id, action.title, language), keywords, search))
+    return { action, index, share }
+  }).filter((entry) => entry.share >= 0.5).sort((a, b) => b.share - a.share || a.index - b.index).slice(0, CLOSEST_LIMIT).map((entry) => entry.action)
+}
+
 type ListProps = {
   search: string
   onRun(id: string): void
@@ -56,6 +72,9 @@ function PaletteList({ search, onRun }: ListProps) {
   const actions = useActions()
   const state = useAppState()
   const searching = search.trim() !== ""
+  const found = searching ? searchActions(actions, search, language) : []
+  const closest =
+    searching && found.length === 0 ? closestActions(actions, search, language) : []
 
   const row = (action: Action, where?: string) => {
     const shortcut = shortcutLabel(action.id)
@@ -88,11 +107,18 @@ function PaletteList({ search, onRun }: ListProps) {
       {searching ? (
         // One list, best match first. Under their headings the best match
         // could sit below a whole section of worse ones.
-        <CommandGroup>
-          {searchActions(actions, search).map((action) =>
-            row(action, action.section)
+        <>
+          <CommandGroup>
+            {found.map((action) => row(action, action.section))}
+          </CommandGroup>
+          {/* Words from elsewhere in the app can miss every title. Point at
+              the nearest actions rather than at nothing. */}
+          {closest.length > 0 && (
+            <CommandGroup heading={t("Closest matches")}>
+              {closest.map((action) => row(action, action.section))}
+            </CommandGroup>
           )}
-        </CommandGroup>
+        </>
       ) : (
         bySection(actions).map(([section, items]) => (
           <CommandGroup key={section} heading={t(section)}>

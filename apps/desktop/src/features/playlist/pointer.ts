@@ -71,8 +71,11 @@ export function attachPointer(
   }
   const onContextMenu = (event: MouseEvent) => {
     // The right button deletes in every tool but Select, where the event
-    // goes on to open the menu.
-    if (usePlaylistStore.getState().tool === "select") return
+    // goes on to open the menu. Set to open the menu, it does so in every
+    // tool but Playback, which seeks.
+    const { tool, rightClickDeletes } = usePlaylistStore.getState()
+    if (tool === "select" || (!rightClickDeletes && tool !== "playback"))
+      return
     event.preventDefault()
     event.stopPropagation()
   }

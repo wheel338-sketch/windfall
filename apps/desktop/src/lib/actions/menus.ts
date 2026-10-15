@@ -234,6 +234,8 @@ export const MENUS: MenuSpec[] = [
           separator,
           "playlist.follow",
           "playlist.patterns",
+          "playlist.clipInspector",
+          "playlist.rightClickDeletes",
         ],
       },
       separator,

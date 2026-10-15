@@ -295,6 +295,44 @@ describe("the audio clip settings", () => {
     expect(steps()).toBe(before)
   })
 
+  it("keep presets, steps and scales in a menu beside each setting", async () => {
+    render(<PlaylistPanel />)
+    const id = await addLoop()
+    const strip = within(inspector()!)
+    // One button per setting, not rows of them.
+    expect(strip.queryByRole("button", { name: "Halve" })).toBeNull()
+
+    fireEvent.click(strip.getByRole("button", { name: "Gain presets" }))
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Halve" }))
+    await flush()
+    expect(audio(id).gain).toBe(0.5)
+
+    fireEvent.click(strip.getByRole("button", { name: "Pan presets" }))
+    // Nothing to halve at the center: the choice is there, but disabled.
+    expect(
+      await screen.findByRole("menuitem", { name: "Halve" })
+    ).toHaveAttribute("aria-disabled", "true")
+  })
+
+  it("step aside when the clips they show are undone, until a clip is selected", async () => {
+    render(<PlaylistPanel />)
+    const first = await addLoop(0)
+    await addLoop(4 * BAR)
+    expect(inspector()).not.toHaveAttribute("data-idle")
+    await act(async () => {
+      await undo()
+      await settle()
+    })
+    // The first loop is still in the song, but nothing is selected and the
+    // clip the strip showed is gone: no empty strip is left behind.
+    expect(project().playlist.clips.map((clip) => clip.id)).toEqual([first])
+    expect(inspector()).toBeNull()
+
+    await act(async () => ui().select([first]))
+    expect(inspector()).not.toBeNull()
+    expect(inspector()).not.toHaveAttribute("data-idle")
+  })
+
   it("can be put away and brought back", async () => {
     render(<PlaylistPanel />)
     await addLoop()
@@ -427,15 +465,14 @@ describe("the mode notice", () => {
     expect(mode()).not.toHaveAttribute("data-notice")
 
     await addLoop()
-    expect(mode()).toHaveTextContent(
-      "Play loops the pattern: audio and automation play in Song mode"
-    )
+    expect(mode()).toHaveTextContent("Pattern loop: audio is silent")
     expect(mode()).toHaveAttribute("data-notice")
 
+    // In song mode it says whether the song plays, not only the mode.
     await act(async () => {
       await setPlayMode("song")
     })
-    expect(mode()).toHaveTextContent("Playing from the playlist")
+    expect(mode()).toHaveTextContent("Song stopped")
     expect(mode()).not.toHaveAttribute("data-notice")
   })
 })
@@ -500,7 +537,7 @@ describe("stretch and tempo controls", () => {
   })
   it("fits explicit source BPM to project tempo before Apply", async () => {
     render(<PlaylistPanel />)
-    await addLoop()
+    const id = await addLoop()
     fireEvent.click(screen.getByRole("button", { name: "Stretch / tempo" }))
     await flush()
     fireEvent.change(screen.getByLabelText("Source BPM"), {
@@ -512,8 +549,13 @@ describe("stretch and tempo controls", () => {
       })
     )
     await flush()
+    // Shown to four decimals; Apply uses the exact multiplier.
+    const exact = 90 / project().settings.tempoBpm
     expect(screen.getByLabelText("Duration multiplier")).toHaveValue(
-      90 / project().settings.tempoBpm
+      Number(exact.toFixed(4))
     )
+    fireEvent.click(screen.getByRole("button", { name: "Apply to 1 clip" }))
+    await flush()
+    expect(audio(id).stretch).toMatchObject({ mode: "spectral", ratio: exact })
   })
 })

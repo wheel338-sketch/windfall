@@ -37,9 +37,13 @@ export function AnalysisTools({ preview, selection, disabled, onBusy, onCommit }
   const alive = useRef(false)
   const working = useRef(false)
   const current = useRef<() => boolean>(() => false)
+  // An applied edit publishes its own revision, often before its reply, so
+  // the reply is followed while this editor still shows the same project.
+  const open = useRef<() => boolean>(() => false)
   useEffect(() => {
     alive.current = true
     const generation = getProjectGeneration()
+    open.current = () => alive.current && generation === getProjectGeneration()
     const revision = useProjectStore.getState().revision
     const selectionAtOpen = usePlaylistStore.getState().selection
     current.current = () => alive.current && generation === getProjectGeneration() &&
@@ -161,7 +165,7 @@ export function AnalysisTools({ preview, selection, disabled, onBusy, onCommit }
               </div>
               <Button disabled={locked || !!problem || selected.size === 0} onClick={() => void run(async () => {
                 const result = await backend.audioAnalysisSendMidi({ token: preview.token, recipe }, [...selected])
-                if (current.current()) onCommit(result)
+                if (open.current()) onCommit(result)
               })}>{t("Insert reviewed MIDI score")}</Button>
             </TabsContent>
             <TabsContent value="time" className="flex flex-col gap-2">
@@ -216,7 +220,7 @@ export function AnalysisTools({ preview, selection, disabled, onBusy, onCommit }
             <Button variant="outline" onClick={() => void backend.previewStop()}>{t("Stop audition")}</Button>
             <Button disabled={locked || !!problem || recipe.analysis.polyphonic} onClick={() => void run(async () => {
               const result = await backend.audioAnalysisApply({ token: preview.token, recipe })
-              if (current.current()) onCommit(result)
+              if (open.current()) onCommit(result)
             })}>{t("Apply pitch, time and noise edits")}</Button>
           </div>
           <p className="text-xs text-muted-foreground">{t("Dragging notes changes pitch and onset; numeric controls also change their offset. Arrow keys move a focused note by one semitone, or its onset by 10 ms with Shift. Apply preserves the source and stores the proposal with a derived WAV in one undo step. Reopening resumes saved edits. Spectral rendering has lookahead and approximate formants; interval boundaries and short notes need listening review.")}</p>

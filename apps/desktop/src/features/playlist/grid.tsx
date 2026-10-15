@@ -68,6 +68,7 @@ const CLIP_MENU: ContextItem[] = [
   "playlist.consolidateSelectedTracks",
   contextSeparator,
   "playlist.clipInspector",
+  "playlist.rightClickDeletes",
   // How much of its range an automation clip shows, when one is selected.
   { dynamic: selectedViewRangeItems },
   // The LFO writer, for one selected automation clip.
@@ -83,6 +84,8 @@ const EMPTY_MENU: ContextItem[] = [
   "playlist.zoomToFit",
   "playlist.tallTracks",
   "playlist.addTrack",
+  contextSeparator,
+  "playlist.rightClickDeletes",
 ]
 
 /**
@@ -90,22 +93,36 @@ const EMPTY_MENU: ContextItem[] = [
  * the modifier keys, and no more. The line has to fit beside the engine and
  * the file's state, so every word in it has to be worth its place.
  */
-export function hintFor(tool: Tool, pattern: string): string {
+export function hintFor(
+  tool: Tool,
+  pattern: string,
+  rightClickDeletes = true
+): string {
   const { copy, add, free } = MODIFIER_HINTS
   const edit = message("Drag clips to move, edges to resize. {copy}, {add}, {free}", { copy, add, free })
   switch (tool) {
     case "draw":
-      return message("Click to place {pattern}. {edit}. Right-click deletes", { pattern, edit })
+      return rightClickDeletes
+        ? message("Click to place {pattern}. {edit}. Right-click deletes", { pattern, edit })
+        : message("Click to place {pattern}. {edit}. Right-click for a menu", { pattern, edit })
     case "paint":
-      return message("Drag to paint {pattern}. {edit}. Right-click deletes", { pattern, edit })
+      return rightClickDeletes
+        ? message("Drag to paint {pattern}. {edit}. Right-click deletes", { pattern, edit })
+        : message("Drag to paint {pattern}. {edit}. Right-click for a menu", { pattern, edit })
     case "select":
       return message("Drag a box to select. {edit}. Right-click for a menu", { edit })
     case "erase":
-      return t("Click or drag across clips to delete them")
+      return rightClickDeletes
+        ? t("Click or drag across clips to delete them")
+        : t("Click or drag across clips to delete them. Right-click for a menu")
     case "mute":
-      return t("Click or drag across clips to mute or unmute. Right-click deletes")
+      return rightClickDeletes
+        ? t("Click or drag across clips to mute or unmute. Right-click deletes")
+        : t("Click or drag across clips to mute or unmute. Right-click for a menu")
     case "slip":
-      return message("Drag content inside a fixed clip. {free}. Right-click deletes", { free })
+      return rightClickDeletes
+        ? message("Drag content inside a fixed clip. {free}. Right-click deletes", { free })
+        : message("Drag content inside a fixed clip. {free}. Right-click for a menu", { free })
     case "playback":
       return message("Click or drag to seek the transport. {free}. Escape ends scrubbing", { free })
     case "slice":
@@ -121,7 +138,11 @@ export function hintFor(tool: Tool, pattern: string): string {
 export const INNER_HINTS: Record<InnerHit["kind"], string> = {
   get fade() { return t("Drag to set the fade's length. Alt: no snap") },
   get gain() { return t("Drag up or down for the clip's gain. Shift: fine") },
-  get point() { return t("Drag to move the point. Shift: one axis, Alt: no snap. Double-click holds, right-click deletes") },
+  get point() {
+    return usePlaylistStore.getState().rightClickDeletes
+      ? t("Drag to move the point. Shift: one axis, Alt: no snap. Double-click holds, right-click deletes")
+      : t("Drag to move the point. Shift: one axis, Alt: no snap. Double-click holds, right-click for a menu")
+  },
   get bend() { return t("Drag up or down to bend this stretch of the curve") },
   get curve() { return t("Click to add a point and drag it. Alt: no snap. The title bar moves the clip") },
 }
@@ -169,11 +190,18 @@ export function PlaylistGrid({ metrics }: { metrics: GridMetrics }) {
     containerRef.current?.focus({ preventScroll: true })
     usePlaylistStore.getState().focusGiven()
   }, [focusRequested])
+  const rightClickDeletes = usePlaylistStore(
+    (state) => state.rightClickDeletes
+  )
   const [inner, setInner] = useState<InnerHit["kind"] | null>(null)
   const hint = useHint(
     inner
       ? INNER_HINTS[inner]
-      : hintFor(tool, brushName ?? pattern?.name ?? t("a pattern"))
+      : hintFor(
+          tool,
+          brushName ?? pattern?.name ?? t("a pattern"),
+          rightClickDeletes
+        )
   )
 
   // The view reads its options once. The session sets everything that can

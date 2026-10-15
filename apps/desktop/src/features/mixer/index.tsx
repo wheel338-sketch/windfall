@@ -23,7 +23,9 @@ import {
   INSPECTOR_MIN_WIDTH,
   inspectorWidthFor,
   MASTER_WIDTH,
+  MIXER_LAYOUTS,
   STRIP_WIDTH,
+  adaptiveStripWidth,
   chosenStripLayout,
 } from "./layout"
 import { MIXER_MENU } from "./menus"
@@ -97,6 +99,12 @@ export default function MixerPanel() {
   const tracks = useProjectStore((state) => state.project.mixer.tracks)
   const layoutChoice = useUiStore((state) => state.mixerLayout)
   const [height, setHeight] = useState(0)
+  // The middle dock's width, kept while it is unmeasured (0) so the
+  // adaptive strips do not snap back to the standard width meanwhile.
+  const [middleWidth, setMiddleWidth] = useState(0)
+  const keepMiddleWidth = useCallback((width: number) => {
+    if (width > 0) setMiddleWidth(width)
+  }, [])
   const [scrollbars, setScrollbars] = useState({ left: 0, middle: 0, right: 0 })
   const leftScrollbar = useCallback(
     (left: number) =>
@@ -170,6 +178,18 @@ export default function MixerPanel() {
     visibleInserts
       .filter((track) => (track.dock ?? "middle") === dock)
       .map((track) => track.id)
+  // Adaptive, the strips of the middle dock share its width, so a few
+  // tracks are wide enough to read their names. The pinned docks keep the
+  // standard width: they are narrow on purpose, and their width would
+  // change the middle dock's.
+  const middleLayout =
+    layoutChoice === "adaptive" ||
+    !MIXER_LAYOUTS.some((item) => item.value === layoutChoice)
+      ? {
+          ...layout,
+          width: adaptiveStripWidth(middleWidth, dockIds("middle").length),
+        }
+      : layout
 
   // A key that moves the selection takes the focus along. The strip may
   // only just have been mounted, so this waits for it.
@@ -258,8 +278,9 @@ export default function MixerPanel() {
               ids={dockIds("middle")}
               selected={selected}
               linked={linked}
-              layout={layout}
+              layout={middleLayout}
               onHeight={setHeight}
+              onWidth={keepMiddleWidth}
             >
               <AddTrack
                 first={inserts.length === 0 && !noMatches}

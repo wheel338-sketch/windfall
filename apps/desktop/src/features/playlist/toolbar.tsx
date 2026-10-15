@@ -318,6 +318,17 @@ function SongControls() {
         ? t("Play plays the playlist from the song position")
         : t("Play loops the selected pattern. Switch to Song to play the playlist")
   )
+  // Short, so it is not cut off beside the buttons; the hint says the rest.
+  // In song mode it says whether the song is playing, not only the mode,
+  // which the switch beside it already shows.
+  const status =
+    mode === "song"
+      ? playing
+        ? t("Playing the song")
+        : t("Song stopped")
+      : notice
+        ? t("Pattern loop: audio is silent")
+        : t("Play loops the pattern")
 
   return (
     <div className="ml-auto flex min-w-0 items-center gap-1.5 pl-2">
@@ -336,6 +347,7 @@ function SongControls() {
         role="status"
         data-slot="playlist-mode"
         data-notice={notice ? "" : undefined}
+        title={status}
         className={cn(
           // In a narrow window the words give way before the buttons do.
           "min-w-0 truncate text-muted-foreground data-notice:text-warn",
@@ -343,11 +355,7 @@ function SongControls() {
         )}
         {...modeHint}
       >
-        {mode === "song"
-          ? t("Playing from the playlist")
-          : notice
-            ? t("Play loops the pattern: audio and automation play in Song mode")
-            : t("Play loops the pattern")}
+        {status}
       </span>
       <ModeSwitch />
       <IconAction

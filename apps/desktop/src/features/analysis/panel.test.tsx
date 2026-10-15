@@ -676,11 +676,16 @@ describe("analysis app controls", () => {
   it("shows a missing-runtime capability error and refuses separation without changing simulator history", async () => {
     const stems = { ...model, outputs: ["drums", "bass", "vocals", "other"].map((role) => ({ role, channels: 2 })) }
     const submit = vi.spyOn(backend, "analysisSubmit")
+    // As the native side words it: the kind, then the adapter's coded refusal.
+    const missing = "ONNX Runtime library is missing. Choose the installed library in Settings → Stem separation, or set ORT_DYLIB_PATH. Nothing is downloaded."
+    const term = `windfall-message:${JSON.stringify({ code: "text.term", params: { text: missing } })}`
+    const reason = `analysis:unavailable: windfall-message:${JSON.stringify({ code: "analysis.error.adapter", params: { detail: term } })}`
     vi.spyOn(backend, "analysisCapability").mockResolvedValue({ native: true, available: true, classicalDereverb: true,
-      stemSeparation: false, reason: "ONNX Runtime library is missing. Choose the installed library in Settings.", models: [stems] })
+      stemSeparation: false, reason, models: [stems] })
     const before = useProjectStore.getState()
     render(<AnalysisPanel clip={clip} initialTask="stemSeparation" />)
-    expect(await screen.findByRole("status")).toHaveTextContent("ONNX Runtime library is missing")
+    expect(await screen.findByRole("status")).toHaveTextContent(missing)
+    expect(screen.getByRole("status")).not.toHaveTextContent(/analysis:|windfall-message/)
     await waitFor(() => expect(screen.getByRole("button", { name: "Submit analysis" })).toBeDisabled())
     expect(disabledReason(registry.get("analysis.submit")!, getAppState())).toContain("ONNX Runtime library is missing")
     expect(submit).not.toHaveBeenCalled()

@@ -105,6 +105,10 @@ export function dynamicMessage(source: DynamicActionMessage, language = currentL
 }
 
 export function localizeBackendText(text: string): string {
+  // An analysis failure names its kind first, for code that tells kinds
+  // apart; only the words after it are for the user.
+  const analysis = ANALYSIS_KIND.exec(text)
+  if (analysis) return localizeBackendText(analysisDetail(analysis[1], text.slice(analysis[0].length)))
   // One coded message, unless it is the first of several joined together.
   const end = text.startsWith(NATIVE_MESSAGE_PREFIX) ? jsonObjectEnd(text, NATIVE_MESSAGE_PREFIX.length) : -1
   const native = end < 0 || end === text.length ? nativeMessage(text) : null
@@ -201,6 +205,26 @@ export function historyLabelText(label: string, language = currentLanguage()): s
 }
 
 const NATIVE_MESSAGE_PREFIX = "windfall-message:"
+/** `analysis:<kind>: `, which the native analysis service puts before its failures. */
+const ANALYSIS_KIND = /^analysis:([A-Za-z]+): /
+
+/**
+ * What an analysis failure says. When analysis is unavailable because its
+ * runtime adapter refused, the reason is the adapter's own words (such as
+ * "ONNX Runtime library is missing…"), not that an adapter failed.
+ */
+function analysisDetail(kind: string, text: string): string {
+  if (kind !== "unavailable" || !text.startsWith(NATIVE_MESSAGE_PREFIX) ||
+    jsonObjectEnd(text, NATIVE_MESSAGE_PREFIX.length) !== text.length) return text
+  try {
+    const value: unknown = JSON.parse(text.slice(NATIVE_MESSAGE_PREFIX.length))
+    if (value && typeof value === "object" && "code" in value && value.code === "analysis.error.adapter" &&
+      "params" in value && value.params && typeof value.params === "object" &&
+      "detail" in value.params && typeof value.params.detail === "string" && value.params.detail.length > 0)
+      return value.params.detail
+  } catch { /* Shown as it came. */ }
+  return text
+}
 
 /** The index just after the JSON object that starts at `start`, or -1. */
 function jsonObjectEnd(text: string, start: number): number {

@@ -13,7 +13,6 @@ import {
   parseNumber,
   semitonesUnit,
 } from "@/components/audio"
-import { Button } from "@/components/ui/button"
 import type { SamplerChannel } from "@/lib/channel-source"
 import { useHint } from "@/lib/store/hint"
 import { dispatch } from "@/lib/store/project"
@@ -37,6 +36,13 @@ import { nextSampleGainScale } from "./sample-gain-scale"
 import { nextSamplerTunePreset } from "./tune-preset-step"
 import { nextSamplerTune, TUNE_PRESETS } from "./tune-presets"
 import { nextSamplerTuneScale } from "./tune-scale"
+import {
+  directionSteps,
+  factorSteps,
+  StepsMenus,
+  WithSteps,
+  type SettingSteps,
+} from "./value-steps"
 
 const MAX_TUNE = 48
 const MAX_KEY = 127
@@ -150,353 +156,226 @@ export function SoundSection({ channel }: { channel: SamplerChannel }) {
     t("Cut group: channels with the same number stop each other, like an open and a closed hat. 0 means none")
   )
 
+  /** The sampler as the project has it right now. */
+  const latest = () => {
+    const current = findChannel(id)?.source
+    return current?.type === "sampler" ? current : null
+  }
+  const rootSteps: SettingSteps = {
+    name: t("Root"),
+    groups: [
+      ROOT_KEY_PRESETS.map(({ label, rootKey: preset }) => ({
+        title: t(label),
+        disabled: nextRootKey(source.rootKey, preset) === null,
+        run: () => {
+          const now = latest()
+          if (now && nextRootKey(now.rootKey, preset) !== null)
+            void send({ rootKey: preset })
+        },
+      })),
+      directionSteps(
+        (direction) => {
+          const now = latest()
+          const next = now && nextRootKeyPreset(now.rootKey, direction)
+          if (next !== null) void send({ rootKey: next })
+        },
+        (direction) => nextRootKeyPreset(source.rootKey, direction) !== null
+      ),
+      factorSteps(
+        (factor) => {
+          const now = latest()
+          const next = now && nextRootKeyScale(now.rootKey, factor)
+          if (next !== null) void send({ rootKey: next })
+        },
+        (factor) => nextRootKeyScale(source.rootKey, factor) !== null,
+        {
+          half: t("Halve root distance from C5"),
+          double: t("Double root distance from C5"),
+        }
+      ),
+    ],
+  }
+  const tuneSteps: SettingSteps = {
+    name: t("Tune"),
+    groups: [
+      TUNE_PRESETS.map(({ label, semitones: preset }) => ({
+        title: t(label),
+        disabled: nextSamplerTune(source.tune, cents, preset) === null,
+        run: () => {
+          const next = nextSamplerTune(source.tune, cents, preset)
+          if (next !== null) {
+            setCoarse(preset)
+            void send({ tune: next })
+          }
+        },
+      })),
+      directionSteps(
+        (direction) => {
+          const next = nextSamplerTunePreset(storedTune(id), coarse, direction)
+          if (next !== null) {
+            setCoarse(next.semitones)
+            void send({ tune: next.tune })
+          }
+        },
+        (direction) =>
+          nextSamplerTunePreset(source.tune, coarse, direction) !== null
+      ),
+      factorSteps(
+        (factor) => {
+          const next = nextSamplerTuneScale(storedTune(id), coarse, factor)
+          if (next !== null) {
+            setCoarse(next.semitones)
+            void send({ tune: next.tune })
+          }
+        },
+        (factor) => nextSamplerTuneScale(source.tune, coarse, factor) !== null
+      ),
+    ],
+  }
+  const fineSteps: SettingSteps = {
+    name: t("Fine"),
+    groups: [
+      FINE_TUNE_PRESETS.map(({ label, cents: preset }) => ({
+        title: t(label),
+        disabled: nextSamplerFine(source.tune, coarse, preset) === null,
+        run: () => {
+          const next = nextSamplerFine(storedTune(id), coarse, preset)
+          if (next !== null) void send({ tune: next })
+        },
+      })),
+      directionSteps(
+        (direction) => {
+          const next = nextSamplerFinePreset(storedTune(id), coarse, direction)
+          if (next !== null) void send({ tune: next })
+        },
+        (direction) =>
+          nextSamplerFinePreset(source.tune, coarse, direction) !== null
+      ),
+      factorSteps(
+        (factor) => {
+          const next = nextSamplerFineScale(storedTune(id), coarse, factor)
+          if (next !== null) void send({ tune: next })
+        },
+        (factor) => nextSamplerFineScale(source.tune, coarse, factor) !== null,
+        { half: t("Halve cents"), double: t("Double cents") }
+      ),
+    ],
+  }
+  const gainSteps: SettingSteps = {
+    name: t("Gain"),
+    groups: [
+      SAMPLE_GAIN_PRESETS.map(({ label, gain: preset }) => ({
+        title: t(label),
+        disabled: nextSampleGain(source.gain, preset) === null,
+        run: () => {
+          const now = latest()
+          if (now && nextSampleGain(now.gain, preset) !== null)
+            void send({ gain: preset })
+        },
+      })),
+      directionSteps(
+        (direction) => {
+          const now = latest()
+          const next = now && nextSampleGainPreset(now.gain, direction)
+          if (next !== null) void send({ gain: next })
+        },
+        (direction) => nextSampleGainPreset(source.gain, direction) !== null
+      ),
+      factorSteps(
+        (factor) => {
+          const now = latest()
+          const next = now && nextSampleGainScale(now.gain, factor)
+          if (next !== null) void send({ gain: next })
+        },
+        (factor) => nextSampleGainScale(source.gain, factor) !== null
+      ),
+    ],
+  }
+  const cutGroupSteps: SettingSteps = {
+    name: t("Cut group"),
+    groups: [
+      CUT_GROUP_PRESETS.map(({ label, cutGroup: preset }) => ({
+        title: t(label),
+        disabled: nextCutGroup(source.cutGroup, preset) === null,
+        run: () => {
+          const now = latest()
+          if (now && nextCutGroup(now.cutGroup, preset) !== null)
+            void send({ cutGroup: preset })
+        },
+      })),
+      directionSteps(
+        (direction) => {
+          const now = latest()
+          const next = now && nextCutGroupPreset(now.cutGroup, direction)
+          if (next !== null) void send({ cutGroup: next })
+        },
+        (direction) => nextCutGroupPreset(source.cutGroup, direction) !== null
+      ),
+    ],
+  }
+
   return (
     <Section title={t("Sound")}>
       <div className="grid grid-cols-4 justify-items-center gap-1">
-        <Knob
-          label={t("Root")}
-          showValue
-          min={0}
-          max={MAX_KEY}
-          step={1}
-          defaultValue={DEFAULT_KEY}
-          format={formatKey}
-          parse={parseNoteName}
-          {...root}
-          {...rootHint}
-        />
-        <Knob
-          label={t("Tune")}
-          showValue
-          bipolar
-          min={-MAX_TUNE}
-          max={MAX_TUNE}
-          step={1}
-          defaultValue={0}
-          {...semitonesUnit}
-          {...tune}
-          {...tuneHint}
-        />
-        <Knob
-          label={t("Fine")}
-          showValue
-          bipolar
-          min={-50}
-          max={50}
-          step={1}
-          defaultValue={0}
-          format={formatCents}
-          {...fine}
-          {...fineHint}
-        />
-        <Knob
-          label={t("Gain")}
-          showValue
-          min={0}
-          max={MAX_GAIN}
-          scale={faderTaper}
-          defaultValue={1}
-          {...gainUnit}
-          {...gain}
-          {...gainHint}
-        />
+        <WithSteps steps={rootSteps}>
+          <Knob
+            label={t("Root")}
+            showValue
+            min={0}
+            max={MAX_KEY}
+            step={1}
+            defaultValue={DEFAULT_KEY}
+            format={formatKey}
+            parse={parseNoteName}
+            {...root}
+            {...rootHint}
+          />
+        </WithSteps>
+        <WithSteps steps={tuneSteps}>
+          <Knob
+            label={t("Tune")}
+            showValue
+            bipolar
+            min={-MAX_TUNE}
+            max={MAX_TUNE}
+            step={1}
+            defaultValue={0}
+            {...semitonesUnit}
+            {...tune}
+            {...tuneHint}
+          />
+        </WithSteps>
+        <WithSteps steps={fineSteps}>
+          <Knob
+            label={t("Fine")}
+            showValue
+            bipolar
+            min={-50}
+            max={50}
+            step={1}
+            defaultValue={0}
+            format={formatCents}
+            {...fine}
+            {...fineHint}
+          />
+        </WithSteps>
+        <WithSteps steps={gainSteps}>
+          <Knob
+            label={t("Gain")}
+            showValue
+            min={0}
+            max={MAX_GAIN}
+            scale={faderTaper}
+            defaultValue={1}
+            {...gainUnit}
+            {...gain}
+            {...gainHint}
+          />
+        </WithSteps>
       </div>
-      <div className="mt-1 flex flex-wrap gap-1">
-        {ROOT_KEY_PRESETS.map(({ label, rootKey: preset }) => (
-          <Button
-            key={label}
-            variant="outline"
-            size="sm"
-            disabled={nextRootKey(source.rootKey, preset) === null}
-            onClick={() => {
-              const latest = findChannel(id)?.source
-              if (latest?.type !== "sampler") return
-              if (nextRootKey(latest.rootKey, preset) !== null) {
-                void dispatch({
-                  type: "updateSampler",
-                  id,
-                  patch: { rootKey: preset },
-                })
-              }
-            }}
-          >
-            {t(label)}
-          </Button>
-        ))}
-      </div>
-      <div className="mt-1 flex flex-wrap gap-1">
-        {(["previous", "next"] as const).map((direction) => (
-          <Button
-            key={direction}
-            variant="outline"
-            size="sm"
-            aria-label={
-              direction === "previous"
-                ? t("Choose the previous root key preset")
-                : t("Choose the next root key preset")
-            }
-            disabled={nextRootKeyPreset(source.rootKey, direction) === null}
-            onClick={() => {
-              const latest = findChannel(id)?.source
-              if (latest?.type !== "sampler") return
-              const next = nextRootKeyPreset(latest.rootKey, direction)
-              if (next === null) return
-              void dispatch({
-                type: "updateSampler",
-                id,
-                patch: { rootKey: next },
-              })
-            }}
-          >
-            {direction === "previous" ? t("Previous") : t("Next")}
-          </Button>
-        ))}
-      </div>
-      <div className="mt-1 flex flex-wrap gap-1">
-        {(["half", "double"] as const).map((factor) => (
-          <Button
-            key={factor}
-            variant="outline"
-            size="sm"
-            aria-label={
-              factor === "half"
-                ? t("Halve root distance from C5")
-                : t("Double root distance from C5")
-            }
-            disabled={nextRootKeyScale(source.rootKey, factor) === null}
-            onClick={() => {
-              const latest = findChannel(id)?.source
-              if (latest?.type !== "sampler") return
-              const next = nextRootKeyScale(latest.rootKey, factor)
-              if (next !== null) {
-                void dispatch({
-                  type: "updateSampler",
-                  id,
-                  patch: { rootKey: next },
-                })
-              }
-            }}
-          >
-            {factor === "half" ? t("Half") : t("Double")}
-          </Button>
-        ))}
-      </div>
-      <div className="mt-1 flex flex-wrap gap-1">
-        {TUNE_PRESETS.map(({ label, semitones: preset }) => (
-          <Button
-            key={label}
-            variant="outline"
-            size="sm"
-            disabled={nextSamplerTune(source.tune, cents, preset) === null}
-            onClick={() => {
-              const next = nextSamplerTune(source.tune, cents, preset)
-              if (next !== null) {
-                setCoarse(preset)
-                void send({ tune: next })
-              }
-            }}
-          >
-            {t(label)}
-          </Button>
-        ))}
-      </div>
-      <div className="mt-1 flex flex-wrap gap-1">
-        {(["previous", "next"] as const).map((direction) => (
-          <Button
-            key={direction}
-            variant="outline"
-            size="sm"
-            aria-label={
-              direction === "previous"
-                ? t("Choose the previous sampler tune")
-                : t("Choose the next sampler tune")
-            }
-            disabled={nextSamplerTunePreset(source.tune, coarse, direction) === null}
-            onClick={() => {
-              const next = nextSamplerTunePreset(storedTune(id), coarse, direction)
-              if (next !== null) {
-                setCoarse(next.semitones)
-                void send({ tune: next.tune })
-              }
-            }}
-          >
-            {direction === "previous" ? t("Previous") : t("Next")}
-          </Button>
-        ))}
-      </div>
-      <div className="mt-1 flex flex-wrap gap-1">
-        {(["half", "double"] as const).map((factor) => (
-          <Button
-            key={factor}
-            variant="outline"
-            size="sm"
-            disabled={nextSamplerTuneScale(source.tune, coarse, factor) === null}
-            onClick={() => {
-              const next = nextSamplerTuneScale(storedTune(id), coarse, factor)
-              if (next !== null) {
-                setCoarse(next.semitones)
-                void send({ tune: next.tune })
-              }
-            }}
-          >
-            {factor === "half" ? t("Half") : t("Double")}
-          </Button>
-        ))}
-      </div>
-      <div className="mt-1 flex flex-wrap gap-1">
-        {FINE_TUNE_PRESETS.map(({ label, cents: preset }) => (
-          <Button
-            key={label}
-            variant="outline"
-            size="sm"
-            disabled={nextSamplerFine(source.tune, coarse, preset) === null}
-            onClick={() => {
-              const next = nextSamplerFine(storedTune(id), coarse, preset)
-              if (next !== null) {
-                void dispatch({
-                  type: "updateSampler",
-                  id,
-                  patch: { tune: next },
-                })
-              }
-            }}
-          >
-            {t(label)}
-          </Button>
-        ))}
-      </div>
-      <div className="mt-1 flex flex-wrap gap-1">
-        {(["previous", "next"] as const).map((direction) => (
-          <Button
-            key={direction}
-            variant="outline"
-            size="sm"
-            aria-label={
-              direction === "previous"
-                ? t("Choose the previous sampler fine tune")
-                : t("Choose the next sampler fine tune")
-            }
-            disabled={
-              nextSamplerFinePreset(source.tune, coarse, direction) === null
-            }
-            onClick={() => {
-              const next = nextSamplerFinePreset(storedTune(id), coarse, direction)
-              if (next !== null) {
-                void dispatch({
-                  type: "updateSampler",
-                  id,
-                  patch: { tune: next },
-                })
-              }
-            }}
-          >
-            {direction === "previous" ? t("Previous") : t("Next")}
-          </Button>
-        ))}
-      </div>
-      <div className="mt-1 flex flex-wrap gap-1">
-        {(["half", "double"] as const).map((factor) => (
-          <Button
-            key={factor}
-            variant="outline"
-            size="sm"
-            aria-label={
-              factor === "half"
-                ? t("Halve fine tune cents")
-                : t("Double fine tune cents")
-            }
-            disabled={nextSamplerFineScale(source.tune, coarse, factor) === null}
-            onClick={() => {
-              const next = nextSamplerFineScale(storedTune(id), coarse, factor)
-              if (next !== null) {
-                void dispatch({
-                  type: "updateSampler",
-                  id,
-                  patch: { tune: next },
-                })
-              }
-            }}
-          >
-            {factor === "half" ? t("Halve cents") : t("Double cents")}
-          </Button>
-        ))}
-      </div>
-      <div className="mt-1 flex flex-wrap gap-1">
-        {SAMPLE_GAIN_PRESETS.map(({ label, gain: preset }) => (
-          <Button
-            key={label}
-            variant="outline"
-            size="sm"
-            disabled={nextSampleGain(source.gain, preset) === null}
-            onClick={() => {
-              const latest = findChannel(id)?.source
-              if (latest?.type !== "sampler") return
-              if (nextSampleGain(latest.gain, preset) !== null) {
-                void dispatch({
-                  type: "updateSampler",
-                  id,
-                  patch: { gain: preset },
-                })
-              }
-            }}
-          >
-            {t(label)}
-          </Button>
-        ))}
-      </div>
-      <div className="mt-1 flex flex-wrap gap-1">
-        {(["previous", "next"] as const).map((direction) => (
-          <Button
-            key={direction}
-            variant="outline"
-            size="sm"
-            aria-label={
-              direction === "previous"
-                ? t("Choose the previous sample gain")
-                : t("Choose the next sample gain")
-            }
-            disabled={nextSampleGainPreset(source.gain, direction) === null}
-            onClick={() => {
-              const latest = findChannel(id)?.source
-              if (latest?.type !== "sampler") return
-              const next = nextSampleGainPreset(latest.gain, direction)
-              if (next !== null) {
-                void dispatch({
-                  type: "updateSampler",
-                  id,
-                  patch: { gain: next },
-                })
-              }
-            }}
-          >
-            {direction === "previous" ? t("Previous") : t("Next")}
-          </Button>
-        ))}
-      </div>
-      <div className="mt-1 flex flex-wrap gap-1">
-        {(["half", "double"] as const).map((factor) => (
-          <Button
-            key={factor}
-            variant="outline"
-            size="sm"
-            disabled={nextSampleGainScale(source.gain, factor) === null}
-            onClick={() => {
-              const latest = findChannel(id)?.source
-              if (latest?.type !== "sampler") return
-              const next = nextSampleGainScale(latest.gain, factor)
-              if (next !== null) {
-                void dispatch({
-                  type: "updateSampler",
-                  id,
-                  patch: { gain: next },
-                })
-              }
-            }}
-          >
-            {factor === "half" ? t("Half") : t("Double")}
-          </Button>
-        ))}
-      </div>
+      <StepsMenus
+        settings={[rootSteps, tuneSteps, fineSteps, gainSteps, cutGroupSteps]}
+      />
       <div className="mt-1 flex flex-col gap-1.5">
         <SwitchRow
           label={t("Reverse")}
@@ -519,68 +398,19 @@ export function SoundSection({ channel }: { channel: SamplerChannel }) {
             {cutGroup.value === 0 && (
               <span className="text-muted-foreground">{t("none")}</span>
             )}
-            <NumberField
-              size="sm"
-              aria-label={t("Cut group")}
-              min={0}
-              max={MAX_CUT_GROUP}
-              step={1}
-              defaultValue={0}
-              className="w-12 justify-end font-readout"
-              {...cutGroup}
-            />
+            <WithSteps steps={cutGroupSteps}>
+              <NumberField
+                size="sm"
+                aria-label={t("Cut group")}
+                min={0}
+                max={MAX_CUT_GROUP}
+                step={1}
+                defaultValue={0}
+                className="w-12 justify-end font-readout"
+                {...cutGroup}
+              />
+            </WithSteps>
           </span>
-        </div>
-        <div className="mt-1 flex flex-wrap gap-1">
-          {CUT_GROUP_PRESETS.map(({ label, cutGroup: preset }) => (
-            <Button
-              key={label}
-              variant="outline"
-              size="sm"
-              disabled={nextCutGroup(source.cutGroup, preset) === null}
-              onClick={() => {
-                const latest = findChannel(id)?.source
-                if (latest?.type !== "sampler") return
-                if (nextCutGroup(latest.cutGroup, preset) !== null) {
-                  void dispatch({
-                    type: "updateSampler",
-                    id,
-                    patch: { cutGroup: preset },
-                  })
-                }
-              }}
-            >
-              {t(label)}
-            </Button>
-          ))}
-        </div>
-        <div className="mt-1 flex flex-wrap gap-1">
-          {(["previous", "next"] as const).map((direction) => (
-            <Button
-              key={direction}
-              variant="outline"
-              size="sm"
-              aria-label={
-                direction === "previous"
-                  ? t("Choose the previous cut group preset")
-                  : t("Choose the next cut group preset")
-              }
-              disabled={nextCutGroupPreset(source.cutGroup, direction) === null}
-              onClick={() => {
-                const latest = findChannel(id)?.source
-                if (latest?.type !== "sampler") return
-                const next = nextCutGroupPreset(latest.cutGroup, direction)
-                if (next === null) return
-                void dispatch({
-                  type: "updateSampler",
-                  id,
-                  patch: { cutGroup: next },
-                })
-              }}
-            >
-              {direction === "previous" ? t("Previous") : t("Next")}
-            </Button>
-          ))}
         </div>
       </div>
     </Section>

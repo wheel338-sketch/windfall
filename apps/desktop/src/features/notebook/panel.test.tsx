@@ -8,7 +8,7 @@ import { dispatch, useProjectStore } from "@/lib/store/project"
 import { announceProjectReplaced } from "@/lib/store/replaced"
 
 import { NotebookControls } from "./index"
-import { NotebookPanel } from "./panel"
+import { NOTEBOOK_COMMIT_DELAY_MS, NotebookPanel } from "./panel"
 
 vi.mock("@/lib/store/project", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/store/project")>()),
@@ -76,15 +76,18 @@ describe("song notebook", () => {
     expect(dispatch).not.toHaveBeenCalled()
     fireEvent.click(saveButton())
     await waitFor(() => expect(dispatch).toHaveBeenCalledTimes(1))
-    expect(dispatch).toHaveBeenCalledWith({
-      type: "replaceNotebook",
-      notebook: {
-        pages: [
-          { title: "Verse", body: "  First line\nSecond line  " },
-          { title: "Mix", body: "<script>plain text</script>" },
-        ],
+    expect(dispatch).toHaveBeenCalledWith(
+      {
+        type: "replaceNotebook",
+        notebook: {
+          pages: [
+            { title: "Verse", body: "  First line\nSecond line  " },
+            { title: "Mix", body: "<script>plain text</script>" },
+          ],
+        },
       },
-    })
+      expect.any(Number)
+    )
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Could not save notebook."
     )
@@ -285,6 +288,124 @@ describe("song notebook", () => {
     expect(screen.getByLabelText("Page body")).toHaveValue("")
     expect(saveButton()).toBeDisabled()
     expect(dispatch).not.toHaveBeenCalled()
+  })
+
+  it("commits the draft after a pause in typing, leaving the title being typed alone", async () => {
+    vi.useFakeTimers()
+    try {
+      const onSave = vi.fn(async () => true)
+      render(<NotebookPanel onSave={onSave} />)
+      fireEvent.change(screen.getByLabelText("Page title"), {
+        target: { value: "Verse " },
+      })
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Adding your changes to the song…"
+      )
+      act(() => {
+        vi.advanceTimersByTime(NOTEBOOK_COMMIT_DELAY_MS - 1)
+      })
+      fireEvent.change(screen.getByLabelText("Page body"), {
+        target: { value: "Notes" },
+      })
+      act(() => {
+        vi.advanceTimersByTime(NOTEBOOK_COMMIT_DELAY_MS - 1)
+      })
+      expect(onSave).not.toHaveBeenCalled()
+      await act(async () => {
+        vi.advanceTimersByTime(1)
+      })
+      expect(onSave).toHaveBeenCalledTimes(1)
+      expect(onSave).toHaveBeenCalledWith({
+        pages: [{ title: "Verse", body: "Notes" }],
+      })
+      expect(screen.getByLabelText("Page title")).toHaveValue("Verse ")
+      expect(screen.getByLabelText("Page title")).toBeEnabled()
+      expect(saveButton()).toBeDisabled()
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Notes are part of the song. Save the project to keep them."
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("commits a draft when the panel closes before the pause ends", () => {
+    const onSave = vi.fn(async () => true)
+    const { unmount } = render(<NotebookPanel onSave={onSave} />)
+    fireEvent.change(screen.getByLabelText("Page body"), {
+      target: { value: "Last words" },
+    })
+    expect(onSave).not.toHaveBeenCalled()
+    unmount()
+    expect(onSave).toHaveBeenCalledWith({
+      pages: [{ title: "", body: "Last words" }],
+    })
+  })
+
+  it("puts a draft into the project as one undo step when the notebook closes", async () => {
+    useProjectStore.setState({
+      project: { ...original.project, notebook: undefined },
+    })
+    vi.mocked(dispatch).mockResolvedValue(null)
+    render(<NotebookControls />)
+    const trigger = screen.getByRole("button", { name: "Notebook" })
+    fireEvent.click(trigger)
+    fireEvent.change(await screen.findByLabelText("Page body"), {
+      target: { value: "Keep me" },
+    })
+    fireEvent.click(trigger)
+    await waitFor(() =>
+      expect(dispatch).toHaveBeenCalledWith(
+        {
+          type: "replaceNotebook",
+          notebook: { pages: [{ title: "", body: "Keep me" }] },
+        },
+        expect.any(Number)
+      )
+    )
+  })
+
+  it("reads and shows a page cue as a song position", async () => {
+    useProjectStore.setState({
+      project: {
+        ...original.project,
+        settings: {
+          ...original.project.settings,
+          timeSignature: { numerator: 4, denominator: 4 },
+        },
+        playlist: { ...original.project.playlist, timeline: undefined },
+      },
+    })
+    const onSave = vi.fn(async () => true)
+    render(
+      <NotebookPanel
+        notebook={{
+          pages: [{ title: "Verse", body: "", startTick: 3840 * 8 + 960 }],
+        }}
+        onSave={onSave}
+      />
+    )
+    const cue = screen.getByLabelText("Page starts at song position")
+    expect(cue).toHaveValue("9:2")
+    fireEvent.change(cue, { target: { value: "5:1" } })
+    fireEvent.change(cue, { target: { value: "5:9" } })
+    expect(cue).toHaveAttribute("aria-invalid", "true")
+    fireEvent.blur(cue)
+    expect(cue).toHaveValue("5:1")
+    fireEvent.click(saveButton())
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({
+        pages: [{ title: "Verse", body: "", startTick: 3840 * 4 }],
+      })
+    )
+    fireEvent.change(cue, { target: { value: "" } })
+    expect(cue).not.toHaveAttribute("aria-invalid", "true")
+    fireEvent.click(saveButton())
+    await waitFor(() =>
+      expect(onSave).toHaveBeenLastCalledWith({
+        pages: [{ title: "Verse", body: "" }],
+      })
+    )
   })
 
   it("discards drafts when the project is replaced", async () => {

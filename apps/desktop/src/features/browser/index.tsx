@@ -49,10 +49,11 @@ export default function BrowserPanel() {
         <TabsTrigger value="library">{t("Library")}</TabsTrigger>
         <TabsTrigger value="project">{t("Project")}</TabsTrigger>
         <TabsTrigger value="plugins">{t("Plugins")}</TabsTrigger>
-        <TabsTrigger value="files">{t("Files")}</TabsTrigger>
-        <TabsTrigger value="backups">{t("Backups")}</TabsTrigger>
+        {/* Named after what each tab holds; the values stay as they were. */}
+        <TabsTrigger value="files">{t("Presets & templates")}</TabsTrigger>
+        <TabsTrigger value="backups">{t("Auto backups")}</TabsTrigger>
         <TabsTrigger value="loops">{t("Loops")}</TabsTrigger>
-        <TabsTrigger value="cloudBackup">{t("Cloud backup")}</TabsTrigger>
+        <TabsTrigger value="cloudBackup">{t("Folder backup")}</TabsTrigger>
       </TabsList>
       <TabsContent value="library" className="min-h-0">
         <ContextActions items={BROWSER_MENU}>

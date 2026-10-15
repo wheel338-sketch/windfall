@@ -10,7 +10,7 @@ import BrowserPanel from "."
 import { refresh } from "./commands"
 import { flushScrollTop, readPersisted, writePersisted } from "./persist"
 import { resetPreview } from "./preview"
-import { resetBrowserStore, useBrowserStore } from "./store"
+import { expandFolder, resetBrowserStore, useBrowserStore } from "./store"
 import {
   audio,
   deferred,
@@ -402,24 +402,49 @@ describe("keyboard", () => {
   it("skips files Windfall cannot use, and shows them as disabled", async () => {
     const user = userEvent.setup()
     await start((mock) => ({
+      browserRoots: async () => [
+        ...(await mock.browserRoots()),
+        { name: "Mine", path: "/mine", kind: "user" },
+      ],
       browserList: async (path) =>
-        path === "/factory"
+        path === "/mine"
           ? [
-              ...(await mock.browserList(path)),
-              { name: "Notes.txt", path: "/factory/Notes.txt", kind: "other" },
-              audio("/factory", "Zap.wav"),
+              { name: "Notes.txt", path: "/mine/Notes.txt", kind: "other" },
+              audio("/mine", "Zap.wav"),
             ]
           : mock.browserList(path),
     }))
     render(<BrowserPanel />)
 
+    await findItem("Mine")
+    act(() => expandFolder(rowId("/mine", "/mine"), "/mine"))
     expect(await findItem("Notes.txt")).toHaveAttribute("aria-disabled", "true")
-    await user.click(item("Loops"))
-    await user.click(item("Loops"))
+    await user.click(item("Zap.wav"))
+    expect(selectedName()).toBe("Zap.wav")
+    press("ArrowUp")
+    expect(selectedName()).toBe("Mine")
     press("ArrowDown")
     expect(selectedName()).toBe("Zap.wav")
     await user.click(item("Notes.txt"))
     expect(selectedName()).toBe("Zap.wav")
+  })
+
+  it("leaves the factory library's support files out", async () => {
+    await start((mock) => ({
+      browserList: async (path) =>
+        path === "/factory"
+          ? [
+              ...(await mock.browserList(path)),
+              { name: "LICENSE.md", path: "/factory/LICENSE.md", kind: "other" },
+              { name: "README.md", path: "/factory/README.md", kind: "other" },
+            ]
+          : mock.browserList(path),
+    }))
+    render(<BrowserPanel />)
+
+    expect(await findItem("Loops")).toBeInTheDocument()
+    expect(itemNames()).toEqual(["Factory", "Drums", "Loops"])
+    expect(queryItem("LICENSE.md")).not.toBeInTheDocument()
   })
 })
 

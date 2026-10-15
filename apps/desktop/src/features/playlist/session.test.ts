@@ -5,6 +5,7 @@ import { setTransportPattern, useTransportStore } from "@/lib/store/transport"
 import { useUiStore } from "@/lib/store/ui"
 import { settle } from "@/test/harness"
 
+import { addAudioFile } from "./audio/ops"
 import { MIN_ROWS, SPARE_ROWS } from "./layout"
 import { addClips } from "./ops"
 import type { PlaylistSession } from "./session"
@@ -397,6 +398,17 @@ describe("Draw tool", () => {
     expect(labels().at(-1)).toBe("Delete clip")
   })
 
+  it("opens the clip menu instead when right-click is set not to delete", async () => {
+    const [first] = await seed([0, 0], [0, BAR])
+    ui().toggleRightClickDeletes()
+    const before = steps()
+    await click(session, at(100, 0, { button: 2 }))
+    expect(layout()).toEqual([`0:0+${BAR}`, `0:${BAR}+${BAR}`])
+    expect(steps()).toBe(before)
+    expect(selection()).toEqual([first])
+    expect(ui().menuOnClips).toBe(true)
+  })
+
   it("deletes everything a right-drag crosses, in one undo step", async () => {
     await seed([0, 0], [0, BAR], [0, 2 * BAR], [1, 0], [3, 0])
     const before = steps()
@@ -736,6 +748,25 @@ describe("double-click", () => {
     expect(steps()).toBe(before)
   })
 
+  it("brings back the hidden settings of an audio clip", async () => {
+    const id = await addAudioFile("/factory/Loops/Drum loop 128.wav", {
+      start: 0,
+    })
+    await settle()
+    ui().clearSelection()
+    ui().toggleInspector()
+    expect(ui().inspectorOpen).toBe(false)
+    const before = steps()
+    session.pointerDown(at(BAR / 2, 0))
+    await session.pointerUp(at(BAR / 2, 0))
+    clock.time += 200
+    session.pointerDown(at(BAR / 2, 0))
+    await settle()
+    expect(ui().inspectorOpen).toBe(true)
+    expect(selection()).toEqual([id])
+    expect(steps()).toBe(before)
+  })
+
   it("does not count a click on a clip and then a grab of its edge", async () => {
     await seed([0, 0])
     await click(session, at(BAR / 2, 0))
@@ -757,6 +788,22 @@ describe("double-click", () => {
     await click(session, at(6 * BAR + 100, 2))
     expect(useUiStore.getState().centerTab).toBe("playlist")
     expect(clips()).toHaveLength(2)
+  })
+})
+
+describe("tracks going away", () => {
+  it("scroll the view back up to the last track", async () => {
+    for (let index = 0; index < 30; index++)
+      await dispatch({ type: "addPlaylistTrack" })
+    await settle()
+    surface.setViewport({ ...surface.viewport, scrollRow: 100 })
+    expect(surface.viewport.scrollRow).toBe(30 + SPARE_ROWS - 20)
+    for (const track of tracks().slice(20))
+      await dispatch({ type: "removePlaylistTrack", id: track.id })
+    await settle()
+    // Twenty tracks and one spare row under them, in a view twenty rows tall.
+    expect(tracks()).toHaveLength(20)
+    expect(surface.viewport.scrollRow).toBe(1)
   })
 })
 

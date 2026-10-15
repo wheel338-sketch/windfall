@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useEffectEvent,
   useId,
   useLayoutEffect,
   useMemo,
@@ -139,6 +140,27 @@ export function TreeView() {
     reveal(index)
     requestDone("reveal")
   }, [revealRequest, indexOf, reveal])
+
+  // Selecting a file opens its panes under the tree, and the tree gets
+  // shorter. When it does, the selected row is kept in sight, so browsing
+  // its neighbours does not start with a scroll to find it again.
+  const keepSelectedInSight = useEffectEvent(() => {
+    // A position still being restored after a restart wins.
+    if (pendingScroll.current !== null || selectedIndex < 0) return
+    reveal(selectedIndex)
+  })
+  useLayoutEffect(() => {
+    const element = scrollRef.current
+    if (!element) return undefined
+    let height = element.clientHeight
+    const observer = new ResizeObserver(() => {
+      const shrank = element.clientHeight < height
+      height = element.clientHeight
+      if (shrank) keepSelectedInSight()
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [scrollRef])
 
   useEffect(() => {
     if (!focusRequest) return

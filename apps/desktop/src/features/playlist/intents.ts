@@ -31,6 +31,11 @@ export type Press = {
    * one: a handle of an audio clip, the curve of an automation clip.
    */
   inner?: InnerHit | null
+  /**
+   * The right button opens the menu in every tool but Playback, as it does
+   * in Select, instead of deleting. Off by default: FL Studio's way.
+   */
+  rightClickMenu?: boolean
 }
 
 /** What a press starts. The pointer handling carries it out. */
@@ -128,6 +133,7 @@ function onInner(
  *   turns into a copy. Slip keeps the press a content slide.
  * - Shift adds the pressed clip to the selection, or the box's clips.
  * - Right button deletes, except Select opens a menu and Playback ignores it.
+ *   With `rightClickMenu` every tool but Playback opens the menu.
  *   On a point of a curve it deletes the point, or opens the point's menu;
  *   on the rest of a curve it does nothing, so a near miss of a point does
  *   not delete the clip.
@@ -142,12 +148,13 @@ export function intentFor(press: Press): Intent {
   if (button === 1) return { kind: "pan" }
   if (button === 2) {
     if (tool === "playback") return { kind: "none" }
+    const menu = tool === "select" || press.rightClickMenu === true
     if (hit && inner?.kind === "point") {
-      return tool === "select"
+      return menu
         ? { kind: "point-menu", id: hit.id, index: inner.index }
         : { kind: "delete-point", id: hit.id, index: inner.index }
     }
-    if (tool === "select") return { kind: "menu", id: hit?.id ?? null }
+    if (menu) return { kind: "menu", id: hit?.id ?? null }
     return inner?.kind === "bend" || inner?.kind === "curve"
       ? { kind: "none" }
       : { kind: "erase" }

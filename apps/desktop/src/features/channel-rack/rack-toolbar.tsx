@@ -13,9 +13,14 @@ import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { instrumentFamilies } from "@/features/plugins/families"
+import { openPluginManager } from "@/features/plugins/store"
 import { useActions, useAppState } from "@/lib/actions"
 import { currentPatternId } from "@/lib/flows/edit"
 import { useHint } from "@/lib/store/hint"
@@ -40,25 +45,51 @@ import { translatedText as t, message, plainNumber, dynamicTitle } from "@/lib/i
 function AddChannelMenuItems() {
   const actions = useActions()
   const state = useAppState()
-  const add = actions.find((action) => action.id === "channel.add")
-  const instruments = actions.filter((action) =>
-    action.id.startsWith("channel.addInstrument.")
-  )
-  const layer = actions.find((action) => action.id === "channel.addLayer")
-  const fromFile = actions.find((action) => action.id === "channel.addFromFile")
-  const browser = actions.find((action) => action.id === "view.browser")
+  const find = (id: string) => actions.find((action) => action.id === id)
+  const add = find("channel.add")
+  const generalMidi = find("channel.addGeneralMidi")
+  const layer = find("channel.addLayer")
+  const fromFile = find("channel.addFromFile")
+  const browser = find("view.browser")
 
   return (
     <>
-      {add && <ActionMenuItem action={add} state={state} />}
-      {instruments.map((action) => (
-        <ActionMenuItem key={action.id} action={action} state={state} />
-      ))}
-      {layer && <ActionMenuItem action={layer} state={state} />}
-      {fromFile && <ActionMenuItem action={fromFile} state={state} />}
+      <div className="flex flex-wrap items-center gap-x-2 px-1">
+        {add && <ActionMenuItem action={add} state={state} />}
+        {fromFile && <ActionMenuItem action={fromFile} state={state} />}
+        {generalMidi && <ActionMenuItem action={generalMidi} state={state} />}
+        {layer && <ActionMenuItem action={layer} state={state} />}
+        <DropdownMenuItem onClick={() => openPluginManager()}>
+          {t("Browse plugins…")}
+        </DropdownMenuItem>
+      </div>
+      <DropdownMenuSeparator />
+      {/* Every instrument at once, in columns by family, so the list can
+          be surveyed by role instead of scrolled through by name. */}
+      <div data-slot="instrument-families" className="columns-[11rem] gap-2">
+        {instrumentFamilies().map((family) => (
+          <DropdownMenuGroup
+            key={family.id}
+            data-family={family.id}
+            className="mb-1 break-inside-avoid"
+          >
+            <DropdownMenuLabel className="pb-0.5">
+              <span className="block font-medium text-foreground">{family.label}</span>
+              {family.role && <span className="block text-[10px] leading-snug">{family.role}</span>}
+            </DropdownMenuLabel>
+            {family.kinds.map((kind) => {
+              const action = find(`channel.addInstrument.${kind}`)
+              return action ? (
+                <ActionMenuItem key={action.id} action={action} state={state} />
+              ) : null
+            })}
+          </DropdownMenuGroup>
+        ))}
+      </div>
       <DropdownMenuSeparator />
       <p className="px-2 py-1.5 text-muted-foreground">
-        {t("A sound can also be dragged from the browser onto the rack. Drop it on a sampler's name to replace that channel's sound.")}
+        {t("A sound can also be dragged from the browser onto the rack. Drop it on a sampler's name to replace that channel's sound.")}{" "}
+        {t("Type a name to jump to it.")}
       </p>
       {browser && !state.ui.panels.browser && (
         <ActionMenuItem action={browser} state={state} />
@@ -91,7 +122,7 @@ function AddChannelMenu() {
           className="text-muted-foreground"
         />
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-64">
+      <DropdownMenuContent className="w-[min(48rem,calc(100vw-1rem))]">
         <AddChannelMenuItems />
       </DropdownMenuContent>
     </DropdownMenu>

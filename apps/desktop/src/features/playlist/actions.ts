@@ -25,6 +25,7 @@ import type { Tool } from "./intents"
 import { addAudioTrack, addInstrumentTrack } from "./linked-tracks"
 import { makeUniqueClipIds } from "./make-unique"
 import { patchSelectedAudioClips, selectedAudioClips } from "./audio/ops"
+import { requestAudioEditor } from "@/features/audio-editor/request"
 import { openAudioComp, openTakeGroupComp } from "./audio/comp-dialog"
 import { groupSelectedAudioTakes } from "./audio/take-group-controls"
 import {
@@ -526,9 +527,31 @@ const ACTIONS: Action[] = [
     id: "playlist.clipInspector",
     ...dynamicTitle("Audio clip settings", {}),
     section: SECTION,
-    keywords: "inspector gain pan pitch fade route show hide",
+    // The strip holds the Audio editor, analysis and slicing buttons too.
+    keywords:
+      "inspector gain pan pitch fade route show hide editor waveform markers regions analysis slices",
     checked: () => ui().inspectorOpen,
     run: () => ui().toggleInspector(),
+  },
+  {
+    id: "playlist.audioEditor",
+    ...dynamicTitle("Open audio editor", {}),
+    section: SECTION,
+    keywords: "edit audio clip waveform fade normalize reverse spectrum markers wave editor",
+    enabled: (state) => inPlaylist(state) && selectedAudioClips().length === 1,
+    whyDisabled: () => t("Select one audio clip"),
+    run: () => {
+      ui().showInspector()
+      requestAudioEditor()
+    },
+  },
+  {
+    id: "playlist.rightClickDeletes",
+    ...dynamicTitle("Right-click deletes clips", {}),
+    section: SECTION,
+    keywords: "mouse right button erase context menu fl studio",
+    checked: () => ui().rightClickDeletes,
+    run: () => ui().toggleRightClickDeletes(),
   },
   {
     id: "playlist.groupAudioTakes",
@@ -778,6 +801,7 @@ export function registerPlaylistActions(): () => void {
       state.follow,
       state.pickerOpen,
       state.inspectorOpen,
+      state.rightClickDeletes,
       state.selection,
       state.clipboard,
       state.targetTrack,

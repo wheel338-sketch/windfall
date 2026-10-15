@@ -332,6 +332,8 @@ function Knob({
         <span
           id={labelId}
           data-slot="knob-label"
+          // A long label is cut short to the knob's width; this keeps it whole.
+          title={typeof label === "string" ? label : undefined}
           className="relative max-w-16 leading-none text-muted-foreground"
         >
           <span

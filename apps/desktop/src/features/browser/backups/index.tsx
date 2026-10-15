@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/empty"
 import { Spinner } from "@/components/ui/spinner"
 import { openProjectPath } from "@/lib/flows/project"
-import { backend, errorMessage } from "@/lib/ipc"
+import { backend, errorSource } from "@/lib/ipc"
 import { useProjectStore } from "@/lib/store/project"
 import { localizeBackendText, translatedText as t, message as i18nMessage } from "@/lib/i18n"
 
@@ -23,11 +23,29 @@ function NoBackups({ unsaved = false }: { unsaved?: boolean }) {
         <EmptyDescription>
           {unsaved
             ? t("This project has no backups because it has not been saved.")
-            : t("There are no backups for this project.")}
+            : t("No automatic backups yet. While this song has unsaved changes, Windfall copies it every five minutes into the Backup folder beside it.")}
         </EmptyDescription>
       </EmptyHeader>
     </Empty>
   )
+}
+
+/**
+ * Whether a listing failed only because the Backup folder is not there yet:
+ * Windfall makes it with the first backup, so a new song has none.
+ */
+function isMissingFolder(source: string, folder: string): boolean {
+  // The shell sends a coded message, with the folder written its own way.
+  if (source.startsWith("windfall-message:")) {
+    try {
+      const sent: unknown = JSON.parse(source.slice("windfall-message:".length))
+      return typeof sent === "object" && sent !== null && "code" in sent &&
+        sent.code === "browser.folderMissing"
+    } catch {
+      return false
+    }
+  }
+  return source === `The folder "${folder}" does not exist.`
 }
 
 function SavedBackups({ projectPath }: { projectPath: string }) {
@@ -64,12 +82,12 @@ function SavedBackups({ projectPath }: { projectPath: string }) {
         if (active) setListing({ entries, error: null })
       } catch (error) {
         if (!active) return
-        const message = errorMessage(error)
+        const source = errorSource(error)
         // browser_list's NotFound response; other failures remain visible.
-        if (message === `The folder "${folder}" does not exist.`) {
+        if (isMissingFolder(source, folder)) {
           setListing({ entries: [], error: null })
         } else {
-          setListing({ entries: null, error: message })
+          setListing({ entries: null, error: source })
         }
       }
     }
@@ -84,7 +102,10 @@ function SavedBackups({ projectPath }: { projectPath: string }) {
     return (
       <Alert variant="destructive">
         <AlertTitle>{t("Could not list backups")}</AlertTitle>
-        <AlertDescription>{localizeBackendText(listing.error)}</AlertDescription>
+        {/* A long folder path wraps instead of running out of the panel. */}
+        <AlertDescription className="wrap-anywhere">
+          {localizeBackendText(listing.error)}
+        </AlertDescription>
       </Alert>
     )
   }
@@ -127,6 +148,10 @@ export function BackupsTab() {
       ) : (
         <SavedBackups key={path} projectPath={path} />
       )}
+      {/* Two backup systems sit side by side in the browser; say which is which. */}
+      <p className="text-xs text-muted-foreground">
+        {t("These copies are made for you. To keep copies in a folder you choose, such as one your drive client syncs, use the Folder backup tab.")}
+      </p>
     </div>
   )
 }

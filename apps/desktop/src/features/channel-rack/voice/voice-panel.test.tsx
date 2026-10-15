@@ -156,7 +156,27 @@ it("hides the sampler-only targets on an instrument channel", () => {
   ).toBeNull()
   expect(screen.queryByRole("switch", { name: "Enable volume LFO" })).toBeNull()
   expect(screen.getByRole("switch", { name: "Enable pitch LFO" })).toBeVisible()
+  // The voice LFO's targets show once it is on.
+  fireEvent.click(screen.getByRole("switch", { name: "Enable voice LFO" }))
+  expect(screen.getByRole("button", { name: "Pitch" })).toBeVisible()
   expect(screen.queryByRole("button", { name: "Volume" })).toBeNull()
+})
+
+it("shows an envelope's or an LFO's controls only while it is on", () => {
+  render(<ChannelVoicePanel onChange={vi.fn()} />)
+  expect(
+    screen.queryByRole("slider", { name: "Pitch envelope attack" })
+  ).toBeNull()
+  expect(screen.queryByRole("slider", { name: "Pan LFO rate" })).toBeNull()
+  expect(screen.queryByRole("slider", { name: "LFO rate" })).toBeNull()
+  fireEvent.click(screen.getByRole("switch", { name: "Enable pitch envelope" }))
+  fireEvent.click(screen.getByRole("switch", { name: "Enable pan LFO" }))
+  fireEvent.click(screen.getByRole("switch", { name: "Enable voice LFO" }))
+  expect(
+    screen.getByRole("slider", { name: "Pitch envelope attack" })
+  ).toBeVisible()
+  expect(screen.getByRole("slider", { name: "Pan LFO rate" })).toBeVisible()
+  expect(screen.getByRole("slider", { name: "LFO rate" })).toBeVisible()
 })
 
 it("follows the saved settings again once its own save has settled", async () => {

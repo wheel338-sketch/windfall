@@ -31,7 +31,7 @@ describe("inert HTML notebook", () => {
     }
   })
   it("mounts a frame with no sandbox permissions and a deny-all resource policy", () => {
-    render(<NotebookPanel notebook={{ pages: [{ title: "Rich", body: "<b>Lyrics</b>", html: true }] }} onSave={vi.fn()} />)
+    render(<NotebookPanel notebook={{ pages: [{ title: "Rich", body: "<b>Lyrics</b>", html: true }] }} onSave={vi.fn(async () => true)} />)
     const frame = screen.getByTitle("Notebook HTML preview")
     expect(frame).toHaveAttribute("sandbox", "")
     expect(frame).toHaveAttribute("referrerpolicy", "no-referrer")

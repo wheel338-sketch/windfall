@@ -111,6 +111,29 @@ describe("CommandPalette", () => {
     expect(screen.getByText("No action matches that.")).toBeVisible()
   })
 
+  it("finds an action by a feature it leads to, and suggests the closest actions for unknown words", async () => {
+    const user = userEvent.setup()
+    const off = registerPlaylistActions()
+    render(<CommandPalette />)
+    const input = await openPalette(user)
+
+    // The Audio editor button lives in the audio clip settings strip.
+    await user.type(input, "audio editor")
+    expect(options().map((row) => row.getAttribute("data-value"))).toContain(
+      "playlist.clipInspector"
+    )
+    expect(screen.queryByText("Closest matches")).toBeNull()
+
+    await user.clear(input)
+    await user.type(input, "save zzzz")
+    expect(screen.getByText("Closest matches")).toBeVisible()
+    expect(screen.queryByText("No action matches that.")).toBeNull()
+    expect(
+      options().some((row) => row.textContent?.startsWith("Save"))
+    ).toBe(true)
+    off()
+  })
+
   it("lists what a search finds best first, in one list across the sections", async () => {
     const user = userEvent.setup()
     const offs = [registerPlaylistActions(), registerMixerActions()]
