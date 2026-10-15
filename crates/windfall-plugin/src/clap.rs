@@ -57,7 +57,7 @@ fn descriptor() -> &'static clap_plugin_descriptor {
                 url: c"https://github.com/erivgout/windfall".as_ptr(),
                 manual_url: c"".as_ptr(),
                 support_url: c"".as_ptr(),
-                version: c"1.0.2".as_ptr(),
+                version: c"1.0.3".as_ptr(),
                 description: c"Windfall project engine with host transport and 16 stereo outputs"
                     .as_ptr(),
                 features: Box::leak(
