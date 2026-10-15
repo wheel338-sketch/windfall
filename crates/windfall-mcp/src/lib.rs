@@ -22,6 +22,7 @@ pub mod bridge;
 pub mod edits;
 mod host;
 pub mod http;
+pub mod library;
 pub mod listen;
 pub mod music;
 pub mod protocol;
@@ -29,7 +30,10 @@ pub mod summary;
 pub mod tools;
 
 pub use approvals::{Approvals, Approver, Entry, Preview, Status};
-pub use host::{Focus, Host, RenderRegion, RenderRequest, RenderedAudio, Snapshot, Transport};
+pub use host::{
+    ChannelPresetInfo, Focus, Host, LibraryFile, LibraryPage, NO_FILES, NativeEdit, RenderRegion,
+    RenderRequest, RenderedAudio, Snapshot, SoundFontPreset, Transport,
+};
 pub use protocol::Server;
 
 #[cfg(test)]

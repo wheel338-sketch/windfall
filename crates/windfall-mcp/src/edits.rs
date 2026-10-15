@@ -19,7 +19,7 @@ use windfall_project::{
 
 use crate::approvals::{Approver, Preview, Status};
 use crate::args::{self, Args};
-use crate::host::Snapshot;
+use crate::host::{NativeEdit, Snapshot};
 use crate::music::{self, Grid};
 use crate::summary::{self, ParamTarget, kind_name};
 use crate::tools::Call;
@@ -245,7 +245,101 @@ pub fn propose(
     args: &Args,
     draft: Draft,
 ) -> Result<Value, String> {
-    if draft.commands.is_empty() {
+    propose_native(call, snapshot, args, draft, None)
+}
+
+/// Tries a proposal that holds an edit Windfall makes itself on a copy of
+/// the project. A SoundFont load is tried with the commands it will be
+/// applied as, without reading the file; a channel preset, which is read
+/// only when applied, adds nothing to the preview.
+pub fn native_preview(
+    snapshot: &Snapshot,
+    proposal: &CommandProposal,
+    native: &NativeEdit,
+    changes: Vec<String>,
+    expected: &[u32],
+) -> Result<Preview, String> {
+    if snapshot.recording {
+        return Err("proposals cannot apply while recording".into());
+    }
+    if proposal.label.trim().is_empty() || proposal.label.len() > 128 {
+        return Err("proposal label/explanation limit exceeded".into());
+    }
+    let mut candidate = snapshot.document.clone();
+    let mut created_ids = Vec::new();
+    if !proposal.commands.is_empty() {
+        let applied = candidate
+            .dispatch(proposal.batch()?, None)
+            .map_err(|error| error.to_string())?;
+        created_ids = applied.created;
+    }
+    if let NativeEdit::SoundFont {
+        channel,
+        path,
+        bank,
+        program,
+        replace_instrument,
+        ..
+    } = native
+    {
+        let stored = windfall_project::SamplePath::External(path.clone());
+        let existing = candidate
+            .project()
+            .samples
+            .iter()
+            .find(|sample| sample.path == stored)
+            .map(|sample| sample.id);
+        let (commands, _) = windfall_project::sample_instrument::soundfont_load_commands(
+            &candidate,
+            *channel,
+            file_stem(path),
+            stored,
+            existing,
+            *bank,
+            *program,
+            *replace_instrument,
+        )?;
+        candidate
+            .dispatch(
+                Command::Batch {
+                    label: Some(proposal.label.clone()),
+                    commands,
+                },
+                None,
+            )
+            .map_err(|error| error.to_string())?;
+        candidate.project().check()?;
+    }
+    if expected.iter().any(|id| !created_ids.contains(id)) {
+        return Err("the preview created other ids than the tool expected; read the project again and retry".into());
+    }
+    let before = snapshot.document.project();
+    let after = candidate.project();
+    Ok(Preview {
+        changes,
+        created: created(before, after),
+        counts: counts(before, after),
+    })
+}
+
+/// A file's name without its folder and extension.
+pub fn file_stem(path: &str) -> String {
+    let name = path.rsplit(['/', '\\']).next().unwrap_or(path);
+    match name.rsplit_once('.') {
+        Some((stem, _)) if !stem.is_empty() => stem.to_owned(),
+        _ => name.to_owned(),
+    }
+}
+
+/// Files the draft, with an edit Windfall makes itself when there is one.
+pub fn propose_native(
+    call: &Call<'_>,
+    snapshot: &Snapshot,
+    args: &Args,
+    draft: Draft,
+    native: Option<NativeEdit>,
+) -> Result<Value, String> {
+    if draft.commands.is_empty() && native.is_none() {
         return Err("nothing would change, so no proposal was made".into());
     }
     let title = args::optional_text(args, "title", 80)?
@@ -259,11 +353,14 @@ pub fn propose(
         explanation: explanation.to_owned(),
         commands: draft.commands,
     };
-    let preview = preview(snapshot, &proposal, draft.changes, &draft.expected)?;
+    let preview = match &native {
+        None => preview(snapshot, &proposal, draft.changes, &draft.expected)?,
+        Some(edit) => native_preview(snapshot, &proposal, edit, draft.changes, &draft.expected)?,
+    };
     let label = proposal.label.clone();
     let id = call
         .approvals
-        .submit(call.agent, proposal, preview.clone())?;
+        .submit_native(call.agent, proposal, native, preview.clone())?;
     call.host.proposals_changed();
     let status = if call.approvals.trusted(call.agent) {
         call.approvals
@@ -288,6 +385,118 @@ pub fn propose(
         "stamp": snapshot.stamp,
         "next": next,
     }))
+}
+
+/// A SoundFont preset an agent named, checked against the file: the file
+/// inside the browser's folders, the preset in it.
+pub struct SoundFontChoice {
+    pub path: String,
+    pub preset: windfall_dsp::sample_bank::soundfont::SoundFontPreset,
+}
+
+/// Reads `{path, bank, program}` and checks them with Windfall.
+pub fn soundfont_choice(call: &Call<'_>, args: &Args) -> Result<SoundFontChoice, String> {
+    let path = call.host.library_file(args::text(args, "path", 4096)?)?;
+    let bank = args::optional_u32(args, "bank", 0..=u32::from(u16::MAX))?.unwrap_or(0);
+    let program = args::optional_u32(args, "program", 0..=u32::from(u16::MAX))?
+        .ok_or("argument program is required")?;
+    let presets = call.host.soundfont_presets(&path)?;
+    let preset = presets
+        .into_iter()
+        .find(|preset| u32::from(preset.bank) == bank && u32::from(preset.program) == program)
+        .ok_or_else(|| {
+            format!("the SoundFont has no preset at bank {bank}, program {program}; list_soundfont_presets lists its presets")
+        })?;
+    Ok(SoundFontChoice { path, preset })
+}
+
+/// `load_soundfont_preset`.
+pub fn load_soundfont_preset(
+    call: &Call<'_>,
+    snapshot: &Snapshot,
+    args: &Args,
+) -> Result<Value, String> {
+    args::known(
+        args,
+        &allowed(&["channelId", "path", "bank", "program", "replaceInstrument"]),
+    )?;
+    let project = snapshot.document.project();
+    let channel = summary::channel_of(project, args::id(args, "channelId")?)?;
+    let replace = args::optional_bool(args, "replaceInstrument")?.unwrap_or(false);
+    let kind = match &channel.source {
+        windfall_project::ChannelSource::Instrument { params, .. } => params.kind(),
+        windfall_project::ChannelSource::Sampler(_) => {
+            return Err(format!(
+                "channel {} \"{}\" is a sampler, which cannot play a SoundFont; add_channel with soundFont adds a SoundFont channel",
+                channel.id.0, channel.name
+            ));
+        }
+    };
+    if kind != InstrumentKind::SoundFont && !replace {
+        return Err(format!(
+            "channel {} \"{}\" plays {}, not a SoundFont player. Set replaceInstrument to true to make it a SoundFont player (its notes, mixer track and name stay), or add a channel with add_channel and soundFont",
+            channel.id.0,
+            channel.name,
+            kind.name()
+        ));
+    }
+    let choice = soundfont_choice(call, args)?;
+    let mut draft = Draft::new("Load SoundFont preset");
+    if kind != InstrumentKind::SoundFont {
+        draft.changes.push(format!(
+            "make channel {} a SoundFont player instead of {}",
+            channel.id.0,
+            kind.name()
+        ));
+    }
+    draft.changes.push(format!(
+        "load SoundFont preset \"{}\" (bank {}, program {}) from {} into channel {}",
+        choice.preset.name, choice.preset.bank, choice.preset.program, choice.path, channel.id.0
+    ));
+    let native = NativeEdit::SoundFont {
+        channel: channel.id,
+        path: choice.path,
+        bank: choice.preset.bank,
+        program: choice.preset.program,
+        preset: choice.preset.name,
+        replace_instrument: kind != InstrumentKind::SoundFont,
+    };
+    propose_native(call, snapshot, args, draft, Some(native))
+}
+
+/// `apply_channel_preset`.
+pub fn apply_channel_preset(
+    call: &Call<'_>,
+    snapshot: &Snapshot,
+    args: &Args,
+) -> Result<Value, String> {
+    args::known(args, &allowed(&["channelId", "preset"]))?;
+    let project = snapshot.document.project();
+    let channel = summary::channel_of(project, args::id(args, "channelId")?)?;
+    let wanted = args::text(args, "preset", 4096)?.trim();
+    let presets = call.host.channel_presets()?;
+    let preset = presets
+        .iter()
+        .find(|preset| preset.path == wanted)
+        .or_else(|| {
+            presets
+                .iter()
+                .find(|preset| preset.name.eq_ignore_ascii_case(wanted))
+        })
+        .ok_or_else(|| {
+            format!("there is no channel preset {wanted:?}; list_channel_presets lists them")
+        })?;
+    let mut draft = Draft::new("Load channel preset");
+    draft.changes.push(format!(
+        "load channel preset \"{}\" ({}) onto channel {}",
+        preset.name, preset.instrument, channel.id.0
+    ));
+    let native = NativeEdit::ChannelPreset {
+        channel: channel.id,
+        path: preset.path.clone(),
+        name: preset.name.clone(),
+    };
+    propose_native(call, snapshot, args, draft, Some(native))
 }
 
 fn pattern_and_channel<'a>(
@@ -793,14 +1002,39 @@ where
 
 /// `add_channel`.
 pub fn add_channel(call: &Call<'_>, snapshot: &Snapshot, args: &Args) -> Result<Value, String> {
-    args::known(args, &allowed(&["instrument", "name", "mixerTrackId"]))?;
-    let project = snapshot.document.project();
-    let instrument = parse_kind(
-        args::text(args, "instrument", 64)?,
-        &InstrumentKind::ALL,
-        |kind| kind.name(),
-        "built-in instrument",
+    args::known(
+        args,
+        &allowed(&["instrument", "name", "mixerTrackId", "soundFont"]),
     )?;
+    let project = snapshot.document.project();
+    let soundfont = match args::optional_value(args, "soundFont") {
+        None => None,
+        Some(Value::Object(choice)) => {
+            args::known(choice, &["path", "bank", "program"])?;
+            Some(soundfont_choice(call, choice)?)
+        }
+        Some(_) => {
+            return Err(
+                "argument soundFont must be {\"path\", \"bank\", \"program\"}".into(),
+            );
+        }
+    };
+    let instrument = match (args::optional_text(args, "instrument", 64)?, &soundfont) {
+        (Some(text), _) => parse_kind(
+            text,
+            &InstrumentKind::ALL,
+            |kind| kind.name(),
+            "built-in instrument",
+        )?,
+        (None, Some(_)) => InstrumentKind::SoundFont,
+        (None, None) => return Err("argument instrument is required".into()),
+    };
+    if soundfont.is_some() && instrument != InstrumentKind::SoundFont {
+        return Err(
+            "soundFont is for a SoundFont channel: leave instrument out or make it \"soundFont\""
+                .into(),
+        );
+    }
     let name = args::optional_text(args, "name", 128)?.map(str::to_owned);
     let mixer_track = args::optional_id(args, "mixerTrackId")?
         .map(|id| summary::track_of(project, id).map(|track| track.id))
@@ -824,7 +1058,31 @@ pub fn add_channel(call: &Call<'_>, snapshot: &Snapshot, args: &Args) -> Result<
         index: None,
         mixer_track,
     });
-    propose(call, snapshot, args, draft)
+    let native = soundfont.map(|choice| {
+        draft.changes.push(format!(
+            "load SoundFont preset \"{}\" (bank {}, program {}) from {} into channel {id}",
+            choice.preset.name, choice.preset.bank, choice.preset.program, choice.path
+        ));
+        NativeEdit::SoundFont {
+            channel: ChannelId(id),
+            path: choice.path,
+            bank: choice.preset.bank,
+            program: choice.preset.program,
+            preset: choice.preset.name,
+            replace_instrument: false,
+        }
+    });
+    let silent = native
+        .is_none()
+        .then(|| summary::source_needed(instrument))
+        .flatten();
+    let mut result = propose_native(call, snapshot, args, draft, native)?;
+    if let Some(needed) = silent {
+        result["warning"] = json!(format!(
+            "channel {id} will be silent until it has a source: it needs {needed}"
+        ));
+    }
+    Ok(result)
 }
 
 /// `add_effect`.

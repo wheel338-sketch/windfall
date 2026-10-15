@@ -5646,6 +5646,7 @@ dependencies = [
  "serde_json",
  "windfall-core",
  "windfall-dsp",
+ "windfall-midi",
  "windfall-project",
  "windfall-stretch",
 ]

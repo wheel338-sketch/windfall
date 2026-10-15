@@ -22,6 +22,7 @@ use serde_json::Value;
 use windfall_project::proposal::CommandProposal;
 
 use crate::Host;
+use crate::host::NativeEdit;
 
 /// Proposals that may wait for the user at once.
 pub const MAX_WAITING: usize = 16;
@@ -83,6 +84,9 @@ pub struct Entry {
     pub id: String,
     pub agent: String,
     pub proposal: CommandProposal,
+    /// The edit Windfall makes itself when this is applied, beside the
+    /// proposal's commands.
+    pub native: Option<NativeEdit>,
     pub preview: Preview,
     pub status: Status,
     /// Applied without asking, because the user allowed the agent to.
@@ -131,6 +135,17 @@ impl Approvals {
         proposal: CommandProposal,
         preview: Preview,
     ) -> Result<String, String> {
+        self.submit_native(agent, proposal, None, preview)
+    }
+
+    /// Files a proposal that may hold an edit Windfall makes itself.
+    pub fn submit_native(
+        &self,
+        agent: &str,
+        proposal: CommandProposal,
+        native: Option<NativeEdit>,
+        preview: Preview,
+    ) -> Result<String, String> {
         let mut state = self.state();
         let waiting = state
             .entries
@@ -148,6 +163,7 @@ impl Approvals {
             id: id.clone(),
             agent: agent.to_owned(),
             proposal,
+            native,
             preview,
             status: Status::Pending,
             automatic: false,
@@ -192,7 +208,11 @@ impl Approvals {
     }
 
     /// Marks a pending proposal as being applied and hands it out.
-    pub fn begin(&self, id: &str, approver: Approver<'_>) -> Result<CommandProposal, String> {
+    pub fn begin(
+        &self,
+        id: &str,
+        approver: Approver<'_>,
+    ) -> Result<(CommandProposal, Option<NativeEdit>), String> {
         let mut state = self.state();
         let trusted = match approver {
             Approver::User => true,
@@ -221,7 +241,7 @@ impl Approvals {
         }
         entry.status = Status::Applying;
         entry.automatic = matches!(approver, Approver::Agent(_));
-        Ok(entry.proposal.clone())
+        Ok((entry.proposal.clone(), entry.native.clone()))
     }
 
     /// Records how an apply that [`begin`](Self::begin) started ended.
@@ -246,9 +266,13 @@ impl Approvals {
         id: &str,
         approver: Approver<'_>,
     ) -> Result<Status, String> {
-        let proposal = self.begin(id, approver)?;
+        let (proposal, native) = self.begin(id, approver)?;
         host.proposals_changed();
-        let status = self.finish(id, host.apply(proposal));
+        let result = match native {
+            None => host.apply(proposal),
+            Some(edit) => host.apply_native(proposal, edit),
+        };
+        let status = self.finish(id, result);
         host.proposals_changed();
         Ok(status)
     }

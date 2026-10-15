@@ -10,7 +10,7 @@ use crate::approvals::{Approvals, Approver, Entry, Status};
 use crate::args::{self, Args};
 use crate::host::{Host, RenderRegion, RenderRequest, Snapshot};
 use crate::listen::{self, MAX_RENDER_SECONDS};
-use crate::{edits, summary};
+use crate::{edits, library, summary};
 
 /// What a tool runs with.
 pub struct Call<'a> {
@@ -140,6 +140,21 @@ fn props(items: Vec<(&str, Value)>) -> serde_json::Map<String, Value> {
         .collect()
 }
 
+fn soundfont_path() -> Value {
+    json!({"type": "string", "maxLength": 4096, "description": "The SoundFont (.sf2) file: an absolute path inside one of the folders in Windfall's browser or its factory content, as search_library gives it. Other files are refused."})
+}
+
+fn soundfont_choice() -> Value {
+    object(
+        json!({
+            "path": soundfont_path(),
+            "bank": {"type": "integer", "minimum": 0, "maximum": 65535, "description": "The preset's bank; 0 when left out (128 holds General MIDI drum kits)."},
+            "program": {"type": "integer", "minimum": 0, "maximum": 65535, "description": "The preset's program, as list_soundfont_presets gives it."},
+        }),
+        &["path", "program"],
+    )
+}
+
 fn param_target() -> Vec<(&'static str, Value)> {
     vec![
         (
@@ -235,12 +250,63 @@ pub static TOOLS: &[Tool] = &[
         name: "list_instruments_and_effects",
         title: "Built-in instruments and effects",
         kind: Kind::Read,
-        description: "Every built-in instrument and effect kind, with its name, how many settings it has and its first settings. add_channel and add_effect take the kind.",
+        description: "Every built-in instrument and effect kind, with its name, how many settings it has and its first settings. add_channel and add_effect take the kind. needsSource marks instruments that play from a sample, a SoundFont or a phrase and are silent until they have one.",
         schema: || {
             object(
                 json!({"category": {"type": "string", "enum": ["instrument", "effect"]}}),
                 &[],
             )
+        },
+    },
+    Tool {
+        name: "search_library",
+        title: "Search the browser's folders",
+        kind: Kind::Read,
+        description: "Searches the folders in Windfall's browser (the factory content and the folders the user added) with the browser's own search: words match anywhere in the path, and kind keeps one kind of file (\"soundFont\" for .sf2 files, \"audio\" for samples). Returns paths, kinds and sizes. Paged.",
+        schema: || {
+            let mut items = props(vec![
+                (
+                    "query",
+                    json!({"type": "string", "maxLength": 1024, "description": "Words in the file's path, such as \"piano\"; every file when left out."}),
+                ),
+                (
+                    "kind",
+                    json!({"type": "string", "enum": library::KINDS}),
+                ),
+            ]);
+            items.extend(page().map(|(k, v)| (k.to_owned(), v)));
+            object(Value::Object(items), &[])
+        },
+    },
+    Tool {
+        name: "list_soundfont_presets",
+        title: "Presets of a SoundFont",
+        kind: Kind::Read,
+        description: "The presets of a SoundFont (.sf2) file in the browser's folders: bank, program and name, with the General MIDI family of banks 0 and 128. search filters by name or family. Paged.",
+        schema: || {
+            let mut items = props(vec![
+                ("path", soundfont_path()),
+                (
+                    "search",
+                    json!({"type": "string", "maxLength": 128, "description": "Only presets whose name or family contains this, such as \"horn\" or \"brass\"."}),
+                ),
+            ]);
+            items.extend(page().map(|(k, v)| (k.to_owned(), v)));
+            object(Value::Object(items), &["path"])
+        },
+    },
+    Tool {
+        name: "list_channel_presets",
+        title: "Channel presets",
+        kind: Kind::Read,
+        description: "The channel presets of Windfall's factory content and of the user's preset library: name, file and the instrument each plays. apply_channel_preset loads one onto a channel. Paged.",
+        schema: || {
+            let mut items = props(vec![(
+                "search",
+                json!({"type": "string", "maxLength": 128, "description": "Only presets whose name or instrument contains this."}),
+            )]);
+            items.extend(page().map(|(k, v)| (k.to_owned(), v)));
+            object(Value::Object(items), &[])
         },
     },
     Tool {
@@ -375,21 +441,64 @@ pub static TOOLS: &[Tool] = &[
         name: "add_channel",
         title: "Add a channel",
         kind: Kind::Edit,
-        description: "Proposes a channel playing a built-in instrument, into a new mixer track of its own unless mixerTrackId is given.",
+        description: "Proposes a channel playing a built-in instrument, into a new mixer track of its own unless mixerTrackId is given. With soundFont the channel is a SoundFont player with that preset loaded, in the same proposal; instruments that need a source and get none are silent until one is loaded, which the result warns about.",
         schema: || {
             edit(
                 props(vec![
                     (
                         "instrument",
-                        json!({"type": "string", "description": "An instrument kind from list_instruments_and_effects, such as \"subtractiveSynth\"."}),
+                        json!({"type": "string", "description": "An instrument kind from list_instruments_and_effects, such as \"subtractiveSynth\". Leave out with soundFont."}),
                     ),
+                    ("soundFont", soundfont_choice()),
                     ("name", json!({"type": "string", "maxLength": 128})),
                     (
                         "mixerTrackId",
                         id("Play into this mixer track instead of a new one."),
                     ),
                 ]),
-                &["instrument"],
+                &[],
+            )
+        },
+    },
+    Tool {
+        name: "load_soundfont_preset",
+        title: "Load a SoundFont preset",
+        kind: Kind::Edit,
+        description: "Proposes loading one preset of a SoundFont (.sf2) file in the browser's folders into a SoundFont channel, as one undo step. Windfall reads the file when the user applies it. A channel with another built-in instrument is refused unless replaceInstrument is true, which makes it a SoundFont player and keeps its notes, mixer track and name.",
+        schema: || {
+            edit(
+                props(vec![
+                    ("channelId", id("The channel.")),
+                    ("path", soundfont_path()),
+                    (
+                        "bank",
+                        json!({"type": "integer", "minimum": 0, "maximum": 65535, "description": "The preset's bank; 0 when left out."}),
+                    ),
+                    (
+                        "program",
+                        json!({"type": "integer", "minimum": 0, "maximum": 65535, "description": "The preset's program, as list_soundfont_presets gives it."}),
+                    ),
+                    ("replaceInstrument", json!({"type": "boolean"})),
+                ]),
+                &["channelId", "path", "program"],
+            )
+        },
+    },
+    Tool {
+        name: "apply_channel_preset",
+        title: "Load a channel preset",
+        kind: Kind::Edit,
+        description: "Proposes loading a channel preset from list_channel_presets onto a channel, as one undo step: its instrument and settings, and its sample for a sampler preset.",
+        schema: || {
+            edit(
+                props(vec![
+                    ("channelId", id("The channel.")),
+                    (
+                        "preset",
+                        json!({"type": "string", "maxLength": 4096, "description": "The preset's path or name from list_channel_presets."}),
+                    ),
+                ]),
+                &["channelId", "preset"],
             )
         },
     },
@@ -716,7 +825,7 @@ pub static TOOLS: &[Tool] = &[
         name: "render_and_measure",
         title: "Listen: render and measure",
         kind: Kind::Listen,
-        description: "Renders offline, without playing, and measures: integrated loudness (LUFS), loudness range, true and sample peak, clipping, RMS over time, stereo correlation, energy per octave band, detected tempo and key. Also keeps the render as a WAV file in a Windfall folder and returns its path. region: left out for the song, {\"from\", \"to\"} song positions, or {\"patternId\", \"loops\"}. soloTrackId renders one mixer track alone. At most 120 seconds.",
+        description: "Renders offline, without playing, and measures: integrated loudness (LUFS), loudness range, true and sample peak, clipping, RMS over time, stereo correlation, energy per octave band, detected tempo and key. silentChannels lists channels with notes in the region that made no sound, and why. Also keeps the render as a WAV file in a Windfall folder and returns its path. region: left out for the song, {\"from\", \"to\"} song positions, or {\"patternId\", \"loops\"}. soloTrackId renders one mixer track alone. At most 120 seconds.",
         schema: || {
             object(
                 json!({
@@ -769,6 +878,11 @@ pub fn run(tool: &Tool, call: &Call<'_>, arguments: Option<&Value>) -> Result<Re
             summary::selection(&snapshot, &call.host.focus())
         }
         "list_instruments_and_effects" => summary::kinds(args)?,
+        "search_library" => library::search(call, args)?,
+        "list_soundfont_presets" => library::soundfont_presets(call, args)?,
+        "list_channel_presets" => library::channel_presets(call, args)?,
+        "load_soundfont_preset" => edits::load_soundfont_preset(call, &snapshot, args)?,
+        "apply_channel_preset" => edits::apply_channel_preset(call, &snapshot, args)?,
         "create_pattern" => edits::create_pattern(call, &snapshot, args)?,
         "add_notes" => edits::add_notes(call, &snapshot, args)?,
         "remove_notes" => edits::remove_notes(call, &snapshot, args)?,
@@ -937,9 +1051,25 @@ fn listen_tool(call: &Call<'_>, args: &Args) -> Result<Reply, String> {
             "mimeType": "audio/wav",
         }));
     }
+    let silent: Vec<Value> = rendered
+        .silent_channels
+        .iter()
+        .filter_map(|id| project.channel(*id))
+        .map(|channel| {
+            json!({
+                "id": channel.id.0,
+                "name": channel.name,
+                "reason": summary::missing_source(channel).map_or_else(
+                    || "it made no sound in the render: check its level, mixer routing and settings".to_owned(),
+                    |needed| format!("it has no source loaded and needs {needed}"),
+                ),
+            })
+        })
+        .collect();
     Ok(Reply {
         value: json!({
             "measurements": measurements,
+            "silentChannels": silent,
             "wavPath": rendered.path,
             "projectTempoBpm": project.settings.tempo_bpm,
             "stamp": snapshot.stamp,

@@ -19,7 +19,10 @@ use windfall_project::{
 
 use crate::approvals::{Approver, Status};
 use crate::bridge::{self, Bridge, Link};
-use crate::host::{Focus, Host, RenderRequest, RenderedAudio, Snapshot, Transport};
+use crate::host::{
+    ChannelPresetInfo, Focus, Host, LibraryFile, LibraryPage, NativeEdit, RenderRequest,
+    RenderedAudio, Snapshot, SoundFontPreset, Transport,
+};
 use crate::http::{self, Endpoint, HttpRequest};
 use crate::protocol::{self, Incoming, LEGACY, MODERN, Server};
 
@@ -35,8 +38,15 @@ struct Fixture {
     slow: AtomicBool,
     counter: AtomicU64,
     changes: AtomicUsize,
+    /// What the fixture's renders say made no sound.
+    silent: Mutex<Vec<ChannelId>>,
     ids: Ids,
 }
+
+/// The fixture's library: the only folder an agent may name.
+const LIBRARY: &str = "C:/Library/";
+const SOUNDFONT: &str = "C:/Library/GM.sf2";
+
 
 /// The fixture's ids.
 #[derive(Clone, Copy)]
@@ -125,6 +135,7 @@ impl Fixture {
             slow: AtomicBool::new(false),
             counter: AtomicU64::new(0),
             changes: AtomicUsize::new(0),
+            silent: Mutex::new(Vec::new()),
             ids,
         }
     }
@@ -210,7 +221,140 @@ impl Host for Fixture {
             samples,
             sample_rate: rate,
             path: Some("C:/Windfall/Agent renders/Render-1.wav".into()),
+            silent_channels: self.silent.lock().unwrap().clone(),
         })
+    }
+
+    fn apply_native(&self, proposal: CommandProposal, edit: NativeEdit) -> Result<u64, String> {
+        let mut document = self.document.lock().unwrap();
+        let stamp = ProposalStamp {
+            generation: 1,
+            revision: document.revision(),
+        };
+        if proposal.stamp != stamp {
+            return Err("proposal is stale; generate a new preview".into());
+        }
+        let mut commands = proposal.commands.clone();
+        if !commands.is_empty() {
+            proposal.batch()?;
+        }
+        let mut candidate = document.clone();
+        if !commands.is_empty() {
+            candidate
+                .dispatch(proposal.batch()?, None)
+                .map_err(|e| e.to_string())?;
+        }
+        match edit {
+            NativeEdit::SoundFont {
+                channel,
+                path,
+                bank,
+                program,
+                replace_instrument,
+                ..
+            } => {
+                let (load, _) = windfall_project::sample_instrument::soundfont_load_commands(
+                    &candidate,
+                    channel,
+                    "GM".into(),
+                    windfall_project::SamplePath::External(path),
+                    None,
+                    bank,
+                    program,
+                    replace_instrument,
+                )?;
+                commands.extend(load);
+            }
+            NativeEdit::ChannelPreset { channel, name, .. } => {
+                commands.push(Command::UpdateChannel {
+                    id: channel,
+                    patch: windfall_project::ChannelPatch {
+                        name: Some(name),
+                        ..Default::default()
+                    },
+                });
+            }
+        }
+        let applied = document
+            .dispatch(
+                Command::Batch {
+                    label: Some(proposal.label.clone()),
+                    commands,
+                },
+                None,
+            )
+            .map_err(|e| e.to_string())?;
+        document.patch(&applied.touched);
+        Ok(document.revision())
+    }
+
+    fn library_file(&self, path: &str) -> Result<String, String> {
+        let path = path.replace('\\', "/");
+        if !path.starts_with(LIBRARY) || path.contains("..") {
+            return Err(format!(
+                "{path} is not inside a folder in Windfall's browser"
+            ));
+        }
+        Ok(path)
+    }
+
+    fn soundfont_presets(&self, path: &str) -> Result<Vec<SoundFontPreset>, String> {
+        if path != SOUNDFONT {
+            return Err("not a SoundFont".into());
+        }
+        let preset = |bank, program, name: &str| SoundFontPreset {
+            name: name.into(),
+            bank,
+            program,
+        };
+        Ok(vec![
+            preset(0, 0, "Grand Piano"),
+            preset(0, 52, "Choir Aahs"),
+            preset(0, 60, "French Horn"),
+            preset(128, 0, "Standard Kit"),
+        ])
+    }
+
+    fn search_library(
+        &self,
+        query: &str,
+        kind: Option<&str>,
+        offset: usize,
+        limit: usize,
+    ) -> Result<LibraryPage, String> {
+        let files = [
+            (SOUNDFONT, "soundFont", 1_000_000),
+            ("C:/Library/Choir/Aah.wav", "audio", 48_000),
+            ("C:/Library/Kick.wav", "audio", 12_000),
+        ];
+        let found: Vec<LibraryFile> = files
+            .iter()
+            .filter(|(path, file_kind, _)| {
+                kind.is_none_or(|kind| kind == *file_kind)
+                    && path.to_lowercase().contains(&query.to_lowercase())
+            })
+            .map(|(path, kind, bytes)| LibraryFile {
+                path: (*path).into(),
+                kind: (*kind).into(),
+                bytes: *bytes,
+                relative_path: path.trim_start_matches(LIBRARY).into(),
+            })
+            .collect();
+        Ok(LibraryPage {
+            total: found.len(),
+            items: found.into_iter().skip(offset).take(limit).collect(),
+            indexing: false,
+            truncated: false,
+        })
+    }
+
+    fn channel_presets(&self) -> Result<Vec<ChannelPresetInfo>, String> {
+        Ok(vec![ChannelPresetInfo {
+            name: "Warm Pad".into(),
+            path: "C:/Windfall/Presets/Warm Pad.wfpreset".into(),
+            origin: "library".into(),
+            instrument: "Subtractive Synth".into(),
+        }])
     }
 
     fn proposals_changed(&self) {
@@ -564,6 +708,11 @@ fn tools_list_gives_every_tool_an_object_schema() {
         "apply_proposal",
         "withdraw_proposal",
         "render_and_measure",
+        "search_library",
+        "list_soundfont_presets",
+        "list_channel_presets",
+        "load_soundfont_preset",
+        "apply_channel_preset",
     ] {
         assert!(names.contains(expected), "{expected}");
     }
@@ -2678,4 +2827,560 @@ fn agent_names_are_clean_and_bounded() {
         40
     );
     assert!(crate::edits::history_label(&"é".repeat(100), "Edit").len() <= 128);
+}
+
+// --- SoundFonts, the library, channel presets, silent channels -------------
+
+impl Fixture {
+    /// A SoundFont channel with no SoundFont loaded, and notes, as an agent
+    /// left the "Choir" in a song.
+    fn empty_choir(&self) -> ChannelId {
+        let mut document = self.document.lock().unwrap();
+        let applied = document
+            .dispatch(
+                Command::AddChannel {
+                    name: Some("Choir".into()),
+                    sample: None,
+                    instrument: Some(InstrumentKind::SoundFont),
+                    index: None,
+                    mixer_track: None,
+                },
+                None,
+            )
+            .unwrap();
+        document.patch(&applied.touched);
+        let choir = ChannelId(applied.created[0]);
+        let applied = document
+            .dispatch(
+                Command::AddNotes {
+                    pattern: self.ids.pattern,
+                    channel: choir,
+                    notes: vec![NoteInit {
+                        start: 0,
+                        length: PPQ,
+                        key: 60,
+                        velocity: None,
+                        pan: None,
+                        expression: None,
+                    }],
+                },
+                None,
+            )
+            .unwrap();
+        document.patch(&applied.touched);
+        choir
+    }
+
+    /// Undoes the newest step, as Ctrl+Z does.
+    fn undo(&self) {
+        let mut document = self.document.lock().unwrap();
+        let touched = document.undo().expect("a step to undo");
+        document.patch(&touched);
+    }
+
+    fn last_label(&self) -> String {
+        let history = self.history();
+        history.entries[history.cursor as usize - 1].label.clone()
+    }
+}
+
+fn soundfont_of(project: &Project, channel: ChannelId) -> Option<(u16, u16, String)> {
+    match &project.channel(channel)?.sample_instrument {
+        Some(windfall_project::SampleInstrumentAsset::SoundFont {
+            bank,
+            program,
+            path,
+            ..
+        }) => {
+            let windfall_project::SamplePath::External(path) = path else {
+                return None;
+            };
+            Some((*bank, *program, path.clone()))
+        }
+        _ => None,
+    }
+}
+
+#[test]
+fn list_soundfont_presets_reads_the_file_through_windfall_with_families() {
+    let (server, host) = setup();
+    let listed = ok(&call(
+        &server,
+        &host,
+        "list_soundfont_presets",
+        json!({"path": SOUNDFONT}),
+    ));
+    assert_eq!(listed["path"], SOUNDFONT);
+    assert_eq!(listed["presetCount"], 4);
+    let items = listed["items"].as_array().unwrap();
+    assert_eq!(items[1]["name"], "Choir Aahs");
+    assert_eq!(items[1]["family"], "Ensemble");
+    assert_eq!(items[1]["generalMidiName"], "Choir Aahs");
+    assert_eq!(items[2]["family"], "Brass");
+    assert_eq!(items[2]["generalMidiName"], "French Horn");
+    assert_eq!(items[3]["family"], "Drum Kits");
+    assert!(items[3]["generalMidiName"].is_null());
+    // Search by name or family, and paging.
+    let horn = ok(&call(
+        &server,
+        &host,
+        "list_soundfont_presets",
+        json!({"path": SOUNDFONT, "search": "brass"}),
+    ));
+    assert_eq!(horn["total"], 1);
+    assert_eq!(horn["items"][0]["program"], 60);
+    let first = ok(&call(
+        &server,
+        &host,
+        "list_soundfont_presets",
+        json!({"path": SOUNDFONT, "limit": 1, "offset": 1}),
+    ));
+    assert_eq!(first["items"].as_array().unwrap().len(), 1);
+    assert_eq!(first["nextOffset"], 2);
+    // Files outside the browser's folders are refused before anything is read.
+    for path in ["D:/Elsewhere/GM.sf2", "C:/Library/../Windows/GM.sf2"] {
+        let refused = failure(&call(
+            &server,
+            &host,
+            "list_soundfont_presets",
+            json!({"path": path}),
+        ));
+        assert!(refused.contains("not inside"), "{refused}");
+    }
+    assert!(
+        failure(&call(&server, &host, "list_soundfont_presets", json!({})))
+            .contains("path")
+    );
+}
+
+#[test]
+fn load_soundfont_preset_is_a_proposal_applied_as_one_undo_step() {
+    let (server, host) = setup();
+    let choir = host.empty_choir();
+    let before = host.project();
+    let cursor = host.history().cursor;
+    let (result, commands) = propose(
+        &server,
+        &host,
+        "load_soundfont_preset",
+        json!({"channelId": choir.0, "path": SOUNDFONT, "program": 52, "title": "Choir voice"}),
+    );
+    // The load is Windfall's own edit, not raw commands.
+    assert!(commands.is_empty());
+    let entry = server
+        .approvals()
+        .get(result["proposalId"].as_str().unwrap())
+        .unwrap();
+    assert!(matches!(
+        &entry.native,
+        Some(NativeEdit::SoundFont { channel, bank: 0, program: 52, preset, replace_instrument: false, .. })
+            if *channel == choir && preset == "Choir Aahs"
+    ));
+    assert!(
+        result["changes"][0]
+            .as_str()
+            .unwrap()
+            .contains("\"Choir Aahs\" (bank 0, program 52)")
+    );
+    assert_eq!(host.project(), before);
+    assert!(matches!(
+        approve(&server, &host, &result),
+        Status::Applied { .. }
+    ));
+    assert_eq!(
+        soundfont_of(&host.project(), choir),
+        Some((0, 52, SOUNDFONT.to_owned()))
+    );
+    assert_eq!(host.history().cursor, cursor + 1);
+    assert_eq!(host.last_label(), "test-agent: Choir voice");
+    // The summary no longer calls it silent.
+    let summary = ok(&call(&server, &host, "get_project_summary", json!({})));
+    let listed = summary["channels"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|channel| channel["id"] == choir.0)
+        .unwrap()
+        .clone();
+    assert_eq!(listed["silent"], false);
+    host.undo();
+    assert_eq!(host.project().channel(choir), before.channel(choir));
+    assert_eq!(host.history().cursor, cursor);
+}
+
+#[test]
+fn load_soundfont_preset_refuses_other_instruments_unknown_presets_and_outside_files() {
+    let (server, host) = setup();
+    let ids = host.ids;
+    let choir = host.empty_choir();
+    for (arguments, wanted) in [
+        (
+            json!({"channelId": ids.lead.0, "path": SOUNDFONT, "program": 52}),
+            "replaceInstrument",
+        ),
+        (
+            json!({"channelId": choir.0, "path": SOUNDFONT, "program": 99}),
+            "no preset at bank 0, program 99",
+        ),
+        (
+            json!({"channelId": choir.0, "path": SOUNDFONT, "bank": 1, "program": 0}),
+            "no preset at bank 1",
+        ),
+        (
+            json!({"channelId": choir.0, "path": "D:/Downloads/GM.sf2", "program": 52}),
+            "not inside",
+        ),
+        (
+            json!({"channelId": choir.0, "path": "C:\\Library\\..\\x.sf2", "program": 52}),
+            "not inside",
+        ),
+        (
+            json!({"channelId": 999, "path": SOUNDFONT, "program": 52}),
+            "no channel 999",
+        ),
+        (
+            json!({"channelId": choir.0, "path": SOUNDFONT}),
+            "program",
+        ),
+    ] {
+        let refused = failure(&call(&server, &host, "load_soundfont_preset", arguments));
+        assert!(refused.contains(wanted), "{wanted}: {refused}");
+    }
+    assert!(!server.approvals().waiting());
+    // Raw commands still cannot register a SoundFont or set a bank.
+    for command in [
+        json!({"type": "registerSoundFontSource", "sample": 1, "expected": {"kind": "external", "path": SOUNDFONT}}),
+        json!({"type": "setSampleInstrumentAsset", "channel": choir.0, "asset": {"type": "soundFont", "path": {"kind": "external", "path": SOUNDFONT}, "bank": 0, "program": 52}}),
+    ] {
+        let refused = failure(&call(
+            &server,
+            &host,
+            "apply_raw_commands",
+            json!({"commands": [command]}),
+        ));
+        assert!(refused.contains("registry"), "{refused}");
+    }
+}
+
+#[test]
+fn load_soundfont_preset_can_make_a_synth_channel_a_soundfont_player() {
+    let (server, host) = setup();
+    let ids = host.ids;
+    let before = host.project();
+    let cursor = host.history().cursor;
+    let (result, _) = propose(
+        &server,
+        &host,
+        "load_soundfont_preset",
+        json!({"channelId": ids.lead.0, "path": SOUNDFONT, "program": 60, "replaceInstrument": true}),
+    );
+    assert!(
+        result["changes"][0]
+            .as_str()
+            .unwrap()
+            .contains("SoundFont player instead of")
+    );
+    approve(&server, &host, &result);
+    let after = host.project();
+    let lead = after.channel(ids.lead).unwrap();
+    assert!(matches!(
+        &lead.source,
+        windfall_project::ChannelSource::Instrument { params, .. } if params.kind() == InstrumentKind::SoundFont
+    ));
+    assert_eq!(lead.name, "Lead");
+    assert_eq!(lead.mixer_track, ids.lead_track);
+    assert_eq!(
+        soundfont_of(&after, ids.lead),
+        Some((0, 60, SOUNDFONT.to_owned()))
+    );
+    assert_eq!(host.history().cursor, cursor + 1);
+    host.undo();
+    assert_eq!(host.project().channel(ids.lead), before.channel(ids.lead));
+}
+
+#[test]
+fn a_soundfont_proposal_goes_stale_like_any_other() {
+    let (server, host) = setup();
+    let choir = host.empty_choir();
+    let (result, _) = propose(
+        &server,
+        &host,
+        "load_soundfont_preset",
+        json!({"channelId": choir.0, "path": SOUNDFONT, "program": 52}),
+    );
+    host.edit(Command::UpdateSettings {
+        patch: windfall_project::SettingsPatch {
+            tempo_bpm: Some(99.0),
+            ..Default::default()
+        },
+    });
+    let id = result["proposalId"].as_str().unwrap();
+    let status = server
+        .approvals()
+        .apply(&host, id, Approver::User)
+        .unwrap();
+    assert!(matches!(status, Status::Failed { error } if error.contains("stale")));
+    assert_eq!(soundfont_of(&host.project(), choir), None);
+}
+
+#[test]
+fn add_channel_with_a_soundfont_is_playable_in_one_proposal() {
+    let (server, host) = setup();
+    let next = host.project().next_id;
+    let cursor = host.history().cursor;
+    let (result, commands) = propose(
+        &server,
+        &host,
+        "add_channel",
+        json!({"name": "Horns", "soundFont": {"path": SOUNDFONT, "program": 60}}),
+    );
+    assert_eq!(result["created"]["channels"], json!([next]));
+    assert!(result.get("warning").is_none(), "{result}");
+    assert!(
+        matches!(&commands[..], [Command::AddChannel { instrument: Some(InstrumentKind::SoundFont), .. }])
+    );
+    approve(&server, &host, &result);
+    let after = host.project();
+    assert_eq!(after.channel(ChannelId(next)).unwrap().name, "Horns");
+    assert_eq!(
+        soundfont_of(&after, ChannelId(next)),
+        Some((0, 60, SOUNDFONT.to_owned()))
+    );
+    assert_eq!(host.history().cursor, cursor + 1);
+    host.undo();
+    assert!(host.project().channel(ChannelId(next)).is_none());
+    // Refusals.
+    for (arguments, wanted) in [
+        (
+            json!({"instrument": "fourOp", "soundFont": {"path": SOUNDFONT, "program": 60}}),
+            "soundFont is for a SoundFont channel",
+        ),
+        (
+            json!({"soundFont": {"path": "E:/x.sf2", "program": 60}}),
+            "not inside",
+        ),
+        (json!({"soundFont": "GM.sf2"}), "soundFont must be"),
+        (json!({}), "instrument is required"),
+    ] {
+        let refused = failure(&call(&server, &host, "add_channel", arguments));
+        assert!(refused.contains(wanted), "{wanted}: {refused}");
+    }
+}
+
+#[test]
+fn silent_instruments_are_marked_and_warned_about() {
+    let (server, host) = setup();
+    let kinds = ok(&call(
+        &server,
+        &host,
+        "list_instruments_and_effects",
+        json!({"category": "instrument"}),
+    ));
+    let kind = |name: &str| {
+        kinds["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|item| item["kind"] == name)
+            .unwrap()
+            .clone()
+    };
+    for name in [
+        "soundFont",
+        "multiSampler",
+        "samplePlayer",
+        "padBank",
+        "textVoice",
+        "sliceMap",
+        "grainCloud",
+    ] {
+        assert_eq!(kind(name)["needsSource"], true, "{name}");
+        assert!(
+            kind(name)["description"]
+                .as_str()
+                .unwrap()
+                .contains("silent until"),
+            "{name}"
+        );
+    }
+    for name in ["subtractiveSynth", "pianoKeys", "fourOp", "kick"] {
+        assert_eq!(kind(name)["needsSource"], false, "{name}");
+    }
+    // add_channel warns that the channel will be silent.
+    let (result, _) = propose(
+        &server,
+        &host,
+        "add_channel",
+        json!({"instrument": "multiSampler"}),
+    );
+    assert!(
+        result["warning"]
+            .as_str()
+            .unwrap()
+            .contains("will be silent until it has a source")
+    );
+    let (result, _) = propose(
+        &server,
+        &host,
+        "add_channel",
+        json!({"instrument": "subtractiveSynth"}),
+    );
+    assert!(result.get("warning").is_none());
+    // The summary flags the channel with no source.
+    let choir = host.empty_choir();
+    let summary = ok(&call(&server, &host, "get_project_summary", json!({})));
+    let channel = |id: ChannelId| {
+        summary["channels"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|channel| channel["id"] == id.0)
+            .unwrap()
+            .clone()
+    };
+    assert_eq!(channel(choir)["silent"], true);
+    assert!(
+        channel(choir)["needs"]
+            .as_str()
+            .unwrap()
+            .contains("load_soundfont_preset")
+    );
+    assert_eq!(channel(host.ids.bass)["silent"], false);
+    let warnings = summary["warnings"].as_array().unwrap();
+    assert_eq!(warnings.len(), 1);
+    assert!(
+        warnings[0]
+            .as_str()
+            .unwrap()
+            .contains("\"Choir\" is silent")
+    );
+}
+
+#[test]
+fn render_and_measure_lists_the_channels_that_stayed_silent() {
+    let (server, host) = setup();
+    let choir = host.empty_choir();
+    *host.silent.lock().unwrap() = vec![choir, host.ids.lead];
+    let value = ok(&call(&server, &host, "render_and_measure", json!({})));
+    let silent = value["silentChannels"].as_array().unwrap();
+    assert_eq!(silent.len(), 2);
+    assert_eq!(silent[0]["id"], choir.0);
+    assert_eq!(silent[0]["name"], "Choir");
+    assert!(
+        silent[0]["reason"]
+            .as_str()
+            .unwrap()
+            .contains("no source loaded")
+    );
+    assert!(
+        silent[1]["reason"]
+            .as_str()
+            .unwrap()
+            .contains("made no sound")
+    );
+    *host.silent.lock().unwrap() = Vec::new();
+    let value = ok(&call(&server, &host, "render_and_measure", json!({})));
+    assert_eq!(value["silentChannels"], json!([]));
+}
+
+#[test]
+fn search_library_pages_the_browser_folders_by_kind() {
+    let (server, host) = setup();
+    let all = ok(&call(&server, &host, "search_library", json!({})));
+    assert_eq!(all["total"], 3);
+    let soundfonts = ok(&call(
+        &server,
+        &host,
+        "search_library",
+        json!({"kind": "soundFont"}),
+    ));
+    assert_eq!(soundfonts["total"], 1);
+    assert_eq!(soundfonts["items"][0]["path"], SOUNDFONT);
+    assert_eq!(soundfonts["items"][0]["kind"], "soundFont");
+    assert_eq!(soundfonts["items"][0]["bytes"], 1_000_000);
+    let choir = ok(&call(
+        &server,
+        &host,
+        "search_library",
+        json!({"query": "choir", "kind": "audio"}),
+    ));
+    assert_eq!(choir["items"][0]["relativePath"], "Choir/Aah.wav");
+    let paged = ok(&call(
+        &server,
+        &host,
+        "search_library",
+        json!({"limit": 2}),
+    ));
+    assert_eq!(paged["items"].as_array().unwrap().len(), 2);
+    assert_eq!(paged["nextOffset"], 2);
+    assert!(
+        failure(&call(
+            &server,
+            &host,
+            "search_library",
+            json!({"kind": "plugin"})
+        ))
+        .contains("kind must be one of")
+    );
+}
+
+#[test]
+fn channel_presets_are_listed_and_applied_as_one_undo_step() {
+    let (server, host) = setup();
+    let ids = host.ids;
+    let listed = ok(&call(&server, &host, "list_channel_presets", json!({})));
+    assert_eq!(listed["total"], 1);
+    assert_eq!(listed["items"][0]["name"], "Warm Pad");
+    assert_eq!(
+        ok(&call(
+            &server,
+            &host,
+            "list_channel_presets",
+            json!({"search": "organ"})
+        ))["total"],
+        0
+    );
+    let cursor = host.history().cursor;
+    let (result, commands) = propose(
+        &server,
+        &host,
+        "apply_channel_preset",
+        json!({"channelId": ids.lead.0, "preset": "warm pad"}),
+    );
+    assert!(commands.is_empty());
+    assert!(matches!(
+        server.approvals().get(result["proposalId"].as_str().unwrap()).unwrap().native,
+        Some(NativeEdit::ChannelPreset { channel, ref path, .. })
+            if channel == ids.lead && path.ends_with("Warm Pad.wfpreset")
+    ));
+    approve(&server, &host, &result);
+    assert_eq!(host.history().cursor, cursor + 1);
+    assert_eq!(host.last_label(), "test-agent: Load channel preset");
+    assert!(
+        failure(&call(
+            &server,
+            &host,
+            "apply_channel_preset",
+            json!({"channelId": ids.lead.0, "preset": "Nope"})
+        ))
+        .contains("no channel preset")
+    );
+}
+
+#[test]
+fn a_trusted_agent_applies_its_soundfont_load_at_once() {
+    let (server, host) = setup();
+    let choir = host.empty_choir();
+    server.approvals().set_trusted(AGENT, true);
+    let result = ok(&call(
+        &server,
+        &host,
+        "load_soundfont_preset",
+        json!({"channelId": choir.0, "path": SOUNDFONT, "program": 52}),
+    ));
+    assert_eq!(result["status"]["state"], "applied", "{result}");
+    assert_eq!(
+        soundfont_of(&host.project(), choir),
+        Some((0, 52, SOUNDFONT.to_owned()))
+    );
 }

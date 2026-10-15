@@ -219,3 +219,94 @@ pub fn check(project: &Project, channel: &Channel) -> Result<(), String> {
     }
     Ok(())
 }
+
+/// The commands that load one SoundFont preset into a channel, as the
+/// SoundFont editor's load does: the file as a project sample (`existing`
+/// when the project has it already), registered as a SoundFont source,
+/// and the channel's bank pointing at it. With `replace_instrument` the
+/// channel's built-in instrument first becomes a SoundFont player, as the
+/// MIDI output's General MIDI choice does; its notes, mixer track and name
+/// stay. Returns the commands and the bank the channel will have.
+///
+/// The caller reads and checks the file and dispatches the commands as one
+/// undo step; nothing here touches the disk.
+#[allow(clippy::too_many_arguments)]
+pub fn soundfont_load_commands(
+    document: &crate::Document,
+    channel: crate::ChannelId,
+    name: String,
+    path: SamplePath,
+    existing: Option<SampleId>,
+    bank: u16,
+    program: u16,
+    replace_instrument: bool,
+) -> Result<(Vec<crate::Command>, SampleInstrumentAsset), String> {
+    use crate::{Command, PluginPreset, PluginPresetState, PluginTarget};
+    let project = document.project();
+    let current = project
+        .channel(channel)
+        .ok_or("the channel no longer exists")?;
+    let ChannelSource::Instrument { params, .. } = &current.source else {
+        return Err("a sampler channel cannot play a SoundFont; add a SoundFont channel".into());
+    };
+    let mut commands = Vec::new();
+    let mut expected = current.sample_instrument.clone();
+    if params.kind() != InstrumentKind::SoundFont {
+        if !replace_instrument {
+            return Err(format!(
+                "the channel plays {}, not a SoundFont player",
+                params.kind().name()
+            ));
+        }
+        let target = PluginTarget::Instrument { channel };
+        if project.plugin(target).is_some() {
+            return Err("the channel hosts a plugin instrument; add a SoundFont channel".into());
+        }
+        let preset = Command::ApplyPluginPreset {
+            target,
+            expected: PluginPreset::capture(project, target)?.state,
+            preset: PluginPreset {
+                tables: None,
+                state: PluginPresetState::Instrument {
+                    asset: None,
+                    params: InstrumentKind::SoundFont.default_params(),
+                },
+            },
+        };
+        let mut candidate = document.clone();
+        candidate
+            .dispatch(preset.clone(), None)
+            .map_err(|error| error.to_string())?;
+        expected = candidate
+            .project()
+            .channel(channel)
+            .and_then(|channel| channel.sample_instrument.clone());
+        commands.push(preset);
+    }
+    let source = existing.unwrap_or(SampleId(project.next_id));
+    let asset = SampleInstrumentAsset::SoundFont {
+        path: path.clone(),
+        bank,
+        program,
+        source: Some(source),
+    };
+    commands.splice(
+        0..0,
+        [
+            Command::AddSample {
+                name,
+                path: path.clone(),
+            },
+            Command::RegisterSoundFontSource {
+                sample: source,
+                expected: path,
+            },
+        ],
+    );
+    commands.push(Command::SetSampleInstrumentAsset {
+        channel,
+        expected,
+        asset: Some(asset.clone()),
+    });
+    Ok((commands, asset))
+}

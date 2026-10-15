@@ -6,8 +6,11 @@
 //! host changes it is [`Host::apply`], with a [`CommandProposal`] the
 //! proposal registry has narrowed, as the built-in assistant does.
 
+use serde::Serialize;
 use windfall_project::proposal::{CommandProposal, ProposalStamp};
 use windfall_project::{ChannelId, Document, PatternId, PlayMode, TrackId};
+
+pub use windfall_dsp::sample_bank::soundfont::SoundFontPreset;
 
 /// The project as it is at one moment, with the stamp a proposal made
 /// from it carries.
@@ -68,7 +71,77 @@ pub struct RenderedAudio {
     pub sample_rate: u32,
     /// The WAV file the render was kept in, inside a folder Windfall owns.
     pub path: Option<String>,
+    /// Channels that have notes in the rendered region, are not muted, and
+    /// made no sound when rendered alone.
+    pub silent_channels: Vec<ChannelId>,
 }
+
+/// A file in the browser's folders, as `search_library` lists it.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryFile {
+    pub path: String,
+    /// "audio", "soundFont", "project", "preset" or "other".
+    pub kind: String,
+    pub bytes: u64,
+    /// The path inside its browser folder, with `/`.
+    pub relative_path: String,
+}
+
+/// One page of a library search.
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryPage {
+    pub total: usize,
+    pub items: Vec<LibraryFile>,
+    /// The browser is still reading its folders: more may match later.
+    pub indexing: bool,
+    /// More files matched than a search returns.
+    pub truncated: bool,
+}
+
+/// A channel preset Windfall can load onto a channel.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChannelPresetInfo {
+    pub name: String,
+    pub path: String,
+    /// "factory" or "library" (the user's own).
+    pub origin: String,
+    /// The instrument it plays ("sampler" for a sampler preset).
+    pub instrument: String,
+}
+
+/// What a proposal does besides its commands: an edit only Windfall itself
+/// can make, because it reads a file. The agent names the file; Windfall
+/// checks it is inside the browser's folders before the proposal is filed,
+/// and reads it only when the user applies it.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum NativeEdit {
+    /// Load one preset of a SoundFont into a channel's SoundFont player.
+    /// With `replace_instrument` the channel's instrument becomes a
+    /// SoundFont player first, in the same undo step.
+    #[serde(rename_all = "camelCase")]
+    SoundFont {
+        channel: ChannelId,
+        path: String,
+        bank: u16,
+        program: u16,
+        preset: String,
+        replace_instrument: bool,
+    },
+    /// Load a channel preset file onto a channel.
+    #[serde(rename_all = "camelCase")]
+    ChannelPreset {
+        channel: ChannelId,
+        path: String,
+        name: String,
+    },
+}
+
+/// The answer of a host that has no files to offer.
+pub const NO_FILES: &str = "this Windfall offers no files to agents";
 
 pub trait Host: Send + Sync {
     fn snapshot(&self) -> Result<Snapshot, String>;
@@ -79,6 +152,48 @@ pub trait Host: Send + Sync {
     /// checked path the assistant's review uses. Returns the revision the
     /// project has afterwards.
     fn apply(&self, proposal: CommandProposal) -> Result<u64, String>;
+
+    /// Applies an approved proposal whose edit Windfall makes itself: the
+    /// proposal's commands (which may be none) and `edit`, together as one
+    /// undo step, only if the project is still as the proposal's stamp
+    /// says.
+    fn apply_native(&self, proposal: CommandProposal, edit: NativeEdit) -> Result<u64, String> {
+        let _ = (proposal, edit);
+        Err(NO_FILES.into())
+    }
+
+    /// The file an agent named, if it is a file inside one of the
+    /// browser's folders or Windfall's factory content, as an absolute
+    /// path with every link resolved. Anything else is refused.
+    fn library_file(&self, path: &str) -> Result<String, String> {
+        let _ = path;
+        Err(NO_FILES.into())
+    }
+
+    /// The presets of a SoundFont that [`library_file`](Self::library_file)
+    /// allowed.
+    fn soundfont_presets(&self, path: &str) -> Result<Vec<SoundFontPreset>, String> {
+        let _ = path;
+        Err(NO_FILES.into())
+    }
+
+    /// Searches the browser's folders with the browser's own search. `kind`
+    /// keeps only files of that kind.
+    fn search_library(
+        &self,
+        query: &str,
+        kind: Option<&str>,
+        offset: usize,
+        limit: usize,
+    ) -> Result<LibraryPage, String> {
+        let _ = (query, kind, offset, limit);
+        Err(NO_FILES.into())
+    }
+
+    /// The channel presets of the factory content and the user's library.
+    fn channel_presets(&self) -> Result<Vec<ChannelPresetInfo>, String> {
+        Err(NO_FILES.into())
+    }
 
     /// Renders offline. `cancelled` is polled while rendering; once it
     /// returns true the render stops with an error.

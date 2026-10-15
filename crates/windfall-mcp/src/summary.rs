@@ -68,6 +68,69 @@ fn channel_kind(channel: &Channel) -> Value {
     }
 }
 
+/// What an instrument plays from that it does not make itself, when it
+/// starts with none: until it is loaded the instrument is silent. `None`
+/// for instruments that make their own sound.
+pub fn source_needed(kind: InstrumentKind) -> Option<&'static str> {
+    match kind {
+        InstrumentKind::SoundFont => Some(
+            "a SoundFont preset (load_soundfont_preset, or add_channel with soundFont)",
+        ),
+        InstrumentKind::MultiSampler | InstrumentKind::SamplePlayer | InstrumentKind::PadBank => {
+            Some("samples mapped to its keys, which the user loads in its editor in Windfall")
+        }
+        InstrumentKind::TextVoice => {
+            Some("a rendered phrase, which the user makes in its editor in Windfall")
+        }
+        InstrumentKind::SliceMap
+        | InstrumentKind::SliceDeck
+        | InstrumentKind::GrainCloud
+        | InstrumentKind::WaveRide => {
+            Some("a sample, which the user drops on the channel in Windfall")
+        }
+        _ => None,
+    }
+}
+
+/// Why a channel cannot make a sound: it plays a sampler or an instrument
+/// that needs a source, and has none. The same channels Windfall's channel
+/// rack marks "no sample".
+pub fn missing_source(channel: &Channel) -> Option<&'static str> {
+    use windfall_project::SampleInstrumentAsset;
+    match &channel.source {
+        ChannelSource::Sampler(sampler) => sampler
+            .sample
+            .is_none()
+            .then_some("a sample, which the user drops on the channel in Windfall"),
+        ChannelSource::Instrument { params, .. } => {
+            let kind = params.kind();
+            let needed = source_needed(kind)?;
+            let has = match kind {
+                InstrumentKind::SliceMap
+                | InstrumentKind::SliceDeck
+                | InstrumentKind::GrainCloud
+                | InstrumentKind::WaveRide => channel.sample_playback.as_ref().is_some_and(
+                    |playback| playback.sample.is_some() || playback.inline_source.is_some(),
+                ),
+                _ => match &channel.sample_instrument {
+                    Some(SampleInstrumentAsset::Zones { zones }) => !zones.is_empty(),
+                    Some(_) => true,
+                    None => false,
+                },
+            };
+            (!has).then_some(needed)
+        }
+    }
+}
+
+/// The warning an agent reads about a channel with no source.
+pub fn silent_warning(channel: &Channel, needed: &str) -> String {
+    format!(
+        "channel {} \"{}\" is silent: it has no source loaded and needs {needed}",
+        channel.id.0, channel.name
+    )
+}
+
 /// Instruments whose keys are drums or slices rather than pitches: their
 /// notes say nothing about the song's key.
 fn unpitched(kind: InstrumentKind) -> bool {
@@ -197,10 +260,13 @@ pub fn project_summary(snapshot: &Snapshot) -> Value {
         .iter()
         .take(SUMMARY_ITEMS)
         .map(|channel| {
+            let missing = missing_source(channel);
             json!({
                 "id": channel.id.0,
                 "name": channel.name,
                 "source": channel_kind(channel),
+                "silent": missing.is_some(),
+                "needs": missing,
                 "mixerTrack": channel.mixer_track.0,
                 "volume": channel.volume,
                 "pan": channel.pan,
@@ -263,8 +329,15 @@ pub fn project_summary(snapshot: &Snapshot) -> Value {
         })
         .collect();
     let end = song_end(project);
+    let warnings: Vec<String> = project
+        .channels
+        .iter()
+        .filter_map(|channel| missing_source(channel).map(|needed| silent_warning(channel, needed)))
+        .take(SUMMARY_ITEMS)
+        .collect();
     json!({
         "stamp": snapshot.stamp,
+        "warnings": warnings,
         "name": project.settings.name,
         "ppq": windfall_core::PPQ,
         "tempoBpm": project.settings.tempo_bpm,
@@ -648,12 +721,25 @@ pub fn kinds(args: &Args) -> Result<Value, String> {
     if category != Some("effect") {
         for kind in InstrumentKind::ALL {
             let descriptors = kind.descriptors();
+            let needed = source_needed(kind);
+            let mut description = format!(
+                "{}, a built-in instrument with {} settings",
+                kind.name(),
+                descriptors.len()
+            );
+            if let Some(needed) = needed {
+                description.push_str(&format!(
+                    ". It plays from a source and is silent until it has one: {needed}"
+                ));
+            }
             items.push(json!({
                 "category": "instrument",
                 "kind": kind_name(&kind),
                 "name": kind.name(),
                 "parameters": descriptors.len(),
-                "description": format!("{}, a built-in instrument with {} settings", kind.name(), descriptors.len()),
+                "needsSource": needed.is_some(),
+                "source": needed,
+                "description": description,
                 "firstSettings": highlights(descriptors),
             }));
         }
