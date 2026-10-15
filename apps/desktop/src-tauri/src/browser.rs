@@ -109,6 +109,8 @@ pub(crate) fn file_kind(path: &Path) -> BrowserEntryKind {
         BrowserEntryKind::Audio
     } else if extension.eq_ignore_ascii_case(FILE_EXTENSION) {
         BrowserEntryKind::Project
+    } else if extension.eq_ignore_ascii_case("sf2") {
+        BrowserEntryKind::SoundFont
     } else {
         BrowserEntryKind::Other
     }
@@ -238,6 +240,7 @@ mod tests {
             "pad.ogg",
             "string.aiff",
             "README",
+            "GM Bank.SF2",
             ".hidden.wav",
         ] {
             fs::write(root.join(name), b"").unwrap();
@@ -249,7 +252,7 @@ mod tests {
             .iter()
             .map(|entry| (entry.name.as_str(), entry.kind))
             .collect();
-        use BrowserEntryKind::{Audio, Folder, Other, Project};
+        use BrowserEntryKind::{Audio, Folder, Other, Project, SoundFont};
         assert_eq!(
             summary,
             [
@@ -258,6 +261,7 @@ mod tests {
                 ("Loops 10", Folder),
                 ("Zebra", Folder),
                 ("beat.windfall", Project),
+                ("GM Bank.SF2", SoundFont),
                 ("Kick 2.wav", Audio),
                 ("kick 10.WAV", Audio),
                 ("notes.txt", Other),

@@ -353,6 +353,8 @@ pub enum BrowserEntryKind {
     Audio,
     /// A `.windfall` project file.
     Project,
+    /// A SoundFont (`.sf2`): a bank of instrument presets.
+    SoundFont,
     Other,
 }
 

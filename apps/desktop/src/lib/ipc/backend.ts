@@ -462,7 +462,8 @@ export interface Backend extends AnalysisBackend, PresetRenderBackend, MixerPres
     format?: ExportFormat
   ): Promise<string | null>
   pickFolder(): Promise<string | null>
-  pickAudioFile(): Promise<string | null>
+  /** An audio file, or with "soundFont" a SoundFont (.sf2) bank. */
+  pickAudioFile(kind?: "audio" | "soundFont"): Promise<string | null>
   pickMidiFile(): Promise<string | null>
   pickMidiExportPath(suggestedName: string): Promise<string | null>
 

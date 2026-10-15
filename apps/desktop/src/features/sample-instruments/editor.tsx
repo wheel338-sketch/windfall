@@ -19,6 +19,7 @@ import { TICKS_PER_STEP } from "@/lib/units"
 import { ZoneModulationEditor, DEFAULT_ZONE_MODULATION } from "./zone-modulation-editor"
 
 import { GenericInstrumentEditor } from "../channel-rack/inspector/generic-instrument-editor"
+import { type GmFamily, groupPresets, presetMatches } from "@/lib/general-midi"
 import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 export function newZone(sample: number, key?: number): SampleZone {
@@ -254,14 +255,42 @@ function PlayerEditor({ channel }: { channel: InstrumentChannel }) {
   </FieldGroup>
 }
 
+/** The name of a preset family, in the interface's language. */
+export function familyName(family: GmFamily): string {
+  return t(family)
+}
+
+/** A SoundFont's presets, searchable and grouped by General MIDI family. */
+export function SoundFontPresetList({ presets, disabled, choose, selected }: {
+  presets: readonly SoundFontPreset[]
+  disabled: boolean
+  choose: (preset: SoundFontPreset) => void
+  selected?: { bank: number; program: number } | null
+}) {
+  const [search, setSearch] = useState("")
+  const groups = groupPresets(presets.filter((preset) => presetMatches(preset, search, familyName)))
+  return <div className="flex flex-col gap-2">
+    <Input type="search" aria-label={t("Search presets")} placeholder={t("Search presets")} value={search} onChange={(event) => setSearch(event.target.value)} />
+    {groups.length === 0 && <FieldDescription>{t("No preset matches.")}</FieldDescription>}
+    <div role="group" aria-label={t("SoundFont presets")} className="flex max-h-72 flex-col gap-2 overflow-y-auto">
+      {groups.map(({ family, presets: members }) => <div key={family} role="group" aria-label={familyName(family)} className="flex flex-col gap-1">
+        <p className="text-xs font-medium text-muted-foreground">{familyName(family)}</p>
+        {members.map((preset) => <Button key={`${preset.bank}:${preset.program}`} variant="outline" size="sm"
+          aria-pressed={selected ? selected.bank === preset.bank && selected.program === preset.program : undefined}
+          disabled={disabled} onClick={() => choose(preset)}>{preset.bank}:{preset.program} · {preset.name}</Button>)}
+      </div>)}
+    </div>
+  </div>
+}
+
 function SoundFontEditor({ channel }: { channel: InstrumentChannel }) {
   const selected = channel.sampleInstrument?.type === "soundFont" ? channel.sampleInstrument : null
   const samples = useProjectStore(state => state.project.samples)
   const source = samples.find(sample => sample.id === selected?.source)
   const storedPath = source?.path ?? selected?.path
   const savedPath = storedPath?.path ?? ""
-  const [draft,setDraft] = useState({ savedPath, value: savedPath })
-  const path = draft.savedPath === savedPath ? draft.value : savedPath
+  const [chosen,setChosen] = useState({ savedPath, value: savedPath })
+  const path = chosen.savedPath === savedPath ? chosen.value : savedPath
   const [presets,setPresets] = useState<SoundFontPreset[]>([])
   const [error,setError] = useState<string | null>(null)
   const [busy,setBusy] = useState(false)
@@ -277,25 +306,38 @@ function SoundFontEditor({ channel }: { channel: InstrumentChannel }) {
     }).catch(error => { if (current) setError(errorMessage(error)) })
     return () => { current = false; ticket.value++ }
   }, [channel.id, selected, storedPath])
+  const browse = async (file: string) => {
+    const token = ++request.current.value
+    try { const found=await backend.soundfontPresets!(file);if(token===request.current.value){setPresets(found);setError(null)} }
+    catch(error){if(token===request.current.value){setPresets([]);setError(errorMessage(error))}}
+  }
   return <FieldGroup>
-    <Field><FieldLabel>{t("SoundFont file")}</FieldLabel><Input aria-label={t("SoundFont file")} value={path} onChange={event=>{setDraft({ savedPath, value: event.target.value });setPresets([]);request.current.value++}} /></Field>
-    <Button disabled={busy || !backend.soundfontPresets || !path} onClick={async()=>{
-      const token = ++request.current.value
-      try { const found=await backend.soundfontPresets!(path);if(token===request.current.value){setPresets(found);setError(null)} }
-      catch(error){if(token===request.current.value)setError(errorMessage(error))}
-    }}>{t("Browse presets")}</Button>
-    <div role="group" aria-label={t("SoundFont presets")} className="flex flex-col gap-1">
-      {presets.map(preset=><Button key={`${preset.bank}:${preset.program}`} variant="outline"
-        disabled={busy || !backend.soundfontLoad} onClick={async()=>{
-          const generation=getProjectGeneration();setBusy(true)
+    <Field><FieldLabel>{t("SoundFont file")}</FieldLabel>
+      <p data-soundfont-file className="truncate text-sm" title={path || undefined}>{path || t("No SoundFont chosen yet")}</p>
+      <div className="flex gap-1">
+        <Button variant="outline" disabled={busy || !backend.soundfontPresets} onClick={async()=>{
+          const generation=getProjectGeneration()
           try {
-            const result=await backend.soundfontLoad!(channel.id,selected,path,preset.bank,preset.program)
-            if(generation===getProjectGeneration()){receivePatch(result.patch);setError(null)}
-          } catch(error){if(generation===getProjectGeneration())setError(errorMessage(error))}
-          finally{setBusy(false)}
-        }}>{preset.bank}:{preset.program} · {preset.name}</Button>)}
-    </div>
-    {selected && <FieldDescription>{t("Selected bank")}{" "}{selected.bank}{t(", program")}{" "}{selected.program}</FieldDescription>}
+            const file=await backend.pickAudioFile("soundFont")
+            if(!file || generation!==getProjectGeneration())return
+            setChosen({ savedPath, value: file });setPresets([])
+            await browse(file)
+          } catch(error){setError(errorMessage(error))}
+        }}>{t("Choose file…")}</Button>
+        {path && presets.length === 0 && <Button variant="outline" disabled={busy || !backend.soundfontPresets} onClick={()=>void browse(path)}>{t("Browse presets")}</Button>}
+      </div>
+    </Field>
+    {presets.length > 0 && <SoundFontPresetList presets={presets} disabled={busy || !backend.soundfontLoad} selected={selected}
+      choose={async(preset)=>{
+        const generation=getProjectGeneration();setBusy(true)
+        try {
+          const result=await backend.soundfontLoad!(channel.id,selected,path,preset.bank,preset.program)
+          if(generation===getProjectGeneration()){receivePatch(result.patch);setError(null)}
+        } catch(error){if(generation===getProjectGeneration())setError(errorMessage(error))}
+        finally{setBusy(false)}
+      }} />}
+    {selected ? <FieldDescription>{t("Selected bank")}{" "}{selected.bank}{t(", program")}{" "}{selected.program}</FieldDescription>
+      : <Alert><AlertDescription>{t("This SoundFont player is silent until you choose a SoundFont and one of its presets.")}</AlertDescription></Alert>}
     {source && <FieldDescription>{t("Project source")}{" "}{source.id}: {source.name}{t(". Portable project archives include this bank.")}</FieldDescription>}
     {missing && <Alert><AlertDescription>{t("Missing SoundFont file. Relink its project source to restore playback.")}</AlertDescription></Alert>}
     {source && <Button variant="outline" disabled={busy || !backend.soundfontRelink} onClick={()=>{setReplacement("");setError(null);setRelink(true)}}>{t("Relink SoundFont source")}</Button>}
@@ -303,7 +345,12 @@ function SoundFontEditor({ channel }: { channel: InstrumentChannel }) {
       <DialogContent>
         <DialogTitle>{t("Relink SoundFont source")}</DialogTitle>
         <DialogDescription>{t("Choose a replacement SF2 file. Windfall validates every selected preset using this source before updating its path. The source identity is preserved and the change can be undone.")}</DialogDescription>
-        <Input aria-label={t("Replacement SoundFont file")} value={replacement} onChange={event=>setReplacement(event.target.value)} />
+        <div className="flex gap-1">
+          <Input aria-label={t("Replacement SoundFont file")} value={replacement} onChange={event=>setReplacement(event.target.value)} />
+          <Button variant="outline" disabled={busy} onClick={async()=>{
+            try { const file=await backend.pickAudioFile("soundFont"); if(file)setReplacement(file) } catch(error){setError(errorMessage(error))}
+          }}>{t("Choose file…")}</Button>
+        </div>
         <Button disabled={busy || !replacement || !source || !selected || !backend.soundfontRelink} onClick={async()=>{
           if(!source || !selected)return
           const generation=getProjectGeneration();setBusy(true)

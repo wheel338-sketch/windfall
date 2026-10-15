@@ -6,7 +6,7 @@ import { setBackend, type Backend } from "@/lib/ipc"
 import { setLanguage } from "@/lib/i18n"
 import { useUiStore } from "@/lib/store/ui"
 import { startTestApp } from "@/test/harness"
-import { McpPanelHost } from "./panel"
+import { loadText, McpPanelHost } from "./panel"
 
 const PROPOSAL: McpProposal = {
   id: "p1",
@@ -48,6 +48,27 @@ describe("AI agent proposals panel", () => {
     render(<McpPanelHost />)
     return calls
   }
+
+  it("says what a proposal loads from a file, in the interface's language", async () => {
+    const load: McpProposal = {
+      ...PROPOSAL,
+      id: "p2",
+      label: "Claude Code: Load SoundFont preset",
+      counts: [],
+      commands: [],
+      load: { type: "soundFont", channel: 4, channelName: "Choir", file: "C:/Sounds/GM.sf2", preset: "Choir Aahs", bank: 0, program: 52, replaceInstrument: false },
+    }
+    mount({ mcpPanel: async () => ({ ...PANEL, proposals: [load] }) })
+    const card = await screen.findByRole("listitem", { name: "Claude Code: Load SoundFont preset" })
+    expect(within(card).getByText("Loads the SoundFont preset \"Choir Aahs\" (bank 0, program 52) from C:/Sounds/GM.sf2 into Choir")).toBeInTheDocument()
+    expect(loadText({ type: "soundFont", channel: 4, channelName: "Lead", file: "C:/GM.sf2", preset: "Horn", bank: 0, program: 60, replaceInstrument: true }))
+      .toBe("Makes Lead a SoundFont player and loads \"Horn\" (bank 0, program 60) from C:/GM.sf2")
+    expect(loadText({ type: "channelPreset", channel: 4, channelName: "Lead", file: "C:/p.wfpreset", preset: "Warm Pad" }))
+      .toBe("Loads the channel preset \"Warm Pad\" onto Lead")
+    setLanguage("es")
+    expect(loadText({ type: "channelPreset", channel: 4, channelName: "Lead", file: "C:/p.wfpreset", preset: "Warm Pad" }))
+      .toBe("Carga el preajuste de canal «Warm Pad» en Lead")
+  })
 
   it("is not there while nothing waits", async () => {
     setBackend({ ...app.backend, kind: "tauri", mcpPanel: async () => ({ proposals: [], agents: [], rendering: false }), onMcpPanel: () => () => {} })

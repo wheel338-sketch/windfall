@@ -147,13 +147,13 @@ export const sameAsEnglish: Readonly<Record<string, string>> = {
   ]),
   ...each("Spanish spells this word the same way.", [
     "general", "General", "vocal", "Regular", "Balance", "Base", "Bipolar", "Color", "Detector", "Normal", "Pedal",
-    "Nasal", "Triple", "Natural", "Control", "Tempo", "Solo", "color", "tempo", "audio", ...numbered("Pedal", 11),
+    "Nasal", "Triple", "Natural", "Control", "Tempo", "Solo", "color", "tempo", "audio", "Piano", ...numbered("Pedal", 11),
   ]),
   ...each("Established term that Spanish-speaking producers use unchanged.", [
     "Plugins", "plugin", "clip", "swing", "ping-pong", "pogo", "Mono legato", "Vol", "1x12 combo", "Combo", "Ducking", "Flanger", "Fuzz", "Notch", "Overdrive", "Post",
     "Pre", "Scratch", "Twin", "Vocoder", "Wah", "Legato", "Multisampler", "Tom", "Chorus", "Drive", "Phaser", "Stack",
     "2 Color", "Mod", "Scoop", "Fader", "Sampler", "Blues", "Drop 2", "Flam", "Groove", "Staccato", "Swing",
-    "Portamento", "Pads", ...numbered("Pad", 16),
+    "Portamento", "Pads", "SoundFont", ...numbered("Pad", 16),
   ]),
   ...each("Keyboard key name printed the same on a Spanish keyboard.", ["Esc", "Num +", "Num -", "key.alt", "key.ctrl", "key.win"]),
   "Set tempo 120; create pattern Verse; add channel Bass": "Example in the offline assistant's command syntax, which is read in English.",

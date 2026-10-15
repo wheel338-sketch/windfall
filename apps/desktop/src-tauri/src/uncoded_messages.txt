@@ -223,6 +223,26 @@ windfall-mcp/src/tools.rs | region {other} must be \"song\", {{\"from\", \"to\"}
 windfall-mcp/src/tools.rs | there is no proposal {id}
 windfall-mcp/src/tools.rs | {description} A note value (\"1/4\", \"1/8.\" dotted, \"1/8t\" triplet, \"3/16\"), a duration bars:beats:ticks counted from 0 such as \"1:0:0\", or ticks.
 windfall-mcp/src/tools.rs | {description} Write bar:beat:tick with bars and beats counted from 1, such as \"2:3:0\", or a number of ticks (960 a quarter note).
+# text sent to the AI agent connected over MCP about the files it names, SoundFonts and silent channels, in tool results, never shown in the interface
+library.rs | {text} goes through a symbolic link or junction ({}); agents may only use the original files
+library.rs | {text} has . or .. in it; paths that climb out of a folder are refused
+library.rs | {text} is not a file
+library.rs | {text} is not a full path; give the absolute path search_library gives
+library.rs | {text} is not inside a folder in Windfall's browser or its factory content; search_library lists the files an agent may use
+windfall-mcp/src/edits.rs | channel {id} will be silent until it has a source: it needs {needed}
+windfall-mcp/src/edits.rs | channel {} \"{}\" is a sampler, which cannot play a SoundFont; add_channel with soundFont adds a SoundFont channel
+windfall-mcp/src/edits.rs | channel {} \"{}\" plays {}, not a SoundFont player. Set replaceInstrument to true to make it a SoundFont player (its notes, mixer track and name stay), or add a channel with add_channel and soundFont
+windfall-mcp/src/edits.rs | load SoundFont preset \"{}\" (bank {}, program {}) from {} into channel {id}
+windfall-mcp/src/edits.rs | load SoundFont preset \"{}\" (bank {}, program {}) from {} into channel {}
+windfall-mcp/src/edits.rs | load channel preset \"{}\" ({}) onto channel {}
+windfall-mcp/src/edits.rs | make channel {} a SoundFont player instead of {}
+windfall-mcp/src/edits.rs | the SoundFont has no preset at bank {bank}, program {program}; list_soundfont_presets lists its presets
+windfall-mcp/src/edits.rs | there is no channel preset {wanted:?}; list_channel_presets lists them
+windfall-mcp/src/library.rs | argument kind must be one of {}
+windfall-mcp/src/summary.rs | . It plays from a source and is silent until it has one: {needed}
+windfall-mcp/src/summary.rs | channel {} \"{}\" is silent: it has no source loaded and needs {needed}
+windfall-mcp/src/tools.rs | it has no source loaded and needs {needed}
+windfall-project/src/sample_instrument.rs | the channel plays {}, not a SoundFont player
 # --- MCP server (end) ---
 
 # Not messages: names the project keeps as data once they are made. Each

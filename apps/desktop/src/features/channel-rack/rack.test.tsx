@@ -1,4 +1,5 @@
 import {
+  act,
   createEvent,
   fireEvent,
   render,
@@ -20,6 +21,7 @@ import { useUiStore } from "@/lib/store/ui"
 import { settle } from "@/test/harness"
 
 import ChannelRackPanel from "./index"
+import { useRackStore } from "./rack-store"
 import { CHANNEL_DRAG_TYPE } from "./rack-grid"
 import {
   answerConfirm,
@@ -107,7 +109,41 @@ describe("rows", () => {
     render(<ChannelRackPanel />)
     expect(
       screen.getByRole("button", { name: "Empty, no sample" })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { name: "Load a sound into Empty" })
     ).toHaveTextContent("no sample")
+  })
+
+  it("marks instruments that need a source and have none, and only those", async () => {
+    await dispatch({ type: "addChannel", name: "Choir", instrument: "soundFont" })
+    await dispatch({ type: "addChannel", name: "Keys", instrument: "multiSampler" })
+    await dispatch({ type: "addChannel", name: "Bells", instrument: "fourOp" })
+    await dispatch({ type: "addChannel", name: "Piano", instrument: "pianoKeys" })
+    render(<ChannelRackPanel />)
+    expect(screen.getByRole("button", { name: "Load a sound into Choir" })).toHaveTextContent("no SoundFont")
+    expect(screen.getByRole("button", { name: "Load a sound into Keys" })).toHaveTextContent("no sample")
+    // A synth and the built-in piano make their own sound.
+    expect(screen.queryByRole("button", { name: "Load a sound into Bells" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Load a sound into Piano" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Bells" })).not.toHaveTextContent("no sample")
+  })
+
+  it("opens the loader from the badge: settings for a SoundFont, the file picker for a sampler", async () => {
+    const choir = await dispatch({ type: "addChannel", name: "Choir", instrument: "soundFont" })
+    const empty = await dispatch({ type: "addChannel", name: "Empty" })
+    const picked = vi.spyOn(backend, "pickAudioFile").mockResolvedValue(null)
+    render(<ChannelRackPanel />)
+    fireEvent.click(screen.getByRole("button", { name: "Load a sound into Choir" }))
+    expect(useUiStore.getState().selectedChannel).toBe(choir!.created[0])
+    expect(useRackStore.getState().inspectorOpen).toBe(true)
+    expect(picked).not.toHaveBeenCalled()
+    useRackStore.getState().setInspectorOpen(false)
+    fireEvent.click(screen.getByRole("button", { name: "Load a sound into Empty" }))
+    await act(settle)
+    expect(picked).toHaveBeenCalledTimes(1)
+    expect(useUiStore.getState().selectedChannel).toBe(empty!.created[0])
+    expect(useRackStore.getState().inspectorOpen).toBe(false)
   })
 
   it("marks steps holding notes the grid cannot show", async () => {

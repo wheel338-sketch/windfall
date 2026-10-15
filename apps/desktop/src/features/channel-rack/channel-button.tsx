@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils"
 import { FILL_INTERVALS } from "./actions"
 import { useAudition } from "./audition"
 import {
+  replaceSampleFromPickedFile,
   selectChannel,
   setChannelColor,
   toggleMute,
@@ -47,7 +48,12 @@ type ChannelButtonProps = {
    * sample to show or miss. Null for a sampler.
    */
   instrument: WaveShape | null
-  hasSample: boolean
+  /**
+   * What the channel lacks to make a sound: a sampler's sample, a
+   * SoundFont, or another sample-based instrument's source. Null when it
+   * has its sound.
+   */
+  missing: "sample" | "soundFont" | "source" | null
   /** The channel has a sample, but its file could not be read. */
   sampleMissing: boolean
   /**
@@ -130,14 +136,21 @@ export const ChannelButton = memo(function ChannelButton({
   solo,
   dimmed,
   instrument,
-  hasSample: sampleSet,
+  missing,
   sampleMissing,
   drop,
 }: ChannelButtonProps) {
   const audition = useAudition(id)
-  // Only an empty sampler is drawn as missing its sound.
   const plugin = usePluginBinding({ type: "instrument", channel: id })
-  const hasSample = instrument !== null || sampleSet
+  // A hosted plugin makes the sound, whatever the built-in would need.
+  const hasSample = missing === null || Boolean(plugin)
+  const badgeHint = useHint(
+    missing === "soundFont"
+      ? message("{name} has no SoundFont loaded, so it is silent. Click to choose one", { name })
+      : missing === "sample"
+        ? message("{name} has no sample, so it is silent. Click to choose one", { name })
+        : message("{name} has no sound loaded, so it is silent. Click to open its settings and load one", { name })
+  )
   const hint = useHint(
     instrument !== null
       ? message("{name}: press and hold to hear it, click to open its settings, right-click for more", { name })
@@ -285,15 +298,31 @@ export const ChannelButton = memo(function ChannelButton({
                 className="size-3.5"
               />
             </span>
-          ) : (
-            !hasSample && (
-              <span className="shrink-0 text-[0.625rem] text-warn">
-                {t("no sample")}
-              </span>
-            )
-          )}
+          ) : null}
         </button>
       </ContextActions>
+      {drop === null && !hasSample && (
+        <button
+          type="button"
+          data-load-source={id}
+          tabIndex={-1}
+          aria-label={message("Load a sound into {name}", { name })}
+          onClick={() => {
+            // A sampler takes a file straight away; an instrument's own
+            // loader is in its settings.
+            if (missing === "sample") {
+              selectChannel(id)
+              void replaceSampleFromPickedFile(id)
+            } else {
+              selectChannel(id, { openSettings: true })
+            }
+          }}
+          className="shrink-0 rounded-r-[3px] px-1 text-[0.625rem] text-warn underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+          {...badgeHint}
+        >
+          {missing === "soundFont" ? t("no SoundFont") : t("no sample")}
+        </button>
+      )}
     </div>
   )
 })

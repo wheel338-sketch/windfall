@@ -22,7 +22,7 @@ import {
 } from "@/components/audio"
 import { ValueContextItems } from "@/components/value-context-menu"
 import { automationFeed, useAutomationMarker } from "@/features/automation/live"
-import { instrumentParams, sourceSample } from "@/lib/channel-source"
+import { instrumentParams, sourceSample, missingSource } from "@/lib/channel-source"
 import { useGesture } from "@/lib/store/gesture"
 import { useHint } from "@/lib/store/hint"
 import { dispatch } from "@/lib/store/project"
@@ -402,7 +402,7 @@ export const ChannelRow = memo(function ChannelRow({
           dimmed={quiet}
           solo={channel.solo}
           instrument={instrumentGlyph(channel)}
-          hasSample={sample !== null}
+          missing={missingSource(channel)}
           sampleMissing={sampleMissing}
           drop={drop}
         />

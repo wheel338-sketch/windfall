@@ -75,6 +75,8 @@ export type MockDialogs = {
   folder(): Promise<string | null>
   flpFile?(): Promise<string | null>
   audioFile(): Promise<string | null>
+  /** The SoundFont picker; the audio picker's answer when left out. */
+  soundFontFile?(): Promise<string | null>
 }
 
 export type MockOptions = MockMidiOptions &
@@ -1576,7 +1578,8 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     pickExportPath: (suggestedName, format = "wav") =>
       dialogs.exportPath(`/exports/${suggestedName}.${format}`),
     pickFolder: () => dialogs.folder(),
-    pickAudioFile: () => dialogs.audioFile(),
+    pickAudioFile: (kind) =>
+      kind === "soundFont" && dialogs.soundFontFile ? dialogs.soundFontFile() : dialogs.audioFile(),
 
     setWindowTitle: (title) =>
       ipc(() => {

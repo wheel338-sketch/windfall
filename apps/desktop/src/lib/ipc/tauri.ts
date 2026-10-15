@@ -543,13 +543,20 @@ export function createTauriBackend(): Backend {
       return typeof picked === "string" ? picked : null
     },
 
-    async pickAudioFile() {
-      const picked = await open({
-        title: translatedText("Choose an audio file"),
-        multiple: false,
-        directory: false,
-        filters: [{ name: translatedText("Audio"), extensions: AUDIO_EXTENSIONS }],
-      })
+    async pickAudioFile(kind = "audio") {
+      const picked = await open(kind === "soundFont"
+        ? {
+          title: translatedText("Choose a SoundFont"),
+          multiple: false,
+          directory: false,
+          filters: [{ name: translatedText("SoundFont"), extensions: ["sf2", "SF2"] }],
+        }
+        : {
+          title: translatedText("Choose an audio file"),
+          multiple: false,
+          directory: false,
+          filters: [{ name: translatedText("Audio"), extensions: AUDIO_EXTENSIONS }],
+        })
       return typeof picked === "string" ? picked : null
     },
 

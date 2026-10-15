@@ -310,6 +310,7 @@ export type { MatrixSynthParams } from "./MatrixSynthParams";
 export type { McpAgent } from "./McpAgent";
 export type { McpCount } from "./McpCount";
 export type { McpFocus } from "./McpFocus";
+export type { McpLoad } from "./McpLoad";
 export type { McpPanel } from "./McpPanel";
 export type { McpProposal } from "./McpProposal";
 export type { McpSettings } from "./McpSettings";

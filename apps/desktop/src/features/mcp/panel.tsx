@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react"
-import type { McpCount, McpPanel, McpProposal } from "@/bindings"
+import type { McpCount, McpLoad, McpPanel, McpProposal } from "@/bindings"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { backend, errorMessage } from "@/lib/ipc"
 import { useUiStore } from "@/lib/store/ui"
-import { localizeBackendText, message, translatedText as t } from "@/lib/i18n"
+import { localizeBackendText, message, plainNumber, translatedText as t } from "@/lib/i18n"
 
 const EMPTY: McpPanel = { proposals: [], agents: [], rendering: false }
 
@@ -50,6 +50,17 @@ function useFocusReport() {
   }, [channel, track, view])
 }
 
+/** What a proposal loads from a file, which Windfall reads when it is applied. */
+export function loadText(load: McpLoad): string {
+  if (load.type === "channelPreset") {
+    return message("Loads the channel preset \"{preset}\" onto {channel}", { preset: load.preset, channel: load.channelName })
+  }
+  const values = { preset: load.preset, bank: plainNumber(load.bank), program: plainNumber(load.program), file: load.file, channel: load.channelName }
+  return load.replaceInstrument
+    ? message("Makes {channel} a SoundFont player and loads \"{preset}\" (bank {bank}, program {program}) from {file}", values)
+    : message("Loads the SoundFont preset \"{preset}\" (bank {bank}, program {program}) from {file} into {channel}", values)
+}
+
 function ProposalCard({ proposal, busy, act }: {
   proposal: McpProposal
   busy: boolean
@@ -60,6 +71,7 @@ function ProposalCard({ proposal, busy, act }: {
   return <li className="flex flex-col gap-1 rounded-md border p-2" aria-label={proposal.label}>
     <p className="font-medium">{proposal.label}</p>
     {proposal.explanation && <p className="text-muted-foreground">{proposal.explanation}</p>}
+    {proposal.load && <p data-mcp-load>{loadText(proposal.load)}</p>}
     {counts.length > 0 && <ul className="list-disc pl-5">{counts.map((text) => <li key={text}>{text}</li>)}</ul>}
     <details>
       <summary>{t("Show the commands")}</summary>

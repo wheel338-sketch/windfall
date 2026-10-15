@@ -444,6 +444,11 @@ export const channelRackEn = {
   "{title}: drag the nodes for attack, decay and sustain level, and release. Double-click a node to reset it": "{title}: drag the nodes for attack, decay and sustain level, and release. Double-click a node to reset it",
   "{value} ticks": "{value} ticks",
   "{value}{value2} cents": "{value}{value2} cents",
+  "no SoundFont": "no SoundFont",
+  "Load a sound into {name}": "Load a sound into {name}",
+  "{name} has no SoundFont loaded, so it is silent. Click to choose one": "{name} has no SoundFont loaded, so it is silent. Click to choose one",
+  "{name} has no sample, so it is silent. Click to choose one": "{name} has no sample, so it is silent. Click to choose one",
+  "{name} has no sound loaded, so it is silent. Click to open its settings and load one": "{name} has no sound loaded, so it is silent. Click to open its settings and load one",
 } as const
 
 export const channelRackEs = {
@@ -890,4 +895,9 @@ export const channelRackEs = {
   "{title}: drag the nodes for attack, decay and sustain level, and release. Double-click a node to reset it": "{title}: arrastra los nodos de ataque, caída y nivel de sostenimiento, y liberación. Haz doble clic en un nodo para restablecerlo",
   "{value} ticks": "{value} ticks",
   "{value}{value2} cents": "{value}{value2} cents",
+  "no SoundFont": "sin SoundFont",
+  "Load a sound into {name}": "Cargar un sonido en {name}",
+  "{name} has no SoundFont loaded, so it is silent. Click to choose one": "{name} no tiene ningún SoundFont cargado, así que está en silencio. Haz clic para elegir uno",
+  "{name} has no sample, so it is silent. Click to choose one": "{name} no tiene muestra, así que está en silencio. Haz clic para elegir una",
+  "{name} has no sound loaded, so it is silent. Click to open its settings and load one": "{name} no tiene ningún sonido cargado, así que está en silencio. Haz clic para abrir sus ajustes y cargar uno",
 } satisfies Record<keyof typeof channelRackEn, Message>
