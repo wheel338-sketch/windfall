@@ -37,6 +37,9 @@ pub struct Settings {
     /// panel in it too. Kept as text, so a language a newer version adds
     /// does not make an older one drop the whole file.
     pub language: Option<String>,
+    /// The General MIDI SoundFont that General MIDI instruments play
+    /// from, chosen in Settings. Windfall ships none.
+    pub default_soundfont: Option<String>,
 }
 
 /// A language the interface is shown in, as the settings file keeps it.

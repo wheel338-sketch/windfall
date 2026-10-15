@@ -1,4 +1,5 @@
 import { toast } from "sonner"
+import { addChannelFromSoundFont } from "@/features/sample-instruments/soundfont-channel"
 import { openPresetRender } from "@/features/preset-render/dialog"
 import { isPresetPath } from "@/features/preset-render/types"
 
@@ -229,6 +230,7 @@ export async function replaceChannelSample(
 export function activateRow(row: EntryRow) {
   if (row.kind === "audio") void addToRack(row.path, row.library)
   else if (row.kind === "project") void openProjectPath(row.path)
+  else if (row.kind === "soundFont") addChannelFromSoundFont(row.path)
   else if (row.kind === "folder") toggleFolder(row)
 }
 

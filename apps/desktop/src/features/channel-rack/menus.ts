@@ -21,6 +21,7 @@ const ADD_CHANNEL: ContextItem = {
   items: [
     "channel.add",
     ...INSTRUMENT_KINDS.map((kind) => `channel.addInstrument.${kind}`),
+    "channel.addGeneralMidi",
     "channel.addLayer",
     "channel.addFromFile",
   ],

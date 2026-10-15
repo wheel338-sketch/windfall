@@ -1,4 +1,5 @@
 import { dynamicTitle, translatedText as t } from "@/lib/i18n"
+import { addGeneralMidiChannel } from "@/features/sample-instruments/soundfont-channel"
 import type { Channel } from "@/bindings"
 import { INSTRUMENT_KINDS, instrumentDescriptor } from "@/features/params"
 import {
@@ -304,6 +305,13 @@ export const CHANNEL_RACK_ACTIONS: Action[] = [
     run: addChannelFromPickedFile,
   },
   ...ADD_INSTRUMENT_ACTIONS,
+  {
+    id: "channel.addGeneralMidi",
+    ...dynamicTitle("Add General MIDI instrument…", {}),
+    section: "Channels",
+    keywords: "new channel soundfont sf2 gm general midi orchestral horn strings choir piano",
+    run: () => void addGeneralMidiChannel(),
+  },
   {
     id: "channel.addLayer",
     ...dynamicTitle("Add layer channel", {}),

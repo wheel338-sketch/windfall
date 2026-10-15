@@ -39,6 +39,7 @@ import { McpSettingsSection } from "./mcp-settings"
 import { nextKeymapPreset } from "./keymap-preset-step"
 import { UpdatesSection } from "@/features/updates/section"
 import { LanguageSection } from "./language"
+import { GeneralMidiSoundFontSection } from "@/features/sample-instruments/soundfont-channel"
 import { LanguageBoundary } from "@/lib/i18n/boundary"
 import { StemSeparationSettings } from "./stem-separation"
 import { localizeBackendText, useTranslation, translatedText as t, message, plainNumber } from "@/lib/i18n"
@@ -373,6 +374,7 @@ export function SettingsDialog() {
           <StemSeparationSettings />
           <PhoneRemoteSettings />
           <McpSettingsSection />
+          <GeneralMidiSoundFontSection />
         </LanguageBoundary>
         <AppearanceSection />
         <LanguageSection />

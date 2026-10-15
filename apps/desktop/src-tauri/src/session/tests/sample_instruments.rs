@@ -1584,3 +1584,84 @@ fn encoded_soundfont_read_is_admitted_before_allocation_and_releases_its_lease()
     drop(lease);
     assert_eq!(budget.used(), 0);
 }
+
+#[test]
+fn a_soundfont_channel_is_added_with_its_preset_as_one_undo_step() {
+    let rig = Rig::new();
+    let file = rig.file("gm-add.sf2");
+    std::fs::write(&file, general_midi_fixture()).unwrap();
+    let before = rig.session.document_snapshot();
+    let result = rig
+        .session
+        .soundfont_add_channel(file.clone(), 0, 0, None)
+        .unwrap();
+    let after = rig.session.document_snapshot();
+    assert_eq!(after.history.cursor, before.history.cursor + 1);
+    assert_eq!(
+        after.history.entries[after.history.cursor as usize - 1].label,
+        "Add SoundFont channel"
+    );
+    let channel = after
+        .project
+        .channels
+        .iter()
+        .find(|channel| before.project.channel(channel.id).is_none())
+        .unwrap()
+        .clone();
+    assert!(result.created.contains(&channel.id.0));
+    assert_eq!(channel.name, "Own GM");
+    assert!(matches!(
+        channel.sample_instrument,
+        Some(SampleInstrumentAsset::SoundFont { bank: 0, program: 0, source: Some(_), .. })
+    ));
+    let asset = channel.sample_instrument.clone().unwrap();
+    assert!(
+        rig.session
+            .state()
+            .pool
+            .has_sample_instrument_asset(&asset.canonical(&after.project))
+    );
+    rig.session.undo().unwrap();
+    assert_eq!(
+        rig.session.document_snapshot().project.channels,
+        before.project.channels
+    );
+    // A preset the file does not have, and a file that is not a SoundFont,
+    // change nothing.
+    let before = rig.session.document_snapshot();
+    assert!(
+        rig.session
+            .soundfont_add_channel(file, 0, 7, None)
+            .is_err()
+    );
+    let bad = rig.file("not-a-bank.sf2");
+    std::fs::write(&bad, b"hostile").unwrap();
+    assert!(
+        rig.session
+            .soundfont_add_channel(bad, 0, 0, Some("Bad".into()))
+            .is_err()
+    );
+    assert_eq!(rig.session.document_snapshot(), before);
+}
+
+#[test]
+fn the_general_midi_soundfont_setting_keeps_only_a_soundfont() {
+    let rig = Rig::new();
+    assert_eq!(rig.session.default_soundfont(), None);
+    let file = rig.file("gm-default.sf2");
+    std::fs::write(&file, general_midi_fixture()).unwrap();
+    assert_eq!(
+        rig.session.set_default_soundfont(Some(file.clone())).unwrap(),
+        Some(file.clone())
+    );
+    assert_eq!(rig.session.default_soundfont(), Some(file.clone()));
+    let wave = rig.file("not-a-bank.wav");
+    std::fs::write(&wave, b"RIFF0000WAVE").unwrap();
+    assert!(rig.session.set_default_soundfont(Some(wave)).is_err());
+    assert_eq!(rig.session.default_soundfont(), Some(file.clone()));
+    // It is kept for next time.
+    let reopened = rig.restart();
+    assert_eq!(reopened.session.default_soundfont(), Some(file));
+    assert_eq!(reopened.session.set_default_soundfont(None).unwrap(), None);
+    assert_eq!(reopened.session.default_soundfont(), None);
+}

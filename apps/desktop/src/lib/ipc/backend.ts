@@ -96,6 +96,12 @@ export interface Backend extends AnalysisBackend, PresetRenderBackend, MixerPres
   soundfontRelink?(channel: ChannelId, expected: import("@/bindings").SampleInstrumentAsset,
     expectedPath: import("@/bindings").SamplePath, path: string): Promise<DispatchResult>
   soundfontPresets?(path: string): Promise<import("@/bindings").SoundFontPreset[]>
+  /** A new SoundFont channel playing one preset, as one undo step; named after the preset unless `name` is given. */
+  soundfontAddChannel?(path: string, bank: number, program: number, name?: string | null): Promise<DispatchResult>
+  /** The General MIDI SoundFont chosen in Settings, or null. */
+  defaultSoundfont?(): Promise<string | null>
+  /** Chooses the General MIDI SoundFont, or with null forgets it. Resolves to what is kept. */
+  setDefaultSoundfont?(path: string | null): Promise<string | null>
   sampleInstrumentSpeech?(channel: ChannelId, expected: import("@/bindings").SampleInstrumentAsset | null,
     text: string, pitch: number, duration: number, request?: number): Promise<DispatchResult>
   sampleInstrumentSpeechBegin?(channel: ChannelId): Promise<number>

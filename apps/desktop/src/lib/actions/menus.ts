@@ -81,6 +81,7 @@ export const MENUS: MenuSpec[] = [
       "plugins.picker",
       "channel.add",
       "channel.addInstrument.subtractiveSynth",
+      "channel.addGeneralMidi",
       "channel.addFromFile",
       separator,
       "pattern.add",

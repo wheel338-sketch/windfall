@@ -43,6 +43,7 @@ import { PluginManager } from "@/features/plugins/manager"
 import { TouchControllersWindow } from "@/features/touch-controllers/window"
 import { AssistantPanel } from "@/features/assistant/panel"
 import { McpPanelHost } from "@/features/mcp/panel"
+import { SoundFontChannelDialogHost } from "@/features/sample-instruments/soundfont-channel"
 import { ScriptEditor } from "@/features/assistant/script-editor"
 import { RecordingDialog } from "@/features/transport/recording-dialog"
 import { UpdateHost } from "@/features/updates/notice"
@@ -136,6 +137,7 @@ export function AppShell() {
           <RetainedSoundsDialog />
           <AnalyzerSmokeHost />
           <McpPanelHost />
+          <SoundFontChannelDialogHost />
         </LanguageBoundary>
         <CommandPalette />
         <SettingsDialog />

@@ -7,6 +7,7 @@ import {
   Folder01Icon,
   FolderLibraryIcon,
   FolderOpenIcon,
+  GuitarIcon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react"
 import { memo, type CSSProperties } from "react"
@@ -51,6 +52,7 @@ function iconFor(row: EntryRow): IconSvgElement {
   if (row.kind === "audio") return AudioWave01Icon
   if (row.kind === "project") return FileMusicIcon
   if (row.kind === "other") return File01Icon
+  if (row.kind === "soundFont") return GuitarIcon
   if (row.root?.kind === "factory") return FolderLibraryIcon
   return row.open ? FolderOpenIcon : Folder01Icon
 }

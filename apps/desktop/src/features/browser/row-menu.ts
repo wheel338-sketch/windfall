@@ -14,6 +14,8 @@ import {
   removeRoot,
   replaceChannelSample,
 } from "./commands"
+import { addChannelFromSoundFont } from "@/features/sample-instruments/soundfont-channel"
+
 import { requestPreview } from "./preview"
 import { toggleFolder } from "./store"
 import type { EntryRow } from "./tree-model"
@@ -91,6 +93,18 @@ export function rowMenu(
   }
 
   if (row.kind === "other") return [copy]
+
+  if (row.kind === "soundFont") {
+    return [
+      {
+        ...dynamicTitle("Add a channel from this SoundFont…", {}),
+        shortcut: "Enter",
+        run: () => addChannelFromSoundFont(row.path),
+      },
+      contextSeparator,
+      copy,
+    ]
+  }
 
   const items: ContextItem[] = [
     {

@@ -341,12 +341,75 @@ impl Session {
             // The commands an agent may propose, and their bounds.
             proposal.batch()?;
         }
+        self.soundfont_batch(
+            proposal.commands.clone(),
+            proposal.label.clone(),
+            Some(channel),
+            Some(proposal.stamp),
+            file,
+            (bank, program),
+            replace_instrument,
+        )
+    }
+
+    /// A new SoundFont channel playing one preset of `path`, named after
+    /// the preset unless `name` is given, as one undo step: the browser's
+    /// and the General MIDI instrument choices.
+    pub fn soundfont_add_channel(
+        &self,
+        path: String,
+        bank: u16,
+        program: u16,
+        name: Option<String>,
+    ) -> Result<DispatchResult, String> {
+        let file = crate::paths::absolute(&path)?;
+        let name = match name.filter(|name| !name.trim().is_empty()) {
+            Some(name) => name,
+            None => self
+                .soundfont_presets(&crate::paths::display(&file))?
+                .into_iter()
+                .find(|preset| preset.bank == bank && preset.program == program)
+                .map(|preset| preset.name)
+                .ok_or("That preset is not in the SoundFont")?,
+        };
+        self.soundfont_batch(
+            vec![Command::AddChannel {
+                name: Some(name),
+                sample: None,
+                instrument: Some(InstrumentKind::SoundFont),
+                index: None,
+                mixer_track: None,
+            }],
+            "Add SoundFont channel".into(),
+            None,
+            None,
+            &file,
+            (bank, program),
+            false,
+        )
+    }
+
+    /// `prefix`, then one preset of `file` loaded into `channel` (or into
+    /// the first channel `prefix` makes), as one undo step named `label`.
+    /// With `stamp` only while the project is as that stamp says.
+    #[allow(clippy::too_many_arguments)]
+    fn soundfont_batch(
+        &self,
+        prefix: Vec<Command>,
+        label: String,
+        channel: Option<ChannelId>,
+        stamp: Option<windfall_project::proposal::ProposalStamp>,
+        file: &Path,
+        (bank, program): (u16, u16),
+        replace_instrument: bool,
+    ) -> Result<DispatchResult, String> {
         let (generation, edits, replacements, budget) = {
             let _recording = self.recording_idle()?;
             let state = self.state();
-            if proposal.stamp.generation != state.generation
-                || proposal.stamp.revision != state.document.revision()
-            {
+            if stamp.is_some_and(|stamp| {
+                stamp.generation != state.generation
+                    || stamp.revision != state.document.revision()
+            }) {
                 return Err("proposal is stale; generate a new preview".into());
             }
             (
@@ -365,10 +428,11 @@ impl Session {
             {
                 return Err("Project changed while importing SoundFont".into());
             }
-            let mut commands = proposal.commands.clone();
+            let mut commands = prefix;
             let mut candidate = state.document.clone();
+            let mut created = Vec::new();
             if !commands.is_empty() {
-                candidate
+                created = candidate
                     .dispatch(
                         Command::Batch {
                             label: None,
@@ -376,8 +440,17 @@ impl Session {
                         },
                         None,
                     )
-                    .map_err(|e| e.to_string())?;
+                    .map_err(|e| e.to_string())?
+                    .created;
             }
+            let channel = match channel {
+                Some(channel) => channel,
+                None => created
+                    .iter()
+                    .map(|id| ChannelId(*id))
+                    .find(|id| candidate.project().channel(*id).is_some())
+                    .ok_or("no channel to load the SoundFont into")?,
+            };
             let existing = candidate.project().samples.iter().find(|s| {
                 windfall_project::file::resolve_sample_path(
                     &s.path,
@@ -402,7 +475,7 @@ impl Session {
             )?;
             commands.extend(load);
             let command = Command::Batch {
-                label: Some(proposal.label.clone()),
+                label: Some(label),
                 commands,
             };
             (
@@ -412,8 +485,34 @@ impl Session {
         };
         let ticket = ticket.with_soundfont(asset, &encoded)?;
         #[cfg(test)]
-        self.pause("mcp-soundfont:prepared");
+        self.pause("soundfont-batch:prepared");
         self.finish_sample_edit(ticket)
+    }
+
+    /// The General MIDI SoundFont the user chose in Settings, if any.
+    pub fn default_soundfont(&self) -> Option<String> {
+        self.store().settings().default_soundfont.clone()
+    }
+
+    /// Chooses the General MIDI SoundFont that General MIDI instruments
+    /// play from, or with `None` forgets it. Only a SoundFont file is kept.
+    pub fn set_default_soundfont(&self, path: Option<String>) -> Result<Option<String>, String> {
+        let path = match path.filter(|path| !path.trim().is_empty()) {
+            None => None,
+            Some(path) => {
+                let file = crate::paths::absolute(&path)?;
+                if !is_soundfont_file(&file) {
+                    return Err(windfall_ipc::ui_message(
+                        "soundFonts.notSoundFont",
+                        serde_json::json!({"file": crate::paths::display(&file)}),
+                    ));
+                }
+                Some(crate::paths::display(&file))
+            }
+        };
+        self.store()
+            .update(|settings| settings.default_soundfont = path.clone());
+        Ok(path)
     }
     /// Replacement validation includes every preset sharing this project-owned
     /// file ID. Malformed/missing presets never change paths, PCM or history.

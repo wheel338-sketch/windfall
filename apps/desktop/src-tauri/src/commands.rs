@@ -126,6 +126,45 @@ async fn soundfont_load(
     blocking(move || session.soundfont_load(channel, expected, path, bank, program)).await
 }
 #[tauri::command]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Named Tauri wire arguments plus authenticated window context"
+)]
+async fn soundfont_add_channel(
+    session: State<'_, Session>,
+    path: String,
+    bank: u16,
+    program: u16,
+    name: Option<String>,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
+) -> Result<DispatchResult, String> {
+    let _window_call = caller.enter(&window, "soundfont_add_channel")?;
+    let session = session.inner().clone();
+    blocking(move || session.soundfont_add_channel(path, bank, program, name)).await
+}
+#[tauri::command]
+async fn default_soundfont(
+    session: State<'_, Session>,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
+) -> Result<Option<String>, String> {
+    let _window_call = caller.enter(&window, "default_soundfont")?;
+    let session = session.inner().clone();
+    blocking(move || Ok(session.default_soundfont())).await
+}
+#[tauri::command]
+async fn set_default_soundfont(
+    session: State<'_, Session>,
+    path: Option<String>,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
+) -> Result<Option<String>, String> {
+    let _window_call = caller.enter(&window, "set_default_soundfont")?;
+    let session = session.inner().clone();
+    blocking(move || session.set_default_soundfont(path)).await
+}
+#[tauri::command]
 async fn soundfont_relink(
     session: State<'_, Session>,
     channel: ChannelId,
@@ -2385,6 +2424,9 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         preset_render_cancel,
         preset_render_file,
         soundfont_load,
+        soundfont_add_channel,
+        default_soundfont,
+        set_default_soundfont,
         soundfont_relink,
         sample_instrument_speech,
         sample_instrument_speech_begin,
