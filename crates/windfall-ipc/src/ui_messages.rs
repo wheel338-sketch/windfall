@@ -889,6 +889,7 @@ pub const UI_MESSAGE_CODES: &[&str] = &[
     "plugin.panel.queued",
     "plugin.panel.hostFirst",
     "pluginExport.runtimeCopyDiffers",
+    "pluginHost.runtimeReplaced",
 ];
 
 /// The parameters each code is shown with, in the order of
@@ -1872,6 +1873,7 @@ pub const UI_MESSAGE_PARAMS: &[(&str, &[&str])] = &[
     ("plugin.panel.queued", &[]),
     ("plugin.panel.hostFirst", &[]),
     ("pluginExport.runtimeCopyDiffers", &["path"]),
+    ("pluginHost.runtimeReplaced", &["path"]),
 ];
 
 /// The parameters `code` is shown with, or `None` for an unregistered code.
@@ -2155,10 +2157,11 @@ mod tests {
             (860, "flp.native.pitcherScale"),
             (866, "plugin.panel.hostFirst"),
             (867, "pluginExport.runtimeCopyDiffers"),
+            (868, "pluginHost.runtimeReplaced"),
         ] {
             assert_eq!(UI_MESSAGE_CODES[index], code);
         }
-        assert_eq!(UI_MESSAGE_CODES.len(), 868);
+        assert_eq!(UI_MESSAGE_CODES.len(), 869);
     }
 
     #[test]

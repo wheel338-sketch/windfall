@@ -35,10 +35,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # The full gates run on Apple Silicon. On the slower Intel runner
+          # they took over three hours, so Intel builds, bundles and runs the
+          # launch smoke only.
           - name: macOS Apple Silicon
             os: macos-latest
+            gates: true
           - name: macOS Intel
             os: macos-15-intel
+            gates: false
     env:
       # The plugin runtime builds with one Cargo job by default; runners
       # have nothing else to keep responsive.
@@ -70,6 +75,7 @@ jobs:
 
       - name: Gates (fmt, UI, clippy, fixtures, workspace tests)
         id: gates
+        if: matrix.gates
         continue-on-error: true
         env:
           # 3-4 vCPU shared runners: two UI test workers, and the synths'
@@ -78,17 +84,21 @@ jobs:
           XPLAT_CPU_BUDGET: report
         run: bash scripts/xplat/gates.sh target/xplat-logs
 
+      - name: UI packages
+        run: pnpm --dir apps/desktop install --frozen-lockfile
+
       - name: Bundle (unsigned preview)
         id: bundle
         working-directory: apps/desktop
         run: |
           pnpm tauri build --ci --no-sign --bundles app,dmg \
-            --config '{"bundle":{"createUpdaterArtifacts":false}}' 2>&1 | tee ../../target/xplat-logs/bundle.log
+            --config '{"bundle":{"createUpdaterArtifacts":false}}' 2>&1 | tee ../../target/xplat-bundle.log
           exit "${PIPESTATUS[0]}"
 
       - name: Collect bundles
         id: collect
         run: |
+          mkdir -p target/xplat-logs && cp target/xplat-bundle.log target/xplat-logs/bundle.log
           out="target/xplat-out"
           mkdir -p "$out"
           cp target/release/bundle/dmg/*.dmg "$out/"
@@ -141,4 +151,4 @@ jobs:
         if: always()
         run: |
           cat target/xplat-logs/summary.log || true
-          test "${{ steps.gates.outcome }}" = success
+          test "${{ matrix.gates }}" != true || test "${{ steps.gates.outcome }}" = success

@@ -402,7 +402,7 @@ impl Controller {
             .store(track.map_or(u32::MAX, |track| track.0), Ordering::Release);
     }
     pub(crate) fn new() -> Self {
-        Self {
+        let controller = Self {
             inner: Arc::new(Inner {
                 shared: Arc::new(Shared::new()),
                 sampler_error: Mutex::new(None),
@@ -432,7 +432,14 @@ impl Controller {
                     resume: false,
                 }),
             }),
-        }
+        };
+        // On macOS (and the other Unix systems without futexes) a std mutex
+        // is allocated on its first lock. Take each of these once here, so
+        // a publication's install and the audio thread never do.
+        drop(controller.inner.sampler_error.lock());
+        drop(controller.inner.preparation_error.lock());
+        drop(controller.inner.state.lock());
+        controller
     }
 
     /// Makes the engine play this project. Call it again after every edit:

@@ -85,6 +85,8 @@ pub fn probe(path: &Path, expected: &Stamp) -> Result<Stamp, String> {
             windfall_core::notice!("pluginHost.runtimeMissing", path = path.display()).to_string(),
         );
     }
+    #[cfg(target_os = "macos")]
+    unchanged_since_loaded(path)?;
     // SAFETY: an export runtime is native code, exactly like a scanned plugin.
     // Keep the library alive until its version string has been copied.
     let library = unsafe { libloading::Library::new(path) }.map_err(|e| {
@@ -100,6 +102,46 @@ pub fn probe(path: &Path, expected: &Stamp) -> Result<Stamp, String> {
     )?;
     let pointer = unsafe { stamp() };
     unsafe { read_stamp(pointer, expected) }
+}
+/// macOS cannot unload a Rust dylib, and loading a path again returns the
+/// image already loaded from it, whatever the file holds now. So the first
+/// load of each path records the file's fingerprint, and a later probe of a
+/// file that has changed since is refused rather than answered with the old
+/// image: the replacement can only be used after a restart.
+#[cfg(target_os = "macos")]
+fn unchanged_since_loaded(path: &Path) -> Result<(), String> {
+    use std::collections::HashMap;
+    use std::hash::{Hash, Hasher};
+    use std::sync::{Mutex, OnceLock};
+    static LOADED: OnceLock<Mutex<HashMap<std::path::PathBuf, u64>>> = OnceLock::new();
+    let bytes = std::fs::read(path).map_err(|e| {
+        windfall_core::notice!(
+            "pluginHost.runtimeLoadFailed",
+            path = path.display(),
+            error = e.to_string()
+        )
+        .to_string()
+    })?;
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    bytes.hash(&mut hasher);
+    let fingerprint = hasher.finish();
+    let key = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_owned());
+    let mut loaded = LOADED
+        .get_or_init(Default::default)
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    match loaded.get(&key) {
+        Some(previous) if *previous != fingerprint => Err(windfall_core::notice!(
+            "pluginHost.runtimeReplaced",
+            path = path.display()
+        )
+        .to_string()),
+        Some(_) => Ok(()),
+        None => {
+            loaded.insert(key, fingerprint);
+            Ok(())
+        }
+    }
 }
 unsafe fn read_stamp(pointer: *const c_char, expected: &Stamp) -> Result<Stamp, String> {
     if pointer.is_null() {

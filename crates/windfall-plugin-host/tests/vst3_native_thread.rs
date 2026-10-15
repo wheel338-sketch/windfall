@@ -173,7 +173,14 @@ fn native_component_owner_checks_reject_another_live_owner() {
         return;
     }
 
-    let library = common::plugin_file("vst3-native-owner", "fixture.vst3");
+    let bundle = common::plugin_file("vst3-native-owner", "fixture.vst3");
+    // On macOS the fixture is published as a bundle; the child loads its
+    // executable directly.
+    let library = if cfg!(target_os = "macos") {
+        bundle.join("Contents/MacOS/windfall-fixture")
+    } else {
+        bundle
+    };
     for (method, original_message) in [
         ("setActive", "native lifecycle left the creating owner"),
         ("terminate", "native destruction left the creating owner"),
