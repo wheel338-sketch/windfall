@@ -64,6 +64,36 @@ pub struct McpProposal {
     pub counts: Vec<McpCount>,
     /// The exact checked commands, for review.
     pub commands: Vec<Command>,
+    /// What the proposal loads from a file, which Windfall reads when it
+    /// is applied. Absent for proposals of commands only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub load: Option<McpLoad>,
+}
+
+/// A load from a file in an agent's proposal, for review.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(tag = "type", rename_all = "camelCase", rename_all_fields = "camelCase")]
+#[ts(export)]
+pub enum McpLoad {
+    /// One preset of a SoundFont into a channel; with `replace_instrument`
+    /// the channel's instrument becomes a SoundFont player first.
+    SoundFont {
+        channel: ChannelId,
+        channel_name: String,
+        file: String,
+        preset: String,
+        bank: u16,
+        program: u16,
+        replace_instrument: bool,
+    },
+    /// A channel preset file onto a channel.
+    ChannelPreset {
+        channel: ChannelId,
+        channel_name: String,
+        file: String,
+        preset: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]

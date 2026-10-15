@@ -258,6 +258,24 @@ impl Session {
         without_audio: bool,
         guard: Option<(u64, u64)>,
     ) -> Result<DispatchResult, String> {
+        let command = self.preset_channel_command(path, id, expected, name_color, without_audio)?;
+        match guard {
+            Some((generation, revision)) => {
+                self.dispatch_file_command(command, generation, revision)
+            }
+            None => self.dispatch(command, None),
+        }
+    }
+
+    /// The command that loads the channel preset at `path` onto a channel.
+    pub(crate) fn preset_channel_command(
+        &self,
+        path: &str,
+        id: ChannelId,
+        expected: Channel,
+        name_color: bool,
+        without_audio: bool,
+    ) -> Result<Command, String> {
         let review = self.preset_read(path)?;
         let kind = review.preset.kind;
         let Some(body) = review.preset.channel else {
@@ -291,20 +309,14 @@ impl Session {
                 }
             },
         };
-        let command = Command::ApplyChannelPreset {
+        Ok(Command::ApplyChannelPreset {
             id,
             expected,
             preset: body,
             sample: None,
             audio,
             name_color,
-        };
-        match guard {
-            Some((generation, revision)) => {
-                self.dispatch_file_command(command, generation, revision)
-            }
-            None => self.dispatch(command, None),
-        }
+        })
     }
 
     /// The folder of the user's preset library.

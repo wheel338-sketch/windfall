@@ -323,6 +323,98 @@ impl Session {
         self.pause("soundfont:prepared");
         self.finish_sample_edit(ticket)
     }
+    /// An agent's approved SoundFont load: the proposal's own commands, then
+    /// the load, as one undo step named after the proposal, only while the
+    /// project is still as the proposal saw it. `file` was confined to the
+    /// browser's folders by the caller.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn mcp_soundfont_apply(
+        &self,
+        proposal: &windfall_project::proposal::CommandProposal,
+        channel: ChannelId,
+        file: &Path,
+        bank: u16,
+        program: u16,
+        replace_instrument: bool,
+    ) -> Result<DispatchResult, String> {
+        if !proposal.commands.is_empty() {
+            // The commands an agent may propose, and their bounds.
+            proposal.batch()?;
+        }
+        let (generation, edits, replacements, budget) = {
+            let _recording = self.recording_idle()?;
+            let state = self.state();
+            if proposal.stamp.generation != state.generation
+                || proposal.stamp.revision != state.document.revision()
+            {
+                return Err("proposal is stale; generate a new preview".into());
+            }
+            (
+                state.generation,
+                state.edits,
+                state.replacements,
+                state.pool.sample_bank_budget_handle(),
+            )
+        };
+        let (encoded, _lease) = read_soundfont(file, &budget)?;
+        let (ticket, asset) = {
+            let _recording = self.recording_idle()?;
+            let state = self.state();
+            if (state.generation, state.edits, state.replacements)
+                != (generation, edits, replacements)
+            {
+                return Err("Project changed while importing SoundFont".into());
+            }
+            let mut commands = proposal.commands.clone();
+            let mut candidate = state.document.clone();
+            if !commands.is_empty() {
+                candidate
+                    .dispatch(
+                        Command::Batch {
+                            label: None,
+                            commands: commands.clone(),
+                        },
+                        None,
+                    )
+                    .map_err(|e| e.to_string())?;
+            }
+            let existing = candidate.project().samples.iter().find(|s| {
+                windfall_project::file::resolve_sample_path(
+                    &s.path,
+                    state.sample_dir.as_deref(),
+                    &self.inner.factory_dir,
+                )
+                .is_some_and(|p| crate::paths::clean(&p) == crate::paths::clean(file))
+            });
+            let (path, existing) = existing.map_or(
+                (SamplePath::External(crate::paths::display(file)), None),
+                |s| (s.path.clone(), Some(s.id)),
+            );
+            let (load, asset) = windfall_project::sample_instrument::soundfont_load_commands(
+                &candidate,
+                channel,
+                crate::paths::stem(file),
+                path,
+                existing,
+                bank,
+                program,
+                replace_instrument,
+            )?;
+            commands.extend(load);
+            let command = Command::Batch {
+                label: Some(proposal.label.clone()),
+                commands,
+            };
+            (
+                self.sample_edit_ticket(&state, command, None, Vec::new())?,
+                asset,
+            )
+        };
+        let ticket = ticket.with_soundfont(asset, &encoded)?;
+        #[cfg(test)]
+        self.pause("mcp-soundfont:prepared");
+        self.finish_sample_edit(ticket)
+    }
     /// Replacement validation includes every preset sharing this project-owned
     /// file ID. Malformed/missing presets never change paths, PCM or history.
     pub fn soundfont_relink(

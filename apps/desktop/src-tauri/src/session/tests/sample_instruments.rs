@@ -1143,7 +1143,7 @@ fn project_controller_destination_reopens_without_changing_application_midi_sett
     assert_eq!(reopened.session.midi_hardware_state().settings, application);
 }
 
-fn general_midi_fixture() -> Vec<u8> {
+pub(super) fn general_midi_fixture() -> Vec<u8> {
     fn chunk(id: &[u8; 4], data: &[u8]) -> Vec<u8> {
         let mut out = id.to_vec();
         out.extend((data.len() as u32).to_le_bytes());

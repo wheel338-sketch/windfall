@@ -15,7 +15,9 @@ use windfall_mcp::http::{client_request, read_response};
 use windfall_mcp::protocol::{
     Incoming, META_CAPABILITIES, META_CLIENT, META_VERSION, MODERN, Outgoing,
 };
-use windfall_project::{Command, NoteInit, PatternId};
+use windfall_project::{
+    ChannelId, Command, InstrumentKind, NoteInit, PatternId, SampleInstrumentAsset,
+};
 
 use super::Rig;
 use crate::events::Event;
@@ -512,4 +514,289 @@ fn an_agent_render_measures_the_project_solos_a_track_and_keeps_a_wav() {
     assert!(message.contains("maxSeconds"), "{message}");
     // The render did not change the project.
     assert!(rig.project().mixer.tracks.iter().all(|track| !track.solo));
+}
+
+/// A folder added to the browser with the test SoundFont in it, as a user
+/// with a General MIDI bank among their sounds has.
+fn soundfont_root(rig: &Rig) -> (std::path::PathBuf, String) {
+    let root = std::path::PathBuf::from(rig.file("Sounds"));
+    std::fs::create_dir_all(root.join("Banks")).unwrap();
+    let bank = root.join("Banks").join("GM.sf2");
+    std::fs::write(&bank, super::sample_instruments::general_midi_fixture()).unwrap();
+    rig.session
+        .browser_add_root(&crate::paths::display(&root))
+        .unwrap();
+    (root, crate::paths::display(&bank))
+}
+
+/// A channel playing `kind` with one note in the first pattern.
+fn channel_with_a_note(rig: &Rig, name: &str, kind: InstrumentKind) -> ChannelId {
+    let channel = ChannelId(
+        rig.session
+            .dispatch(
+                Command::AddChannel {
+                    name: Some(name.into()),
+                    sample: None,
+                    instrument: Some(kind),
+                    index: None,
+                    mixer_track: None,
+                },
+                None,
+            )
+            .unwrap()
+            .created[0],
+    );
+    rig.session
+        .dispatch(
+            Command::AddNotes {
+                pattern: rig.pattern(),
+                channel,
+                notes: vec![NoteInit {
+                    start: 0,
+                    length: windfall_core::PPQ,
+                    key: 60,
+                    velocity: None,
+                    pan: None,
+                    expression: None,
+                }],
+            },
+            None,
+        )
+        .unwrap();
+    channel
+}
+
+fn soundfont_of(rig: &Rig, channel: ChannelId) -> Option<(u16, u16)> {
+    match rig.project().channel(channel)?.sample_instrument.clone()? {
+        SampleInstrumentAsset::SoundFont { bank, program, .. } => Some((bank, program)),
+        _ => None,
+    }
+}
+
+#[test]
+fn an_agent_loads_a_soundfont_preset_from_the_browser_as_one_undo_step() {
+    let rig = Rig::new();
+    let host = rig.session.mcp_test_host();
+    let (_, bank) = soundfont_root(&rig);
+    let choir = channel_with_a_note(&rig, "Choir", InstrumentKind::SoundFont);
+    let found = ok(&call(
+        &rig,
+        &host,
+        "search_library",
+        json!({"kind": "soundFont"}),
+    ));
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    let mut found = found;
+    while found["total"] == 0 && std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(20));
+        found = ok(&call(&rig, &host, "search_library", json!({"kind": "soundFont"})));
+    }
+    assert_eq!(found["total"], 1, "{found}");
+    assert_eq!(found["items"][0]["kind"], "soundFont");
+    assert!(
+        found["items"][0]["path"]
+            .as_str()
+            .unwrap()
+            .ends_with("GM.sf2")
+    );
+    assert!(found["items"][0]["bytes"].as_u64().unwrap() > 16_000);
+    let presets = ok(&call(
+        &rig,
+        &host,
+        "list_soundfont_presets",
+        json!({"path": bank}),
+    ));
+    assert_eq!(presets["items"][0]["name"], "Own GM");
+    assert_eq!(presets["items"][0]["family"], "Piano");
+    let before = rig.session.document_snapshot();
+    let result = ok(&call(
+        &rig,
+        &host,
+        "load_soundfont_preset",
+        json!({"channelId": choir.0, "path": bank, "program": 0}),
+    ));
+    assert_eq!(result["status"]["state"], "pending", "{result}");
+    assert_eq!(rig.session.document_snapshot().project, before.project);
+    let id = result["proposalId"].as_str().unwrap();
+    let panel = rig.session.mcp_panel();
+    let shown = panel.proposals.iter().find(|p| p.id == id).unwrap();
+    assert!(shown.commands.is_empty());
+    assert!(
+        matches!(&shown.load, Some(windfall_ipc::McpLoad::SoundFont { preset, program: 0, .. }) if preset == "Own GM"),
+        "{:?}",
+        shown.load
+    );
+    rig.session.mcp_approve(id).unwrap();
+    let after = rig.session.document_snapshot();
+    assert_eq!(soundfont_of(&rig, choir), Some((0, 0)));
+    assert_eq!(after.history.cursor, before.history.cursor + 1);
+    assert_eq!(
+        after.history.entries[after.history.cursor as usize - 1].label,
+        "session-agent: Load SoundFont preset"
+    );
+    let asset = after.project.channel(choir).unwrap().sample_instrument.clone().unwrap();
+    assert!(
+        rig.session
+            .state()
+            .pool
+            .has_sample_instrument_asset(&asset.canonical(&after.project))
+    );
+    rig.session.undo().unwrap();
+    assert_eq!(rig.session.document_snapshot().project.channels, before.project.channels);
+    assert_eq!(soundfont_of(&rig, choir), None);
+}
+
+#[test]
+fn an_agent_cannot_name_files_outside_the_browser_folders() {
+    let rig = Rig::new();
+    let host = rig.session.mcp_test_host();
+    let (root, bank) = soundfont_root(&rig);
+    let choir = channel_with_a_note(&rig, "Choir", InstrumentKind::SoundFont);
+    let outside = std::path::PathBuf::from(rig.file("Private"));
+    std::fs::create_dir_all(&outside).unwrap();
+    std::fs::write(
+        outside.join("secret.sf2"),
+        super::sample_instruments::general_midi_fixture(),
+    )
+    .unwrap();
+    // A junction (a symbolic link elsewhere) inside the root that leads out.
+    let escape = root.join("Escape");
+    #[cfg(windows)]
+    assert!(
+        std::process::Command::new("cmd")
+            .args(["/D", "/C", "mklink", "/J"])
+            .arg(&escape)
+            .arg(&outside)
+            .output()
+            .unwrap()
+            .status
+            .success()
+    );
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(&outside, &escape).unwrap();
+    let climb = format!("{}{}..{}Private{}secret.sf2", crate::paths::display(&root), std::path::MAIN_SEPARATOR, std::path::MAIN_SEPARATOR, std::path::MAIN_SEPARATOR);
+    for (path, wanted) in [
+        (crate::paths::display(&outside.join("secret.sf2")), "not inside"),
+        (climb, ".."),
+        (crate::paths::display(&escape.join("secret.sf2")), "junction"),
+        ("Banks/GM.sf2".to_owned(), "full path"),
+    ] {
+        let listed = failure(&call(
+            &rig,
+            &host,
+            "list_soundfont_presets",
+            json!({"path": path}),
+        ));
+        assert!(listed.contains(wanted), "{wanted}: {listed}");
+        let loaded = failure(&call(
+            &rig,
+            &host,
+            "load_soundfont_preset",
+            json!({"channelId": choir.0, "path": path, "program": 0}),
+        ));
+        assert!(loaded.contains(wanted), "{wanted}: {loaded}");
+        let added = failure(&call(
+            &rig,
+            &host,
+            "add_channel",
+            json!({"soundFont": {"path": path, "program": 0}}),
+        ));
+        assert!(added.contains(wanted), "{wanted}: {added}");
+    }
+    assert!(rig.session.mcp_panel().proposals.is_empty());
+    // A proposal whose folder is removed before it is applied fails.
+    let result = ok(&call(
+        &rig,
+        &host,
+        "load_soundfont_preset",
+        json!({"channelId": choir.0, "path": bank, "program": 0}),
+    ));
+    rig.session
+        .browser_remove_root(&crate::paths::display(&root))
+        .unwrap();
+    let id = result["proposalId"].as_str().unwrap();
+    let refused = rig.session.mcp_approve(id).unwrap_err();
+    assert!(refused.contains("not inside"), "{refused}");
+    assert_eq!(soundfont_of(&rig, choir), None);
+}
+
+#[test]
+fn renders_name_the_channels_with_notes_that_stayed_silent() {
+    let rig = Rig::new();
+    let host = rig.session.mcp_test_host();
+    let (_, bank) = soundfont_root(&rig);
+    // Silence the template's own channels, so only the two below play.
+    for channel in rig.project().channels {
+        rig.session
+            .dispatch(
+                Command::UpdateChannel {
+                    id: channel.id,
+                    patch: windfall_project::ChannelPatch {
+                        muted: Some(true),
+                        ..Default::default()
+                    },
+                },
+                None,
+            )
+            .unwrap();
+    }
+    let empty = channel_with_a_note(&rig, "Choir", InstrumentKind::SoundFont);
+    let added = ok(&call(
+        &rig,
+        &host,
+        "add_channel",
+        json!({"name": "Horns", "soundFont": {"path": bank, "program": 0}}),
+    ));
+    rig.session
+        .mcp_approve(added["proposalId"].as_str().unwrap())
+        .unwrap();
+    let loaded = ChannelId(added["created"]["channels"][0].as_u64().unwrap() as u32);
+    assert_eq!(soundfont_of(&rig, loaded), Some((0, 0)));
+    rig.session
+        .dispatch(
+            Command::AddNotes {
+                pattern: rig.pattern(),
+                channel: loaded,
+                notes: vec![NoteInit {
+                    start: 0,
+                    length: windfall_core::PPQ,
+                    key: 60,
+                    velocity: None,
+                    pan: None,
+                    expression: None,
+                }],
+            },
+            None,
+        )
+        .unwrap();
+    let summary = ok(&call(&rig, &host, "get_project_summary", json!({})));
+    let flagged: Vec<u64> = summary["channels"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|channel| channel["silent"] == true)
+        .map(|channel| channel["id"].as_u64().unwrap())
+        .collect();
+    assert!(flagged.contains(&u64::from(empty.0)), "{summary}");
+    assert!(!flagged.contains(&u64::from(loaded.0)), "{summary}");
+    let measured = ok(&call(
+        &rig,
+        &host,
+        "render_and_measure",
+        json!({"region": {"patternId": rig.pattern().0}}),
+    ));
+    let silent = measured["silentChannels"].as_array().unwrap();
+    assert_eq!(silent.len(), 1, "{measured}");
+    assert_eq!(silent[0]["id"], empty.0);
+    assert_eq!(silent[0]["name"], "Choir");
+    assert!(
+        silent[0]["reason"]
+            .as_str()
+            .unwrap()
+            .contains("no source loaded")
+    );
+    assert!(
+        measured["measurements"]["integratedLufs"].as_f64().unwrap() > -80.0,
+        "{measured}"
+    );
 }

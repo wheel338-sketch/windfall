@@ -463,6 +463,69 @@ impl Library {
     }
 }
 
+/// The file an agent named, if it is a regular file inside one of `roots`
+/// (the browser's folders and the factory content). A path with `.` or
+/// `..` in it is refused outright, and so is a symbolic link or junction
+/// anywhere between the folder and the file; the file's canonical path
+/// must also lie inside the folder's, so nothing reaches past a root.
+/// Returns the file's cleaned absolute path.
+pub(crate) fn confined_file(text: &str, roots: &[PathBuf]) -> Result<PathBuf, String> {
+    let outside = || {
+        format!(
+            "{text} is not inside a folder in Windfall's browser or its factory content; search_library lists the files an agent may use"
+        )
+    };
+    let given = Path::new(text);
+    if text.trim().is_empty() || !given.is_absolute() {
+        return Err(format!(
+            "{text} is not a full path; give the absolute path search_library gives"
+        ));
+    }
+    if text.len() > MAX_PATH_BYTES {
+        return Err(outside());
+    }
+    if given
+        .components()
+        .any(|part| matches!(part, std::path::Component::ParentDir | std::path::Component::CurDir))
+        || text.split(['/', '\\']).any(|part| part == ".." || part == ".")
+    {
+        return Err(format!("{text} has . or .. in it; paths that climb out of a folder are refused"));
+    }
+    let file = paths::clean(given);
+    let root = roots
+        .iter()
+        .map(|root| paths::clean(root))
+        .find(|root| under(&file, root))
+        .ok_or_else(outside)?;
+    let mut depth = 0;
+    for part in file.ancestors() {
+        if paths::same(part, &root) {
+            break;
+        }
+        depth += 1;
+        if depth > MAX_DEPTH + 2 {
+            return Err(outside());
+        }
+        let metadata = fs::symlink_metadata(part)
+            .map_err(|error| format!("{}: {error}", paths::display(part)))?;
+        if reparse(&metadata) {
+            return Err(format!(
+                "{text} goes through a symbolic link or junction ({}); agents may only use the original files",
+                paths::display(part)
+            ));
+        }
+    }
+    if !fs::symlink_metadata(&file).is_ok_and(|metadata| metadata.is_file()) {
+        return Err(format!("{text} is not a file"));
+    }
+    let real_root = dunce::canonicalize(&root).map_err(|error| error.to_string())?;
+    let real_file = dunce::canonicalize(&file).map_err(|error| error.to_string())?;
+    if !real_file.starts_with(&real_root) {
+        return Err(outside());
+    }
+    Ok(file)
+}
+
 pub struct LibraryGuard<'a> {
     _index: MutexGuard<'a, Index>,
 }
@@ -963,6 +1026,67 @@ mod tests {
         assert!(result.results_truncated);
         assert_eq!(result.issues.len(), 2);
         assert!(windfall_core::english::english(&result.issues[0]).contains("Check folder access"));
+    }
+
+    fn link_folder(link: &Path, target: &Path) {
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(target, link).unwrap();
+        #[cfg(windows)]
+        assert!(
+            std::process::Command::new("cmd")
+                .args(["/D", "/C", "mklink", "/J"])
+                .arg(link)
+                .arg(target)
+                .output()
+                .unwrap()
+                .status
+                .success()
+        );
+    }
+
+    #[test]
+    fn agents_may_name_only_ordinary_files_inside_the_roots() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("Sounds");
+        let secret = temp.path().join("Secret");
+        fs::create_dir_all(root.join("Banks")).unwrap();
+        fs::create_dir(&secret).unwrap();
+        let bank = root.join("Banks").join("GM.sf2");
+        fs::write(&bank, b"RIFF").unwrap();
+        fs::write(secret.join("private.sf2"), b"RIFF").unwrap();
+        let roots = [root.clone()];
+        let named = |path: &Path| confined_file(&paths::display(path), &roots);
+        assert_eq!(named(&bank).unwrap(), paths::clean(&bank));
+        // Outside every root.
+        assert!(named(&secret.join("private.sf2")).unwrap_err().contains("not inside"));
+        // Climbing out with .. is refused before anything is looked at, even
+        // when it lands back inside.
+        for climb in [
+            root.join("..").join("Secret").join("private.sf2"),
+            root.join("Banks").join("..").join("Banks").join("GM.sf2"),
+            root.join(".").join("Banks").join("GM.sf2"),
+        ] {
+            assert!(named(&climb).unwrap_err().contains(".."), "{climb:?}");
+        }
+        // A link or junction inside the root that leads out of it.
+        let escape = root.join("Escape");
+        link_folder(&escape, &secret);
+        assert!(
+            named(&escape.join("private.sf2"))
+                .unwrap_err()
+                .contains("symbolic link or junction")
+        );
+        // A folder is not a file, and a relative path is not a full one.
+        assert!(named(&root.join("Banks")).unwrap_err().contains("not a file"));
+        assert!(confined_file("Banks/GM.sf2", &roots).unwrap_err().contains("full path"));
+        assert!(named(&root.join("Banks").join("Missing.sf2")).is_err());
+        // A root that is itself reached through a link still confines: the
+        // file must be inside the folder the link leads to.
+        let linked_root = temp.path().join("Linked");
+        link_folder(&linked_root, &root);
+        let through = [linked_root.clone()];
+        assert!(confined_file(&paths::display(&linked_root.join("Banks").join("GM.sf2")), &through).is_ok());
+        assert!(confined_file(&paths::display(&secret.join("private.sf2")), &through).is_err());
     }
 
     #[test]

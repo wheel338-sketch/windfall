@@ -13,13 +13,17 @@ use serde_json::Value;
 use windfall_core::AudioBuffer;
 use windfall_engine::{RenderOptions, render_streaming_checked};
 use windfall_ipc::{
-    McpAgent, McpCount, McpFocus, McpPanel, McpProposal, McpSettings, McpSettingsUpdate, PlayMode,
+    McpAgent, McpCount, McpFocus, McpLoad, McpPanel, McpProposal, McpSettings, McpSettingsUpdate,
+    PlayMode,
 };
 use windfall_mcp::{
-    Approver, Focus, Host, RenderRegion, RenderRequest, RenderedAudio, Snapshot, Status, Transport,
+    Approver, ChannelPresetInfo, Focus, Host, LibraryFile, LibraryPage, NativeEdit, RenderRegion,
+    RenderRequest, RenderedAudio, Snapshot, SoundFontPreset, Status, Transport,
 };
 use windfall_project::proposal::{CommandProposal, ProposalStamp};
-use windfall_project::{AutomationRange, AutomationTarget, PPQ, Project, TickRange};
+use windfall_project::{
+    AutomationRange, AutomationTarget, ChannelId, ClipContent, Command, PPQ, Project, TickRange,
+};
 
 use super::{Session, WeakSession};
 use crate::events::Event;
@@ -84,6 +88,38 @@ impl Host for SessionHost {
         self.session()?.mcp_render(request, cancelled)
     }
 
+    fn apply_native(&self, proposal: CommandProposal, edit: NativeEdit) -> Result<u64, String> {
+        self.session()?
+            .mcp_native_apply(proposal, edit)
+            .map(|result| result.patch.revision)
+    }
+
+    fn library_file(&self, path: &str) -> Result<String, String> {
+        self.session()?
+            .mcp_library_file(path)
+            .map(|file| crate::paths::display(&file))
+    }
+
+    fn soundfont_presets(&self, path: &str) -> Result<Vec<SoundFontPreset>, String> {
+        let session = self.session()?;
+        let file = session.mcp_library_file(path)?;
+        session.soundfont_presets(&crate::paths::display(&file))
+    }
+
+    fn search_library(
+        &self,
+        query: &str,
+        kind: Option<&str>,
+        offset: usize,
+        limit: usize,
+    ) -> Result<LibraryPage, String> {
+        self.session()?.mcp_search_library(query, kind, offset, limit)
+    }
+
+    fn channel_presets(&self) -> Result<Vec<ChannelPresetInfo>, String> {
+        self.session()?.mcp_channel_presets()
+    }
+
     fn proposals_changed(&self) {
         if let Some(session) = self.0.upgrade() {
             session.mcp_announce();
@@ -116,6 +152,97 @@ fn slowest_tempo(project: &Project) -> f64 {
         .fold(project.settings.tempo_bpm, f64::min)
         .max(windfall_project::MIN_TEMPO_BPM)
 }
+
+/// What an agent calls a file of the browser: "audio", "soundFont",
+/// "project", "preset" or "other".
+pub(crate) fn agent_file_kind(path: &std::path::Path) -> &'static str {
+    let extension = path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .unwrap_or("");
+    if extension.eq_ignore_ascii_case("sf2") {
+        "soundFont"
+    } else if extension.eq_ignore_ascii_case("wfpreset") {
+        "preset"
+    } else if extension.eq_ignore_ascii_case(windfall_project::file::FILE_EXTENSION) {
+        "project"
+    } else if windfall_codec::is_audio_extension(extension) {
+        "audio"
+    } else {
+        "other"
+    }
+}
+
+/// The channels that play notes somewhere in a region, and are not muted:
+/// those a render of it should hear.
+fn channels_heard(project: &Project, region: RenderRegion, solo: Option<windfall_project::TrackId>) -> Vec<ChannelId> {
+    let mut heard = std::collections::BTreeSet::new();
+    let mut lanes = |pattern: &windfall_project::Pattern, window: Option<(u32, u32, u32, (u32, u32))>| {
+        let length = pattern.length_ticks().max(1);
+        for lane in &pattern.lanes {
+            let plays = lane.notes.iter().any(|note| match window {
+                None => true,
+                // A clip at `start`, `len` long, `offset` into its pattern,
+                // within the region `from..to`; patterns repeat in a clip.
+                Some((start, len, offset, (from, to))) => {
+                    let end = start.saturating_add(len);
+                    let mut at = i64::from(start) - i64::from(offset) + i64::from(note.start);
+                    let mut passes = 0;
+                    while at < i64::from(end) && passes < 4096 {
+                        if at >= i64::from(start) && at < i64::from(to) && at + i64::from(note.length.max(1)) > i64::from(from) {
+                            return true;
+                        }
+                        at += i64::from(length);
+                        passes += 1;
+                    }
+                    false
+                }
+            });
+            if plays {
+                heard.insert(lane.channel);
+            }
+        }
+    };
+    match region {
+        RenderRegion::Pattern { pattern, .. } => {
+            if let Some(pattern) = project.pattern(pattern) {
+                lanes(pattern, None);
+            }
+        }
+        RenderRegion::Song | RenderRegion::Range { .. } => {
+            let (from, to) = match region {
+                RenderRegion::Range { start, end } => (start, end),
+                _ => (0, u32::MAX),
+            };
+            for clip in &project.playlist.clips {
+                let ClipContent::Pattern { pattern } = clip.content else {
+                    continue;
+                };
+                let track_muted = project
+                    .playlist
+                    .tracks
+                    .iter()
+                    .any(|track| track.id == clip.track && track.muted);
+                if clip.muted || track_muted {
+                    continue;
+                }
+                if let Some(pattern) = project.pattern(pattern) {
+                    lanes(pattern, Some((clip.start, clip.length, clip.offset, (from, to))));
+                }
+            }
+        }
+    }
+    project
+        .channels
+        .iter()
+        .filter(|channel| heard.contains(&channel.id) && !channel.muted)
+        .filter(|channel| solo.is_none_or(|track| channel.mixer_track == track))
+        .map(|channel| channel.id)
+        .collect()
+}
+
+/// Channels checked for silence in one render at most.
+const MAX_SILENCE_CHECKS: usize = 64;
 
 fn count_text(value: &Value) -> String {
     match value {
@@ -264,6 +391,44 @@ impl Session {
                 explanation: entry.proposal.explanation,
                 automatic: entry.automatic,
                 commands: entry.proposal.commands,
+                load: entry.native.map(|native| {
+                    let named = |channel: ChannelId| {
+                        self.state()
+                            .document
+                            .project()
+                            .channel(channel)
+                            .map(|channel| channel.name.clone())
+                            .unwrap_or_default()
+                    };
+                    match native {
+                        NativeEdit::SoundFont {
+                            channel,
+                            path,
+                            bank,
+                            program,
+                            preset,
+                            replace_instrument,
+                        } => McpLoad::SoundFont {
+                            channel_name: named(channel),
+                            channel,
+                            file: path,
+                            preset,
+                            bank,
+                            program,
+                            replace_instrument,
+                        },
+                        NativeEdit::ChannelPreset {
+                            channel,
+                            path,
+                            name,
+                        } => McpLoad::ChannelPreset {
+                            channel_name: named(channel),
+                            channel,
+                            file: path,
+                            preset: name,
+                        },
+                    }
+                }),
             })
             .collect();
         let mut names = approvals.agents();
@@ -494,11 +659,180 @@ impl Session {
             return Err("The region rendered no audio.".into());
         }
         let path = self.keep_render(&samples)?;
+        // Each channel that has notes in the region is rendered alone, and
+        // stops at its first audible block: a channel that sounds costs
+        // little, one that stays silent costs one render of the region.
+        let mut silent_channels = Vec::new();
+        for channel in channels_heard(&project, request.region, request.solo)
+            .into_iter()
+            .take(MAX_SILENCE_CHECKS)
+        {
+            if cancelled() || flag.load(Ordering::Acquire) {
+                return Err("The render was cancelled.".into());
+            }
+            let mut alone = project.clone();
+            for other in &mut alone.channels {
+                other.solo = false;
+                other.muted = other.id != channel;
+            }
+            let mut audible = false;
+            let mut frames = 0usize;
+            let checked = render_streaming_checked(
+                &alone,
+                &render_pool,
+                &options,
+                &mut |block| {
+                    frames += block.len();
+                    audible = block.iter().any(|sample| sample.abs() > 1e-6);
+                    !audible && frames <= limit
+                },
+                &mut |_| !cancelled() && !flag.load(Ordering::Acquire),
+            );
+            if checked.is_ok() && !audible {
+                silent_channels.push(channel);
+            }
+        }
         Ok(RenderedAudio {
             samples,
             sample_rate: RENDER_RATE,
             path: Some(crate::paths::display(&path)),
+            silent_channels,
         })
+    }
+
+    /// The file an agent named, if it is inside the browser's folders or
+    /// the factory content. See [`crate::library::confined_file`].
+    pub(crate) fn mcp_library_file(&self, path: &str) -> Result<PathBuf, String> {
+        let roots: Vec<PathBuf> = self
+            .browser_roots()
+            .into_iter()
+            .map(|root| PathBuf::from(root.path))
+            .collect();
+        crate::library::confined_file(path, &roots)
+    }
+
+    /// The browser's own search over its folders, for an agent.
+    pub(crate) fn mcp_search_library(
+        &self,
+        query: &str,
+        kind: Option<&str>,
+        offset: usize,
+        limit: usize,
+    ) -> Result<LibraryPage, String> {
+        let results = self.library_search(&windfall_ipc::LibrarySearch {
+            query: query.to_owned(),
+            favorites_only: false,
+            tags: Vec::new(),
+        })?;
+        let matching: Vec<_> = results
+            .entries
+            .iter()
+            .filter(|entry| {
+                kind.is_none_or(|kind| agent_file_kind(std::path::Path::new(&entry.entry.path)) == kind)
+            })
+            .collect();
+        Ok(LibraryPage {
+            total: matching.len(),
+            items: matching
+                .iter()
+                .skip(offset)
+                .take(limit)
+                .map(|entry| {
+                    let path = std::path::Path::new(&entry.entry.path);
+                    LibraryFile {
+                        path: entry.entry.path.clone(),
+                        kind: agent_file_kind(path).to_owned(),
+                        bytes: std::fs::metadata(path).map_or(0, |metadata| metadata.len()),
+                        relative_path: entry.relative_path.clone(),
+                    }
+                })
+                .collect(),
+            indexing: results.status == windfall_ipc::LibraryStatus::Indexing,
+            truncated: results.truncated || results.results_truncated,
+        })
+    }
+
+    /// The channel presets of the user's preset library.
+    pub(crate) fn mcp_channel_presets(&self) -> Result<Vec<ChannelPresetInfo>, String> {
+        Ok(self
+            .preset_library()?
+            .into_iter()
+            .filter(|entry| entry.kind == windfall_project::PresetKind::Channel)
+            .map(|entry| ChannelPresetInfo {
+                instrument: entry.plugin.as_ref().map_or_else(
+                    || "sampler".to_owned(),
+                    |plugin| {
+                        serde_json::from_value::<windfall_project::InstrumentKind>(
+                            serde_json::json!(plugin.id),
+                        )
+                        .map_or_else(|_| plugin.id.clone(), |kind| kind.name().to_owned())
+                    },
+                ),
+                name: entry.name,
+                path: entry.path,
+                origin: "library".to_owned(),
+            })
+            .collect())
+    }
+
+    /// Applies an agent's approved proposal whose edit Windfall makes
+    /// itself, as one undo step.
+    pub(crate) fn mcp_native_apply(
+        &self,
+        proposal: CommandProposal,
+        edit: NativeEdit,
+    ) -> Result<windfall_project::DispatchResult, String> {
+        match edit {
+            NativeEdit::SoundFont {
+                channel,
+                path,
+                bank,
+                program,
+                replace_instrument,
+                ..
+            } => {
+                // The folders may have changed since it was proposed.
+                let file = self.mcp_library_file(&path)?;
+                self.mcp_soundfont_apply(&proposal, channel, &file, bank, program, replace_instrument)
+            }
+            NativeEdit::ChannelPreset { channel, path, .. } => {
+                if !self
+                    .mcp_channel_presets()?
+                    .iter()
+                    .any(|preset| preset.path == path)
+                {
+                    return Err("that channel preset is no longer in the preset library".into());
+                }
+                if !proposal.commands.is_empty() {
+                    proposal.batch()?;
+                }
+                let expected = self
+                    .state()
+                    .document
+                    .project()
+                    .channel(channel)
+                    .cloned()
+                    .ok_or("the channel no longer exists")?;
+                let load = self.preset_channel_command(&path, channel, expected, false, false)?;
+                let mut commands = proposal.commands.clone();
+                commands.push(load);
+                self.dispatch_file_command(
+                    Command::Batch {
+                        label: Some(proposal.label.clone()),
+                        commands,
+                    },
+                    proposal.stamp.generation,
+                    proposal.stamp.revision,
+                )
+                .map_err(|error| {
+                    if error.contains("changed while the file") {
+                        "proposal is stale; generate a new preview".to_owned()
+                    } else {
+                        error
+                    }
+                })
+            }
+        }
     }
 
     /// Keeps a render as a Float32 WAV in the recordings folder's "Agent
