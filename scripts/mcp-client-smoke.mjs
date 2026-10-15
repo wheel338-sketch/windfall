@@ -16,8 +16,14 @@
 //   refused afterwards to the user and to the agent; render_and_measure on a
 //   short stretch with its WAV decoded here; requests without the token,
 //   with a wrong token, a foreign Host or a foreign Origin refused; the
-//   endpoint not reachable on another address; and the server turned off
-//   again, after which both transports say so.
+//   endpoint not reachable on another address; SoundFonts: a channel that
+//   would be silent is warned about, flagged and listed by a render, a
+//   SoundFont in a browser folder is found, its presets listed and one
+//   loaded (approved in the panel, one undo step) so the channel sounds, a
+//   channel added with a SoundFont in one call, and files outside the
+//   browser folders refused; and the server turned off again, after which
+//   both transports say so. The SoundFont is written here, the same small
+//   General MIDI bank the session tests write (general_midi_fixture).
 //
 // The app runs on the software audio sink (no device is opened, nothing is
 // heard) with a profile folder of its own. The Inspector is given as the
@@ -58,6 +64,35 @@ const config = resolve(folder, "config")
 await rm(folder, { recursive:true, force:true })
 await mkdir(config, { recursive:true })
 const catalog = resolve(folder, "inspector-catalog.json")
+
+// A one-preset General MIDI SoundFont ("Own GM", bank 0, program 0), byte
+// for byte the session tests' general_midi_fixture.
+function generalMidiFixture() {
+  const le16 = (value) => { const bytes = Buffer.alloc(2); bytes.writeUInt16LE(value); return bytes }
+  const le32 = (value) => { const bytes = Buffer.alloc(4); bytes.writeUInt32LE(value); return bytes }
+  const chunk = (id, data) => Buffer.concat([Buffer.from(id, "latin1"), le32(data.length), data, Buffer.alloc(data.length % 2)])
+  const list = (id, leaves) => chunk("LIST", Buffer.concat([Buffer.from(id, "latin1"), ...leaves.map(([tag, bytes]) => chunk(tag, bytes))]))
+  const records = (pairs) => Buffer.concat(pairs.flatMap(([a, b]) => [le16(a), le16(b)]))
+  const phdr = Buffer.alloc(76); phdr.write("Own GM", 0, "latin1"); phdr.write("EOP", 38, "latin1"); phdr.writeUInt16LE(1, 38 + 24)
+  const inst = Buffer.alloc(44); inst.write("Tone", 0, "latin1"); inst.write("EOI", 22, "latin1"); inst.writeUInt16LE(1, 22 + 20)
+  const shdr = Buffer.alloc(92); shdr.write("Wave", 0, "latin1"); shdr.write("EOS", 46, "latin1")
+  shdr.writeUInt32LE(8192, 24); shdr.writeUInt32LE(128, 28); shdr.writeUInt32LE(4096, 32); shdr.writeUInt32LE(48000, 36); shdr[40] = 60; shdr.writeUInt16LE(1, 44)
+  const smpl = Buffer.alloc((8192 + 46) * 2)
+  for (let frame = 0; frame < 8192; frame++) smpl.writeInt16LE(6000, frame * 2)
+  return chunk("RIFF", Buffer.concat([Buffer.from("sfbk", "latin1"),
+    list("INFO", [["ifil", Buffer.from([2, 0, 4, 0])]]),
+    list("sdta", [["smpl", smpl]]),
+    list("pdta", [["phdr", phdr], ["pbag", records([[0, 0], [1, 0]])], ["pmod", Buffer.alloc(10)], ["pgen", records([[41, 0], [0, 0]])],
+      ["inst", inst], ["ibag", records([[0, 0], [2, 0]])], ["imod", Buffer.alloc(10)], ["igen", records([[54, 1], [53, 0], [0, 0]])], ["shdr", shdr]]),
+  ]))
+}
+const sounds = resolve(folder, "Sounds")
+const bankPath = resolve(sounds, "Banks", "GM.sf2")
+const secretPath = resolve(folder, "Private", "secret.sf2")
+await mkdir(dirname(bankPath), { recursive:true })
+await mkdir(dirname(secretPath), { recursive:true })
+await writeFile(bankPath, generalMidiFixture())
+await writeFile(secretPath, generalMidiFixture())
 const endpoint = `http://127.0.0.1:${mcpPort}/mcp`
 
 const report = { schema:1, executable, inspector, inspectorNode, bridges, config, endpoint, started:new Date().toISOString(), calls:[], checks:[], console:[], passed:false }
@@ -293,7 +328,8 @@ const dbfs = (level) => level > 0 ? 20 * Math.log10(level) : -120
 const TOOLS = ["get_project_summary", "list_notes", "list_clips", "get_mixer_track", "get_parameters", "get_selection", "list_instruments_and_effects",
   "create_pattern", "add_notes", "remove_notes", "update_notes", "set_steps", "add_channel", "add_effect", "remove_effect", "move_effect", "set_parameter",
   "route_channel", "route_track", "set_send", "place_clips", "move_clips", "remove_clips", "set_tempo_meter", "rename_and_color", "write_automation",
-  "apply_raw_commands", "get_proposal", "apply_proposal", "withdraw_proposal", "render_and_measure"]
+  "apply_raw_commands", "get_proposal", "apply_proposal", "withdraw_proposal", "render_and_measure",
+  "search_library", "list_soundfont_presets", "list_channel_presets", "load_soundfont_preset", "apply_channel_preset"]
 const PANEL = 'aside[aria-label="AI agent proposals"]'
 const card = (label) => `${PANEL} li[aria-label=${JSON.stringify(label)}]`
 
@@ -330,13 +366,13 @@ try {
   for (const era of ["legacy", "modern"]) {
     const listed = inspect(`http ${era} tools/list`, http, { method:"tools/list", era, headers:bearer })
     const names = listed.json?.tools?.map((tool) => tool.name) ?? []
-    check(`HTTP (${era}): tools/list gives the 31 tools`, listed.status === 0 && names.length === 31 && TOOLS.every((name) => names.includes(name)), { status:listed.status, names, stderr:listed.stderr.slice(0, 800) })
+    check(`HTTP (${era}): tools/list gives the ${TOOLS.length} tools`, listed.status === 0 && names.length === TOOLS.length && TOOLS.every((name) => names.includes(name)), { status:listed.status, names, stderr:listed.stderr.slice(0, 800) })
     const summary = inspect(`http ${era} summary`, http, { method:"tools/call", tool:"get_project_summary", era, headers:bearer })
     const value = structured(summary.json)
     check(`HTTP (${era}): get_project_summary gives tempo, meter, channels and patterns`, summary.status === 0 && typeof value?.tempoBpm === "number" && Array.isArray(value?.channels) && value.channels.length > 0 && Array.isArray(value?.patterns), { status:summary.status, keys:value && Object.keys(value), stderr:summary.stderr.slice(0, 800) })
   }
   const auto = inspect("http auto tools/list", http, { method:"tools/list", era:"auto", headers:bearer })
-  check("HTTP (auto): the client settles on an era and lists the tools", auto.status === 0 && auto.json?.tools?.length === 31, { status:auto.status, stderr:auto.stderr.slice(0, 800) })
+  check("HTTP (auto): the client settles on an era and lists the tools", auto.status === 0 && auto.json?.tools?.length === TOOLS.length, { status:auto.status, stderr:auto.stderr.slice(0, 800) })
   const strict = inspect("http strict tools/list", http, { method:"tools/list", headers:bearer, extra:["--strict"] })
   check("the tool schemas pass the Inspector's strict portability check", strict.status === 0, { status:strict.status, stderr:strict.stderr.slice(0, 4000) })
   const resource = inspect("http resource", http, { method:"resources/read", headers:bearer, extra:["--uri", "windfall://project/summary"] })
@@ -452,6 +488,73 @@ try {
   const tooLong = inspect("render too long", http, { method:"tools/call", tool:"render_and_measure", headers:bearer, args:{ region:{ patternId, loops:16 }, maxSeconds:1 } })
   check("a render longer than maxSeconds is refused before it starts", failure(tooLong.json)?.includes("maxSeconds"), failure(tooLong.json))
 
+  // --- SoundFonts: a silent channel warned about and fixed by the agent. ---
+  const call = (label, tool, args) => {
+    const result = inspect(label, http, { method:"tools/call", tool, headers:bearer, args })
+    return { ...result, value:structured(result.json), error:failure(result.json) }
+  }
+  const applyInPanel = async (proposal, what, done) => {
+    await app.until(() => app.evaluate(`Boolean(document.querySelector(${JSON.stringify(card(proposal.label))}))`), `${what} in the panel`)
+    await app.click(`${card(proposal.label)} button`, "Apply")
+    await app.until(done, what)
+  }
+  const kinds = call("list_instruments_and_effects", "list_instruments_and_effects", { category:"instrument" }).value
+  const soundFontKind = kinds?.items?.find((item) => item.kind === "soundFont")
+  check("list_instruments_and_effects marks the SoundFont player as needing a source", soundFontKind?.needsSource === true && /silent until/.test(soundFontKind.description), soundFontKind)
+  const channelsBefore = (await projectNow()).channels.length
+  const choirAdd = call("add_channel choir", "add_channel", { instrument:"soundFont", name:"Choir", title:"Choir channel" })
+  check("add_channel with an empty SoundFont player warns it will be silent", choirAdd.value?.status?.state === "pending" && /will be silent until it has a source/.test(choirAdd.value?.warning ?? ""), { value:choirAdd.value, error:choirAdd.error })
+  await applyInPanel(choirAdd.value, "the Choir channel", async () => (await projectNow()).channels.length === channelsBefore + 1)
+  const choirId = choirAdd.value.created.channels[0]
+  const choirNotes = call("add_notes choir", "add_notes", { patternId, channelId:choirId, notes:[{ pitch:"C4", start:"1:1:0", length:"1/2" }], title:"Choir note" })
+  await applyInPanel(choirNotes.value, "the Choir note", async () => (await projectNow()).patterns.find((pattern) => pattern.id === patternId)?.lanes.some((lane) => lane.channel === choirId && lane.notes.length === 1))
+  const silentSummary = call("summary silent", "get_project_summary", {}).value
+  const choirListed = silentSummary?.channels?.find((item) => item.id === choirId)
+  check("get_project_summary flags the Choir as silent with what it needs", choirListed?.silent === true && /load_soundfont_preset/.test(choirListed.needs) && silentSummary.warnings.some((text) => text.includes("\"Choir\" is silent")), { choirListed, warnings:silentSummary?.warnings })
+  check("the rack marks the Choir \"no SoundFont\" with a button that loads one", await app.evaluate(`document.querySelector('[data-load-source="${choirId}"]')?.textContent.trim() === "no SoundFont"`), null)
+  const silentRender = call("render silent", "render_and_measure", { region:{ patternId }, maxSeconds:30 }).value
+  const silentChoir = silentRender?.silentChannels?.find((item) => item.id === choirId)
+  check("render_and_measure lists the Choir among the silent channels, with the reason", /no source loaded/.test(silentChoir?.reason ?? ""), silentRender?.silentChannels)
+  // Where a SoundFont is: a folder of the browser (added by command, as the browser's + does).
+  const rooted = await app.invoke("browser_add_root", { path:sounds })
+  check("a folder with a SoundFont is added to the browser (by command)", !rooted.error, rooted)
+  let found
+  for (let attempt = 0; attempt < 40 && !(found?.total > 0); attempt++) {
+    found = call("search_library", "search_library", { query:"GM", kind:"soundFont" }).value
+    if (!(found?.total > 0)) await delay(250)
+  }
+  report.libraryFound = found
+  check("search_library finds the SoundFont, with its kind and size", found?.total === 1 && found.items[0].kind === "soundFont" && found.items[0].path.endsWith("GM.sf2") && found.items[0].bytes > 16000, found)
+  const libraryPath = found?.items?.[0]?.path ?? bankPath
+  const presets = call("list_soundfont_presets", "list_soundfont_presets", { path:libraryPath }).value
+  check("list_soundfont_presets gives the preset with its General MIDI family", presets?.items?.[0]?.name === "Own GM" && presets.items[0].family === "Piano" && presets.items[0].bank === 0 && presets.items[0].program === 0, presets)
+  const cursorBeforeLoad = (await history()).cursor
+  const loading = call("load_soundfont_preset", "load_soundfont_preset", { channelId:choirId, path:libraryPath, program:0, title:"Choir sound", explanation:"Give the Choir a SoundFont preset." })
+  check("load_soundfont_preset files a pending proposal with no raw commands", loading.value?.status?.state === "pending" && loading.value.changes.some((text) => text.includes("\"Own GM\"")), { value:loading.value, error:loading.error })
+  await app.until(() => app.evaluate(`Boolean(document.querySelector(${JSON.stringify(card(loading.value.label))}))`), "the SoundFont proposal")
+  const loadText = await app.evaluate(`document.querySelector(${JSON.stringify(card(loading.value.label))}).innerText`)
+  check("the panel says which preset of which file goes into which channel", loadText.includes('Loads the SoundFont preset "Own GM" (bank 0, program 0)') && loadText.includes("GM.sf2") && loadText.includes("Choir"), loadText)
+  const choirSound = async () => (await projectNow()).channels.find((item) => item.id === choirId)?.sampleInstrument
+  await applyInPanel(loading.value, "the SoundFont load", async () => (await choirSound())?.type === "soundFont")
+  const afterLoad = await history()
+  check("Apply loads the preset as one undo step labelled with the agent's name", afterLoad.cursor === cursorBeforeLoad + 1 && afterLoad.entries.at(afterLoad.cursor - 1)?.label === loading.value.label && (await choirSound())?.program === 0, { cursor:afterLoad.cursor, last:afterLoad.entries.at(afterLoad.cursor - 1), asset:await choirSound() })
+  check("the rack no longer marks the Choir", await app.evaluate(`!document.querySelector('[data-load-source="${choirId}"]')`), null)
+  const loudRender = call("render loaded", "render_and_measure", { region:{ patternId }, maxSeconds:30 }).value
+  check("rendered again, the Choir is no longer silent", Array.isArray(loudRender?.silentChannels) && !loudRender.silentChannels.some((item) => item.id === choirId), loudRender?.silentChannels)
+  // One call gives a playable channel.
+  const horns = call("add_channel horns", "add_channel", { name:"Horns", soundFont:{ path:libraryPath, program:0 }, title:"Horns" })
+  check("add_channel with soundFont files one proposal with no silence warning", horns.value?.status?.state === "pending" && !horns.value.warning, { value:horns.value, error:horns.error })
+  const hornsId = horns.value?.created?.channels?.[0]
+  await applyInPanel(horns.value, "the Horns channel", async () => (await projectNow()).channels.find((item) => item.id === hornsId)?.sampleInstrument?.type === "soundFont")
+  check("the Horns channel arrives playing the preset", (await projectNow()).channels.find((item) => item.id === hornsId)?.name === "Horns", null)
+  // Files outside the browser's folders.
+  const foreign = call("presets outside", "list_soundfont_presets", { path:secretPath })
+  check("a SoundFont outside the browser's folders is refused", /not inside/.test(foreign.error ?? ""), foreign.error)
+  const climbing = call("presets climbing", "load_soundfont_preset", { channelId:choirId, path:`${sounds}\\..\\Private\\secret.sf2`, program:0 })
+  check("a path that climbs out with .. is refused", /\.\./.test(climbing.error ?? ""), climbing.error)
+  const rawLoad = call("raw soundfont", "apply_raw_commands", { commands:[{ type:"setSampleInstrumentAsset", channel:choirId, asset:{ type:"soundFont", path:{ kind:"external", path:secretPath }, bank:0, program:0 } }] })
+  check("raw commands still cannot set a SoundFont", /registry/.test(rawLoad.error ?? ""), rawLoad.error)
+
   // --- What a client never sends. ---
   const good = await raw({ token })
   check("a request with the token is answered", good.status === 200 && good.headers["mcp-session-id"], { status:good.status })
@@ -480,13 +583,13 @@ try {
     const stdio = { command:bridge, args:["--mcp-stdio", "--config-dir", config] }
     for (const era of ["legacy", "modern"]) {
       const listed = inspect(`stdio ${name} ${era} tools/list`, stdio, { method:"tools/list", era })
-      check(`stdio (${name}, ${era}): tools/list gives the 31 tools`, listed.status === 0 && listed.json?.tools?.length === 31, { bridge, status:listed.status, stderr:listed.stderr.slice(0, 1200), stdout:listed.json ? undefined : listed.stdout.slice(0, 600) })
+      check(`stdio (${name}, ${era}): tools/list gives the ${TOOLS.length} tools`, listed.status === 0 && listed.json?.tools?.length === TOOLS.length, { bridge, status:listed.status, stderr:listed.stderr.slice(0, 1200), stdout:listed.json ? undefined : listed.stdout.slice(0, 600) })
       const read = inspect(`stdio ${name} ${era} summary`, stdio, { method:"tools/call", tool:"get_project_summary", era })
       check(`stdio (${name}, ${era}): get_project_summary sees the agent's pattern`, structured(read.json)?.patterns?.some((pattern) => pattern.id === patternId), { status:read.status, stderr:read.stderr.slice(0, 800) })
     }
     // The environment variable names the folder, as the app's own does.
     const viaEnv = inspect(`stdio ${name} env`, { command:bridge, args:["--mcp-stdio"] }, { method:"tools/list", env:{ WINDFALL_CONFIG_DIR:config } })
-    check(`stdio (${name}): WINDFALL_CONFIG_DIR finds the app too`, viaEnv.status === 0 && viaEnv.json?.tools?.length === 31, { status:viaEnv.status, stderr:viaEnv.stderr.slice(0, 800) })
+    check(`stdio (${name}): WINDFALL_CONFIG_DIR finds the app too`, viaEnv.status === 0 && viaEnv.json?.tools?.length === TOOLS.length, { status:viaEnv.status, stderr:viaEnv.stderr.slice(0, 800) })
     const proposed = structured(inspect(`stdio ${name} propose`, stdio, { method:"tools/call", tool:"rename_and_color", args:{ target:"pattern", id:patternId, name:`Bass via ${name} bridge` } }).json)
     check(`stdio (${name}): an edit tool files a proposal`, proposed?.status?.state === "pending", proposed)
     await app.until(() => app.evaluate(`Boolean(document.querySelector(${JSON.stringify(card(proposed.label))}))`), "the stdio proposal in the panel")

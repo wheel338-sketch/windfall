@@ -17,8 +17,13 @@ An agent connected to Windfall can:
 - **listen**: render a region offline and get its loudness, peaks, clipping,
   level over time, energy per octave, tempo and key, and the WAV file.
 
+- **find sounds** in the folders of Windfall's browser, list the presets of a
+  SoundFont there, and propose loading one into a channel.
+
 It cannot open, save or delete files, reach the network, or change anything
-without your approval (unless you allow it, below).
+without your approval (unless you allow it, below). The only files it can
+name are those inside the folders in Windfall's browser and its factory
+content, and Windfall reads them for it.
 
 ## Turning it on
 
@@ -73,8 +78,8 @@ own user name, and restart Claude Desktop:
 ```
 
 On macOS the command is the executable inside the app bundle, for example
-`/Applications/Windfall.app/Contents/MacOS/windfall-desktop`. Release 1.0.1
-ships for Windows only, and this path has not been checked.
+`/Applications/Windfall.app/Contents/MacOS/windfall-desktop`. Releases 1.0.1
+and 1.0.2 ship for Windows only, and this path has not been checked.
 
 The bridge reads the port and token from `mcp.json` in Windfall's settings
 folder (`%APPDATA%\org.windfall.Windfall` on Windows). If you start Windfall
@@ -167,7 +172,10 @@ Read:
 | `get_mixer_track` | One mixer track: level, pan, its effect chain, sends, sidechains, output and inputs. |
 | `get_parameters` | The settings of an instrument, an effect or a mixer track's own processing: name, id, range, unit, default and current value. Paged and searchable. |
 | `get_selection` | The pattern being edited, the transport mode, and the channel, mixer track and view you selected last. |
-| `list_instruments_and_effects` | Every built-in instrument and effect kind. |
+| `list_instruments_and_effects` | Every built-in instrument and effect kind. `needsSource` marks the instruments that play from a sample, a SoundFont or a phrase and are silent until they have one. |
+| `search_library` | Searches the browser's folders with the browser's own search; `kind` keeps samples (`audio`), SoundFonts (`soundFont`), presets or projects. Paths, kinds and sizes, paged. |
+| `list_soundfont_presets` | The presets of a SoundFont in the browser's folders: bank, program, name and General MIDI family. Searchable, paged. |
+| `list_channel_presets` | The channel presets in the user's preset library. |
 
 Edit (each files a proposal):
 
@@ -178,7 +186,9 @@ Edit (each files a proposal):
 | `remove_notes` | Removing notes by id, or by range and pitch. |
 | `update_notes` | Changing notes by id: pitch or transpose, start, length, velocity, pan. |
 | `set_steps` | Step-sequencer steps as text such as `x...x...x...x...`. |
-| `add_channel` | A channel playing a built-in instrument. |
+| `add_channel` | A channel playing a built-in instrument; with `soundFont: {path, bank, program}` a SoundFont channel with that preset loaded. Warns when the instrument will be silent until it has a source. |
+| `load_soundfont_preset` | Loading one preset of a SoundFont into a SoundFont channel; with `replaceInstrument` another instrument channel becomes a SoundFont player, keeping its notes, mixer track and name. |
+| `apply_channel_preset` | Loading a channel preset onto a channel. |
 | `add_effect`, `remove_effect`, `move_effect` | The effect chain of a mixer track. |
 | `set_parameter` | Settings by name, checked against their ranges; volume, pan, mute, effect mix. |
 | `route_channel`, `route_track` | Where a channel or a mixer track plays into. |
@@ -201,7 +211,7 @@ Listen:
 
 | Tool | What it does |
 |---|---|
-| `render_and_measure` | Renders the song, a stretch of it, or a pattern, optionally with one mixer track soloed, offline and at most 120 seconds, and returns integrated loudness (LUFS), loudness range, true and sample peak, clipping, RMS over time, stereo correlation, energy per octave band, detected tempo and key, and the WAV file's path. |
+| `render_and_measure` | Renders the song, a stretch of it, or a pattern, optionally with one mixer track soloed, offline and at most 120 seconds, and returns integrated loudness (LUFS), loudness range, true and sample peak, clipping, RMS over time, stereo correlation, energy per octave band, detected tempo and key, the WAV file's path, and `silentChannels`: the channels with notes in the region that made no sound when rendered alone, with the reason. |
 
 Positions are `bar:beat:tick`, with bars and beats counted from 1 and 960
 ticks to a quarter note; lengths are note values such as `1/8` or `1/4.`;
@@ -221,9 +231,17 @@ pitches are note names such as `C4` (middle C) or MIDI numbers.
   and rate, and renders to 120 seconds.
 - **Approved edits only.** An agent's edits are the same checked, undoable
   command batches as the built-in assistant's, limited to editing music: no
-  files, no project replacement, no plugin state. Each applies only when you
+  files, no project replacement, no plugin state. A SoundFont load or
+  channel preset is not a raw command an agent can write: Windfall builds it
+  when the user applies the proposal. Each applies only when you
   apply it (or allowed the agent to), only if the project has not changed
   since it was made, never while recording, and always as one undo step.
-- **No files.** No tool reads, writes or deletes files. Renders are written
-  only to the `Agent renders` folder in Windfall's recordings folder, which
-  keeps the 20 newest.
+- **Files in the browser only.** No tool writes or deletes files. An agent
+  may name only files inside the folders in Windfall's browser and its
+  factory content: Windfall refuses any other path, any path with `.` or
+  `..` in it, and any path through a symbolic link or junction, and checks
+  the file's real location is inside the folder. Windfall reads a SoundFont
+  for the agent to list its presets, and loads it only when the proposal is
+  applied (checking the path again then). Renders are written only to the
+  `Agent renders` folder in Windfall's recordings folder, which keeps the 20
+  newest.
