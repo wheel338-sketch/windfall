@@ -47,7 +47,6 @@ struct Fixture {
 const LIBRARY: &str = "C:/Library/";
 const SOUNDFONT: &str = "C:/Library/GM.sf2";
 
-
 /// The fixture's ids.
 #[derive(Clone, Copy)]
 struct Ids {
@@ -2947,10 +2946,7 @@ fn list_soundfont_presets_reads_the_file_through_windfall_with_families() {
         ));
         assert!(refused.contains("not inside"), "{refused}");
     }
-    assert!(
-        failure(&call(&server, &host, "list_soundfont_presets", json!({})))
-            .contains("path")
-    );
+    assert!(failure(&call(&server, &host, "list_soundfont_presets", json!({}))).contains("path"));
 }
 
 #[test]
@@ -3038,10 +3034,7 @@ fn load_soundfont_preset_refuses_other_instruments_unknown_presets_and_outside_f
             json!({"channelId": 999, "path": SOUNDFONT, "program": 52}),
             "no channel 999",
         ),
-        (
-            json!({"channelId": choir.0, "path": SOUNDFONT}),
-            "program",
-        ),
+        (json!({"channelId": choir.0, "path": SOUNDFONT}), "program"),
     ] {
         let refused = failure(&call(&server, &host, "load_soundfont_preset", arguments));
         assert!(refused.contains(wanted), "{wanted}: {refused}");
@@ -3115,10 +3108,7 @@ fn a_soundfont_proposal_goes_stale_like_any_other() {
         },
     });
     let id = result["proposalId"].as_str().unwrap();
-    let status = server
-        .approvals()
-        .apply(&host, id, Approver::User)
-        .unwrap();
+    let status = server.approvals().apply(&host, id, Approver::User).unwrap();
     assert!(matches!(status, Status::Failed { error } if error.contains("stale")));
     assert_eq!(soundfont_of(&host.project(), choir), None);
 }
@@ -3136,9 +3126,13 @@ fn add_channel_with_a_soundfont_is_playable_in_one_proposal() {
     );
     assert_eq!(result["created"]["channels"], json!([next]));
     assert!(result.get("warning").is_none(), "{result}");
-    assert!(
-        matches!(&commands[..], [Command::AddChannel { instrument: Some(InstrumentKind::SoundFont), .. }])
-    );
+    assert!(matches!(
+        &commands[..],
+        [Command::AddChannel {
+            instrument: Some(InstrumentKind::SoundFont),
+            ..
+        }]
+    ));
     approve(&server, &host, &result);
     let after = host.project();
     assert_eq!(after.channel(ChannelId(next)).unwrap().name, "Horns");
@@ -3305,12 +3299,7 @@ fn search_library_pages_the_browser_folders_by_kind() {
         json!({"query": "choir", "kind": "audio"}),
     ));
     assert_eq!(choir["items"][0]["relativePath"], "Choir/Aah.wav");
-    let paged = ok(&call(
-        &server,
-        &host,
-        "search_library",
-        json!({"limit": 2}),
-    ));
+    let paged = ok(&call(&server, &host, "search_library", json!({"limit": 2})));
     assert_eq!(paged["items"].as_array().unwrap().len(), 2);
     assert_eq!(paged["nextOffset"], 2);
     assert!(

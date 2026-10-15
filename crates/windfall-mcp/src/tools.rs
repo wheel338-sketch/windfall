@@ -269,10 +269,7 @@ pub static TOOLS: &[Tool] = &[
                     "query",
                     json!({"type": "string", "maxLength": 1024, "description": "Words in the file's path, such as \"piano\"; every file when left out."}),
                 ),
-                (
-                    "kind",
-                    json!({"type": "string", "enum": library::KINDS}),
-                ),
+                ("kind", json!({"type": "string", "enum": library::KINDS})),
             ]);
             items.extend(page().map(|(k, v)| (k.to_owned(), v)));
             object(Value::Object(items), &[])

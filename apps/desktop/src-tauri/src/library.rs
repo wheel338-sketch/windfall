@@ -484,12 +484,18 @@ pub(crate) fn confined_file(text: &str, roots: &[PathBuf]) -> Result<PathBuf, St
     if text.len() > MAX_PATH_BYTES {
         return Err(outside());
     }
-    if given
-        .components()
-        .any(|part| matches!(part, std::path::Component::ParentDir | std::path::Component::CurDir))
-        || text.split(['/', '\\']).any(|part| part == ".." || part == ".")
+    if given.components().any(|part| {
+        matches!(
+            part,
+            std::path::Component::ParentDir | std::path::Component::CurDir
+        )
+    }) || text
+        .split(['/', '\\'])
+        .any(|part| part == ".." || part == ".")
     {
-        return Err(format!("{text} has . or .. in it; paths that climb out of a folder are refused"));
+        return Err(format!(
+            "{text} has . or .. in it; paths that climb out of a folder are refused"
+        ));
     }
     let file = paths::clean(given);
     let root = roots
@@ -1058,7 +1064,11 @@ mod tests {
         let named = |path: &Path| confined_file(&paths::display(path), &roots);
         assert_eq!(named(&bank).unwrap(), paths::clean(&bank));
         // Outside every root.
-        assert!(named(&secret.join("private.sf2")).unwrap_err().contains("not inside"));
+        assert!(
+            named(&secret.join("private.sf2"))
+                .unwrap_err()
+                .contains("not inside")
+        );
         // Climbing out with .. is refused before anything is looked at, even
         // when it lands back inside.
         for climb in [
@@ -1077,15 +1087,29 @@ mod tests {
                 .contains("symbolic link or junction")
         );
         // A folder is not a file, and a relative path is not a full one.
-        assert!(named(&root.join("Banks")).unwrap_err().contains("not a file"));
-        assert!(confined_file("Banks/GM.sf2", &roots).unwrap_err().contains("full path"));
+        assert!(
+            named(&root.join("Banks"))
+                .unwrap_err()
+                .contains("not a file")
+        );
+        assert!(
+            confined_file("Banks/GM.sf2", &roots)
+                .unwrap_err()
+                .contains("full path")
+        );
         assert!(named(&root.join("Banks").join("Missing.sf2")).is_err());
         // A root that is itself reached through a link still confines: the
         // file must be inside the folder the link leads to.
         let linked_root = temp.path().join("Linked");
         link_folder(&linked_root, &root);
         let through = [linked_root.clone()];
-        assert!(confined_file(&paths::display(&linked_root.join("Banks").join("GM.sf2")), &through).is_ok());
+        assert!(
+            confined_file(
+                &paths::display(&linked_root.join("Banks").join("GM.sf2")),
+                &through
+            )
+            .is_ok()
+        );
         assert!(confined_file(&paths::display(&secret.join("private.sf2")), &through).is_err());
     }
 

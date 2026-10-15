@@ -73,7 +73,11 @@ pub struct McpProposal {
 
 /// A load from a file in an agent's proposal, for review.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
-#[serde(tag = "type", rename_all = "camelCase", rename_all_fields = "camelCase")]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 #[ts(export)]
 pub enum McpLoad {
     /// One preset of a SoundFont into a channel; with `replace_instrument`

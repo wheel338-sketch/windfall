@@ -1014,9 +1014,7 @@ pub fn add_channel(call: &Call<'_>, snapshot: &Snapshot, args: &Args) -> Result<
             Some(soundfont_choice(call, choice)?)
         }
         Some(_) => {
-            return Err(
-                "argument soundFont must be {\"path\", \"bank\", \"program\"}".into(),
-            );
+            return Err("argument soundFont must be {\"path\", \"bank\", \"program\"}".into());
         }
     };
     let instrument = match (args::optional_text(args, "instrument", 64)?, &soundfont) {

@@ -110,10 +110,7 @@ pub fn search(call: &Call<'_>, args: &Args) -> Result<Value, String> {
     if let Some(kind) = kind
         && !KINDS.contains(&kind)
     {
-        return Err(format!(
-            "argument kind must be one of {}",
-            KINDS.join(", ")
-        ));
+        return Err(format!("argument kind must be one of {}", KINDS.join(", ")));
     }
     let (offset, limit) = page(args)?;
     let found = call.host.search_library(query, kind, offset, limit)?;

@@ -407,8 +407,7 @@ impl Session {
             let _recording = self.recording_idle()?;
             let state = self.state();
             if stamp.is_some_and(|stamp| {
-                stamp.generation != state.generation
-                    || stamp.revision != state.document.revision()
+                stamp.generation != state.generation || stamp.revision != state.document.revision()
             }) {
                 return Err("proposal is stale; generate a new preview".into());
             }

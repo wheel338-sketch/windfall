@@ -113,7 +113,8 @@ impl Host for SessionHost {
         offset: usize,
         limit: usize,
     ) -> Result<LibraryPage, String> {
-        self.session()?.mcp_search_library(query, kind, offset, limit)
+        self.session()?
+            .mcp_search_library(query, kind, offset, limit)
     }
 
     fn channel_presets(&self) -> Result<Vec<ChannelPresetInfo>, String> {
@@ -175,9 +176,14 @@ pub(crate) fn agent_file_kind(path: &std::path::Path) -> &'static str {
 
 /// The channels that play notes somewhere in a region, and are not muted:
 /// those a render of it should hear.
-fn channels_heard(project: &Project, region: RenderRegion, solo: Option<windfall_project::TrackId>) -> Vec<ChannelId> {
+fn channels_heard(
+    project: &Project,
+    region: RenderRegion,
+    solo: Option<windfall_project::TrackId>,
+) -> Vec<ChannelId> {
     let mut heard = std::collections::BTreeSet::new();
-    let mut lanes = |pattern: &windfall_project::Pattern, window: Option<(u32, u32, u32, (u32, u32))>| {
+    let mut lanes = |pattern: &windfall_project::Pattern,
+                     window: Option<(u32, u32, u32, (u32, u32))>| {
         let length = pattern.length_ticks().max(1);
         for lane in &pattern.lanes {
             let plays = lane.notes.iter().any(|note| match window {
@@ -189,7 +195,10 @@ fn channels_heard(project: &Project, region: RenderRegion, solo: Option<windfall
                     let mut at = i64::from(start) - i64::from(offset) + i64::from(note.start);
                     let mut passes = 0;
                     while at < i64::from(end) && passes < 4096 {
-                        if at >= i64::from(start) && at < i64::from(to) && at + i64::from(note.length.max(1)) > i64::from(from) {
+                        if at >= i64::from(start)
+                            && at < i64::from(to)
+                            && at + i64::from(note.length.max(1)) > i64::from(from)
+                        {
                             return true;
                         }
                         at += i64::from(length);
@@ -227,7 +236,10 @@ fn channels_heard(project: &Project, region: RenderRegion, solo: Option<windfall
                     continue;
                 }
                 if let Some(pattern) = project.pattern(pattern) {
-                    lanes(pattern, Some((clip.start, clip.length, clip.offset, (from, to))));
+                    lanes(
+                        pattern,
+                        Some((clip.start, clip.length, clip.offset, (from, to))),
+                    );
                 }
             }
         }
@@ -728,7 +740,9 @@ impl Session {
             .entries
             .iter()
             .filter(|entry| {
-                kind.is_none_or(|kind| agent_file_kind(std::path::Path::new(&entry.entry.path)) == kind)
+                kind.is_none_or(|kind| {
+                    agent_file_kind(std::path::Path::new(&entry.entry.path)) == kind
+                })
             })
             .collect();
         Ok(LibraryPage {
@@ -793,7 +807,14 @@ impl Session {
             } => {
                 // The folders may have changed since it was proposed.
                 let file = self.mcp_library_file(&path)?;
-                self.mcp_soundfont_apply(&proposal, channel, &file, bank, program, replace_instrument)
+                self.mcp_soundfont_apply(
+                    &proposal,
+                    channel,
+                    &file,
+                    bank,
+                    program,
+                    replace_instrument,
+                )
             }
             NativeEdit::ChannelPreset { channel, path, .. } => {
                 if !self

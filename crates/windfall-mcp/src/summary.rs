@@ -73,9 +73,9 @@ fn channel_kind(channel: &Channel) -> Value {
 /// for instruments that make their own sound.
 pub fn source_needed(kind: InstrumentKind) -> Option<&'static str> {
     match kind {
-        InstrumentKind::SoundFont => Some(
-            "a SoundFont preset (load_soundfont_preset, or add_channel with soundFont)",
-        ),
+        InstrumentKind::SoundFont => {
+            Some("a SoundFont preset (load_soundfont_preset, or add_channel with soundFont)")
+        }
         InstrumentKind::MultiSampler | InstrumentKind::SamplePlayer | InstrumentKind::PadBank => {
             Some("samples mapped to its keys, which the user loads in its editor in Windfall")
         }
@@ -109,9 +109,11 @@ pub fn missing_source(channel: &Channel) -> Option<&'static str> {
                 InstrumentKind::SliceMap
                 | InstrumentKind::SliceDeck
                 | InstrumentKind::GrainCloud
-                | InstrumentKind::WaveRide => channel.sample_playback.as_ref().is_some_and(
-                    |playback| playback.sample.is_some() || playback.inline_source.is_some(),
-                ),
+                | InstrumentKind::WaveRide => {
+                    channel.sample_playback.as_ref().is_some_and(|playback| {
+                        playback.sample.is_some() || playback.inline_source.is_some()
+                    })
+                }
                 _ => match &channel.sample_instrument {
                     Some(SampleInstrumentAsset::Zones { zones }) => !zones.is_empty(),
                     Some(_) => true,

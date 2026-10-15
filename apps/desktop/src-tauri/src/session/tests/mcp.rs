@@ -589,7 +589,12 @@ fn an_agent_loads_a_soundfont_preset_from_the_browser_as_one_undo_step() {
     let mut found = found;
     while found["total"] == 0 && std::time::Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(20));
-        found = ok(&call(&rig, &host, "search_library", json!({"kind": "soundFont"})));
+        found = ok(&call(
+            &rig,
+            &host,
+            "search_library",
+            json!({"kind": "soundFont"}),
+        ));
     }
     assert_eq!(found["total"], 1, "{found}");
     assert_eq!(found["items"][0]["kind"], "soundFont");
@@ -634,7 +639,13 @@ fn an_agent_loads_a_soundfont_preset_from_the_browser_as_one_undo_step() {
         after.history.entries[after.history.cursor as usize - 1].label,
         "session-agent: Load SoundFont preset"
     );
-    let asset = after.project.channel(choir).unwrap().sample_instrument.clone().unwrap();
+    let asset = after
+        .project
+        .channel(choir)
+        .unwrap()
+        .sample_instrument
+        .clone()
+        .unwrap();
     assert!(
         rig.session
             .state()
@@ -642,7 +653,10 @@ fn an_agent_loads_a_soundfont_preset_from_the_browser_as_one_undo_step() {
             .has_sample_instrument_asset(&asset.canonical(&after.project))
     );
     rig.session.undo().unwrap();
-    assert_eq!(rig.session.document_snapshot().project.channels, before.project.channels);
+    assert_eq!(
+        rig.session.document_snapshot().project.channels,
+        before.project.channels
+    );
     assert_eq!(soundfont_of(&rig, choir), None);
 }
 
@@ -674,11 +688,23 @@ fn an_agent_cannot_name_files_outside_the_browser_folders() {
     );
     #[cfg(unix)]
     std::os::unix::fs::symlink(&outside, &escape).unwrap();
-    let climb = format!("{}{}..{}Private{}secret.sf2", crate::paths::display(&root), std::path::MAIN_SEPARATOR, std::path::MAIN_SEPARATOR, std::path::MAIN_SEPARATOR);
+    let climb = format!(
+        "{}{}..{}Private{}secret.sf2",
+        crate::paths::display(&root),
+        std::path::MAIN_SEPARATOR,
+        std::path::MAIN_SEPARATOR,
+        std::path::MAIN_SEPARATOR
+    );
     for (path, wanted) in [
-        (crate::paths::display(&outside.join("secret.sf2")), "not inside"),
+        (
+            crate::paths::display(&outside.join("secret.sf2")),
+            "not inside",
+        ),
         (climb, ".."),
-        (crate::paths::display(&escape.join("secret.sf2")), "junction"),
+        (
+            crate::paths::display(&escape.join("secret.sf2")),
+            "junction",
+        ),
         ("Banks/GM.sf2".to_owned(), "full path"),
     ] {
         let listed = failure(&call(
