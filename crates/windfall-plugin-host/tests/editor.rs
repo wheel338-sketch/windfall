@@ -294,8 +294,8 @@ fn native_vst3_editor_errors_name_the_failed_call_and_native_result() {
         .unwrap();
     let mut instance = module.create(&descriptor.id).unwrap();
     for (value, method) in [
-        (0.25, "IPlugView::getSize"),
-        (0.5, "IPlugView::attached(HWND)"),
+        (0.125, "IPlugView::getSize"),
+        (0.25, "IPlugView::attached(HWND)"),
     ] {
         assert!(instance.set_param(7, value));
         let EditorError::Failed(error) =
