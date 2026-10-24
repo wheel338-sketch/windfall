@@ -1811,6 +1811,31 @@ impl Runtime {
     ) -> Result<(), String> {
         self.editor_binding_with_parent(target, binding, open, None)
     }
+    /// Inspect the selected playback owner; never create a speculative instance.
+    pub(crate) fn editor_diagnostics(
+        &self,
+        target: PluginTarget,
+    ) -> Result<serde_json::Value, String> {
+        self.call(move |owner| {
+            let Some(token) = selected(&owner.selection, target) else {
+                return Ok(serde_json::json!({"selected": false, "open": false}));
+            };
+            #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
+            if let Some(record) = owner.bridges.get(&token) {
+                let status = record.status();
+                let editor = record.control.editor_diagnostics();
+                return Ok(serde_json::json!({"selected": true, "token": token, "provider": "bridge",
+                    "processId": status.process_id, "failed": status.failed, "reaped": status.reaped,
+                    "error": status.error, "editor": editor.as_ref().ok(),
+                    "editorStatusError": editor.err()}));
+            }
+            if let Some(record) = owner.instances.get(&token) {
+                return Ok(serde_json::json!({"selected": true, "token": token, "provider": "native",
+                    "editor": record.plugin.editor_diagnostics()}));
+            }
+            Ok(serde_json::json!({"selected": false, "token": token, "open": false}))
+        })
+    }
     pub fn editor_binding_with_parent(
         &self,
         target: PluginTarget,
@@ -1864,6 +1889,7 @@ impl Runtime {
                         && binding.wrapper == record.binding.wrapper
                 })
             {
+                let parent = parent.or(record.editor_parent);
                 let options = super::wrapper::editor(&record.binding, parent);
                 #[cfg(any(target_os = "macos", target_os = "linux"))]
                 let options = {
@@ -1893,6 +1919,7 @@ impl Runtime {
                 })
                 .ok_or_else(|| "This plugin is missing or has not been prepared".to_owned())?;
             let instance = &mut record.plugin;
+            let parent = parent.or(record.editor_parent);
             if open {
                 instance
                     .open_editor(&super::wrapper::editor(&record.binding, parent))

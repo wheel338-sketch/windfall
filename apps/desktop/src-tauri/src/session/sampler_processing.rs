@@ -14,6 +14,7 @@ pub(super) struct SampleEditTicket {
     applied: Applied,
     gesture: Option<u64>,
     document: Document,
+    plugin_edit_baseline: Option<windfall_project::Project>,
     original_pool: SamplePool,
     candidate_pool: SamplePool,
     recovered: HashSet<SampleId>,
@@ -126,6 +127,65 @@ impl SampleEditTicket {
 }
 
 impl PreparedSampleEdit {
+    /// Native readback can arrive while a plugin settings edit is prepared.
+    /// Rebuild that edit against the latest values without accepting unrelated
+    /// musical edits, a replacement plugin, or a changed preparation environment.
+    fn plugin_edit_retry(&self, state: &State) -> Result<Option<SampleEditTicket>, String> {
+        let ticket = &self.ticket;
+        let Some(before) = &ticket.plugin_edit_baseline else {
+            return Ok(None);
+        };
+        if !ticket.current() || state.edits == ticket.edits {
+            return Ok(None);
+        }
+        if let Command::SetPluginParam { target, id, .. } = &ticket.command
+            && before
+                .plugin(*target)
+                .and_then(|plugin| plugin.parameters.iter().find(|p| p.id == *id))
+                != state
+                    .document
+                    .project()
+                    .plugin(*target)
+                    .and_then(|plugin| plugin.parameters.iter().find(|p| p.id == *id))
+        {
+            // A newer edit of this very control must not be overwritten.
+            return Ok(None);
+        }
+        let mut current = state.document.project().clone();
+        for binding in current.plugin_bindings_mut() {
+            let Some(original) = before.plugin(binding.target) else {
+                return Ok(None);
+            };
+            binding.state.clone_from(&original.state);
+            for parameter in &mut binding.parameters {
+                if let Some(original) = original.parameters.iter().find(|p| p.id == parameter.id) {
+                    parameter.value = original.value;
+                }
+            }
+        }
+        if current != *before {
+            return Ok(None);
+        }
+        let Some(preparation) = self
+            .prepared
+            .refresh_after_plugin_values(&ticket.session, state)
+        else {
+            return Ok(None);
+        };
+        let mut next = ticket.session.sample_edit_ticket(
+            state,
+            ticket.command.clone(),
+            ticket.gesture,
+            Vec::new(),
+        )?;
+        next.preparation = Some(preparation);
+        next.request = ticket.request;
+        next.cancelled = ticket.cancelled.clone();
+        next.preserve_noop = ticket.preserve_noop;
+        next.installed = ticket.installed.clone();
+        Ok(Some(next))
+    }
+
     /// Final caller-held recording -> library -> State exclusion is required.
     /// Caller must additionally recheck file/root/version/project-directory guards.
     pub(super) fn commit(
@@ -340,6 +400,11 @@ impl Session {
             }
         }
         Ok(SampleEditTicket {
+            plugin_edit_baseline: matches!(
+                command,
+                Command::SetPluginWrapper { .. } | Command::SetPluginParam { .. }
+            )
+            .then(|| state.document.project().clone()),
             session: self.clone(),
             command,
             applied,
@@ -448,19 +513,22 @@ impl Session {
             let mut retirement = None;
             #[cfg(test)]
             self.pause("sampler:prepared");
-            let (result, next) = {
+            let (result, next, source_retry) = {
                 let _recording = self.recording_idle()?;
                 let mut state = self.state();
                 if !keep_going() {
                     return Err("Speech rendering cancelled".into());
                 }
                 let result = prepared.commit(&mut state, &mut retirement);
-                let next = if result.is_err() && attempt < 7 {
-                    prepared.settled_load_retry(&state)?
+                let (next, source_retry) = if result.is_err() && attempt < 7 {
+                    match prepared.plugin_edit_retry(&state)? {
+                        Some(next) => (Some(next), false),
+                        None => (prepared.settled_load_retry(&state)?, true),
+                    }
                 } else {
-                    None
+                    (None, false)
                 };
-                (result, next)
+                (result, next, source_retry)
             };
             if let Some(retirement) = &mut retirement {
                 self.retire_project(retirement);
@@ -480,9 +548,11 @@ impl Session {
             // The refused native/DSP candidate dies before the new constructors,
             // with all recording/document/controller guards released.
             drop(prepared);
-            self.emit(crate::events::Event::ProjectWarnings(vec![
-                "A pending sample load completed; retrying audio preparation from the current source snapshot.".into(),
-            ]));
+            if source_retry {
+                self.emit(crate::events::Event::ProjectWarnings(vec![
+                    "A pending sample load completed; retrying audio preparation from the current source snapshot.".into(),
+                ]));
+            }
             ticket = next;
         }
         unreachable!("bounded edit retry returns on its eighth attempt")

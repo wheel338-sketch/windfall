@@ -77,6 +77,30 @@ impl PluginManager {
         manager
     }
     #[cfg(all(test, windows))]
+    pub(crate) fn fixture_runtime_entry(
+        folder: &Path,
+        runtime: Arc<Runtime>,
+        binding: &PluginBinding,
+    ) -> Arc<Self> {
+        let manager = Self::fixture_runtime(folder, runtime);
+        manager
+            .status
+            .lock()
+            .unwrap()
+            .entries
+            .push(windfall_ipc::PluginEntry {
+                path: binding.path.clone(),
+                id: binding.id.clone(),
+                format: binding.format.clone(),
+                name: binding.name.clone(),
+                vendor: "Fixture".into(),
+                instrument: binding.target.is_instrument(),
+                usable: true,
+                error: None,
+            });
+        manager
+    }
+    #[cfg(all(test, windows))]
     pub(crate) fn fixture(folder: &Path, file: &Path, scanner: &Path) -> Arc<Self> {
         let manager = Self::new(folder).unwrap();
         *manager.fixture_scanner.lock().unwrap() = Some(scanner.to_path_buf());

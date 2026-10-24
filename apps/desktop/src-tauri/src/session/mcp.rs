@@ -30,6 +30,8 @@ use crate::events::Event;
 use crate::mcp::config;
 use crate::sync::lock;
 
+mod plugins;
+
 /// Renders kept at most; the oldest go first.
 const KEPT_RENDERS: usize = 20;
 const RENDER_RATE: u32 = 48_000;
@@ -47,6 +49,30 @@ impl SessionHost {
 }
 
 impl Host for SessionHost {
+    fn plugins(&self) -> Result<Vec<windfall_mcp::PluginInfo>, String> {
+        self.session()?.mcp_plugins()
+    }
+    fn plugin_diagnostics(
+        &self,
+        target: Option<windfall_project::PluginTarget>,
+    ) -> Result<Value, String> {
+        self.session()?.mcp_plugin_diagnostics(target)
+    }
+    fn plugin_editor(
+        &self,
+        target: windfall_project::PluginTarget,
+        open: bool,
+    ) -> Result<Value, String> {
+        let session = self.session()?;
+        match session.change_plugin_editor(target, open, None) {
+            Ok(()) => Ok(
+                serde_json::json!({"ok": true, "openRequested": open, "report": session.mcp_plugin_diagnostics(Some(target))?}),
+            ),
+            Err(error) => {
+                Err(session.mcp_plugin_error_report("editor", Some(target), None, &error))
+            }
+        }
+    }
     fn snapshot(&self) -> Result<Snapshot, String> {
         let session = self.session()?;
         let recording = session.recording_idle().is_err();
@@ -403,7 +429,7 @@ impl Session {
                 explanation: entry.proposal.explanation,
                 automatic: entry.automatic,
                 commands: entry.proposal.commands,
-                load: entry.native.map(|native| {
+                load: entry.native.and_then(|native| {
                     let named = |channel: ChannelId| {
                         self.state()
                             .document
@@ -412,7 +438,8 @@ impl Session {
                             .map(|channel| channel.name.clone())
                             .unwrap_or_default()
                     };
-                    match native {
+                    Some(match native {
+                        NativeEdit::Plugin { .. } => return None,
                         NativeEdit::SoundFont {
                             channel,
                             path,
@@ -439,7 +466,7 @@ impl Session {
                             file: path,
                             preset: name,
                         },
-                    }
+                    })
                 }),
             })
             .collect();
@@ -797,6 +824,9 @@ impl Session {
         edit: NativeEdit,
     ) -> Result<windfall_project::DispatchResult, String> {
         match edit {
+            NativeEdit::Plugin {
+                path, id, track, ..
+            } => self.mcp_add_plugin(proposal, &path, &id, track),
             NativeEdit::SoundFont {
                 channel,
                 path,

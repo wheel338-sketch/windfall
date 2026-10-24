@@ -43,6 +43,7 @@ pub enum Kind {
     Edit,
     Approval,
     Listen,
+    Control,
 }
 
 pub struct Tool {
@@ -173,6 +174,64 @@ fn param_target() -> Vec<(&'static str, Value)> {
 
 /// Every tool, in the order `tools/list` gives them.
 pub static TOOLS: &[Tool] = &[
+    Tool {
+        name: "list_plugins",
+        title: "Installed native plugins",
+        kind: Kind::Read,
+        description: "Lists scanned VST3/CLAP/AU plugins, their exact path/id, instrument/effect role, usability and scanner errors. Search by name (for example BBC Symphony Orchestra) before add_plugin. Paged; scanning is done in Windfall's plugin manager.",
+        schema: || {
+            let mut properties = props(vec![("search", json!({"type":"string", "maxLength":128}))]);
+            properties.extend(
+                page()
+                    .into_iter()
+                    .map(|(key, value)| (key.to_owned(), value)),
+            );
+            object(Value::Object(properties), &[])
+        },
+    },
+    Tool {
+        name: "add_plugin",
+        title: "Add native plugin",
+        kind: Kind::Edit,
+        description: "Proposes adding a scanned usable native plugin using its exact path and id from list_plugins. Instruments create a channel; effects require trackId. Loading happens only when the proposal is approved (or automatically for a trusted agent). Read get_project_summary afterwards for the installed target, then use plugin_editor. Load failures include a shareable diagnostic report.",
+        schema: || {
+            edit(
+                props(vec![
+                    ("path", json!({"type":"string", "maxLength":4096})),
+                    ("id", json!({"type":"string", "maxLength":1024})),
+                    (
+                        "trackId",
+                        id("Destination mixer track for an effect; omit for an instrument."),
+                    ),
+                ]),
+                &["path", "id"],
+            )
+        },
+    },
+    Tool {
+        name: "get_plugin_diagnostics",
+        title: "Native plugin support report",
+        kind: Kind::Read,
+        description: "Returns a shareable JSON support report with Windfall/platform/audio versions, scanner results, installed plugin metadata, helper health, native editor status and the last failed load/editor stage. Optionally select one installed plugin with channelId or effectId. No credentials, song notes or opaque plugin state are included. Send the complete report when a plugin fails.",
+        schema: || {
+            object(
+                json!({"channelId": id("Native instrument channel."), "effectId": id("Native effect id.")}),
+                &[],
+            )
+        },
+    },
+    Tool {
+        name: "plugin_editor",
+        title: "Open or close native plugin editor",
+        kind: Kind::Control,
+        description: "Attempts to open (open=true, default) or close the installed native editor. Give exactly one of channelId or effectId from get_project_summary. Returns the actual native owner/editor status and a shareable report on success or failure. Does not add a plugin or change the project; unavailable during recording.",
+        schema: || {
+            object(
+                json!({"channelId": id("Native instrument channel."), "effectId": id("Native effect id."), "open": {"type":"boolean", "default":true}}),
+                &[],
+            )
+        },
+    },
     Tool {
         name: "get_project_summary",
         title: "Project summary",
@@ -858,10 +917,14 @@ pub fn run(tool: &Tool, call: &Call<'_>, arguments: Option<&Value>) -> Result<Re
     match tool.kind {
         Kind::Approval => return approval(tool.name, call, args).map(Reply::from),
         Kind::Listen => return listen_tool(call, args),
-        Kind::Read | Kind::Edit => {}
+        Kind::Read | Kind::Edit | Kind::Control => {}
     }
     let snapshot = call.host.snapshot()?;
     let value = match tool.name {
+        "list_plugins" => crate::plugins::list(call, args)?,
+        "add_plugin" => crate::plugins::add(call, &snapshot, args)?,
+        "get_plugin_diagnostics" => crate::plugins::diagnostics(call, args)?,
+        "plugin_editor" => crate::plugins::editor(call, args)?,
         "get_project_summary" => {
             args::known(args, &[])?;
             summary::project_summary(&snapshot)

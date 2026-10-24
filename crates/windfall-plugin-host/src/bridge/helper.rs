@@ -1045,10 +1045,22 @@ fn run(address: SocketAddr) -> io::Result<()> {
                         }
                     }
                 }
-                #[cfg(any(target_os = "macos", target_os = "linux"))]
+                #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
+                Message::EditorDiagnostics => {
+                    response.body = Message::EditorReport {
+                        open: native.instance.editor().is_some(),
+                        diagnostics: native.instance.editor_diagnostics(),
+                        refused: None,
+                    };
+                }
+                #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
                 Message::EditorStatus => {
                     response.body = Message::EditorReport {
                         open: native.instance.editor().is_some(),
+                        diagnostics: native.instance.editor_diagnostics(),
+                        #[cfg(windows)]
+                        refused: None,
+                        #[cfg(any(target_os = "macos", target_os = "linux"))]
                         refused: editor_refusals.take(),
                     };
                 }

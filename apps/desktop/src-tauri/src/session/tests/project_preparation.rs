@@ -178,6 +178,165 @@ fn name() -> Command {
 }
 
 #[test]
+fn plugin_settings_wrapper_preserves_native_values_during_preparation() {
+    for opaque_state in [false, true] {
+        let rig = Rig::new();
+        factory(&rig);
+        let effect = EffectId(rig.session.dispatch(add(), None).unwrap().created[0]);
+        let target = PluginTarget::Effect { effect };
+        let mut options = rig.project().plugin(target).unwrap().wrapper.clone();
+        options.detached = !options.detached;
+        let expected = options.clone();
+        let hold = rig.session.hold("sampler:prepared");
+        let worker = rig.session.background(move |session| {
+            session.dispatch(Command::SetPluginWrapper { target, options }, None)
+        });
+        hold.wait();
+        rig.session
+            .dispatch(
+                if opaque_state {
+                    Command::SetPluginState {
+                        target,
+                        state: vec![1, 2, 3],
+                    }
+                } else {
+                    Command::SetPluginParam {
+                        target,
+                        id: 1,
+                        value: 0.75,
+                    }
+                },
+                None,
+            )
+            .unwrap();
+        hold.release();
+        worker
+            .join()
+            .unwrap()
+            .expect("native parameter readback must not reject wrapper settings");
+        let project = rig.project();
+        let binding = project.plugin(target).unwrap();
+        assert_eq!(binding.wrapper, expected);
+        if opaque_state {
+            assert_eq!(binding.state, vec![1, 2, 3]);
+        } else {
+            assert_eq!(binding.parameters[0].value, 0.75);
+        }
+    }
+}
+
+#[test]
+fn plugin_settings_retry_rejects_other_edits_replacements_sources_and_providers() {
+    for interrupt in ["edit", "wrapper", "new", "source", "provider", "revision"] {
+        let rig = Rig::new();
+        let evidence = factory(&rig);
+        let effect = EffectId(rig.session.dispatch(add(), None).unwrap().created[0]);
+        let target = PluginTarget::Effect { effect };
+        let mut options = rig.project().plugin(target).unwrap().wrapper;
+        options.detached = !options.detached;
+        let hold = rig.session.hold("sampler:prepared");
+        let worker = rig.session.background(move |session| {
+            session.dispatch(Command::SetPluginWrapper { target, options }, None)
+        });
+        hold.wait();
+        // Make the candidate stale in the same way as native readback first.
+        rig.session
+            .dispatch(
+                Command::SetPluginParam {
+                    target,
+                    id: 1,
+                    value: 0.75,
+                },
+                None,
+            )
+            .unwrap();
+        match interrupt {
+            "edit" => {
+                rig.session.dispatch(name(), None).unwrap();
+            }
+            "wrapper" => {
+                let mut options = rig.project().plugin(target).unwrap().wrapper;
+                options.smart_disable = true;
+                rig.session
+                    .dispatch(Command::SetPluginWrapper { target, options }, None)
+                    .unwrap();
+            }
+            "new" => {
+                rig.session.project_new().unwrap();
+            }
+            "source" => {
+                rig.session.state().pool.insert(
+                    windfall_project::SampleId(999),
+                    windfall_core::AudioBuffer::from_interleaved(48_000, 1, vec![0.25; 10]),
+                );
+            }
+            "provider" => {
+                factory(&rig);
+            }
+            "revision" => {
+                evidence.revision.fetch_add(1, Ordering::Relaxed);
+            }
+            _ => unreachable!(),
+        }
+        let before = rig.session.document_snapshot();
+        hold.release();
+        assert!(worker.join().unwrap().is_err(), "{interrupt}");
+        assert_eq!(rig.session.document_snapshot(), before, "{interrupt}");
+    }
+}
+
+#[test]
+fn plugin_settings_parameter_retry_preserves_other_native_values_but_not_newer_same_control() {
+    for same_control in [false, true] {
+        let rig = Rig::new();
+        factory(&rig);
+        let mut command = add();
+        if let Command::AddPluginEffect { plugin, .. } = &mut command {
+            let mut parameter = plugin.parameters[0].clone();
+            parameter.id = 2;
+            plugin.parameters.push(parameter);
+        }
+        let target = PluginTarget::Effect {
+            effect: EffectId(rig.session.dispatch(command, None).unwrap().created[0]),
+        };
+        let hold = rig.session.hold("sampler:prepared");
+        let worker = rig.session.background(move |session| {
+            session.dispatch(
+                Command::SetPluginParam {
+                    target,
+                    id: 1,
+                    value: 0.8,
+                },
+                None,
+            )
+        });
+        hold.wait();
+        rig.session
+            .dispatch(
+                Command::SetPluginParam {
+                    target,
+                    id: if same_control { 1 } else { 2 },
+                    value: 0.75,
+                },
+                None,
+            )
+            .unwrap();
+        hold.release();
+        let result = worker.join().unwrap();
+        let project = rig.project();
+        let binding = project.plugin(target).unwrap();
+        if same_control {
+            assert!(result.is_err());
+            assert_eq!(binding.parameters[0].value, 0.75);
+        } else {
+            result.expect("another native control must not reject this parameter edit");
+            assert_eq!(binding.parameters[0].value, 0.8);
+            assert_eq!(binding.parameters[1].value, 0.75);
+        }
+    }
+}
+
+#[test]
 fn p1_session_blocked_constructor_leaves_control_document_and_recording_available_and_refuses_stale_commit()
  {
     for interrupt in [

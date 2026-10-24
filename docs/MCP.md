@@ -19,11 +19,35 @@ An agent connected to Windfall can:
 
 - **find sounds** in the folders of Windfall's browser, list the presets of a
   SoundFont there, and propose loading one into a channel.
+- **load native plugins** from the scanned plugin catalog, open their native
+  editors, and collect support reports when loading, editing or opening fails.
 
-It cannot open, save or delete files, reach the network, or change anything
-without your approval (unless you allow it, below). The only files it can
-name are those inside the folders in Windfall's browser and its factory
-content, and Windfall reads them for it.
+It cannot open, save or delete project files, reach the network, or change the
+document without your approval (unless you allow it, below). Sound files must
+be inside the folders in Windfall's browser or its factory content. Native
+plugin binaries must already be approved by a successful scan in the plugin
+manager. Windfall reads and loads them itself. Opening a plugin editor changes
+only its window and does not require a document proposal.
+
+## Native plugin troubleshooting
+
+Ask the AI to find the plugin with `list_plugins` and use the exact returned
+path and id with `add_plugin`. Instruments create a channel; effects take a
+destination `trackId`. Review and apply the proposal in Windfall, or allow a
+trusted agent to apply it. The AI can then read `get_project_summary` for the
+installed channel/effect id and call `plugin_editor` to open it.
+
+If anything fails, ask for the complete `get_plugin_diagnostics` JSON report.
+It includes the failed stage and error, app/platform and audio configuration,
+scanner results, plugin identity and wrapper settings, helper health, and the
+native editor's visibility, dimensions and screen bounds on Windows. The AI
+can supply `channelId` or `effectId` to focus the report on one installed
+plugin. The report also retains the last failed UI editor/settings attempt.
+Send it with the plugin's version and what you clicked. It includes relevant
+local plugin paths, but excludes credentials, song notes and opaque plugin
+state. Editor queries inspect the playback owner rather than creating another
+plugin instance. For plugins configured with an attached editor, open it once
+from Windfall's UI so the editor has its DAW owner window.
 
 ## Turning it on
 

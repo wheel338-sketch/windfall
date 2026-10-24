@@ -300,6 +300,35 @@ fn callback_guards_cover_startup_full_late_reset_saturation_and_failed_removal()
 }
 
 #[test]
+fn native_vst3_editor_report_confirms_visible_window_and_close_in_helper() {
+    let (control, _audio) = launch(
+        "vst3",
+        &vst_id(30),
+        Kind::Effect,
+        vec![gain("vst3")],
+        Duration::from_secs(2),
+    );
+    control
+        .editor_with_options(
+            true,
+            windfall_plugin_host::EditorOptions {
+                take_focus: false,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    assert!(control.editor_report().unwrap().0);
+    let report = control.editor_diagnostics().unwrap();
+    assert_eq!(report["open"], true);
+    assert_eq!(report["visible"], true);
+    assert_eq!(report["width"], 320);
+    assert!(report["bounds"].is_array());
+    control.editor(false).unwrap();
+    assert!(!control.editor_report().unwrap().0);
+    assert_eq!(control.editor_diagnostics().unwrap()["open"], false);
+}
+
+#[test]
 fn native_clap_vst3_healthy_audio_and_state_use_independent_helpers() {
     for format in ["clap", "vst3"] {
         let id = if format == "clap" {

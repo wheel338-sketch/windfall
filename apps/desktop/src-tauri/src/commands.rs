@@ -2081,7 +2081,6 @@ async fn plugins_add(
 async fn plugin_editor(
     app: AppHandle,
     session: State<'_, Session>,
-    manager: State<'_, std::sync::Arc<crate::plugins::PluginManager>>,
     target: windfall_project::PluginTarget,
     open: bool,
     window: tauri::WebviewWindow,
@@ -2109,20 +2108,8 @@ async fn plugin_editor(
         let _ = app;
         None
     };
-    let runtime = manager.runtime.clone();
     let session = session.inner().clone();
-    blocking(move || {
-        session.while_recording_idle(|| {
-            let binding = session
-                .document_snapshot()
-                .project
-                .plugin(target)
-                .cloned()
-                .ok_or("Plugin no longer exists")?;
-            runtime.editor_binding_with_parent(target, Some(binding), open, parent)
-        })
-    })
-    .await
+    blocking(move || session.change_plugin_editor(target, open, parent)).await
 }
 
 fn panel_title(id: &str) -> Result<&'static str, String> {

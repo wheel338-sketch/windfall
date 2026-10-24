@@ -282,10 +282,10 @@ impl Editor {
             let interface = frame.to_com_ptr::<IPlugFrame>().expect("frame");
             // SAFETY: all editor objects stay alive until removed/reset-frame.
             unsafe {
-                if view.setFrame(interface.as_ptr()) != kResultOk {
-                    view.setFrame(std::ptr::null_mut());
-                    return Err(EditorError::Failed("editor refused its frame".into()));
-                }
+                // Fixed-size views may leave frame callbacks unimplemented.
+                // Like the SDK editor host, let attachment determine whether
+                // the editor can open; retain the frame through removal either way.
+                view.setFrame(interface.as_ptr());
                 if view.attached(window.handle(), platform().as_ptr()) != kResultOk {
                     view.setFrame(std::ptr::null_mut());
                     return Err(EditorError::Failed("editor attach refused".into()));

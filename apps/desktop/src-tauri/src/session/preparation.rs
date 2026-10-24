@@ -171,6 +171,26 @@ impl ProjectPreparation {
 }
 
 impl ReadyProject {
+    /// Called only after the edit owner proves that intervening document
+    /// changes consist entirely of native state/parameter values.
+    pub(super) fn refresh_after_plugin_values(
+        &self,
+        session: &Session,
+        state: &State,
+    ) -> Option<ProjectPreparation> {
+        let before = &self.baseline;
+        if state.generation != before.generation
+            || state.replacements != before.replacements
+            || !state.pool.same_sources(&before.pool)
+            || state.loading != before.loading
+            || factory_stamp(&state.pool) != before.factory
+        {
+            return None;
+        }
+        let next = session.project_preparation(state);
+        before.engine.same_environment(&next.engine).then_some(next)
+    }
+
     pub(super) fn pool(&self) -> &SamplePool {
         self.ready.sampler_pool()
     }

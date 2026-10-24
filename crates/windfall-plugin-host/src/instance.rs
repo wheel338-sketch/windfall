@@ -520,6 +520,39 @@ impl PluginInstance {
         self.backend.editor()
     }
 
+    /// Native-owner observations for support reports. No window pointers or
+    /// plugin state cross this boundary; unavailable observations stay null.
+    pub fn editor_diagnostics(&self) -> serde_json::Value {
+        let editor = self.editor();
+        #[cfg_attr(not(windows), allow(unused_mut))]
+        let mut report = serde_json::json!({"hasEditor": self.has_editor(), "open": editor.is_some(),
+            "width": editor.map(|info| info.width), "height": editor.map(|info| info.height),
+            "visible": null, "minimized": null, "bounds": null});
+        #[cfg(windows)]
+        if let Some(window) = editor.and_then(|info| info.window) {
+            use windows_sys::Win32::UI::WindowsAndMessaging::{
+                GetWindowRect, IsIconic, IsWindowVisible,
+            };
+            let window = window as *mut std::ffi::c_void;
+            let mut bounds = windows_sys::Win32::Foundation::RECT {
+                left: 0,
+                top: 0,
+                right: 0,
+                bottom: 0,
+            };
+            // SAFETY: observation of this instance's live HWND on its GUI owner.
+            unsafe {
+                report["visible"] = serde_json::json!(IsWindowVisible(window) != 0);
+                report["minimized"] = serde_json::json!(IsIconic(window) != 0);
+                if GetWindowRect(window, &mut bounds) != 0 {
+                    report["bounds"] =
+                        serde_json::json!([bounds.left, bounds.top, bounds.right, bounds.bottom]);
+                }
+            }
+        }
+        report
+    }
+
     /// Main-thread native content scaling; no musical state or audio command.
     /// Refusal keeps the current editor alive at its previous scale.
     pub fn set_editor_scale(&mut self, application: f64) -> Result<EditorInfo, EditorError> {

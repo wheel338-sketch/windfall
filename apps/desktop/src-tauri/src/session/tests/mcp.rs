@@ -24,6 +24,110 @@ use crate::events::Event;
 
 const AGENT: &str = "session-agent";
 
+#[cfg(windows)]
+#[test]
+fn native_plugin_mcp_adds_vst3_opens_visible_editor_and_reports_failures() {
+    let mut rig = Rig::new();
+    let (runtime, binding) = crate::plugins::vst3_fixture(30);
+    let manager =
+        crate::plugins::PluginManager::fixture_runtime_entry(rig.folder.path(), runtime, &binding);
+    rig.session.install_plugins(manager);
+    let host = rig.session.mcp_test_host();
+    let listed = ok(&call(
+        &rig,
+        &host,
+        "list_plugins",
+        json!({"search":"Fixed Editor"}),
+    ));
+    assert_eq!(listed["total"], 1);
+    let proposed = ok(&call(
+        &rig,
+        &host,
+        "add_plugin",
+        json!({
+            "path":binding.path, "id":binding.id, "trackId":0,
+        }),
+    ));
+    assert_eq!(proposed["status"]["state"], "pending");
+    assert!(rig.project().plugins.is_empty());
+    let id = proposed["proposalId"].as_str().unwrap();
+    let status = rig
+        .session
+        .inner
+        .mcp
+        .server
+        .approvals()
+        .apply(&host, id, windfall_mcp::Approver::User)
+        .unwrap();
+    assert!(
+        matches!(status, windfall_mcp::Status::Applied { .. }),
+        "{status:?}"
+    );
+    rig.run(256);
+    let effect = match rig.project().plugins[0].target {
+        windfall_project::PluginTarget::Effect { effect } => effect.0,
+        _ => unreachable!(),
+    };
+    let opened = ok(&call(
+        &rig,
+        &host,
+        "plugin_editor",
+        json!({"effectId":effect}),
+    ));
+    let editor = &opened["report"]["editors"][0]["status"]["editor"];
+    assert_eq!(editor["open"], true);
+    assert_eq!(editor["visible"], true);
+    assert_eq!(editor["width"], 320);
+    assert!(editor["bounds"].is_array());
+    assert!(opened["report"]["bindings"][0].get("state").is_none());
+    let before = rig.session.document_snapshot();
+    let closed = ok(&call(
+        &rig,
+        &host,
+        "plugin_editor",
+        json!({"effectId":effect,"open":false}),
+    ));
+    assert_eq!(
+        closed["report"]["editors"][0]["status"]["editor"]["open"],
+        false
+    );
+    assert_eq!(rig.session.document_snapshot(), before);
+    let failed: Value = serde_json::from_str(&failure(&call(
+        &rig,
+        &host,
+        "plugin_editor",
+        json!({"effectId":u32::MAX}),
+    )))
+    .unwrap();
+    assert_eq!(failed["stage"], "editor");
+    assert_eq!(failed["error"], "Plugin no longer exists");
+    let report = ok(&call(&rig, &host, "get_plugin_diagnostics", json!({})));
+    assert_eq!(report["lastFailure"]["target"]["effect"], u32::MAX);
+    assert_eq!(report["lastFailure"]["error"], "Plugin no longer exists");
+
+    let snapshot = host.snapshot().unwrap();
+    let failed = host
+        .apply_native(
+            windfall_project::proposal::CommandProposal {
+                stamp: snapshot.stamp,
+                label: "Try missing native plugin".into(),
+                explanation: String::new(),
+                commands: vec![],
+            },
+            windfall_mcp::NativeEdit::Plugin {
+                path: "missing.vst3".into(),
+                id: "missing".into(),
+                name: "Missing".into(),
+                track: Some(windfall_project::TrackId(0)),
+            },
+        )
+        .unwrap_err();
+    let failed: Value = serde_json::from_str(&failed).unwrap();
+    assert_eq!(failed["stage"], "nativeDiscovery");
+    assert_eq!(failed["report"]["lastFailure"]["path"], "missing.vst3");
+    assert_eq!(rig.session.document_snapshot(), before);
+}
+
 fn modern(id: u64, method: &str, mut params: Value) -> Value {
     params["_meta"] = json!({
         (META_VERSION): MODERN,

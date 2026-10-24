@@ -29,7 +29,7 @@ fn cid(index: i32) -> TUID {
 }
 /// How many classes the factory offers. New ones are appended, so the
 /// positions and ids of the earlier ones do not move.
-const CLASSES: i32 = 30;
+const CLASSES: i32 = 31;
 /// The auxiliary input buses of the multi-detector class, after its main
 /// stereo bus: their names and speaker arrangements (left; left and right;
 /// left, right and both surrounds).
@@ -100,6 +100,7 @@ impl IPluginFactoryTrait for Factory {
                         "VST3 Volume Expression Probe",
                         "VST3 Live Expression Switch",
                         "VST3 Restarting Expression Switch",
+                        "VST3 Fixed Editor Without Frame",
                     ][index as usize],
                 ),
             });
@@ -126,7 +127,8 @@ impl IPluginFactoryTrait for Factory {
             let component = ComWrapper::new(Component {
                 dynamic: class == cid(25),
                 dynamic_mode: std::sync::atomic::AtomicU32::new(0),
-                editor: class == cid(0),
+                editor: class == cid(0) || class == cid(30),
+                optional_editor_frame: class == cid(30),
                 absurd: class == cid(1),
                 instrument: class == cid(2)
                     || class == cid(12)
@@ -248,6 +250,7 @@ impl IPluginFactory2Trait for Factory {
                         "VST3 Volume Expression Probe",
                         "VST3 Live Expression Switch",
                         "VST3 Restarting Expression Switch",
+                        "VST3 Fixed Editor Without Frame",
                     ][index as usize],
                 ),
                 classFlags: 0,
@@ -268,6 +271,7 @@ struct Component {
     dynamic: bool,
     dynamic_mode: std::sync::atomic::AtomicU32,
     editor: bool,
+    optional_editor_frame: bool,
     sidechain: bool,
     /// Three auxiliary inputs of one, two and four channels. The output
     /// carries each of their channels with the marks of the CLAP fixture.
@@ -1396,7 +1400,11 @@ impl IEditControllerTrait for Component {
                 return ptr::null_mut();
             }
             // The view keeps its own references, never a borrowed Component pointer.
-            editor::create(self.gain.clone(), unsafe { (&*self.handler.get()).clone() })
+            editor::create(
+                self.gain.clone(),
+                unsafe { (&*self.handler.get()).clone() },
+                self.optional_editor_frame,
+            )
         }
         #[cfg(not(windows))]
         {

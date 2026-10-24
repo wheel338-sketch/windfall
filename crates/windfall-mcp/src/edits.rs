@@ -267,6 +267,14 @@ pub fn native_preview(
     }
     let mut candidate = snapshot.document.clone();
     let mut created_ids = Vec::new();
+    if let NativeEdit::Plugin { track, .. } = native {
+        if !proposal.commands.is_empty() {
+            return Err("a native plugin load must be its own proposal".into());
+        }
+        if let Some(track) = track {
+            summary::track_of(candidate.project(), track.0)?;
+        }
+    }
     if !proposal.commands.is_empty() {
         let applied = candidate
             .dispatch(proposal.batch()?, None)

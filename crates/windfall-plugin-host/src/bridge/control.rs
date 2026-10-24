@@ -202,12 +202,16 @@ pub enum Message {
     EditorScale {
         application: f64,
     },
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
     EditorStatus,
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
+    EditorDiagnostics,
+    #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
     EditorReport {
         open: bool,
         refused: Option<[f64; 2]>,
+        #[serde(default)]
+        diagnostics: serde_json::Value,
     },
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]

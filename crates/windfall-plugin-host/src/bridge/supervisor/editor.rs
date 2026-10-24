@@ -17,7 +17,7 @@ impl Control {
             .call(Message::EditorStatus, Duration::from_secs(2))?
             .body
         {
-            Message::EditorReport { open, refused } => Ok((open, refused)),
+            Message::EditorReport { open, refused, .. } => Ok((open, refused)),
             Message::Error { message } => Err(message),
             _ => Err("unexpected helper editor status response".into()),
         }

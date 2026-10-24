@@ -128,6 +128,12 @@ impl Session {
         command: Command,
         gesture: Option<u64>,
     ) -> Result<DispatchResult, String> {
+        let plugin_target = match &command {
+            Command::SetPluginWrapper { target, .. }
+            | Command::SetPluginParam { target, .. }
+            | Command::SetPluginState { target, .. } => Some(*target),
+            _ => None,
+        };
         self.check_native_note_settings(&command)?;
         // What the command is about to set, for linking the control last
         // moved and for recording the movement as automation.
@@ -136,6 +142,8 @@ impl Session {
         let result = self.dispatch_quiet(command, gesture);
         if result.is_ok() {
             self.controller_tweaked(&tweaks);
+        } else if let (Some(target), Err(error)) = (plugin_target, &result) {
+            self.remember_plugin_failure("pluginSettings", Some(target), None, error);
         }
         result
     }

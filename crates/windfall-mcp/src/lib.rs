@@ -25,14 +25,15 @@ pub mod http;
 pub mod library;
 pub mod listen;
 pub mod music;
+mod plugins;
 pub mod protocol;
 pub mod summary;
 pub mod tools;
 
 pub use approvals::{Approvals, Approver, Entry, Preview, Status};
 pub use host::{
-    ChannelPresetInfo, Focus, Host, LibraryFile, LibraryPage, NO_FILES, NativeEdit, RenderRegion,
-    RenderRequest, RenderedAudio, Snapshot, SoundFontPreset, Transport,
+    ChannelPresetInfo, Focus, Host, LibraryFile, LibraryPage, NO_FILES, NativeEdit, PluginInfo,
+    RenderRegion, RenderRequest, RenderedAudio, Snapshot, SoundFontPreset, Transport,
 };
 pub use protocol::Server;
 

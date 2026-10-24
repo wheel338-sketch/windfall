@@ -112,6 +112,20 @@ pub struct ChannelPresetInfo {
     pub instrument: String,
 }
 
+/// Scanner-approved native plugin metadata; never opaque plugin state.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginInfo {
+    pub path: String,
+    pub id: String,
+    pub format: String,
+    pub name: String,
+    pub vendor: String,
+    pub instrument: bool,
+    pub usable: bool,
+    pub error: Option<String>,
+}
+
 /// What a proposal does besides its commands: an edit only Windfall itself
 /// can make, because it reads a file. The agent names the file; Windfall
 /// checks it is inside the browser's folders before the proposal is filed,
@@ -119,6 +133,13 @@ pub struct ChannelPresetInfo {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum NativeEdit {
+    /// Discover and add a catalog entry only when its proposal is applied.
+    Plugin {
+        path: String,
+        id: String,
+        name: String,
+        track: Option<TrackId>,
+    },
     /// Load one preset of a SoundFont into a channel's SoundFont player.
     /// With `replace_instrument` the channel's instrument becomes a
     /// SoundFont player first, in the same undo step.
@@ -144,6 +165,27 @@ pub enum NativeEdit {
 pub const NO_FILES: &str = "this Windfall offers no files to agents";
 
 pub trait Host: Send + Sync {
+    fn plugins(&self) -> Result<Vec<PluginInfo>, String> {
+        Err("Native plugin hosting is unavailable in this Windfall host".into())
+    }
+
+    fn plugin_diagnostics(
+        &self,
+        target: Option<windfall_project::PluginTarget>,
+    ) -> Result<serde_json::Value, String> {
+        let _ = target;
+        Err("Native plugin diagnostics are unavailable in this Windfall host".into())
+    }
+
+    fn plugin_editor(
+        &self,
+        target: windfall_project::PluginTarget,
+        open: bool,
+    ) -> Result<serde_json::Value, String> {
+        let _ = (target, open);
+        Err("Native plugin editors are unavailable in this Windfall host".into())
+    }
+
     fn snapshot(&self) -> Result<Snapshot, String>;
 
     fn focus(&self) -> Focus;

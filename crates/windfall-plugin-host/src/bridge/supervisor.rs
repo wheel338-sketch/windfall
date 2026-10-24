@@ -334,6 +334,28 @@ impl Control {
     pub fn editor(&self, open: bool) -> Result<(), String> {
         self.editor_with_options(open, crate::EditorOptions::default())
     }
+    #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
+    pub fn editor_diagnostics(&self) -> Result<serde_json::Value, String> {
+        match self
+            .call(Message::EditorDiagnostics, Duration::from_secs(2))?
+            .body
+        {
+            Message::EditorReport { diagnostics, .. } => Ok(diagnostics),
+            Message::Error { message } => Err(message),
+            _ => Err("unexpected helper editor status response".into()),
+        }
+    }
+    #[cfg(windows)]
+    pub fn editor_report(&self) -> Result<(bool, Option<[f64; 2]>), String> {
+        match self
+            .call(Message::EditorStatus, Duration::from_secs(2))?
+            .body
+        {
+            Message::EditorReport { open, refused, .. } => Ok((open, refused)),
+            Message::Error { message } => Err(message),
+            _ => Err("unexpected helper editor status response".into()),
+        }
+    }
     /// Called only after the desktop callback/facade is destroyed. The helper
     /// releases native notes and deactivates on its GUI/native owner, then the
     /// supervisor confirms exit. A nonanswer is contained by the same deadline.

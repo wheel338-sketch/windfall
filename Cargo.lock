@@ -5492,7 +5492,7 @@ checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 
 [[package]]
 name = "windfall-analysis"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "ort",
  "rustfft",
@@ -5508,7 +5508,7 @@ dependencies = [
 
 [[package]]
 name = "windfall-archive"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "crc32fast",
  "flate2",
@@ -5523,7 +5523,7 @@ dependencies = [
 
 [[package]]
 name = "windfall-codec"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "mp3lame-encoder",
  "symphonia",
@@ -5535,11 +5535,11 @@ dependencies = [
 
 [[package]]
 name = "windfall-core"
-version = "1.0.3"
+version = "1.0.4"
 
 [[package]]
 name = "windfall-desktop"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "chrono",
  "dunce",
@@ -5580,7 +5580,7 @@ dependencies = [
 
 [[package]]
 name = "windfall-dsp"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "serde",
  "serde_json",
@@ -5590,7 +5590,7 @@ dependencies = [
 
 [[package]]
 name = "windfall-engine"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "cpal",
  "midir",
@@ -5606,7 +5606,7 @@ dependencies = [
 
 [[package]]
 name = "windfall-factory"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "hound",
  "windfall-core",
@@ -5614,7 +5614,7 @@ dependencies = [
 
 [[package]]
 name = "windfall-flp"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "proptest",
  "serde",
@@ -5627,7 +5627,7 @@ dependencies = [
 
 [[package]]
 name = "windfall-ipc"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "serde",
  "serde_json",
@@ -5640,7 +5640,7 @@ dependencies = [
 
 [[package]]
 name = "windfall-mcp"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "serde",
  "serde_json",
@@ -5653,7 +5653,7 @@ dependencies = [
 
 [[package]]
 name = "windfall-midi"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "proptest",
  "tempfile",
@@ -5663,7 +5663,7 @@ dependencies = [
 
 [[package]]
 name = "windfall-plugin"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "clap-sys",
  "serde",
@@ -5679,7 +5679,7 @@ dependencies = [
 
 [[package]]
 name = "windfall-plugin-host"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "clack-extensions",
  "clack-host",
@@ -5697,7 +5697,7 @@ dependencies = [
 
 [[package]]
 name = "windfall-project"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "proptest",
  "serde",
@@ -5711,7 +5711,7 @@ dependencies = [
 
 [[package]]
 name = "windfall-sim"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "serde",
  "serde_json",
@@ -5724,7 +5724,7 @@ dependencies = [
 
 [[package]]
 name = "windfall-stretch"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "rustfft",
  "windfall-core",

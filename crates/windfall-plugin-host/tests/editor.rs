@@ -253,6 +253,35 @@ fn native_content_scale_resizes_restores_reopens_and_keeps_refused_editor_alive(
 }
 
 #[test]
+fn fixed_vst3_editor_without_optional_frame_opens_a_visible_window() {
+    let path = common::plugin_file("vst3-optional-frame", "fixture.vst3");
+    let module = windfall_plugin_host::PluginHost::windfall()
+        .load(&path)
+        .unwrap();
+    let descriptor = module
+        .descriptors()
+        .into_iter()
+        .find(|descriptor| descriptor.name == "VST3 Fixed Editor Without Frame")
+        .unwrap();
+    let mut instance = module.create(&descriptor.id).unwrap();
+    assert!(instance.has_editor());
+    for _ in 0..2 {
+        let editor = instance
+            .open_editor(&EditorOptions {
+                take_focus: false,
+                ..Default::default()
+            })
+            .expect("a fixed editor can attach without implementing host resize callbacks");
+        let window = editor.window.unwrap() as *mut std::ffi::c_void;
+        assert_eq!((editor.width, editor.height), (320, 200));
+        assert!(!editor.resizable);
+        assert_ne!(unsafe { IsWindowVisible(window) }, 0);
+        instance.close_editor();
+        assert_eq!(unsafe { IsWindow(window) }, 0);
+    }
+}
+
+#[test]
 fn native_editor_opens_pumps_resizes_and_closes() {
     let (_module, mut instance) = common::create(common::GAIN);
     let info = instance

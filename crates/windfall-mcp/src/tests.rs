@@ -244,6 +244,40 @@ impl Host for Fixture {
                 .map_err(|e| e.to_string())?;
         }
         match edit {
+            NativeEdit::Plugin {
+                path,
+                id,
+                name,
+                track,
+            } => {
+                if id == "broken" {
+                    return Err(json!({"stage":"nativeDiscovery", "error":"fixture editor/controller failed", "report":{"windfallVersion":"test"}}).to_string());
+                }
+                let plugin = windfall_project::PluginBinding {
+                    capabilities: Default::default(),
+                    wrapper: Default::default(),
+                    target: track.map_or(
+                        windfall_project::PluginTarget::Instrument {
+                            channel: ChannelId(0),
+                        },
+                        |_| windfall_project::PluginTarget::Effect {
+                            effect: windfall_project::EffectId(0),
+                        },
+                    ),
+                    path,
+                    id,
+                    name,
+                    format: "vst3".into(),
+                    state: vec![],
+                    parameters: vec![],
+                    sidechain_input: None,
+                    auxiliary_inputs: vec![],
+                };
+                commands.push(match track {
+                    Some(track) => Command::AddPluginEffect { track, plugin },
+                    None => Command::AddPluginInstrument { plugin },
+                });
+            }
             NativeEdit::SoundFont {
                 channel,
                 path,
@@ -295,6 +329,48 @@ impl Host for Fixture {
             ));
         }
         Ok(path)
+    }
+
+    fn plugins(&self) -> Result<Vec<crate::PluginInfo>, String> {
+        Ok([
+            ("orchestra", "Orchestra", true, true),
+            ("effect", "Effect", false, true),
+            ("blocked", "Blocked Orchestra", true, false),
+            ("broken", "Broken Orchestra", true, true),
+        ]
+        .into_iter()
+        .map(|(id, name, instrument, usable)| crate::PluginInfo {
+            path: format!("C:/VST3/{id}.vst3"),
+            id: id.into(),
+            format: "vst3".into(),
+            name: name.into(),
+            vendor: "Fixture".into(),
+            instrument,
+            usable,
+            error: (!usable).then(|| "scanner rejected fixture".into()),
+        })
+        .collect())
+    }
+
+    fn plugin_diagnostics(
+        &self,
+        target: Option<windfall_project::PluginTarget>,
+    ) -> Result<Value, String> {
+        Ok(
+            json!({"reportVersion":1, "windfallVersion":"test", "requestedTarget":target, "lastFailure":{"stage":"editorOpen", "error":"attach refused"}}),
+        )
+    }
+
+    fn plugin_editor(
+        &self,
+        target: windfall_project::PluginTarget,
+        open: bool,
+    ) -> Result<Value, String> {
+        Err(
+            json!({"ok":false, "stage":"editor", "error":"attach refused", "openRequested":open,
+            "report":self.plugin_diagnostics(Some(target))?})
+            .to_string(),
+        )
     }
 
     fn soundfont_presets(&self, path: &str) -> Result<Vec<SoundFontPreset>, String> {
@@ -429,6 +505,138 @@ fn pending_commands(server: &Server, id: &str) -> Vec<Command> {
 
 fn setup() -> (Server, Fixture) {
     (Server::new("1.0.1-test"), Fixture::new())
+}
+
+#[test]
+fn native_plugin_tools_list_filter_and_propose_without_loading_before_approval() {
+    let (server, host) = setup();
+    let listed = ok(&call(
+        &server,
+        &host,
+        "list_plugins",
+        json!({"search":"orchestra", "limit":1}),
+    ));
+    assert_eq!(listed["total"], 3);
+    assert_eq!(listed["items"][0]["id"], "orchestra");
+    assert_eq!(listed["nextOffset"], 1);
+    let before = host.project();
+    let proposed = ok(&call(
+        &server,
+        &host,
+        "add_plugin",
+        json!({"path":"C:/VST3/orchestra.vst3", "id":"orchestra"}),
+    ));
+    assert_eq!(proposed["status"]["state"], "pending");
+    assert_eq!(host.project(), before);
+    let id = proposed["proposalId"].as_str().unwrap();
+    assert!(matches!(
+        server.approvals().get(id).unwrap().native,
+        Some(NativeEdit::Plugin { .. })
+    ));
+    let status = server.approvals().apply(&host, id, Approver::User).unwrap();
+    assert!(matches!(status, Status::Applied { .. }));
+    assert_eq!(host.project().plugins.len(), before.plugins.len() + 1);
+    assert_eq!(host.project().plugins.last().unwrap().id, "orchestra");
+}
+
+#[test]
+fn native_plugin_tools_enforce_scan_role_recording_and_stale_proposals() {
+    let (server, host) = setup();
+    for (args, message) in [
+        (
+            json!({"path":"C:/unknown.vst3", "id":"orchestra"}),
+            "scanned catalog",
+        ),
+        (
+            json!({"path":"C:/VST3/blocked.vst3", "id":"blocked"}),
+            "scanner rejected",
+        ),
+        (
+            json!({"path":"C:/VST3/effect.vst3", "id":"effect"}),
+            "effects require",
+        ),
+        (
+            json!({"path":"C:/VST3/orchestra.vst3", "id":"orchestra", "trackId":host.ids.bass_track.0}),
+            "omit trackId",
+        ),
+    ] {
+        assert!(failure(&call(&server, &host, "add_plugin", args)).contains(message));
+    }
+    let proposed = ok(&call(
+        &server,
+        &host,
+        "add_plugin",
+        json!({"path":"C:/VST3/orchestra.vst3", "id":"orchestra"}),
+    ));
+    host.apply(CommandProposal {
+        stamp: host.snapshot().unwrap().stamp,
+        label: "Move project".into(),
+        explanation: String::new(),
+        commands: vec![Command::SetInstrumentParam {
+            channel: host.ids.bass,
+            param: 0,
+            value: 0.25,
+        }],
+    })
+    .unwrap();
+    let status = server
+        .approvals()
+        .apply(
+            &host,
+            proposed["proposalId"].as_str().unwrap(),
+            Approver::User,
+        )
+        .unwrap();
+    assert!(matches!(status, Status::Failed { .. }));
+    host.recording.store(true, Ordering::Relaxed);
+    assert!(
+        failure(&call(
+            &server,
+            &host,
+            "add_plugin",
+            json!({"path":"C:/VST3/orchestra.vst3", "id":"orchestra"})
+        ))
+        .contains("recording")
+    );
+}
+
+#[test]
+fn native_plugin_tools_expose_shareable_load_and_editor_failure_details() {
+    let (server, host) = setup();
+    server.approvals().set_trusted(AGENT, true);
+    let failed = ok(&call(
+        &server,
+        &host,
+        "add_plugin",
+        json!({"path":"C:/VST3/broken.vst3", "id":"broken"}),
+    ));
+    assert_eq!(failed["status"]["state"], "failed");
+    let report: Value = serde_json::from_str(failed["status"]["error"].as_str().unwrap()).unwrap();
+    assert_eq!(report["stage"], "nativeDiscovery");
+    assert_eq!(report["report"]["windfallVersion"], "test");
+    let report: Value = serde_json::from_str(&failure(&call(
+        &server,
+        &host,
+        "plugin_editor",
+        json!({"channelId":host.ids.bass.0}),
+    )))
+    .unwrap();
+    assert_eq!(report["error"], "attach refused");
+    assert_eq!(report["report"]["lastFailure"]["stage"], "editorOpen");
+    assert!(failure(&call(&server, &host, "plugin_editor", json!({}))).contains("exactly one"));
+    assert!(
+        failure(&call(
+            &server,
+            &host,
+            "plugin_editor",
+            json!({"channelId":1,"effectId":2})
+        ))
+        .contains("exactly one")
+    );
+    assert_eq!(
+        ok(&call(&server, &host, "get_plugin_diagnostics", json!({})))["reportVersion"],
+        1
+    );
 }
 
 // --- Protocol --------------------------------------------------------------

@@ -18,6 +18,7 @@ pub use stdio::entry as stdio_entry;
 
 /// The server's state for the session's life.
 pub struct Service {
+    pub(crate) plugin_failure: Mutex<Option<serde_json::Value>>,
     pub(crate) server: Arc<Server>,
     listener: Mutex<Option<listener::Listener>>,
     /// Held while the server is turned on, off or moved to another port.
@@ -37,6 +38,7 @@ pub struct Service {
 impl Default for Service {
     fn default() -> Self {
         Self {
+            plugin_failure: Mutex::new(None),
             server: Arc::new(Server::new(env!("CARGO_PKG_VERSION"))),
             listener: Mutex::new(None),
             configuring: Mutex::new(()),

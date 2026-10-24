@@ -90,6 +90,7 @@ unsafe extern "system" fn procedure(hwnd: HWND, message: u32, wp: WPARAM, lp: LP
     }
 }
 struct View {
+    optional_frame: bool,
     control: Box<Control>,
     window: Cell<HWND>,
     size: Cell<(i32, i32)>,
@@ -101,8 +102,10 @@ impl Class for View {
 pub(super) fn create(
     gain: Arc<AtomicU64>,
     handler: Option<ComPtr<IComponentHandler>>,
+    optional_frame: bool,
 ) -> *mut IPlugView {
     ComWrapper::new(View {
+        optional_frame,
         control: Box::new(Control { gain, handler }),
         window: Cell::new(ptr::null_mut()),
         size: Cell::new((320, 200)),
@@ -262,10 +265,16 @@ impl IPlugViewTrait for View {
         kResultOk
     }
     unsafe fn setFrame(&self, frame: *mut IPlugFrame) -> tresult {
+        if self.optional_frame {
+            return kNotImplemented;
+        }
         self.frame.set(frame);
         kResultOk
     }
     unsafe fn canResize(&self) -> tresult {
+        if self.optional_frame {
+            return kResultFalse;
+        }
         kResultOk
     }
     unsafe fn checkSizeConstraint(&self, rect: *mut ViewRect) -> tresult {
@@ -284,6 +293,9 @@ impl IPlugViewTrait for View {
 }
 impl IPlugViewContentScaleSupportTrait for View {
     unsafe fn setContentScaleFactor(&self, factor: f32) -> tresult {
+        if self.optional_frame {
+            return kNotImplemented;
+        }
         if !factor.is_finite() || !(0.25..=8.0).contains(&factor) {
             return kInvalidArgument;
         }
