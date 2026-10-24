@@ -124,6 +124,9 @@ impl IPlugViewTrait for View {
         }
     }
     unsafe fn attached(&self, parent: *mut c_void, kind: FIDString) -> tresult {
+        if self.optional_frame && self.control.gain.load(Ordering::Relaxed) == 0.25_f64.to_bits() {
+            return kResultFalse;
+        }
         if parent.is_null()
             || !self.window.get().is_null()
             || unsafe { self.isPlatformTypeSupported(kind) } != kResultOk
@@ -217,6 +220,9 @@ impl IPlugViewTrait for View {
         kResultFalse
     }
     unsafe fn getSize(&self, rect: *mut ViewRect) -> tresult {
+        if self.optional_frame && self.control.gain.load(Ordering::Relaxed) == 0.125_f64.to_bits() {
+            return kResultFalse;
+        }
         if rect.is_null() {
             return kInvalidArgument;
         }

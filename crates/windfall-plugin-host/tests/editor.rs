@@ -282,6 +282,37 @@ fn fixed_vst3_editor_without_optional_frame_opens_a_visible_window() {
 }
 
 #[test]
+fn native_vst3_editor_errors_name_the_failed_call_and_native_result() {
+    let path = common::plugin_file("vst3-view-errors", "fixture.vst3");
+    let module = windfall_plugin_host::PluginHost::windfall()
+        .load(&path)
+        .unwrap();
+    let descriptor = module
+        .descriptors()
+        .into_iter()
+        .find(|descriptor| descriptor.name == "VST3 Fixed Editor Without Frame")
+        .unwrap();
+    let mut instance = module.create(&descriptor.id).unwrap();
+    for (value, method) in [
+        (0.25, "IPlugView::getSize"),
+        (0.5, "IPlugView::attached(HWND)"),
+    ] {
+        assert!(instance.set_param(7, value));
+        let EditorError::Failed(error) =
+            instance.open_editor(&EditorOptions::default()).unwrap_err()
+        else {
+            panic!("native view refusal must preserve a detailed failure");
+        };
+        assert!(error.contains(method), "{error}");
+        assert!(
+            error.contains(&format!("result {}", vst3::Steinberg::kResultFalse)),
+            "{error}"
+        );
+        assert!(instance.editor().is_none());
+    }
+}
+
+#[test]
 fn native_editor_opens_pumps_resizes_and_closes() {
     let (_module, mut instance) = common::create(common::GAIN);
     let info = instance
