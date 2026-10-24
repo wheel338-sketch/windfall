@@ -172,10 +172,11 @@ impl Editor {
                 right: 0,
                 bottom: 0,
             };
-            if unsafe { self.view.getSize(&mut rect) } != kResultOk {
-                return Err(EditorError::Failed(
-                    "scaled editor did not supply a size".into(),
-                ));
+            let result = unsafe { self.view.getSize(&mut rect) };
+            if result != kResultOk {
+                return Err(EditorError::Failed(format!(
+                    "VST3 IPlugView::getSize after scaling failed (result {result})"
+                )));
             }
             let (width, height) = dimensions(&rect)
                 .ok_or_else(|| EditorError::Failed("invalid scaled editor dimensions".into()))?;
@@ -240,11 +241,18 @@ impl Editor {
                 right: 0,
                 bottom: 0,
             };
-            if unsafe { view.getSize(&mut rect) } != kResultOk {
-                return Err(EditorError::Failed("editor did not supply a size".into()));
+            let result = unsafe { view.getSize(&mut rect) };
+            if result != kResultOk {
+                return Err(EditorError::Failed(format!(
+                    "VST3 IPlugView::getSize failed (result {result})"
+                )));
             }
-            let (width, height) = dimensions(&rect)
-                .ok_or_else(|| EditorError::Failed("invalid editor dimensions".into()))?;
+            let (width, height) = dimensions(&rect).ok_or_else(|| {
+                EditorError::Failed(format!(
+                    "VST3 IPlugView::getSize returned invalid bounds ({}, {}, {}, {})",
+                    rect.left, rect.top, rect.right, rect.bottom
+                ))
+            })?;
             let resizable = unsafe { view.canResize() } == kResultOk;
             let size = Rc::new(Size {
                 width: Cell::new(width),
@@ -286,9 +294,13 @@ impl Editor {
                 // Like the SDK editor host, let attachment determine whether
                 // the editor can open; retain the frame through removal either way.
                 view.setFrame(interface.as_ptr());
-                if view.attached(window.handle(), platform().as_ptr()) != kResultOk {
+                let result = view.attached(window.handle(), platform().as_ptr());
+                if result != kResultOk {
                     view.setFrame(std::ptr::null_mut());
-                    return Err(EditorError::Failed("editor attach refused".into()));
+                    return Err(EditorError::Failed(format!(
+                        "VST3 IPlugView::attached({}) failed (result {result})",
+                        platform().to_string_lossy()
+                    )));
                 }
             }
             window.show(options.take_focus);
